@@ -6,7 +6,7 @@
 <div class="mb-6 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-900">Receipts</h1>
     @role('admin|agent')
-    <a href="{{ route('transactions.create') }}" class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">New Transaction</a>
+    <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Transaction</a>
     @endrole
 </div>
 
@@ -14,7 +14,7 @@
     <form method="GET" action="{{ route('receipts.index') }}" class="flex gap-4">
         <input type="text" name="search" value="{{ request('search') }}" placeholder="Search receipt number..."
             class="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm">
-        <button type="submit" class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Search</button>
+        <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Search</button>
         <a href="{{ route('receipts.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Clear</a>
     </form>
 </div>
@@ -36,7 +36,7 @@
         <tbody class="bg-white divide-y divide-gray-200">
             @forelse($receipts as $r)
             <tr>
-                <td class="px-6 py-4 text-sm font-medium text-blue-800">{{ $r->receipt_number }}</td>
+                <td class="px-6 py-4 text-sm font-medium text-green-800">{{ $r->receipt_number }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $r->sender_name }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $r->receiver_name }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $r->currency }} {{ number_format($r->amount, 2) }}</td>
@@ -44,8 +44,8 @@
                 <td class="px-6 py-4 text-sm text-gray-900">${{ number_format($r->charge_amount, 2) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-500">{{ $r->created_at->format('M d, Y H:i') }}</td>
                 <td class="px-6 py-4 text-sm">
-                    <a href="{{ route('receipts.show', $r->receipt_number) }}" class="text-blue-600 hover:text-blue-800 mr-2">View</a>
-                    <a href="{{ route('receipts.print', $r->receipt_number) }}" target="_blank" class="text-blue-600 hover:text-blue-800">Print</a>
+                    <a href="{{ route('receipts.show', $r->receipt_number) }}" class="text-green-600 hover:text-green-800 mr-2">View</a>
+                    <a href="{{ route('receipts.print', $r->receipt_number) }}" target="_blank" class="text-green-600 hover:text-green-800">Print</a>
                 </td>
             </tr>
             @empty

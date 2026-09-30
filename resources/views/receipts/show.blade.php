@@ -10,7 +10,7 @@
     </div>
     <div class="flex gap-2">
         <a href="{{ route('receipts.print', $transaction->receipt_number) }}" target="_blank"
-            class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Print Receipt</a>
+            class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Print Receipt</a>
         <a href="{{ route('transactions.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Back</a>
     </div>
 </div>
@@ -19,11 +19,11 @@
     {{-- Header --}}
     <div class="flex justify-between items-start mb-6 border-b pb-4">
         <div>
-            <h2 class="text-2xl font-bold text-blue-800">PLUSPAY</h2>
+            <h2 class="text-2xl font-bold text-green-800">PLUSPAY</h2>
             <p class="text-sm text-gray-600">Plus Save Financial Solutions</p>
         </div>
         <div class="text-right">
-            <div class="bg-blue-800 text-white px-4 py-1 rounded text-sm font-bold inline-block">RECEIPT</div>
+            <div class="bg-green-800 text-white px-4 py-1 rounded text-sm font-bold inline-block">RECEIPT</div>
             <p class="mt-2 text-sm"><span class="text-gray-500">No.:</span> <span class="font-bold text-red-600 text-lg">{{ $transaction->receipt_number }}</span></p>
             <p class="text-sm"><span class="text-gray-500">Date:</span> {{ $transaction->created_at->format('M d, Y') }}</p>
         </div>
@@ -72,7 +72,7 @@
     {{-- Status --}}
     <div class="mb-6">
         <span class="px-3 py-1 text-sm rounded-full font-medium
-            @if($transaction->status === 'completed') bg-blue-100 text-blue-800
+            @if($transaction->status === 'completed') bg-green-100 text-green-800
             @elseif($transaction->status === 'pending') bg-yellow-100 text-yellow-800
             @else bg-red-100 text-red-800 @endif">
             Status: {{ ucfirst($transaction->status) }}

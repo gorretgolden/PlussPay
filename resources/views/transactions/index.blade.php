@@ -6,7 +6,7 @@
 <div class="mb-6 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-900">Transactions</h1>
     @role('admin|agent')
-    <a href="{{ route('transactions.create') }}" class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">New Transaction</a>
+    <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Transaction</a>
     @endrole
 </div>
 
@@ -37,20 +37,20 @@
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
         </div>
         <div class="flex items-end gap-2">
-            <button type="submit" class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Filter</button>
+            <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Filter</button>
             <a href="{{ route('transactions.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Clear</a>
         </div>
     </form>
     <div class="flex gap-2 mt-3 pt-3 border-t border-gray-200">
         <span class="text-sm text-gray-500 self-center mr-1">Quick:</span>
         <a href="{{ route('transactions.index', ['date_from' => today()->toDateString(), 'date_to' => today()->toDateString(), 'search' => request('search'), 'status' => request('status')]) }}"
-            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === today()->toDateString() ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Today</a>
+            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === today()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Today</a>
         <a href="{{ route('transactions.index', ['date_from' => today()->subDay()->toDateString(), 'date_to' => today()->subDay()->toDateString(), 'search' => request('search'), 'status' => request('status')]) }}"
-            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === today()->subDay()->toDateString() ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Yesterday</a>
+            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === today()->subDay()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Yesterday</a>
         <a href="{{ route('transactions.index', ['date_from' => now()->startOfMonth()->toDateString(), 'date_to' => now()->toDateString(), 'search' => request('search'), 'status' => request('status')]) }}"
-            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === now()->startOfMonth()->toDateString() ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">This Month</a>
+            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === now()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">This Month</a>
         <a href="{{ route('transactions.index', ['date_from' => now()->subMonth()->startOfMonth()->toDateString(), 'date_to' => now()->subMonth()->endOfMonth()->toDateString(), 'search' => request('search'), 'status' => request('status')]) }}"
-            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === now()->subMonth()->startOfMonth()->toDateString() ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Last Month</a>
+            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === now()->subMonth()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Last Month</a>
     </div>
 </div>
 
@@ -72,7 +72,7 @@
         <tbody class="bg-white divide-y divide-gray-200">
             @forelse($transactions as $t)
             <tr>
-                <td class="px-6 py-4 text-sm font-medium text-blue-800">
+                <td class="px-6 py-4 text-sm font-medium text-green-800">
                     <a href="{{ route('receipts.show', $t->receipt_number) }}">{{ $t->receipt_number }}</a>
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
@@ -82,7 +82,7 @@
                 <td class="px-6 py-4 text-sm text-gray-900">${{ number_format($t->charge_amount, 2) }}</td>
                 <td class="px-6 py-4">
                     <span class="px-2 py-1 text-xs rounded-full
-                        @if($t->status === 'completed') bg-blue-100 text-blue-800
+                        @if($t->status === 'completed') bg-green-100 text-green-800
                         @elseif($t->status === 'pending') bg-yellow-100 text-yellow-800
                         @else bg-red-100 text-red-800 @endif">
                         {{ ucfirst($t->status) }}
@@ -90,8 +90,8 @@
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-500">{{ $t->created_at->format('M d, Y H:i') }}</td>
                 <td class="px-6 py-4 text-sm whitespace-nowrap">
-                    <a href="{{ route('receipts.show', $t->receipt_number) }}" class="text-blue-600 hover:text-blue-800 mr-2">View</a>
-                    <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="text-blue-600 hover:text-blue-800 mr-2">Print</a>
+                    <a href="{{ route('receipts.show', $t->receipt_number) }}" class="text-green-600 hover:text-green-800 mr-2">View</a>
+                    <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="text-green-600 hover:text-green-800 mr-2">Print</a>
                     @role('admin')
                     <form method="POST" action="{{ route('transactions.update-status', $t) }}" class="inline">
                         @csrf

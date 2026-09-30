@@ -46,7 +46,7 @@
         </div>
 
         <div class="flex gap-4">
-            <button type="submit" class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Create User</button>
+            <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Create User</button>
             <a href="{{ route('users.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Cancel</a>
         </div>
     </form>

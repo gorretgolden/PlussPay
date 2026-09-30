@@ -48,13 +48,13 @@
         <div class="mb-4">
             <label class="flex items-center">
                 <input type="checkbox" name="is_active" value="1" {{ $user->is_active ? 'checked' : '' }}
-                    class="rounded border-gray-300 text-blue-600">
+                    class="rounded border-gray-300 text-green-600">
                 <span class="ml-2 text-sm text-gray-700">Active</span>
             </label>
         </div>
 
         <div class="flex gap-4">
-            <button type="submit" class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Update User</button>
+            <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Update User</button>
             <a href="{{ route('users.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Cancel</a>
         </div>
     </form>

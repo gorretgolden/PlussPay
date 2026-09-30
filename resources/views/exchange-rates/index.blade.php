@@ -34,7 +34,7 @@
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
         </div>
         <div class="flex items-end">
-            <button type="submit" class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Save Rate</button>
+            <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Save Rate</button>
         </div>
     </form>
 </div>
@@ -58,7 +58,7 @@
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $rate->to_currency }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900 font-medium">{{ $rate->rate }}</td>
                 <td class="px-6 py-4">
-                    <span class="px-2 py-1 text-xs rounded-full {{ $rate->is_active ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800' }}">
+                    <span class="px-2 py-1 text-xs rounded-full {{ $rate->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
                         {{ $rate->is_active ? 'Active' : 'Inactive' }}
                     </span>
                 </td>
@@ -67,7 +67,7 @@
                     <form method="POST" action="{{ route('exchange-rates.toggle', $rate) }}" class="inline">
                         @csrf
                         @method('PATCH')
-                        <button type="submit" class="text-blue-600 hover:text-blue-800">
+                        <button type="submit" class="text-green-600 hover:text-green-800">
                             {{ $rate->is_active ? 'Deactivate' : 'Activate' }}
                         </button>
                     </form>

@@ -128,7 +128,7 @@
 
     <div class="no-print" style="text-align:center; margin-top:16px;">
         <button onclick="window.print()" style="padding:8px 20px; font-size:14px; cursor:pointer;">Print Receipt</button>
-        <a href="{{ route('receipts.show', $transaction->receipt_number) }}" style="margin-left:10px; color:blue;">Back to Receipt</a>
+        <a href="{{ route('receipts.show', $transaction->receipt_number) }}" style="margin-left:10px; color:green;">Back to Receipt</a>
     </div>
 </body>
 </html>
