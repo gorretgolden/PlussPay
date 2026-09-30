@@ -23,7 +23,7 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Sender's Contact *</label>
-                <input type="text" name="sender_contact" value="{{ old('sender_contact') }}" required
+                <input type="text" name="sender_contact" value="{{ old('sender_contact', '+256 ') }}" required
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
             </div>
         </div>
