@@ -19,7 +19,7 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
     @auth
-    <div class="flex min-h-screen">
+    <div class="flex">
         {{-- Sidebar --}}
         <aside class="w-64 bg-green-900 text-white flex flex-col no-print fixed h-full">
             <div class="p-6 border-b border-green-800">
@@ -74,8 +74,8 @@
         </aside>
 
         {{-- Main content --}}
-        <div class="ml-64 flex-1 flex flex-col">
-            <main class="flex-1 p-6">
+        <div class="ml-64">
+            <main class="p-6">
                 @if(session('success'))
                     <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded no-print">
                         {{ session('success') }}
