@@ -8,7 +8,7 @@
         <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
         <p class="text-gray-600">Transaction summaries and analytics</p>
     </div>
-    <a href="{{ route('reports.export', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Export CSV</a>
+    <a href="{{ route('reports.export', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Export Excel</a>
 </div>
 
 {{-- Date Filter --}}

@@ -18,12 +18,14 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Sender's Name *</label>
-                <input type="text" name="sender_name" value="{{ old('sender_name') }}" required
+                <input type="text" name="sender_name" value="{{ old('sender_name') }}" required maxlength="100"
+                    placeholder="e.g. John Okello"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Sender's Contact *</label>
-                <input type="text" name="sender_contact" value="{{ old('sender_contact', '+256 ') }}" required
+                <input type="text" name="sender_contact" value="{{ old('sender_contact', '+256 ') }}" required maxlength="20"
+                    placeholder="+256 700 000 000"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
             </div>
         </div>
@@ -34,12 +36,14 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Receiver's Name *</label>
-                <input type="text" name="receiver_name" value="{{ old('receiver_name') }}" required
+                <input type="text" name="receiver_name" value="{{ old('receiver_name') }}" required maxlength="100"
+                    placeholder="e.g. Zhang Wei"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Receiver's Contact *</label>
-                <input type="text" name="receiver_contact" value="{{ old('receiver_contact') }}" required
+                <input type="text" name="receiver_contact" value="{{ old('receiver_contact') }}" required maxlength="20"
+                    placeholder="+86 138 0000 0000"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
             </div>
         </div>
@@ -58,8 +62,9 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
-                <input type="number" name="amount" id="amount" value="{{ old('amount') }}" step="0.01" min="0.01" required
+                <input type="number" name="amount" id="amount" value="{{ old('amount') }}" step="0.01" min="100" required
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
+                <p class="text-xs text-gray-500 mt-1">Minimum: 100 {{ old('currency', 'UGX') === 'UGX' ? 'UGX' : 'USD' }}</p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Charge Rate (% per 100 USD) *</label>
@@ -85,8 +90,9 @@
 
         <div class="mb-6">
             <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
-            <textarea name="notes" rows="3"
+            <textarea name="notes" rows="3" maxlength="500"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">{{ old('notes') }}</textarea>
+            <p class="text-xs text-gray-500 mt-1">Max 500 characters</p>
         </div>
 
         <div class="flex gap-3">

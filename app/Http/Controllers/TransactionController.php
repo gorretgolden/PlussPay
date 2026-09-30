@@ -54,14 +54,28 @@ class TransactionController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'sender_name' => 'required|string|max:255',
-            'sender_contact' => 'required|string|max:255',
-            'receiver_name' => 'required|string|max:255',
-            'receiver_contact' => 'required|string|max:255',
+            'sender_name' => 'required|string|max:100|min:2',
+            'sender_contact' => ['required', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
+            'receiver_name' => 'required|string|max:100|min:2',
+            'receiver_contact' => ['required', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
             'currency' => 'required|in:UGX,USD',
-            'amount' => 'required|numeric|min:0.01',
-            'charge_rate' => 'required|numeric|min:0',
-            'notes' => 'nullable|string|max:1000',
+            'amount' => 'required|numeric|min:100|max:100000000',
+            'charge_rate' => 'required|numeric|min:0|max:100',
+            'notes' => 'nullable|string|max:500',
+        ], [
+            'sender_name.required' => 'Sender name is required.',
+            'sender_name.min' => 'Sender name must be at least 2 characters.',
+            'sender_contact.required' => 'Sender contact is required.',
+            'sender_contact.regex' => 'Enter a valid phone number (e.g. +256 700 000 000).',
+            'receiver_name.required' => 'Receiver name is required.',
+            'receiver_name.min' => 'Receiver name must be at least 2 characters.',
+            'receiver_contact.required' => 'Receiver contact is required.',
+            'receiver_contact.regex' => 'Enter a valid phone number (e.g. +86 138 0000 0000).',
+            'amount.required' => 'Amount is required.',
+            'amount.min' => 'Minimum amount is 100.',
+            'amount.max' => 'Maximum amount is 100,000,000.',
+            'charge_rate.required' => 'Charge rate is required.',
+            'charge_rate.max' => 'Charge rate cannot exceed 100%.',
         ]);
 
         $usdToRmbRate = ExchangeRate::getActiveRate('USD', 'RMB');
@@ -88,10 +102,10 @@ class TransactionController extends Controller
 
         $transaction = Transaction::create([
             'receipt_number' => Transaction::generateReceiptNumber(),
-            'sender_name' => $validated['sender_name'],
-            'sender_contact' => $validated['sender_contact'],
-            'receiver_name' => $validated['receiver_name'],
-            'receiver_contact' => $validated['receiver_contact'],
+            'sender_name' => trim($validated['sender_name']),
+            'sender_contact' => trim($validated['sender_contact']),
+            'receiver_name' => trim($validated['receiver_name']),
+            'receiver_contact' => trim($validated['receiver_contact']),
             'currency' => $currency,
             'amount' => $amount,
             'exchange_rate' => $usdToRmbRate->rate,
@@ -101,7 +115,7 @@ class TransactionController extends Controller
             'total_usd_equivalent' => $usdEquivalent,
             'status' => 'completed',
             'created_by' => auth()->id(),
-            'notes' => $validated['notes'] ?? null,
+            'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
         ]);
 
         return redirect()->route('receipts.show', $transaction->receipt_number);
@@ -120,6 +134,6 @@ class TransactionController extends Controller
 
         $transaction->update(['status' => $validated['status']]);
 
-        return back()->with('success', 'Transaction status updated.');
+        return back()->with('success', 'Transaction status updated to ' . ucfirst($validated['status']) . '.');
     }
 }

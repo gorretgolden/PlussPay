@@ -30,7 +30,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/receipts/{receiptNumber}/print', [ReceiptController::class, 'print'])->name('receipts.print');
 
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
-    Route::get('/reports/export', [ReportsController::class, 'exportCsv'])->name('reports.export');
+    Route::get('/reports/export', [ReportsController::class, 'exportExcel'])->name('reports.export');
 
     Route::middleware(['role:admin'])->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');

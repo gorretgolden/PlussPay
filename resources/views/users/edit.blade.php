@@ -32,7 +32,13 @@
 
         <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-1">New Password <span class="text-gray-500">(leave blank to keep current)</span></label>
-            <input type="password" name="password"
+            <input type="password" name="password" minlength="8"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+            <input type="password" name="password_confirmation" minlength="8"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
         </div>
 

@@ -26,17 +26,30 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'phone' => 'nullable|string|max:20',
-            'password' => 'required|string|min:6',
+            'name' => ['required', 'string', 'max:100', 'min:2', 'regex:/^[a-zA-Z\s\-\.]+$/'],
+            'email' => 'required|email|max:100|unique:users,email',
+            'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
+            'password' => 'required|string|min:8|confirmed',
             'role' => 'required|exists:roles,name',
+        ], [
+            'name.required' => 'Full name is required.',
+            'name.min' => 'Name must be at least 2 characters.',
+            'name.regex' => 'Name can only contain letters, spaces, hyphens, and dots.',
+            'email.required' => 'Email address is required.',
+            'email.email' => 'Enter a valid email address.',
+            'email.unique' => 'This email is already registered.',
+            'phone.regex' => 'Enter a valid phone number.',
+            'password.required' => 'Password is required.',
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
+            'role.required' => 'Please select a role.',
+            'role.exists' => 'Invalid role selected.',
         ]);
 
         $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'] ?? null,
+            'name' => trim($validated['name']),
+            'email' => strtolower(trim($validated['email'])),
+            'phone' => !empty($validated['phone']) ? trim($validated['phone']) : null,
             'password' => Hash::make($validated['password']),
             'is_active' => true,
         ]);
@@ -56,18 +69,29 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
-            'phone' => 'nullable|string|max:20',
-            'password' => 'nullable|string|min:6',
+            'name' => ['required', 'string', 'max:100', 'min:2', 'regex:/^[a-zA-Z\s\-\.]+$/'],
+            'email' => 'required|email|max:100|unique:users,email,' . $user->id,
+            'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
+            'password' => 'nullable|string|min:8|confirmed',
             'role' => 'required|exists:roles,name',
-            'is_active' => 'boolean',
+            'is_active' => 'nullable|boolean',
+        ], [
+            'name.required' => 'Full name is required.',
+            'name.min' => 'Name must be at least 2 characters.',
+            'name.regex' => 'Name can only contain letters, spaces, hyphens, and dots.',
+            'email.required' => 'Email address is required.',
+            'email.email' => 'Enter a valid email address.',
+            'email.unique' => 'This email is already in use.',
+            'phone.regex' => 'Enter a valid phone number.',
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
+            'role.required' => 'Please select a role.',
         ]);
 
         $user->update([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'] ?? null,
+            'name' => trim($validated['name']),
+            'email' => strtolower(trim($validated['email'])),
+            'phone' => isset($validated['phone']) ? trim($validated['phone']) : null,
             'is_active' => $request->boolean('is_active'),
         ]);
 

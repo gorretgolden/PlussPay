@@ -4,35 +4,58 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 
 class AuthController extends Controller
 {
     public function showLogin()
     {
+        if (Auth::check()) {
+            return redirect()->route('dashboard');
+        }
+
         return view('auth.login');
     }
 
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required'],
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+        ], [
+            'email.required' => 'Email is required.',
+            'email.email' => 'Enter a valid email address.',
+            'password.required' => 'Password is required.',
         ]);
 
-        if (Auth::attempt($credentials, $request->boolean('remember'))) {
-            $request->session()->regenerate();
+        $key = 'login:' . $request->ip();
 
-            if (!Auth::user()->is_active) {
-                Auth::logout();
-                return back()->withErrors(['email' => 'Your account has been deactivated.']);
-            }
-
-            return redirect()->intended('/dashboard');
+        if (RateLimiter::tooManyAttempts($key, 5)) {
+            $seconds = RateLimiter::availableIn($key);
+            return back()->withErrors([
+                'email' => 'Too many login attempts. Try again in ' . $seconds . ' seconds.',
+            ])->onlyInput('email');
         }
 
-        return back()->withErrors([
-            'email' => 'Invalid email or password.',
-        ])->onlyInput('email');
+        if (!Auth::attempt(['email' => $request->email, 'password' => $request->password], $request->boolean('remember'))) {
+            RateLimiter::hit($key, 60);
+
+            $user = \App\Models\User::where('email', $request->email)->first();
+            $message = $user ? 'Invalid password.' : 'Invalid email.';
+
+            return back()->withErrors(['email' => $message])->onlyInput('email');
+        }
+
+        RateLimiter::clear($key);
+
+        $request->session()->regenerate();
+
+        if (!Auth::user()->is_active) {
+            Auth::logout();
+            return back()->withErrors(['email' => 'Your account has been deactivated. Contact admin.']);
+        }
+
+        return redirect()->intended('/dashboard');
     }
 
     public function logout(Request $request)
@@ -41,6 +64,6 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect()->route('login');
     }
 }
