@@ -18,6 +18,11 @@ class DashboardController extends Controller
             $query->where('created_by', $user->id);
         }
 
+        $todayQuery = Transaction::whereDate('created_at', today());
+        if ($user->hasRole('agent')) {
+            $todayQuery->where('created_by', $user->id);
+        }
+
         $stats = [
             'total_transactions' => (clone $query)->count(),
             'total_usd_sent' => (clone $query)->where('status', 'completed')->sum('total_usd_equivalent'),
@@ -29,6 +34,9 @@ class DashboardController extends Controller
             'avg_transaction' => (clone $query)->where('status', 'completed')->avg('total_usd_equivalent') ?? 0,
             'total_users' => User::where('is_active', true)->count(),
             'active_rates' => \App\Models\ExchangeRate::where('is_active', true)->count(),
+            'today_transactions' => (clone $todayQuery)->count(),
+            'today_usd_sent' => (clone $todayQuery)->where('status', 'completed')->sum('total_usd_equivalent'),
+            'today_revenue' => (clone $todayQuery)->where('status', 'completed')->sum('charge_amount'),
         ];
 
         $recentTransactions = (clone $query)

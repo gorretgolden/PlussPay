@@ -3,6 +3,12 @@
 @section('title', 'Transaction ' . $transaction->receipt_number)
 
 @section('content')
+@if(session('success'))
+<div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded">
+    {{ session('success') }}
+</div>
+@endif
+
 <div class="mb-6 flex justify-between items-center">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Transaction: {{ $transaction->receipt_number }}</h1>
@@ -61,6 +67,50 @@
     @if($transaction->creator)
     <div class="border-t pt-4 mt-4 text-sm text-gray-500">
         Created by: {{ $transaction->creator->name }}
+    </div>
+    @endif
+
+    @if($transaction->status === 'pending' && auth()->user()->hasRole('admin'))
+    <div class="border-t pt-4 mt-4">
+        <h3 class="text-sm font-medium text-gray-500 mb-3">Actions</h3>
+        <div class="flex gap-3">
+            <form method="POST" action="{{ route('transactions.update-status', $transaction) }}">
+                @csrf
+                @method('PATCH')
+                <input type="hidden" name="status" value="completed">
+                <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700"
+                    onclick="return confirm('Approve this transaction?')">Approve</button>
+            </form>
+            <form method="POST" action="{{ route('transactions.update-status', $transaction) }}">
+                @csrf
+                @method('PATCH')
+                <input type="hidden" name="status" value="cancelled">
+                <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700"
+                    onclick="return confirm('Reject this transaction?')">Reject</button>
+            </form>
+        </div>
+    </div>
+    @endif
+
+    @if($transaction->activityLogs->isNotEmpty())
+    <div class="border-t pt-4 mt-4">
+        <h3 class="text-sm font-medium text-gray-500 mb-3">Activity Log</h3>
+        <div class="space-y-2">
+            @foreach($transaction->activityLogs->sortByDesc('created_at') as $log)
+            <div class="flex items-start gap-3 text-sm">
+                <div class="mt-1 w-2 h-2 rounded-full flex-shrink-0
+                    @if($log->action === 'created') bg-blue-500
+                    @elseif($log->action === 'approved') bg-green-500
+                    @elseif($log->action === 'rejected') bg-red-500
+                    @else bg-gray-500 @endif"></div>
+                <div>
+                    <span class="text-gray-900">{{ $log->description }}</span>
+                    <span class="text-gray-500">by {{ $log->user?->name ?? 'System' }}</span>
+                    <span class="text-gray-400 text-xs">{{ $log->created_at->diffForHumans() }}</span>
+                </div>
+            </div>
+            @endforeach
+        </div>
     </div>
     @endif
 </div>

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExchangeRateController;
 use App\Http\Controllers\ReceiptController;
@@ -23,7 +24,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/transactions/create', [TransactionController::class, 'create'])->name('transactions.create');
     Route::post('/transactions', [TransactionController::class, 'store'])->name('transactions.store');
     Route::get('/transactions/{transaction}', [TransactionController::class, 'show'])->name('transactions.show');
-    Route::patch('/transactions/{transaction}/status', [TransactionController::class, 'updateStatus'])->name('transactions.update-status');
 
     Route::get('/receipts', [ReceiptController::class, 'index'])->name('receipts.index');
     Route::get('/receipts/{receiptNumber}', [ReceiptController::class, 'show'])->name('receipts.show');
@@ -42,5 +42,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/exchange-rates', [ExchangeRateController::class, 'index'])->name('exchange-rates.index');
         Route::post('/exchange-rates', [ExchangeRateController::class, 'store'])->name('exchange-rates.store');
         Route::patch('/exchange-rates/{exchangeRate}/toggle', [ExchangeRateController::class, 'toggle'])->name('exchange-rates.toggle');
+
+        Route::resource('customers', CustomerController::class);
+
+        Route::patch('/transactions/{transaction}/status', [TransactionController::class, 'updateStatus'])->name('transactions.update-status');
     });
 });

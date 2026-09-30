@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
@@ -113,9 +114,17 @@ class TransactionController extends Controller
             'charge_rate' => $chargeRate,
             'charge_amount' => $chargeAmount,
             'total_usd_equivalent' => $usdEquivalent,
-            'status' => 'completed',
+            'status' => auth()->user()->hasRole('admin') ? 'completed' : 'pending',
             'created_by' => auth()->id(),
             'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
+        ]);
+
+        ActivityLog::create([
+            'transaction_id' => $transaction->id,
+            'user_id' => auth()->id(),
+            'action' => 'created',
+            'description' => 'Transaction created',
+            'new_value' => $transaction->status,
         ]);
 
         return redirect()->route('receipts.show', $transaction->receipt_number);
@@ -123,6 +132,8 @@ class TransactionController extends Controller
 
     public function show(Transaction $transaction)
     {
+        $transaction->load('activityLogs.user');
+
         return view('transactions.show', compact('transaction'));
     }
 
@@ -132,7 +143,23 @@ class TransactionController extends Controller
             'status' => 'required|in:pending,completed,cancelled',
         ]);
 
+        $oldStatus = $transaction->status;
         $transaction->update(['status' => $validated['status']]);
+
+        $action = match ($validated['status']) {
+            'completed' => 'approved',
+            'cancelled' => 'rejected',
+            default => 'status_changed',
+        };
+
+        ActivityLog::create([
+            'transaction_id' => $transaction->id,
+            'user_id' => auth()->id(),
+            'action' => $action,
+            'description' => "Status changed from {$oldStatus} to {$validated['status']}",
+            'old_value' => $oldStatus,
+            'new_value' => $validated['status'],
+        ]);
 
         return back()->with('success', 'Transaction status updated to ' . ucfirst($validated['status']) . '.');
     }

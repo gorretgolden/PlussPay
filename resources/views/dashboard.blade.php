@@ -8,6 +8,24 @@
     <p class="text-gray-600">Welcome, {{ auth()->user()->name }}</p>
 </div>
 
+<div class="bg-green-800 rounded-lg shadow p-6 mb-6">
+    <h2 class="text-white text-lg font-semibold mb-4">Today's Summary</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white/10 rounded-lg p-4">
+            <div class="text-green-200 text-sm">Transactions Today</div>
+            <div class="text-white text-3xl font-bold mt-1">{{ number_format($stats['today_transactions']) }}</div>
+        </div>
+        <div class="bg-white/10 rounded-lg p-4">
+            <div class="text-green-200 text-sm">Money Sent (USD)</div>
+            <div class="text-white text-3xl font-bold mt-1">${{ number_format($stats['today_usd_sent'], 2) }}</div>
+        </div>
+        <div class="bg-white/10 rounded-lg p-4">
+            <div class="text-green-200 text-sm">Revenue Today</div>
+            <div class="text-white text-3xl font-bold mt-1">${{ number_format($stats['today_revenue'], 2) }}</div>
+        </div>
+    </div>
+</div>
+
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
     <a href="{{ route('transactions.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
         <div class="flex items-center justify-between">
