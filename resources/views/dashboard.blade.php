@@ -8,18 +8,22 @@
     <p class="text-gray-600">Welcome, {{ auth()->user()->name }}</p>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
     <div class="bg-white rounded-lg shadow p-6">
         <div class="text-sm text-gray-500">Total Transactions</div>
         <div class="text-3xl font-bold text-blue-800 mt-1">{{ number_format($stats['total_transactions']) }}</div>
     </div>
     <div class="bg-white rounded-lg shadow p-6">
-        <div class="text-sm text-gray-500">Total Revenue (Charges)</div>
-        <div class="text-3xl font-bold text-blue-700 mt-1">${{ number_format($stats['total_revenue'], 2) }}</div>
+        <div class="text-sm text-gray-500">Money Sent (USD)</div>
+        <div class="text-3xl font-bold text-blue-700 mt-1">${{ number_format($stats['total_usd_sent'], 2) }}</div>
     </div>
     <div class="bg-white rounded-lg shadow p-6">
         <div class="text-sm text-gray-500">Total RMB Sent</div>
         <div class="text-3xl font-bold text-purple-700 mt-1">¥{{ number_format($stats['total_rmb_sent'], 2) }}</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm text-gray-500">Total Revenue (Charges)</div>
+        <div class="text-3xl font-bold text-blue-700 mt-1">${{ number_format($stats['total_revenue'], 2) }}</div>
     </div>
     <div class="bg-white rounded-lg shadow p-6">
         <div class="text-sm text-gray-500">Pending</div>
@@ -45,6 +49,7 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">RMB</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -66,10 +71,14 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-500">{{ $t->created_at->format('M d, Y') }}</td>
+                    <td class="px-6 py-4 text-sm">
+                        <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="text-blue-600 hover:text-blue-800 mr-2">Print</a>
+                        <a href="{{ route('receipts.show', $t->receipt_number) }}" class="text-blue-600 hover:text-blue-800">View</a>
+                    </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">No transactions yet.</td>
+                    <td colspan="8" class="px-6 py-8 text-center text-gray-500">No transactions yet.</td>
                 </tr>
                 @endforelse
             </tbody>
