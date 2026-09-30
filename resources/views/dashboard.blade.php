@@ -8,28 +8,106 @@
     <p class="text-gray-600">Welcome, {{ auth()->user()->name }}</p>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-    <div class="bg-white rounded-lg shadow p-6">
-        <div class="text-sm text-gray-500">Total Transactions</div>
-        <div class="text-3xl font-bold text-green-800 mt-1">{{ number_format($stats['total_transactions']) }}</div>
-    </div>
-    <div class="bg-white rounded-lg shadow p-6">
-        <div class="text-sm text-gray-500">Money Sent (USD)</div>
-        <div class="text-3xl font-bold text-green-700 mt-1">${{ number_format($stats['total_usd_sent'], 2) }}</div>
-    </div>
-    <div class="bg-white rounded-lg shadow p-6">
-        <div class="text-sm text-gray-500">Total RMB Sent</div>
-        <div class="text-3xl font-bold text-purple-700 mt-1">¥{{ number_format($stats['total_rmb_sent'], 2) }}</div>
-    </div>
-    <div class="bg-white rounded-lg shadow p-6">
-        <div class="text-sm text-gray-500">Total Revenue (Charges)</div>
-        <div class="text-3xl font-bold text-green-700 mt-1">${{ number_format($stats['total_revenue'], 2) }}</div>
-    </div>
-    <div class="bg-white rounded-lg shadow p-6">
-        <div class="text-sm text-gray-500">Pending</div>
-        <div class="text-3xl font-bold text-yellow-600 mt-1">{{ number_format($stats['pending_transactions']) }}</div>
-    </div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+    <a href="{{ route('transactions.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-gray-500">Total Transactions</div>
+                <div class="text-3xl font-bold text-green-800 mt-1">{{ number_format($stats['total_transactions']) }}</div>
+            </div>
+            <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        </div>
+    </a>
+    <a href="{{ route('transactions.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-gray-500">Money Sent (USD)</div>
+                <div class="text-3xl font-bold text-green-700 mt-1">${{ number_format($stats['total_usd_sent'], 2) }}</div>
+            </div>
+            <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+    </a>
+    <a href="{{ route('transactions.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-gray-500">Total RMB Sent</div>
+                <div class="text-3xl font-bold text-purple-700 mt-1">¥{{ number_format($stats['total_rmb_sent'], 2) }}</div>
+            </div>
+            <svg class="w-10 h-10 text-purple-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 8h6m-5 0a3 3 0 110 6H9l3 3m-3-6h6m6 1a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+    </a>
+    <a href="{{ route('reports.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-gray-500">Total Revenue</div>
+                <div class="text-3xl font-bold text-green-700 mt-1">${{ number_format($stats['total_revenue'], 2) }}</div>
+            </div>
+            <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        </div>
+    </a>
 </div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <a href="{{ route('transactions.index', ['status' => 'pending']) }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-gray-500">Pending</div>
+                <div class="text-3xl font-bold text-yellow-600 mt-1">{{ number_format($stats['pending_transactions']) }}</div>
+            </div>
+            <svg class="w-10 h-10 text-yellow-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+    </a>
+    <a href="{{ route('transactions.index', ['status' => 'completed']) }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-gray-500">Completed</div>
+                <div class="text-3xl font-bold text-green-700 mt-1">{{ number_format($stats['completed_transactions']) }}</div>
+            </div>
+            <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+    </a>
+    <a href="{{ route('transactions.index', ['status' => 'cancelled']) }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-gray-500">Cancelled</div>
+                <div class="text-3xl font-bold text-red-600 mt-1">{{ number_format($stats['cancelled_transactions']) }}</div>
+            </div>
+            <svg class="w-10 h-10 text-red-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+    </a>
+    <a href="{{ route('transactions.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-gray-500">Avg Transaction</div>
+                <div class="text-3xl font-bold text-blue-700 mt-1">${{ number_format($stats['avg_transaction'], 2) }}</div>
+            </div>
+            <svg class="w-10 h-10 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        </div>
+    </a>
+</div>
+
+@role('admin')
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+    <a href="{{ route('users.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-gray-500">Active Users</div>
+                <div class="text-3xl font-bold text-indigo-700 mt-1">{{ number_format($stats['total_users']) }}</div>
+            </div>
+            <svg class="w-10 h-10 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </div>
+    </a>
+    <a href="{{ route('exchange-rates.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-gray-500">Active Exchange Rates</div>
+                <div class="text-3xl font-bold text-teal-700 mt-1">{{ number_format($stats['active_rates']) }}</div>
+            </div>
+            <svg class="w-10 h-10 text-teal-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+        </div>
+    </a>
+</div>
+@endrole
 
 <div class="bg-white rounded-lg shadow">
     <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">

@@ -24,6 +24,11 @@ class DashboardController extends Controller
             'total_revenue' => (clone $query)->where('status', 'completed')->sum('charge_amount'),
             'total_rmb_sent' => (clone $query)->where('status', 'completed')->sum('rmb_amount'),
             'pending_transactions' => (clone $query)->where('status', 'pending')->count(),
+            'completed_transactions' => (clone $query)->where('status', 'completed')->count(),
+            'cancelled_transactions' => (clone $query)->where('status', 'cancelled')->count(),
+            'avg_transaction' => (clone $query)->where('status', 'completed')->avg('total_usd_equivalent') ?? 0,
+            'total_users' => User::where('is_active', true)->count(),
+            'active_rates' => \App\Models\ExchangeRate::where('is_active', true)->count(),
         ];
 
         $recentTransactions = (clone $query)

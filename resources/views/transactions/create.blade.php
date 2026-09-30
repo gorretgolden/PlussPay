@@ -8,7 +8,7 @@
     <p class="text-gray-600">Fill in the details below to create a new transaction</p>
 </div>
 
-<div class="bg-white rounded-lg shadow p-6 max-w-2xl">
+<div class="bg-white rounded-lg shadow p-6">
     <form method="POST" action="{{ route('transactions.store') }}" id="transactionForm">
         @csrf
 
