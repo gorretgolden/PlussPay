@@ -25,7 +25,7 @@
                     <a href="{{ route('dashboard') }}" class="text-xl font-bold">PlusPay</a>
                     <div class="hidden md:flex ml-10 space-x-4">
                         <a href="{{ route('dashboard') }}" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 {{ request()->routeIs('dashboard') ? 'bg-blue-900' : '' }}">Dashboard</a>
-                        <a href="{{ route('transactions.index') }}" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 {{ request()->routeIs('transactions.*') ? 'bg-blue-900' : '' }}">Transactions</a>
+                        <a href="{{ route('transactions.create') }}" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 {{ request()->routeIs('transactions.*') ? 'bg-blue-900' : '' }}">Send Money</a>
                         <a href="{{ route('receipts.index') }}" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 {{ request()->routeIs('receipts.*') ? 'bg-blue-900' : '' }}">Receipts</a>
                         @role('admin')
                         <a href="{{ route('users.index') }}" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 {{ request()->routeIs('users.*') ? 'bg-blue-900' : '' }}">Users</a>
@@ -48,7 +48,7 @@
     <div class="md:hidden bg-blue-800 text-white no-print">
         <div class="px-4 py-2 flex flex-wrap gap-2 text-sm">
             <a href="{{ route('dashboard') }}" class="px-2 py-1 rounded hover:bg-blue-700">Dashboard</a>
-            <a href="{{ route('transactions.index') }}" class="px-2 py-1 rounded hover:bg-blue-700">Transactions</a>
+            <a href="{{ route('transactions.create') }}" class="px-2 py-1 rounded hover:bg-blue-700">Send Money</a>
             <a href="{{ route('receipts.index') }}" class="px-2 py-1 rounded hover:bg-blue-700">Receipts</a>
             @role('admin')
             <a href="{{ route('users.index') }}" class="px-2 py-1 rounded hover:bg-blue-700">Users</a>
