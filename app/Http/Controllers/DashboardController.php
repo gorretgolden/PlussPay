@@ -45,6 +45,29 @@ class DashboardController extends Controller
             ->take(10)
             ->get();
 
-        return view('dashboard', compact('stats', 'recentTransactions'));
+        $last7Days = collect();
+        $last7DaysLabels = collect();
+        for ($i = 6; $i >= 0; $i--) {
+            $date = now()->subDays($i)->format('Y-m-d');
+            $last7DaysLabels->push(now()->subDays($i)->format('M d'));
+
+            $dayQuery = Transaction::whereDate('created_at', $date);
+            if ($user->hasRole('agent')) {
+                $dayQuery->where('created_by', $user->id);
+            }
+
+            $last7Days->push([
+                'transactions' => (clone $dayQuery)->count(),
+                'revenue' => (clone $dayQuery)->where('status', 'completed')->sum('charge_amount'),
+            ]);
+        }
+
+        $chartData = [
+            'labels' => $last7DaysLabels->toArray(),
+            'transactions' => $last7Days->pluck('transactions')->toArray(),
+            'revenue' => $last7Days->pluck('revenue')->map(fn($v) => (float)$v)->toArray(),
+        ];
+
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData'));
     }
 }

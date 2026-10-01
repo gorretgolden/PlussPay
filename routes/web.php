@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AgentPerformanceController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
@@ -50,5 +51,7 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
         Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
+
+        Route::get('/agents/performance', [AgentPerformanceController::class, 'index'])->name('agents.performance');
     });
 });

@@ -127,6 +127,17 @@
 </div>
 @endrole
 
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Transactions (Last 7 Days)</h2>
+        <canvas id="transactionsChart" height="200"></canvas>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Revenue (Last 7 Days)</h2>
+        <canvas id="revenueChart" height="200"></canvas>
+    </div>
+</div>
+
 <div class="bg-white rounded-lg shadow">
     <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
         <h2 class="text-lg font-semibold text-gray-900">Recent Transactions</h2>
@@ -181,4 +192,54 @@
         </table>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    const chartData = @json($chartData);
+
+    new Chart(document.getElementById('transactionsChart'), {
+        type: 'line',
+        data: {
+            labels: chartData.labels,
+            datasets: [{
+                label: 'Transactions',
+                data: chartData.transactions,
+                borderColor: 'rgb(22, 163, 74)',
+                backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+        }
+    });
+
+    new Chart(document.getElementById('revenueChart'), {
+        type: 'bar',
+        data: {
+            labels: chartData.labels,
+            datasets: [{
+                label: 'Revenue (USD)',
+                data: chartData.revenue,
+                backgroundColor: 'rgba(22, 163, 74, 0.8)',
+                borderColor: 'rgb(22, 163, 74)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+</script>
 @endsection
