@@ -89,6 +89,21 @@
         </div>
 
         <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Purpose (optional)</label>
+            <select name="purpose"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
+                <option value="">Select purpose...</option>
+                <option value="Family Support" {{ old('purpose') === 'Family Support' ? 'selected' : '' }}>Family Support</option>
+                <option value="Business" {{ old('purpose') === 'Business' ? 'selected' : '' }}>Business</option>
+                <option value="Education" {{ old('purpose') === 'Education' ? 'selected' : '' }}>Education</option>
+                <option value="Medical" {{ old('purpose') === 'Medical' ? 'selected' : '' }}>Medical</option>
+                <option value="Investment" {{ old('purpose') === 'Investment' ? 'selected' : '' }}>Investment</option>
+                <option value="Personal" {{ old('purpose') === 'Personal' ? 'selected' : '' }}>Personal</option>
+                <option value="Other" {{ old('purpose') === 'Other' ? 'selected' : '' }}>Other</option>
+            </select>
+        </div>
+
+        <div class="mb-6">
             <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
             <textarea name="notes" rows="3" maxlength="500"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">{{ old('notes') }}</textarea>

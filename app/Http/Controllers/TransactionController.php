@@ -62,6 +62,7 @@ class TransactionController extends Controller
             'currency' => 'required|in:UGX,USD',
             'amount' => 'required|numeric|min:100|max:100000000',
             'charge_rate' => 'required|numeric|min:0|max:100',
+            'purpose' => 'nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
         ], [
             'sender_name.required' => 'Sender name is required.',
@@ -116,6 +117,7 @@ class TransactionController extends Controller
             'total_usd_equivalent' => $usdEquivalent,
             'status' => auth()->user()->hasRole('admin') ? 'completed' : 'pending',
             'created_by' => auth()->id(),
+            'purpose' => !empty($validated['purpose']) ? trim($validated['purpose']) : null,
             'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
         ]);
 

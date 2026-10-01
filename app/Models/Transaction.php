@@ -27,6 +27,7 @@ class Transaction extends Model
         'status',
         'created_by',
         'notes',
+        'purpose',
     ];
 
     protected $casts = [
