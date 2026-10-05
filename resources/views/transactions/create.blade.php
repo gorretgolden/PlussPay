@@ -48,18 +48,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Sender's Phone *</label>
                     <div class="flex">
-                        <select id="sender_prefix" class="px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg bg-gray-50 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                            <option value="+256" selected>🇺🇬 +256</option>
-                            <option value="+1">🇺🇸 +1</option>
-                            <option value="+44">🇬 +44</option>
-                            <option value="+86">🇨 +86</option>
-                            <option value="+254">🇰🇪 +254</option>
-                            <option value="+255">🇹🇿 +255</option>
-                            <option value="+250">🇷🇼 +250</option>
-                            <option value="+971">🇦🇪 +971</option>
-                            <option value="+91">🇮🇳 +91</option>
-                            <option value="+27">🇿🇦 +27</option>
-                        </select>
+                        @include('transactions.partials.prefix-picker', ['who' => 'sender', 'default' => '+256'])
                         <input type="tel" name="sender_contact" id="sender_contact" value="{{ old('sender_contact') }}" required maxlength="15"
                             placeholder="700 000 000"
                             class="flex-1 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
@@ -87,18 +76,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Receiver's Phone *</label>
                     <div class="flex">
-                        <select id="receiver_prefix" class="px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg bg-gray-50 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                            <option value="+86" selected>🇨🇳 +86</option>
-                            <option value="+256">🇺🇬 +256</option>
-                            <option value="+1">🇺 +1</option>
-                            <option value="+44">🇬🇧 +44</option>
-                            <option value="+254">🇰🇪 +254</option>
-                            <option value="+255">🇹🇿 +255</option>
-                            <option value="+971">🇦🇪 +971</option>
-                            <option value="+91">🇮 +91</option>
-                            <option value="+81">🇯 +81</option>
-                            <option value="+82">🇰 +82</option>
-                        </select>
+                        @include('transactions.partials.prefix-picker', ['who' => 'receiver', 'default' => '+86'])
                         <input type="tel" name="receiver_contact" id="receiver_contact" value="{{ old('receiver_contact') }}" required maxlength="15"
                             placeholder="138 0000 0000"
                             class="flex-1 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
@@ -276,6 +254,38 @@ function buildFullContact(prefixId, contactId, hiddenId) {
         if (digits) this.value = digits;
         buildFullContact(who + '_prefix', who + '_contact', who + '_full_contact');
     });
+});
+
+document.querySelectorAll('.prefix-picker').forEach(picker => {
+    const hidden = picker.querySelector('input[type=hidden]');
+    const btn = picker.querySelector('.prefix-btn');
+    const label = picker.querySelector('.prefix-label');
+    const panel = picker.querySelector('.prefix-panel');
+    const search = picker.querySelector('.prefix-search');
+    const options = Array.from(picker.querySelectorAll('.prefix-option'));
+
+    function apply(value) {
+        const opt = options.find(o => o.dataset.value === value) || options[0];
+        label.textContent = opt.dataset.label;
+        hidden.value = opt.dataset.value;
+        options.forEach(o => o.classList.toggle('bg-green-50', o === opt));
+    }
+    function filter() {
+        const q = search.value.trim().toLowerCase();
+        options.forEach(o => o.classList.toggle('hidden', !o.dataset.search.includes(q)));
+    }
+    function open() { panel.classList.remove('hidden'); search.value = ''; filter(); search.focus(); }
+    function close() { panel.classList.add('hidden'); }
+
+    apply(hidden.value);
+    btn.addEventListener('click', () => panel.classList.contains('hidden') ? open() : close());
+    search.addEventListener('input', filter);
+    options.forEach(o => o.addEventListener('click', () => {
+        apply(o.dataset.value);
+        hidden.dispatchEvent(new Event('change'));
+        close();
+    }));
+    document.addEventListener('click', e => { if (!picker.contains(e.target)) close(); });
 });
 
 document.getElementById('sender_prefix').addEventListener('change', function() {
