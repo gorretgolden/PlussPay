@@ -9,19 +9,13 @@ class ReceiptController extends Controller
 {
     public function index(Request $request)
     {
-        $user = auth()->user();
-        $query = Transaction::with('creator')->where('status', 'completed');
-
-        if ($user->hasRole('agent')) {
-            $query->where('created_by', $user->id);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where('receipt_number', 'like', "%{$search}%");
-        }
-
-        $receipts = $query->latest()->paginate(20);
+        $receipts = Transaction::with('creator')
+            ->where('status', 'completed')
+            ->filtered($request)
+            ->when($request->user()->hasRole('agent'), fn($q) => $q->where('created_by', $request->user()->id))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
 
         return view('receipts.index', compact('receipts'));
     }

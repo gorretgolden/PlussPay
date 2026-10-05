@@ -3,9 +3,54 @@
 @section('title', 'Login Logs')
 
 @section('content')
-<div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-900">Login Logs</h1>
-    <p class="text-gray-600">User authentication history</p>
+<div class="mb-6 flex justify-between items-center">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Login Logs</h1>
+        <p class="text-gray-600">User authentication history</p>
+    </div>
+    <a href="{{ route('export.login-logs', request()->query()) }}"
+        class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
+</div>
+
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <form method="GET" action="{{ route('admin.login-logs') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Search</label>
+            <input type="text" name="search" value="{{ request('search') }}" placeholder="Name, email, IP..."
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Event</label>
+            <select name="action" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">All Events</option>
+                <option value="login" {{ request('action') === 'login' ? 'selected' : '' }}>Login</option>
+                <option value="logout" {{ request('action') === 'logout' ? 'selected' : '' }}>Logout</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">User</label>
+            <select name="user_id" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">All Users</option>
+                @foreach($users as $user)
+                <option value="{{ $user->id }}" {{ request('user_id') == $user->id ? 'selected' : '' }}>{{ $user->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">From Date</label>
+            <input type="date" name="date_from" value="{{ request('date_from') }}"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">To Date</label>
+            <input type="date" name="date_to" value="{{ request('date_to') }}"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+        </div>
+        <div class="md:col-span-5 flex gap-2">
+            <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Filter</button>
+            <a href="{{ route('admin.login-logs') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Reset</a>
+        </div>
+    </form>
 </div>
 
 <div class="bg-white rounded-lg shadow">
@@ -24,8 +69,8 @@
                 @forelse($logs as $log)
                 <tr>
                     <td class="px-6 py-4 text-sm text-gray-500">{{ \Carbon\Carbon::parse($log->created_at)->format('M d, Y H:i') }}</td>
-                    <td class="px-6 py-4 text-sm text-gray-900">{{ $log->user_name }}</td>
-                    <td class="px-6 py-4 text-sm text-gray-600">{{ $log->email }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-900">{{ $log->user?->name ?? 'System' }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">{{ $log->user?->email ?? '-' }}</td>
                     <td class="px-6 py-4">
                         <span class="px-2 py-1 text-xs rounded-full {{ $log->action === 'login' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' }}">
                             {{ ucfirst($log->action) }}

@@ -7,9 +7,9 @@ use Illuminate\Http\Request;
 
 class ExchangeRateController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $rates = ExchangeRate::latest()->get();
+        $rates = ExchangeRate::filtered($request)->latest()->get();
 
         return view('exchange-rates.index', compact('rates'));
     }

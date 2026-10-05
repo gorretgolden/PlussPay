@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Http\Request;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
@@ -40,6 +41,32 @@ class User extends Authenticatable
         return $this->hasMany(Transaction::class, 'created_by');
     }
 
+    public function scopeFiltered($query, Request $request)
+    {
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('role')) {
+            $query->role($request->role);
+        }
+
+        if ($request->filled('status')) {
+            $query->where('is_active', $request->status === 'active');
+        }
+
+        if ($request->filled('lock')) {
+            $query->where('is_locked', $request->lock === 'locked');
+        }
+
+        return $query;
+    }
+
     public function isLocked(): bool
     {
         if ($this->is_locked) {
@@ -67,7 +94,7 @@ class User extends Authenticatable
         }
     }
 
-    public function recordSuccessfulLogin(string $ip = null): void
+    public function recordSuccessfulLogin(?string $ip = null): void
     {
         $this->update([
             'failed_login_attempts' => 0,

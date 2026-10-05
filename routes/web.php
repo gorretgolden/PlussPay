@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExchangeRateController;
+use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\RolePermissionController;
@@ -39,7 +40,17 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
     Route::get('/reports/export', [ReportsController::class, 'exportExcel'])->name('reports.export');
 
+    Route::get('/export/transactions', [ExportController::class, 'transactions'])->name('export.transactions');
+    Route::get('/export/receipts', [ExportController::class, 'receipts'])->name('export.receipts');
+
     Route::middleware(['role:admin|superadmin'])->group(function () {
+        Route::get('/export/users', [ExportController::class, 'users'])->name('export.users');
+        Route::get('/export/customers', [ExportController::class, 'customers'])->name('export.customers');
+        Route::get('/export/activity-logs', [ExportController::class, 'activityLogs'])->name('export.activity-logs');
+        Route::get('/export/login-logs', [ExportController::class, 'loginLogs'])->name('export.login-logs');
+        Route::get('/export/agent-performance', [ExportController::class, 'agentPerformance'])->name('export.agent-performance');
+        Route::get('/export/exchange-rates', [ExportController::class, 'exchangeRates'])->name('export.exchange-rates');
+
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');

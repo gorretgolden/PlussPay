@@ -207,6 +207,22 @@
             chevron.classList.toggle('rotate-180');
         }
 
+        function toggleMenu(key) {
+            const target = document.getElementById('menu-' + key);
+            document.querySelectorAll('[data-row-menu]').forEach(function(menu) {
+                if (menu !== target) menu.classList.add('hidden');
+            });
+            target.classList.toggle('hidden');
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('[data-row-menu-host]')) {
+                document.querySelectorAll('[data-row-menu]').forEach(function(menu) {
+                    menu.classList.add('hidden');
+                });
+            }
+        });
+
         @auth
         // Inactivity auto-logout: 30 minutes
         (function() {

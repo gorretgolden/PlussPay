@@ -9,6 +9,7 @@
         @role('admin|superadmin')
         <a href="{{ route('transactions.bulk-import') }}" class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Bulk Import</a>
         @endrole
+        <a href="{{ route('export.transactions', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
         @role('admin|agent')
         <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Transaction</a>
         @endrole
@@ -16,7 +17,7 @@
 </div>
 
 <div class="bg-white rounded-lg shadow p-4 mb-6 no-print">
-    <form method="GET" action="{{ route('transactions.index') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+    <form method="GET" action="{{ route('transactions.index') }}" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div>
             <label class="block text-sm text-gray-600 mb-1">Search</label>
             <input type="text" name="search" value="{{ request('search') }}" placeholder="Receipt #, sender, receiver"
@@ -29,6 +30,23 @@
                 <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
                 <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Completed</option>
                 <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Currency</label>
+            <select name="currency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">All</option>
+                <option value="UGX" {{ request('currency') === 'UGX' ? 'selected' : '' }}>UGX</option>
+                <option value="USD" {{ request('currency') === 'USD' ? 'selected' : '' }}>USD</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Created By</label>
+            <select name="created_by" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">All</option>
+                @foreach($creators as $creator)
+                <option value="{{ $creator->id }}" {{ request('created_by') == $creator->id ? 'selected' : '' }}>{{ $creator->name }}</option>
+                @endforeach
             </select>
         </div>
         <div>
@@ -47,15 +65,20 @@
         </div>
     </form>
     <div class="flex gap-2 mt-3 pt-3 border-t border-gray-200">
+        @php
+            $quickBase = array_filter(request()->only(['search', 'status', 'currency', 'created_by']), fn($v) => $v !== '');
+            $ranges = [
+                'Today' => [today()->toDateString(), today()->toDateString()],
+                'Yesterday' => [today()->subDay()->toDateString(), today()->subDay()->toDateString()],
+                'This Month' => [now()->startOfMonth()->toDateString(), now()->toDateString()],
+                'Last Month' => [now()->subMonth()->startOfMonth()->toDateString(), now()->subMonth()->endOfMonth()->toDateString()],
+            ];
+        @endphp
         <span class="text-sm text-gray-500 self-center mr-1">Quick:</span>
-        <a href="{{ route('transactions.index', ['date_from' => today()->toDateString(), 'date_to' => today()->toDateString(), 'search' => request('search'), 'status' => request('status')]) }}"
-            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === today()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Today</a>
-        <a href="{{ route('transactions.index', ['date_from' => today()->subDay()->toDateString(), 'date_to' => today()->subDay()->toDateString(), 'search' => request('search'), 'status' => request('status')]) }}"
-            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === today()->subDay()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Yesterday</a>
-        <a href="{{ route('transactions.index', ['date_from' => now()->startOfMonth()->toDateString(), 'date_to' => now()->toDateString(), 'search' => request('search'), 'status' => request('status')]) }}"
-            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === now()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">This Month</a>
-        <a href="{{ route('transactions.index', ['date_from' => now()->subMonth()->startOfMonth()->toDateString(), 'date_to' => now()->subMonth()->endOfMonth()->toDateString(), 'search' => request('search'), 'status' => request('status')]) }}"
-            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === now()->subMonth()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Last Month</a>
+        @foreach($ranges as $label => [$from, $to])
+        <a href="{{ route('transactions.index', array_merge($quickBase, ['date_from' => $from, 'date_to' => $to])) }}"
+            class="px-3 py-1 text-xs rounded-full {{ request('date_from') === $from && request('date_to') === $to ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">{{ $label }}</a>
+        @endforeach
     </div>
 </div>
 
@@ -94,20 +117,31 @@
                     </span>
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-500">{{ $t->created_at->format('M d, Y H:i') }}</td>
-                <td class="px-6 py-4 text-sm whitespace-nowrap">
-                    <a href="{{ route('receipts.show', $t->receipt_number) }}" class="text-green-600 hover:text-green-800 mr-2">View</a>
-                    <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="text-green-600 hover:text-green-800 mr-2">Print</a>
-                    @role('admin')
-                    <form method="POST" action="{{ route('transactions.update-status', $t) }}" class="inline">
-                        @csrf
-                        @method('PATCH')
-                        <select name="status" onchange="this.form.submit()" class="text-sm border-gray-300 rounded">
-                            <option value="pending" {{ $t->status === 'pending' ? 'selected' : '' }}>Pending</option>
-                            <option value="completed" {{ $t->status === 'completed' ? 'selected' : '' }}>Completed</option>
-                            <option value="cancelled" {{ $t->status === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                        </select>
-                    </form>
-                    @endrole
+                <td data-row-menu-host class="px-6 py-4 text-right relative">
+                    <button type="button" onclick="toggleMenu({{ $t->id }})" class="p-1 rounded hover:bg-gray-100">
+                        <svg class="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>
+                    </button>
+                    <div id="menu-{{ $t->id }}" data-row-menu class="hidden absolute right-0 top-8 z-20 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-44 text-left">
+                        <a href="{{ route('receipts.show', $t->receipt_number) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">View Receipt</a>
+                        <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Print Receipt</a>
+
+                        @role('admin|superadmin')
+                        <div class="border-t border-gray-100 my-1"></div>
+                        <p class="px-4 py-1 text-xs uppercase text-gray-400">Set Status</p>
+                        @foreach(['pending', 'completed', 'cancelled'] as $option)
+                        @if($t->status !== $option)
+                        <form method="POST" action="{{ route('transactions.update-status', $t) }}">
+                            @csrf @method('PATCH')
+                            <input type="hidden" name="status" value="{{ $option }}">
+                            <button type="submit" class="w-full text-left px-4 py-2 text-sm
+                                {{ $option === 'cancelled' ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50' }}">
+                                Mark {{ ucfirst($option) }}
+                            </button>
+                        </form>
+                        @endif
+                        @endforeach
+                        @endrole
+                    </div>
                 </td>
             </tr>
             @empty

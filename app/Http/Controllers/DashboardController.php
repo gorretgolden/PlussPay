@@ -62,17 +62,7 @@ class DashboardController extends Controller
 
     private function usdToUgxRate(): ?float
     {
-        $direct = ExchangeRate::getActiveRate('USD', 'UGX');
-        if ($direct && (float) $direct->rate > 0) {
-            return (float) $direct->rate;
-        }
-
-        $inverse = ExchangeRate::getActiveRate('UGX', 'USD');
-        if ($inverse && (float) $inverse->rate > 0) {
-            return 1 / (float) $inverse->rate;
-        }
-
-        return null;
+        return ExchangeRate::usdToUgx();
     }
 
     private function buildChartData(?int $scope): array

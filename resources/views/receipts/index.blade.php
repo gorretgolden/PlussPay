@@ -5,16 +5,32 @@
 @section('content')
 <div class="mb-6 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-900">Receipts</h1>
-    @role('admin|agent')
-    <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Transaction</a>
-    @endrole
+    <div class="flex gap-2">
+        <a href="{{ route('export.receipts', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
+        @role('admin|agent')
+        <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Transaction</a>
+        @endrole
+    </div>
 </div>
 
 <div class="bg-white rounded-lg shadow p-4 mb-6 no-print">
-    <form method="GET" action="{{ route('receipts.index') }}" class="flex gap-4">
-        <input type="text" name="search" value="{{ request('search') }}" placeholder="Search receipt number..."
-            class="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm">
-        <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Search</button>
+    <form method="GET" action="{{ route('receipts.index') }}" class="flex flex-wrap gap-3 items-end">
+        <div class="flex-1 min-w-[220px]">
+            <label class="block text-xs text-gray-500 mb-1">Search</label>
+            <input type="text" name="search" value="{{ request('search') }}" placeholder="Receipt #, sender, receiver..."
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+        </div>
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">From Date</label>
+            <input type="date" name="date_from" value="{{ request('date_from') }}"
+                class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+        </div>
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">To Date</label>
+            <input type="date" name="date_to" value="{{ request('date_to') }}"
+                class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+        </div>
+        <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Filter</button>
         <a href="{{ route('receipts.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Clear</a>
     </form>
 </div>

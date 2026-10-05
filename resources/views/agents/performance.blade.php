@@ -8,6 +8,8 @@
         <h1 class="text-2xl font-bold text-gray-900">Agent Performance</h1>
         <p class="text-gray-600">Track agent productivity and revenue</p>
     </div>
+    <a href="{{ route('export.agent-performance', request()->query()) }}"
+        class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
 </div>
 
 <div class="bg-white rounded-lg shadow p-6 mb-6">

@@ -14,29 +14,35 @@ class AgentPerformanceController extends Controller
         $dateFrom = $request->input('date_from', now()->startOfMonth()->format('Y-m-d'));
         $dateTo = $request->input('date_to', now()->format('Y-m-d'));
 
-        $agents = User::role('agent')
-            ->withCount(['transactions as total_transactions' => function ($q) use ($dateFrom, $dateTo) {
-                $q->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
+        $agents = static::report($dateFrom, $dateTo);
+
+        return view('agents.performance', compact('agents', 'dateFrom', 'dateTo'));
+    }
+
+    public static function report(string $dateFrom, string $dateTo)
+    {
+        $until = $dateTo . ' 23:59:59';
+
+        return User::role('agent')
+            ->withCount(['transactions as total_transactions' => function ($q) use ($dateFrom, $until) {
+                $q->whereBetween('created_at', [$dateFrom, $until]);
             }])
-            ->withCount(['transactions as completed_transactions' => function ($q) use ($dateFrom, $dateTo) {
+            ->withCount(['transactions as completed_transactions' => function ($q) use ($dateFrom, $until) {
                 $q->where('status', 'completed')
-                  ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
+                  ->whereBetween('created_at', [$dateFrom, $until]);
             }])
-            ->withCount(['transactions as pending_transactions' => function ($q) use ($dateFrom, $dateTo) {
+            ->withCount(['transactions as pending_transactions' => function ($q) use ($dateFrom, $until) {
                 $q->where('status', 'pending')
-                  ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
+                  ->whereBetween('created_at', [$dateFrom, $until]);
             }])
             ->get()
-            ->map(function ($agent) use ($dateFrom, $dateTo) {
-                $totalAmount = Transaction::where('created_by', $agent->id)
+            ->map(function ($agent) use ($dateFrom, $until) {
+                $completed = Transaction::where('created_by', $agent->id)
                     ->where('status', 'completed')
-                    ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
-                    ->sum('total_usd_equivalent');
+                    ->whereBetween('created_at', [$dateFrom, $until]);
 
-                $totalRevenue = Transaction::where('created_by', $agent->id)
-                    ->where('status', 'completed')
-                    ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
-                    ->sum('charge_amount');
+                $totalAmount = (clone $completed)->sum('total_usd_equivalent');
+                $totalRevenue = (clone $completed)->sum('charge_amount');
 
                 $successRate = $agent->total_transactions > 0
                     ? round(($agent->completed_transactions / $agent->total_transactions) * 100, 1)
@@ -53,7 +59,5 @@ class AgentPerformanceController extends Controller
                 ];
             })
             ->sortByDesc('total_revenue');
-
-        return view('agents.performance', compact('agents', 'dateFrom', 'dateTo'));
     }
 }

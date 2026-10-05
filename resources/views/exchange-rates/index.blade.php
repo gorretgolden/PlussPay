@@ -3,9 +3,37 @@
 @section('title', 'Exchange Rates')
 
 @section('content')
-<div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-900">Exchange Rates</h1>
-    <p class="text-gray-600">Manage currency conversion rates</p>
+<div class="mb-6 flex justify-between items-center">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Exchange Rates</h1>
+        <p class="text-gray-600">Manage currency conversion rates</p>
+    </div>
+    <a href="{{ route('export.exchange-rates', request()->query()) }}"
+        class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
+</div>
+
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <form method="GET" action="{{ route('exchange-rates.index') }}" class="flex flex-wrap gap-3 items-end">
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Currency</label>
+            <select name="currency" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">All Currencies</option>
+                <option value="USD" {{ request('currency') === 'USD' ? 'selected' : '' }}>USD</option>
+                <option value="UGX" {{ request('currency') === 'UGX' ? 'selected' : '' }}>UGX</option>
+                <option value="RMB" {{ request('currency') === 'RMB' ? 'selected' : '' }}>RMB</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Status</label>
+            <select name="status" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">All</option>
+                <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
+                <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
+            </select>
+        </div>
+        <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Filter</button>
+        <a href="{{ route('exchange-rates.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Clear</a>
+    </form>
 </div>
 
 <div class="bg-white rounded-lg shadow p-6 mb-6">

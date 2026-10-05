@@ -2,13 +2,6 @@
 
 @section('title', 'Roles & Permissions')
 
-@php
-    function roleDisplayName($slug) {
-        $map = ['superadmin' => 'Super Admin'];
-        return $map[$slug] ?? ucwords(str_replace('-', ' ', $slug));
-    }
-@endphp
-
 @section('content')
 <div class="mb-6 flex justify-between items-center">
     <div>
@@ -39,7 +32,7 @@
     <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
             <div class="flex items-center gap-3">
-                <h3 class="text-lg font-semibold text-gray-900">{{ roleDisplayName($role->name) }}</h3>
+                <h3 class="text-lg font-semibold text-gray-900">{{ \App\Http\Controllers\RolePermissionController::displayName($role->name) }}</h3>
                 <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">{{ $role->permissions->count() }} perms</span>
                 <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">{{ $role->users_count }} user(s)</span>
             </div>

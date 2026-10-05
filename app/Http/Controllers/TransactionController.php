@@ -5,43 +5,23 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class TransactionController extends Controller
 {
     public function index(Request $request)
     {
-        $user = auth()->user();
-        $query = Transaction::with('creator');
+        $transactions = Transaction::with('creator')
+            ->filtered($request)
+            ->when($request->user()->hasRole('agent'), fn($q) => $q->where('created_by', $request->user()->id))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
 
-        if ($user->hasRole('agent')) {
-            $query->where('created_by', $user->id);
-        }
+        $creators = User::whereHas('transactions')->orderBy('name')->get();
 
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('receipt_number', 'like', "%{$search}%")
-                  ->orWhere('sender_name', 'like', "%{$search}%")
-                  ->orWhere('receiver_name', 'like', "%{$search}%");
-            });
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->date_from);
-        }
-
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->date_to);
-        }
-
-        $transactions = $query->latest()->paginate(20);
-
-        return view('transactions.index', compact('transactions'));
+        return view('transactions.index', compact('transactions', 'creators'));
     }
 
     public function create()

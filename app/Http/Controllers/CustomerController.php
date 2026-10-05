@@ -9,23 +9,15 @@ class CustomerController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Customer::with('creator');
+        $customers = Customer::with('creator')
+            ->filtered($request)
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
 
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
-            });
-        }
+        $countries = Customer::distinct()->whereNotNull('country')->orderBy('country')->pluck('country');
 
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
-        }
-
-        $customers = $query->latest()->paginate(20);
-
-        return view('customers.index', compact('customers'));
+        return view('customers.index', compact('customers', 'countries'));
     }
 
     public function create()
