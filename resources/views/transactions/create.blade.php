@@ -466,9 +466,9 @@ function populateReview() {
     document.querySelectorAll('input[name="sender_name"], input[name="receiver_name"]').forEach(titleCaseName);
 
     document.getElementById('rev_sender_name').textContent = document.querySelector('[name=sender_name]').value;
-    document.getElementById('rev_sender_contact').textContent = document.getElementById('sender_full_contact').value;
+    document.getElementById('rev_sender_contact').textContent = document.getElementById('sender_contact').value.trim() ? document.getElementById('sender_full_contact').value : 'Not provided';
     document.getElementById('rev_receiver_name').textContent = document.querySelector('[name=receiver_name]').value;
-    document.getElementById('rev_receiver_contact').textContent = document.getElementById('receiver_full_contact').value;
+    document.getElementById('rev_receiver_contact').textContent = document.getElementById('receiver_contact').value.trim() ? document.getElementById('receiver_full_contact').value : 'Not provided';
 
     const currency = document.getElementById('currency').value;
     const amount = parseFloat(document.getElementById('amount').value) || 0;
@@ -495,8 +495,8 @@ document.getElementById('transactionForm').addEventListener('submit', function(e
     buildFullContact('sender_prefix', 'sender_contact', 'sender_full_contact');
     buildFullContact('receiver_prefix', 'receiver_contact', 'receiver_full_contact');
 
-    document.querySelector('[name=sender_contact]').value = document.getElementById('sender_full_contact').value;
-    document.querySelector('[name=receiver_contact]').value = document.getElementById('receiver_full_contact').value;
+    document.querySelector('[name=sender_contact]').value = document.getElementById('sender_contact').value.trim() ? document.getElementById('sender_full_contact').value : '';
+    document.querySelector('[name=receiver_contact]').value = document.getElementById('receiver_contact').value.trim() ? document.getElementById('receiver_full_contact').value : '';
 
     draftCleared = true;
     localStorage.removeItem(DRAFT_KEY);
