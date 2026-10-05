@@ -98,7 +98,7 @@
         <tbody>
             <tr>
                 <td>Send to China ({{ $transaction->currency }})</td>
-                <td class="amount-cell">{{ $transaction->exchange_rate }}</td>
+                <td class="amount-cell">{{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</td>
                 <td class="amount-cell">${{ number_format($transaction->charge_amount, 2) }}</td>
                 <td class="amount-cell">
                     {{ $transaction->currency }} {{ number_format($transaction->amount, 2) }}<br>

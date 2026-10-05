@@ -59,7 +59,7 @@
         <tbody>
             <tr>
                 <td class="border border-gray-300 px-4 py-3 text-sm">Send to China ({{ $transaction->currency }})</td>
-                <td class="border border-gray-300 px-4 py-3 text-sm">{{ $transaction->exchange_rate }}</td>
+                <td class="border border-gray-300 px-4 py-3 text-sm">{{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</td>
                 <td class="border border-gray-300 px-4 py-3 text-sm">${{ number_format($transaction->charge_amount, 2) }}</td>
                 <td class="border border-gray-300 px-4 py-3 text-sm">
                     {{ $transaction->currency }} {{ number_format($transaction->amount, 2) }}<br>

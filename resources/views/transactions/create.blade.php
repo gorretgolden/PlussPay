@@ -3,7 +3,10 @@
 @section('title', 'New Transaction')
 
 @section('content')
-@php $serverRepopulated = $errors->any(); @endphp
+@php
+    $serverRepopulated = $errors->any();
+    $trimRate = fn ($r) => rtrim(rtrim(number_format((float) $r, 6, '.', ''), '0'), '.');
+@endphp
 <div class="max-w-4xl mx-auto">
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Send Money to China</h1>
@@ -134,7 +137,12 @@
             </div>
 
             <div class="bg-green-50 rounded-lg p-5 mt-6">
-                <h4 class="font-semibold text-green-800 mb-3">Live Calculation</h4>
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-green-800">Live Calculation</h4>
+                    @if(auth()->user()->hasRole(['admin', 'superadmin']))
+                        <a href="{{ route('exchange-rates.index') }}" class="text-xs text-green-700 underline hover:text-green-900">Manage rates</a>
+                    @endif
+                </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
                         <div class="text-gray-500">USD Equivalent</div>
@@ -142,7 +150,10 @@
                     </div>
                     <div>
                         <div class="text-gray-500">Rate (USD→RMB)</div>
-                        <div class="font-bold text-lg">{{ $usdToRmb ? $usdToRmb->rate : 'N/A' }}</div>
+                        <div class="font-bold text-lg" id="preview_rate">{{ $usdToRmb ? '1 USD = ' . $trimRate($usdToRmb->rate) . ' RMB' : 'N/A' }}</div>
+                        @if($usdToRmb)
+                            <div class="text-xs text-gray-400 mt-1">Active rate, set {{ $usdToRmb->created_at->format('M d, Y') }}</div>
+                        @endif
                     </div>
                     <div>
                         <div class="text-gray-500">RMB Receiver Gets</div>
@@ -153,22 +164,32 @@
                         <div class="font-bold text-lg text-green-700" id="preview_charge">-</div>
                     </div>
                 </div>
+                <p class="text-xs text-gray-500 mt-4 leading-relaxed" id="preview_formula">Enter an amount to see how the figures are derived.</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Purpose (optional)</label>
-                    <select name="purpose"
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                        <option value="">Select purpose...</option>
-                        <option value="Family Support" {{ old('purpose') === 'Family Support' ? 'selected' : '' }}>Family Support</option>
-                        <option value="Business" {{ old('purpose') === 'Business' ? 'selected' : '' }}>Business</option>
-                        <option value="Education" {{ old('purpose') === 'Education' ? 'selected' : '' }}>Education</option>
-                        <option value="Medical" {{ old('purpose') === 'Medical' ? 'selected' : '' }}>Medical</option>
-                        <option value="Investment" {{ old('purpose') === 'Investment' ? 'selected' : '' }}>Investment</option>
-                        <option value="Personal" {{ old('purpose') === 'Personal' ? 'selected' : '' }}>Personal</option>
-                        <option value="Other" {{ old('purpose') === 'Other' ? 'selected' : '' }}>Other</option>
-                    </select>
+                    <div class="relative" id="purpose-picker">
+                        <input type="hidden" name="purpose" id="purpose" value="{{ old('purpose') }}">
+                        <button type="button" id="purpose-btn"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between gap-2 focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            <span id="purpose-label" class="truncate text-gray-500">Select purpose...</span>
+                            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div id="purpose-panel" class="hidden absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                            <div class="p-2 border-b border-gray-100">
+                                <input type="text" id="purpose-search" placeholder="Search purpose..." autocomplete="off"
+                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500">
+                            </div>
+                            <ul class="max-h-56 overflow-y-auto py-1">
+                                <li class="purpose-option px-4 py-2 text-sm cursor-pointer hover:bg-green-50 text-gray-500" data-value="">Select purpose...</li>
+                                @foreach(['Family Support', 'Business', 'Education', 'Medical', 'Investment', 'Personal', 'Other'] as $option)
+                                    <li class="purpose-option px-4 py-2 text-sm cursor-pointer hover:bg-green-50" data-value="{{ $option }}">{{ $option }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
@@ -302,6 +323,37 @@ document.querySelectorAll('.prefix-picker').forEach(picker => {
     document.addEventListener('click', e => { if (!picker.contains(e.target)) close(); });
 });
 
+const purposeHidden = document.getElementById('purpose');
+const purposeBtn = document.getElementById('purpose-btn');
+const purposeLabel = document.getElementById('purpose-label');
+const purposePanel = document.getElementById('purpose-panel');
+const purposeSearch = document.getElementById('purpose-search');
+const purposeOptions = Array.from(document.querySelectorAll('.purpose-option'));
+
+function applyPurpose(value) {
+    const opt = purposeOptions.find(o => o.dataset.value === value) || purposeOptions[0];
+    purposeHidden.value = opt.dataset.value;
+    purposeLabel.textContent = opt.dataset.value === '' ? 'Select purpose...' : opt.dataset.value;
+    purposeLabel.classList.toggle('text-gray-500', opt.dataset.value === '');
+    purposeOptions.forEach(o => o.classList.toggle('bg-green-50', o === opt));
+}
+function filterPurposes() {
+    const q = purposeSearch.value.trim().toLowerCase();
+    purposeOptions.forEach(o => o.classList.toggle('hidden', !o.dataset.value.toLowerCase().includes(q)));
+}
+function openPurposes() { purposePanel.classList.remove('hidden'); purposeSearch.value = ''; filterPurposes(); purposeSearch.focus(); }
+function closePurposes() { purposePanel.classList.add('hidden'); }
+
+applyPurpose(purposeHidden.value);
+purposeBtn.addEventListener('click', () => purposePanel.classList.contains('hidden') ? openPurposes() : closePurposes());
+purposeSearch.addEventListener('input', filterPurposes);
+purposeOptions.forEach(o => o.addEventListener('click', () => {
+    applyPurpose(o.dataset.value);
+    purposeHidden.dispatchEvent(new Event('change', { bubbles: true }));
+    closePurposes();
+}));
+document.addEventListener('click', e => { if (!document.getElementById('purpose-picker').contains(e.target)) closePurposes(); });
+
 document.getElementById('sender_prefix').addEventListener('change', function() {
     buildFullContact('sender_prefix', 'sender_contact', 'sender_full_contact');
 });
@@ -372,6 +424,10 @@ function prevStep(from) {
     showStep(from - 1);
 }
 
+function trimRate(n) {
+    return parseFloat(Number(n).toFixed(6)).toString();
+}
+
 function calculate() {
     const currency = document.getElementById('currency').value;
     const amount = parseFloat(document.getElementById('amount').value) || 0;
@@ -390,6 +446,23 @@ function calculate() {
     document.getElementById('preview_usd').textContent = '$' + usdEquivalent.toFixed(2);
     document.getElementById('preview_rmb').textContent = '¥' + rmbAmount.toFixed(2);
     document.getElementById('preview_charge').textContent = '$' + chargeAmount.toFixed(2);
+
+    const formula = document.getElementById('preview_formula');
+    if (!amount) {
+        formula.textContent = 'Enter an amount to see how the figures are derived.';
+        return;
+    }
+    const steps = [];
+    if (currency === 'UGX' && ugxToUsdRate) {
+        steps.push(amount.toLocaleString() + ' UGX ÷ ' + trimRate(1 / ugxToUsdRate) + ' = $' + usdEquivalent.toFixed(2));
+    } else {
+        steps.push('$' + usdEquivalent.toFixed(2) + ' sent');
+    }
+    if (usdToRmbRate) {
+        steps.push('$' + usdEquivalent.toFixed(2) + ' × ' + trimRate(usdToRmbRate) + ' = ¥' + rmbAmount.toFixed(2));
+    }
+    steps.push('Charge: $' + usdEquivalent.toFixed(2) + ' × ' + trimRate(chargeRate) + '% = $' + chargeAmount.toFixed(2));
+    formula.textContent = steps.join('   ·   ');
 }
 
 function titleCaseName(input) {
@@ -506,6 +579,7 @@ function restoreDraft() {
     });
     pickPrefix('sender', data.sender_prefix);
     pickPrefix('receiver', data.receiver_prefix);
+    applyPurpose(data.purpose || '');
 
     document.getElementById('draftMessage').textContent =
         'Welcome back - we restored your unfinished transaction for ' + (data.sender_name || 'the sender') + '.';

@@ -84,7 +84,7 @@
             <tr>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $rate->from_currency }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $rate->to_currency }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900 font-medium">{{ $rate->rate }}</td>
+                <td class="px-6 py-4 text-sm text-gray-900 font-medium">{{ rtrim(rtrim(number_format((float) $rate->rate, 6, '.', ''), '0'), '.') }}</td>
                 <td class="px-6 py-4">
                     <span class="px-2 py-1 text-xs rounded-full {{ $rate->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
                         {{ $rate->is_active ? 'Active' : 'Inactive' }}
