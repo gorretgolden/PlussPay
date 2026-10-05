@@ -37,13 +37,26 @@ class TransactionController extends Controller
         $usdToRmb = ExchangeRate::getActiveRate('USD', 'RMB');
         $usdToUgx = ExchangeRate::usdToUgx();
         $ugxToUsdRate = $usdToUgx ? 1 / $usdToUgx : null;
-        $defaultChargeRate = \App\Models\Setting::get('default_charge_rate', 5);
+        $serviceFeeUgx = (float) \App\Models\Setting::get('service_fee_ugx_per_100usd', 2000);
 
         // One-time token so a replayed or double-posted submit cannot mint a second receipt.
         $formId = (string) Str::uuid();
         session(['transaction_form_id' => $formId]);
 
-        return view('transactions.create', compact('usdToRmb', 'ugxToUsdRate', 'defaultChargeRate', 'formId'));
+        return view('transactions.create', compact('usdToRmb', 'ugxToUsdRate', 'serviceFeeUgx', 'formId'));
+    }
+
+    /**
+     * The service fee is set as UGX per 100 USD sent. Because it scales with the
+     * amount it reduces to a flat percentage of the USD value: feeUgx / usdToUgx.
+     * Returns null when the UGX rate is missing so callers can block the save.
+     */
+    private function chargeRatePercent(): ?float
+    {
+        $feeUgx = (float) \App\Models\Setting::get('service_fee_ugx_per_100usd', 2000);
+        $usdToUgx = (float) (ExchangeRate::usdToUgx() ?? 0);
+
+        return $usdToUgx > 0 ? $feeUgx / $usdToUgx : null;
     }
 
     public function store(Request $request)
@@ -59,7 +72,6 @@ class TransactionController extends Controller
             'receiver_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
             'currency' => 'required|in:UGX,USD',
             'amount' => "required|numeric|min:{$minAmount}|max:{$maxAmount}|decimal:0,2",
-            'charge_rate' => 'required|numeric|min:0|max:100',
             'purpose' => 'nullable|string|max:100',
             'purpose_other' => 'required_if:purpose,Other|nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
@@ -76,8 +88,6 @@ class TransactionController extends Controller
             'receiver_name.min' => 'Receiver name must be at least 2 characters.',
             'receiver_contact.regex' => 'Enter a valid phone number (e.g. +86 138 0000 0000).',
             'amount.required' => 'Amount is required.',
-            'charge_rate.required' => 'Charge rate is required.',
-            'charge_rate.max' => 'Charge rate cannot exceed 100%.',
         ]);
 
         if (! hash_equals((string) session('transaction_form_id', ''), $validated['form_id'])) {
@@ -103,7 +113,10 @@ class TransactionController extends Controller
         }
 
         $rmbAmount = bcmul($usdEquivalent, (string) $usdToRmbRate->rate, 2);
-        $chargeRate = (float) \App\Models\Setting::get('default_charge_rate', 5);
+        $chargeRate = $this->chargeRatePercent();
+        if ($chargeRate === null) {
+            return back()->withErrors(['exchange_rate' => 'UGX rate not set. The service fee cannot be calculated.'])->withInput();
+        }
         $chargeAmount = bcmul($usdEquivalent, (string) ($chargeRate / 100), 2);
 
         $purpose = $validated['purpose'] ?? null;
@@ -232,7 +245,10 @@ class TransactionController extends Controller
 
             $minAmount = (float) \App\Models\Setting::get('min_transaction_amount', 100);
             $maxAmount = (float) \App\Models\Setting::get('max_transaction_amount', 100000000);
-            $defaultChargeRate = \App\Models\Setting::get('default_charge_rate', 5);
+            $chargeRate = $this->chargeRatePercent();
+            if ($chargeRate === null) {
+                return back()->withErrors(['file' => 'UGX rate not set. The service fee cannot be calculated.']);
+            }
             $imported = 0;
             $errors = [];
 
@@ -271,7 +287,6 @@ class TransactionController extends Controller
                 }
 
                 $rmbAmount = bcmul($usdEquivalent, (string) $usdToRmbRate->rate, 2);
-                $chargeRate = (float) $defaultChargeRate;
                 $chargeAmount = bcmul($usdEquivalent, (string) ($chargeRate / 100), 2);
 
                 try {

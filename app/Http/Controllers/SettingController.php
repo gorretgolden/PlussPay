@@ -26,7 +26,7 @@ class SettingController extends Controller
             'company_phone' => 'nullable|string|max:60',
             'company_email' => 'nullable|email|max:100',
             'company_website' => 'nullable|string|max:100',
-            'default_charge_rate' => 'nullable|numeric|min:0|max:100',
+            'service_fee_ugx_per_100usd' => 'nullable|numeric|min:0',
             'min_transaction_amount' => 'nullable|numeric|min:0',
             'max_transaction_amount' => 'nullable|numeric|min:0',
             'receipt_prefix' => ['nullable', 'string', 'max:10', 'regex:/^[A-Za-z0-9]+$/'],
@@ -48,7 +48,7 @@ class SettingController extends Controller
         $changes = [];
 
         foreach ($validated as $key => $value) {
-            $type = in_array($key, ['default_charge_rate', 'min_transaction_amount', 'max_transaction_amount']) ? 'float' : 'string';
+            $type = in_array($key, ['service_fee_ugx_per_100usd', 'min_transaction_amount', 'max_transaction_amount']) ? 'float' : 'string';
             $group = str_starts_with($key, 'company_') ? 'company' : 'transaction';
 
             $previous = Setting::get($key);

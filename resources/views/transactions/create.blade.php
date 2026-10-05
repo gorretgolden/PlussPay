@@ -133,15 +133,14 @@
                     <p class="text-xs text-gray-500 mt-1">Minimum: 100 UGX</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Charge Rate (% per 100 USD)</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Service Fee</label>
                     <div class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-between gap-2">
-                        <span class="text-gray-700 font-medium">{{ $defaultChargeRate }}%</span>
+                        <span class="text-gray-700 font-medium">UGX {{ number_format($serviceFeeUgx) }} per 100 USD</span>
                         <span class="flex items-center gap-1 text-xs text-gray-500">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                             Locked
                         </span>
                     </div>
-                    <input type="hidden" name="charge_rate" id="charge_rate" value="{{ $defaultChargeRate }}">
                     <p class="text-xs text-gray-500 mt-1">Set by admin in System Settings</p>
                 </div>
             </div>
@@ -268,6 +267,7 @@
 <script>
 const usdToRmbRate = {{ $usdToRmb ? $usdToRmb->rate : 0 }};
 const ugxToUsdRate = {{ $ugxToUsdRate ?? 0 }};
+const serviceFeeUgx = {{ $serviceFeeUgx ?? 0 }};
 const errorFields = @json($errorFields);
 let currentStep = 1;
 
@@ -417,7 +417,6 @@ function trimRate(n) {
 function calculate() {
     const currency = document.getElementById('currency').value;
     const amount = parseFloat(document.getElementById('amount').value) || 0;
-    const chargeRate = parseFloat(document.getElementById('charge_rate').value) || 0;
 
     let usdEquivalent = 0;
     if (currency === 'UGX') {
@@ -427,7 +426,8 @@ function calculate() {
     }
 
     const rmbAmount = usdEquivalent * usdToRmbRate;
-    const chargeAmount = usdEquivalent * (chargeRate / 100);
+    const feeUgx = usdEquivalent / 100 * serviceFeeUgx;
+    const chargeAmount = feeUgx * ugxToUsdRate;
 
     document.getElementById('preview_usd').textContent = '$' + usdEquivalent.toFixed(2);
     document.getElementById('preview_rmb').textContent = '¥' + rmbAmount.toFixed(2);
@@ -447,7 +447,7 @@ function calculate() {
     if (usdToRmbRate) {
         steps.push('$' + usdEquivalent.toFixed(2) + ' × ' + trimRate(usdToRmbRate) + ' = ¥' + rmbAmount.toFixed(2));
     }
-    steps.push('Charge: $' + usdEquivalent.toFixed(2) + ' × ' + trimRate(chargeRate) + '% = $' + chargeAmount.toFixed(2));
+    steps.push('Charge: $' + usdEquivalent.toFixed(2) + ' ÷ 100 × UGX ' + serviceFeeUgx.toLocaleString() + ' = UGX ' + feeUgx.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' = $' + chargeAmount.toFixed(2));
     formula.textContent = steps.join('   ·   ');
 }
 
@@ -472,10 +472,9 @@ function populateReview() {
 
     const currency = document.getElementById('currency').value;
     const amount = parseFloat(document.getElementById('amount').value) || 0;
-    const chargeRate = parseFloat(document.getElementById('charge_rate').value) || 0;
     let usdEquivalent = currency === 'UGX' ? amount * ugxToUsdRate : amount;
     const rmbAmount = usdEquivalent * usdToRmbRate;
-    const chargeAmount = usdEquivalent * (chargeRate / 100);
+    const chargeAmount = (usdEquivalent / 100 * serviceFeeUgx) * ugxToUsdRate;
 
     document.getElementById('rev_amount').textContent = currency + ' ' + amount.toLocaleString(undefined, {minimumFractionDigits: 2});
     document.getElementById('rev_usd').textContent = '$' + usdEquivalent.toFixed(2);

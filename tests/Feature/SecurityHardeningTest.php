@@ -312,6 +312,8 @@ class SecurityHardeningTest extends TestCase
 
     public function test_client_cannot_for_its_own_rate_or_charge(): void
     {
+        Setting::set('service_fee_ugx_per_100usd', '2000', 'float', 'transaction');
+
         $agent = $this->makeUser('agent');
         $this->actingAs($agent);
 
@@ -335,8 +337,9 @@ class SecurityHardeningTest extends TestCase
         $transaction = Transaction::first();
 
         // The client sent charge_rate 0, exchange_rate 1 and status completed; all three are recomputed server-side.
-        $this->assertSame('5.0000', (string) $transaction->charge_rate);
-        $this->assertSame('50.00', (string) $transaction->charge_amount);
+        // UGX 2,000 per 100 USD at USD/UGX 3700 is a flat 0.5405%, so $1,000 pays $5.40.
+        $this->assertSame('0.5405', (string) $transaction->charge_rate);
+        $this->assertSame('5.40', (string) $transaction->charge_amount);
         $this->assertSame('7.240000', (string) $transaction->exchange_rate);
         $this->assertSame('7240.00', (string) $transaction->rmb_amount);
         $this->assertSame('pending', $transaction->status);
