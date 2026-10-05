@@ -223,6 +223,152 @@
             }
         });
 
+        // Searchable dropdowns. The native select stays in the DOM so form
+        // submit, required validation and error styling still work.
+        (function() {
+            const CARET = '<svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>';
+
+            function enhance(sel) {
+                if (sel.multiple || sel.dataset.noSearch !== undefined || sel.dataset.searchable) return;
+                if (sel.options.length < 2) return;
+                sel.dataset.searchable = '1';
+
+                const wrap = document.createElement('div');
+                wrap.className = 'relative';
+
+                const trigger = document.createElement('button');
+                trigger.type = 'button';
+                trigger.disabled = sel.disabled;
+                trigger.className = (sel.className ? sel.className + ' ' : '')
+                    + 'flex items-center justify-between gap-2 text-left outline-none';
+                trigger.innerHTML = '<span class="truncate ss-label"></span>' + CARET;
+
+                const panel = document.createElement('div');
+                panel.className = 'absolute left-0 top-full z-40 mt-1 w-full min-w-[14rem] bg-white rounded-lg shadow-xl border border-gray-200 hidden text-left';
+
+                const search = document.createElement('input');
+                search.type = 'text';
+                search.placeholder = 'Search...';
+                search.className = 'w-full px-3 py-2 border-b border-gray-100 rounded-t-lg text-sm outline-none focus:bg-green-50';
+                if (sel.options.length <= 2) search.classList.add('hidden');
+
+                const list = document.createElement('ul');
+                list.className = 'max-h-56 overflow-y-auto py-1';
+
+                sel.parentNode.insertBefore(wrap, sel);
+                wrap.appendChild(trigger);
+                wrap.appendChild(panel);
+                panel.appendChild(search);
+                panel.appendChild(list);
+                wrap.appendChild(sel);
+
+                Object.assign(sel.style, {
+                    position: 'absolute', width: '1px', height: '1px',
+                    margin: '-1px', padding: '0', border: '0',
+                    overflow: 'hidden', opacity: '0', pointerEvents: 'none',
+                });
+                sel.tabIndex = -1;
+
+                const labelSpan = trigger.querySelector('.ss-label');
+                const items = Array.from(sel.options).map(function(opt) {
+                    const li = document.createElement('li');
+                    li.className = 'px-3 py-2 text-sm hover:bg-green-50 cursor-pointer truncate';
+                    li.textContent = opt.textContent.trim();
+                    li.dataset.index = opt.index;
+                    li.dataset.search = (opt.textContent + ' ' + opt.value).toLowerCase();
+                    if (opt.disabled) li.classList.add('opacity-40', 'cursor-not-allowed');
+                    list.appendChild(li);
+                    return li;
+                });
+
+                function render() {
+                    const opt = sel.options[sel.selectedIndex];
+                    const text = opt ? opt.textContent.trim() : '';
+                    labelSpan.textContent = text;
+                    labelSpan.classList.toggle('text-gray-400', !opt || opt.value === '');
+                    items.forEach(function(li) {
+                        li.classList.toggle('bg-green-50', Number(li.dataset.index) === sel.selectedIndex);
+                    });
+                }
+
+                const isOpen = () => !panel.classList.contains('hidden');
+                const visible = () => items.filter(li => !li.classList.contains('hidden'));
+
+                function filter() {
+                    const q = search.value.toLowerCase().trim();
+                    items.forEach(li => li.classList.toggle('hidden', q !== '' && !li.dataset.search.includes(q)));
+                }
+
+                let active = -1;
+                function highlight(i) {
+                    const vis = visible();
+                    items.forEach(li => li.classList.remove('bg-gray-100'));
+                    active = i;
+                    if (vis[i]) {
+                        vis[i].classList.add('bg-gray-100');
+                        vis[i].scrollIntoView({ block: 'nearest' });
+                    }
+                }
+
+                function open() {
+                    panel.classList.remove('hidden');
+                    search.value = '';
+                    filter();
+                    highlight(-1);
+                    if (!search.classList.contains('hidden')) search.focus();
+                }
+
+                function close() {
+                    panel.classList.add('hidden');
+                }
+
+                function pick(index) {
+                    const opt = sel.options[index];
+                    if (!opt || opt.disabled) return;
+                    sel.value = opt.value;
+                    sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    render();
+                    close();
+                    trigger.focus();
+                }
+
+                trigger.addEventListener('click', () => isOpen() ? close() : open());
+                search.addEventListener('input', () => { filter(); highlight(0); });
+                search.addEventListener('keydown', function(e) {
+                    const vis = visible();
+                    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(active + 1, vis.length - 1)); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(active - 1, 0)); }
+                    else if (e.key === 'Enter') { e.preventDefault(); const t = vis[active] || vis[0]; if (t) pick(Number(t.dataset.index)); }
+                    else if (e.key === 'Escape') { close(); trigger.focus(); }
+                });
+                list.addEventListener('click', function(e) {
+                    const li = e.target.closest('li');
+                    if (li) pick(Number(li.dataset.index));
+                });
+                document.addEventListener('click', function(e) {
+                    if (!wrap.contains(e.target)) close();
+                });
+                sel.addEventListener('change', render);
+                sel.addEventListener('focus', function() { trigger.focus(); });
+
+                // Mirror the wizard's invalid-field flash onto the visible control.
+                new MutationObserver(function() {
+                    ['ring-2', 'ring-red-400'].forEach(function(cls) {
+                        trigger.classList.toggle(cls, sel.classList.contains(cls));
+                    });
+                }).observe(sel, { attributes: true, attributeFilter: ['class'] });
+
+                if (sel.id) {
+                    const label = document.querySelector('label[for="' + sel.id + '"]');
+                    if (label) label.addEventListener('click', function(e) { e.preventDefault(); open(); });
+                }
+
+                render();
+            }
+
+            document.querySelectorAll('select').forEach(enhance);
+        })();
+
         @auth
         // Inactivity auto-logout: 30 minutes
         (function() {
