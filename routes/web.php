@@ -1,12 +1,14 @@
 <?php
 
 use App\Http\Controllers\AgentPerformanceController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExchangeRateController;
 use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
@@ -60,5 +62,12 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
 
         Route::get('/agents/performance', [AgentPerformanceController::class, 'index'])->name('agents.performance');
+
+        Route::get('/admin/roles', [RolePermissionController::class, 'roles'])->name('admin.roles');
+        Route::put('/admin/roles/{role}', [RolePermissionController::class, 'updateRole'])->name('admin.roles.update');
+        Route::get('/admin/permissions', [RolePermissionController::class, 'permissions'])->name('admin.permissions');
+
+        Route::get('/admin/activity-logs', [AuditLogController::class, 'activityLogs'])->name('admin.activity-logs');
+        Route::get('/admin/login-logs', [AuditLogController::class, 'loginLogs'])->name('admin.login-logs');
     });
 });
