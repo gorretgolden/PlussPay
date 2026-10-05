@@ -17,6 +17,9 @@
         .sidebar-sublink.active { background-color: #14532d; color: #4ade80; }
         .sidebar-sublink { padding-left: 2.5rem; }
         .sidebar-group-header { padding-left: 1.5rem; }
+        .sidebar-nav { scrollbar-width: thin; scrollbar-color: #166534 transparent; }
+        .sidebar-nav::-webkit-scrollbar { width: 6px; }
+        .sidebar-nav::-webkit-scrollbar-thumb { background: #166534; border-radius: 3px; }
     </style>
     @stack('styles')
 </head>
@@ -30,7 +33,7 @@
                     <img src="{{ asset('logo.png') }}" alt="PlusPay" class="w-full h-auto">
                 </a>
             </div>
-            <nav class="flex-1 py-4">
+            <nav class="sidebar-nav flex-1 py-4 overflow-y-auto">
                 <a href="{{ route('dashboard') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4"/></svg>
                     Dashboard
