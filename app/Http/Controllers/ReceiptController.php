@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 
@@ -11,8 +12,8 @@ class ReceiptController extends Controller
     {
         $receipts = Transaction::with('creator')
             ->where('status', 'completed')
+            ->visibleTo($request->user())
             ->filtered($request)
-            ->when($request->user()->hasRole('agent'), fn($q) => $q->where('created_by', $request->user()->id))
             ->latest()
             ->paginate(20)
             ->withQueryString();
@@ -20,17 +21,33 @@ class ReceiptController extends Controller
         return view('receipts.index', compact('receipts'));
     }
 
-    public function show(string $receiptNumber)
+    public function show(Request $request, string $receiptNumber)
     {
-        $transaction = Transaction::where('receipt_number', $receiptNumber)->firstOrFail();
+        $transaction = $this->visibleReceipt($request, $receiptNumber);
 
         return view('receipts.show', compact('transaction'));
     }
 
-    public function print(string $receiptNumber)
+    public function print(Request $request, string $receiptNumber)
     {
-        $transaction = Transaction::where('receipt_number', $receiptNumber)->firstOrFail();
+        $transaction = $this->visibleReceipt($request, $receiptNumber);
+
+        ActivityLog::create([
+            'transaction_id' => $transaction->id,
+            'user_id' => $request->user()->id,
+            'action' => 'receipt_printed',
+            'description' => "Receipt {$transaction->receipt_number} printed",
+        ]);
 
         return view('receipts.print', compact('transaction'));
+    }
+
+    private function visibleReceipt(Request $request, string $receiptNumber): Transaction
+    {
+        $transaction = Transaction::visibleTo($request->user())
+            ->where('receipt_number', $receiptNumber)
+            ->firstOrFail();
+
+        return $transaction;
     }
 }

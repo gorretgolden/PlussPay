@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use Illuminate\Http\Request;
 
@@ -40,6 +41,8 @@ class ExchangeRateController extends Controller
             return back()->withErrors(['rate' => 'This exchange rate is already active.']);
         }
 
+        $previous = $existing ? (string) $existing->rate : 'none';
+
         ExchangeRate::where('from_currency', $validated['from_currency'])
             ->where('to_currency', $validated['to_currency'])
             ->update(['is_active' => false]);
@@ -51,20 +54,44 @@ class ExchangeRateController extends Controller
             'is_active' => true,
         ]);
 
+        $pair = strtoupper($validated['from_currency']).'-'.strtoupper($validated['to_currency']);
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'exchange_rate_set',
+            'description' => "Active rate for {$pair} set to {$validated['rate']} (was {$previous})",
+            'old_value' => $previous,
+            'new_value' => (string) $validated['rate'],
+        ]);
+
         return back()->with('success', 'Exchange rate updated successfully.');
     }
 
-    public function toggle(ExchangeRate $exchangeRate)
+    public function toggle(Request $request, ExchangeRate $exchangeRate)
     {
         if ($exchangeRate->is_active) {
             return back()->withErrors(['rate' => 'Cannot deactivate the only active rate for this pair. Set a new rate first.']);
         }
+
+        $pair = $exchangeRate->from_currency.'-'.$exchangeRate->to_currency;
+        $current = ExchangeRate::where('from_currency', $exchangeRate->from_currency)
+            ->where('to_currency', $exchangeRate->to_currency)
+            ->where('is_active', true)
+            ->first();
 
         ExchangeRate::where('from_currency', $exchangeRate->from_currency)
             ->where('to_currency', $exchangeRate->to_currency)
             ->update(['is_active' => false]);
 
         $exchangeRate->update(['is_active' => true]);
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'exchange_rate_activated',
+            'description' => "Rate for {$pair} switched to {$exchangeRate->rate} (was ".($current ? $current->rate : 'none').')',
+            'old_value' => $current ? (string) $current->rate : 'none',
+            'new_value' => (string) $exchangeRate->rate,
+        ]);
 
         return back()->with('success', 'Exchange rate activated.');
     }

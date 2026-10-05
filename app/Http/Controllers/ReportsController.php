@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -21,11 +23,8 @@ class ReportsController extends Controller
         $dateTo = $request->input('date_to', now()->toDateString());
         $reportType = $request->input('type', 'hub');
 
-        $query = Transaction::whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
-
-        if (auth()->user()->hasRole('agent')) {
-            $query->where('created_by', auth()->id());
-        }
+        $query = Transaction::visibleTo(auth()->user())
+            ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
 
         $transactions = (clone $query)->latest()->get();
 
@@ -51,13 +50,15 @@ class ReportsController extends Controller
             ]);
 
         $byAgent = Transaction::with('creator')
+            ->visibleTo(auth()->user())
             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
             ->where('status', 'completed')
             ->select('created_by', DB::raw('count(*) as count'), DB::raw('sum(total_usd_equivalent) as total_usd'), DB::raw('sum(charge_amount) as total_revenue'))
             ->groupBy('created_by')
             ->get();
 
-        $dailySummary = Transaction::whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
+        $dailySummary = Transaction::visibleTo(auth()->user())
+            ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
             ->where('status', 'completed')
             ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as count'), DB::raw('sum(total_usd_equivalent) as total_usd'), DB::raw('sum(charge_amount) as revenue'))
             ->groupBy(DB::raw('DATE(created_at)'))
@@ -72,11 +73,8 @@ class ReportsController extends Controller
         $dateFrom = $request->input('date_from', now()->startOfMonth()->toDateString());
         $dateTo = $request->input('date_to', now()->toDateString());
 
-        $query = Transaction::whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
-
-        if (auth()->user()->hasRole('agent')) {
-            $query->where('created_by', auth()->id());
-        }
+        $query = Transaction::visibleTo(auth()->user())
+            ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -91,15 +89,22 @@ class ReportsController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = '%'.addcslashes($request->search, '%_\\').'%';
             $query->where(function ($q) use ($search) {
-                $q->where('receipt_number', 'like', "%{$search}%")
-                  ->orWhere('sender_name', 'like', "%{$search}%")
-                  ->orWhere('receiver_name', 'like', "%{$search}%");
+                $q->where('receipt_number', 'like', $search)
+                  ->orWhere('sender_name', 'like', $search)
+                  ->orWhere('receiver_name', 'like', $search);
             });
         }
 
         $transactions = $query->with('creator')->latest()->get();
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'exported',
+            'description' => "Exported report {$dateFrom} to {$dateTo} (" . $transactions->count() . ' transaction(s))',
+            'new_value' => (string) $transactions->count(),
+        ]);
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -122,21 +127,23 @@ class ReportsController extends Controller
 
         $row = 2;
         foreach ($transactions as $t) {
-            $sheet->setCellValue('A' . $row, $t->receipt_number);
-            $sheet->setCellValue('B' . $row, $t->created_at->format('Y-m-d H:i'));
-            $sheet->setCellValue('C' . $row, $t->sender_name);
-            $sheet->setCellValue('D' . $row, $t->sender_contact);
-            $sheet->setCellValue('E' . $row, $t->receiver_name);
-            $sheet->setCellValue('F' . $row, $t->receiver_contact);
-            $sheet->setCellValue('G' . $row, $t->currency);
+            // Text cells are forced to TYPE_STRING so a name starting with =, + or @
+            // cannot become an executable formula when the report is opened.
+            $this->putText($sheet, 'A' . $row, (string) $t->receipt_number);
+            $this->putText($sheet, 'B' . $row, $t->created_at->format('Y-m-d H:i'));
+            $this->putText($sheet, 'C' . $row, (string) $t->sender_name);
+            $this->putText($sheet, 'D' . $row, (string) $t->sender_contact);
+            $this->putText($sheet, 'E' . $row, (string) $t->receiver_name);
+            $this->putText($sheet, 'F' . $row, (string) $t->receiver_contact);
+            $this->putText($sheet, 'G' . $row, (string) $t->currency);
             $sheet->setCellValue('H' . $row, (float) $t->amount);
             $sheet->setCellValue('I' . $row, (float) $t->total_usd_equivalent);
             $sheet->setCellValue('J' . $row, (float) $t->exchange_rate);
             $sheet->setCellValue('K' . $row, (float) $t->rmb_amount);
             $sheet->setCellValue('L' . $row, (float) $t->charge_rate);
             $sheet->setCellValue('M' . $row, (float) $t->charge_amount);
-            $sheet->setCellValue('N' . $row, ucfirst($t->status));
-            $sheet->setCellValue('O' . $row, $t->creator?->name ?? '-');
+            $this->putText($sheet, 'N' . $row, ucfirst((string) $t->status));
+            $this->putText($sheet, 'O' . $row, (string) ($t->creator?->name ?? '-'));
             $row++;
         }
 
@@ -164,5 +171,10 @@ class ReportsController extends Controller
         $writer = new Xlsx($spreadsheet);
         $writer->save('php://output');
         exit;
+    }
+
+    private function putText($sheet, string $cell, string $value): void
+    {
+        $sheet->setCellValueExplicit($cell, $value, DataType::TYPE_STRING);
     }
 }

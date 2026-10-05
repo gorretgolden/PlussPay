@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
 
 class Transaction extends Model
 {
@@ -62,16 +63,25 @@ class Transaction extends Model
         return $this->hasMany(ActivityLog::class);
     }
 
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        if ($user->hasRole(['superadmin', 'admin'])) {
+            return $query;
+        }
+
+        return $query->where('created_by', $user->id);
+    }
+
     public function scopeFiltered(Builder $query, Request $request): Builder
     {
         if ($request->filled('search')) {
-            $search = $request->search;
+            $search = '%'.addcslashes($request->search, '%_\\').'%';
             $query->where(function ($q) use ($search) {
-                $q->where('receipt_number', 'like', "%{$search}%")
-                    ->orWhere('sender_name', 'like', "%{$search}%")
-                    ->orWhere('receiver_name', 'like', "%{$search}%")
-                    ->orWhere('sender_contact', 'like', "%{$search}%")
-                    ->orWhere('receiver_contact', 'like', "%{$search}%");
+                $q->where('receipt_number', 'like', $search)
+                    ->orWhere('sender_name', 'like', $search)
+                    ->orWhere('receiver_name', 'like', $search)
+                    ->orWhere('sender_contact', 'like', $search)
+                    ->orWhere('receiver_contact', 'like', $search);
             });
         }
 
@@ -97,15 +107,42 @@ class Transaction extends Model
         $prefix = trim((string) Setting::get('receipt_prefix', 'PS'), " \t\n\r\0\x0B-") ?: 'PS';
         $date = now()->format('Ymd');
 
-        $last = static::where('receipt_number', 'like', "{$prefix}-{$date}-%")
-            ->orderBy('id', 'desc')
-            ->first();
+        $issued = static::withTrashed()
+            ->where('receipt_number', 'like', "{$prefix}-{$date}-%")
+            ->pluck('receipt_number');
 
-        $next = 1;
-        if ($last && ($dash = strrpos($last->receipt_number, '-')) !== false) {
-            $next = (int) substr($last->receipt_number, $dash + 1) + 1;
+        $next = 0;
+        foreach ($issued as $number) {
+            if (preg_match('/-(\d+)$/', $number, $matches)) {
+                $next = max($next, (int) $matches[1]);
+            }
         }
 
-        return sprintf('%s-%s-%04d', $prefix, $date, $next);
+        return sprintf('%s-%s-%04d', $prefix, $date, $next + 1);
+    }
+
+    /**
+     * Two cashiers submitting in the same second can both read the same sequence,
+     * so retry on the unique receipt_number collision instead of throwing a 500.
+     */
+    public static function createWithReceiptNumber(array $attributes, int $attempts = 5): self
+    {
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                return static::create(array_merge($attributes, ['receipt_number' => static::generateReceiptNumber()]));
+            } catch (QueryException $e) {
+                if ($attempt >= $attempts || ! self::isDuplicateReceiptNumber($e)) {
+                    throw $e;
+                }
+
+                usleep(60000 * $attempt);
+            }
+        }
+    }
+
+    private static function isDuplicateReceiptNumber(QueryException $e): bool
+    {
+        return $e->getCode() === '23000'
+            && str_contains($e->getMessage(), 'receipt_number');
     }
 }

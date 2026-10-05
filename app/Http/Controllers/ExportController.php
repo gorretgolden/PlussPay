@@ -199,11 +199,9 @@ class ExportController extends Controller
 
     private function transactionQuery(Request $request)
     {
-        $user = $request->user();
-
         return Transaction::with('creator')
-            ->filtered($request)
-            ->when($user->hasRole('agent'), fn($q) => $q->where('created_by', $user->id));
+            ->visibleTo($request->user())
+            ->filtered($request);
     }
 
     private function ugx(float $usd): string
@@ -217,6 +215,13 @@ class ExportController extends Controller
 
     private function download(string $name, array $headers, array $rows, string $suffix = '')
     {
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'exported',
+            'description' => 'Exported ' . $name . ' (' . count($rows) . ' row(s))',
+            'new_value' => (string) count($rows),
+        ]);
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle(ucfirst(str_replace('-', ' ', $name)));

@@ -15,10 +15,8 @@ class DashboardController extends Controller
         $user = auth()->user();
         $role = $user->getRoleNames()->first() ?? 'User';
 
-        $scope = $user->hasRole('agent') ? $user->id : null;
-
-        $stats = DB::table('transactions')
-            ->when($scope, fn($q) => $q->where('created_by', $scope))
+        $stats = Transaction::query()
+            ->visibleTo($user)
             ->selectRaw("
                 COUNT(*) as total_transactions,
                 COALESCE(SUM(CASE WHEN status='completed' THEN total_usd_equivalent ELSE 0 END), 0) as total_usd_sent,
@@ -31,8 +29,8 @@ class DashboardController extends Controller
             ")
             ->first();
 
-        $todayStats = DB::table('transactions')
-            ->when($scope, fn($q) => $q->where('created_by', $scope))
+        $todayStats = Transaction::query()
+            ->visibleTo($user)
             ->whereDate('created_at', today())
             ->selectRaw("
                 COUNT(*) as today_transactions,
@@ -45,12 +43,13 @@ class DashboardController extends Controller
         $stats['total_users'] = $user->hasRole(['admin', 'superadmin']) ? User::where('is_active', true)->count() : 0;
         $stats['active_rates'] = $user->hasRole(['admin', 'superadmin']) ? ExchangeRate::where('is_active', true)->count() : 0;
 
-        $recentTransactions = Transaction::when($scope, fn($q) => $q->where('created_by', $scope))
+        $recentTransactions = Transaction::query()
+            ->visibleTo($user)
             ->latest()
             ->take(10)
             ->get();
 
-        $chartData = $this->buildChartData($scope);
+        $chartData = $this->buildChartData($user);
 
         $usdToUgx = $this->usdToUgxRate();
         if ($usdToUgx) {
@@ -65,12 +64,12 @@ class DashboardController extends Controller
         return ExchangeRate::usdToUgx();
     }
 
-    private function buildChartData(?int $scope): array
+    private function buildChartData(User $user): array
     {
         $startDate = now()->subDays(6)->startOfDay();
 
-        $daily = DB::table('transactions')
-            ->when($scope, fn($q) => $q->where('created_by', $scope))
+        $daily = Transaction::query()
+            ->visibleTo($user)
             ->where('created_at', '>=', $startDate)
             ->selectRaw("DATE(created_at) as date, COUNT(*) as transactions, COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as revenue")
             ->groupBy(DB::raw('DATE(created_at)'))

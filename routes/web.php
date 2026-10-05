@@ -21,11 +21,8 @@ Route::get('/', function () {
 });
 Route::post('/admin/login', [AuthController::class, 'login'])->name('login.post');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-Route::get('/logout', [AuthController::class, 'logout'])->name('logout.get');
 
-Route::get('/receipts/{receiptNumber}/view', [ReceiptController::class, 'show'])->name('receipts.public-view');
-
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'account.active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');

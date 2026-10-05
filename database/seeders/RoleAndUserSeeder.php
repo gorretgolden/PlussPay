@@ -4,59 +4,53 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 class RoleAndUserSeeder extends Seeder
 {
+    /**
+     * Demo accounts. Passwords come from the environment, or are generated and
+     * printed once, so no working credential ever lands in git.
+     */
+    private const DEMO_ACCOUNTS = [
+        ['email' => 'superadmin@plussave.com', 'name' => 'Super Admin', 'role' => 'superadmin', 'env' => 'SEED_SUPERADMIN_PASSWORD'],
+        ['email' => 'admin@plussave.com', 'name' => 'Admin', 'role' => 'admin', 'env' => 'SEED_ADMIN_PASSWORD'],
+        ['email' => 'agent@plussave.com', 'name' => 'Agent', 'role' => 'agent', 'env' => 'SEED_AGENT_PASSWORD'],
+        ['email' => 'staff@plussave.com', 'name' => 'Staff', 'role' => 'staff', 'env' => 'SEED_STAFF_PASSWORD'],
+    ];
+
     public function run(): void
     {
-        $superadminRole = Role::firstOrCreate(['name' => 'superadmin']);
-        $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        $agentRole = Role::firstOrCreate(['name' => 'agent']);
-        $staffRole = Role::firstOrCreate(['name' => 'staff']);
+        foreach (['superadmin', 'admin', 'agent', 'staff'] as $role) {
+            Role::firstOrCreate(['name' => $role]);
+        }
 
-        $superadmin = User::firstOrCreate(
-            ['email' => 'superadmin@plussave.com'],
-            [
-                'name' => 'Super Admin',
-                'phone' => '',
-                'password' => bcrypt('superadmin123'),
-                'is_active' => true,
-            ]
-        );
-        $superadmin->assignRole($superadminRole);
+        foreach (self::DEMO_ACCOUNTS as $account) {
+            if (app()->environment('production') && $account['role'] !== 'superadmin') {
+                $this->warn("Skipped {$account['email']} - demo accounts are not created on production.");
+                continue;
+            }
 
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@plussave.com'],
-            [
-                'name' => 'Admin',
-                'phone' => '',
-                'password' => bcrypt('admin123'),
-                'is_active' => true,
-            ]
-        );
-        $admin->assignRole($adminRole);
+            $existed = User::where('email', $account['email'])->exists();
 
-        $agent = User::firstOrCreate(
-            ['email' => 'agent@plussave.com'],
-            [
-                'name' => 'Agent',
-                'phone' => '',
-                'password' => bcrypt('agent123'),
-                'is_active' => true,
-            ]
-        );
-        $agent->assignRole($agentRole);
+            $password = env($account['env']) ?: Str::random(20);
 
-        $staff = User::firstOrCreate(
-            ['email' => 'staff@plussave.com'],
-            [
-                'name' => 'Staff',
-                'phone' => '',
-                'password' => bcrypt('staff123'),
-                'is_active' => true,
-            ]
-        );
-        $staff->assignRole($staffRole);
+            $user = User::firstOrCreate(
+                ['email' => $account['email']],
+                [
+                    'name' => $account['name'],
+                    'phone' => '',
+                    'password' => $password,
+                    'is_active' => true,
+                ]
+            );
+            $user->assignRole($account['role']);
+
+            if (!$existed) {
+                $this->info("Created {$account['email']} with password: {$password}");
+                $this->info('Store that password somewhere safe. It is not saved in the repository.');
+            }
+        }
     }
 }

@@ -10,6 +10,15 @@ use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
+    private const PASSWORD_RULES = 'string|min:8|max:72|regex:/[a-zA-Z]/|regex:/[0-9]/';
+
+    private const PASSWORD_MESSAGES = [
+        'password.min' => 'Password must be at least 8 characters.',
+        'password.max' => 'Password cannot be longer than 72 characters.',
+        'password.regex' => 'Password must contain both letters and at least one number.',
+        'password.confirmed' => 'Password confirmation does not match.',
+    ];
+
     public function index(Request $request)
     {
         $users = User::with('roles')
@@ -25,7 +34,7 @@ class UserController extends Controller
 
     public function create()
     {
-        $roles = Role::all();
+        $roles = $this->assignableRoles();
 
         return view('users.create', compact('roles'));
     }
@@ -36,9 +45,9 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:100', 'min:2', 'regex:/^[a-zA-Z\s\-\.]+$/'],
             'email' => 'required|email|max:100|unique:users,email',
             'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
-            'password' => 'required|string|min:8|confirmed',
+            'password' => 'required|'.self::PASSWORD_RULES.'|confirmed',
             'role' => 'required|exists:roles,name',
-        ], [
+        ], self::PASSWORD_MESSAGES + [
             'name.required' => 'Full name is required.',
             'name.min' => 'Name must be at least 2 characters.',
             'name.regex' => 'Name can only contain letters, spaces, hyphens, and dots.',
@@ -47,11 +56,13 @@ class UserController extends Controller
             'email.unique' => 'This email is already registered.',
             'phone.regex' => 'Enter a valid phone number.',
             'password.required' => 'Password is required.',
-            'password.min' => 'Password must be at least 8 characters.',
-            'password.confirmed' => 'Password confirmation does not match.',
             'role.required' => 'Please select a role.',
             'role.exists' => 'Invalid role selected.',
         ]);
+
+        if (!$this->canAssignRole($validated['role'])) {
+            return back()->withErrors(['role' => 'Only a superadmin can create a superadmin account.']);
+        }
 
         $user = User::create([
             'name' => trim($validated['name']),
@@ -63,12 +74,28 @@ class UserController extends Controller
 
         $user->assignRole($validated['role']);
 
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'user_created',
+            'description' => "User {$user->name} ({$user->email}) created with role {$validated['role']}",
+            'new_value' => $validated['role'],
+        ]);
+
         return redirect()->route('users.index')->with('success', 'User created successfully.');
     }
 
     public function edit(User $user)
     {
-        $roles = Role::all();
+        if ($user->hasRole('superadmin') && !auth()->user()->hasRole('superadmin')) {
+            abort(403, 'Only superadmins can open a superadmin account.');
+        }
+
+        $roles = $this->assignableRoles();
+        $current = $user->getRoleNames()->first();
+
+        if ($current && !$roles->contains('name', $current)) {
+            $roles = $roles->concat(Role::where('name', $current)->get());
+        }
 
         return view('users.edit', compact('user', 'roles'));
     }
@@ -76,7 +103,7 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $currentUser = auth()->user();
-        
+
         if ($user->hasRole('superadmin') && !$currentUser->hasRole('superadmin')) {
             return back()->withErrors(['error' => 'Only superadmins can modify other superadmin accounts.']);
         }
@@ -85,10 +112,10 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:100', 'min:2', 'regex:/^[a-zA-Z\s\-\.]+$/'],
             'email' => 'required|email|max:100|unique:users,email,' . $user->id,
             'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
-            'password' => 'nullable|string|min:8|confirmed',
+            'password' => 'nullable|'.self::PASSWORD_RULES.'|confirmed',
             'role' => 'required|exists:roles,name',
             'is_active' => 'nullable|boolean',
-        ], [
+        ], self::PASSWORD_MESSAGES + [
             'name.required' => 'Full name is required.',
             'name.min' => 'Name must be at least 2 characters.',
             'name.regex' => 'Name can only contain letters, spaces, hyphens, and dots.',
@@ -96,13 +123,27 @@ class UserController extends Controller
             'email.email' => 'Enter a valid email address.',
             'email.unique' => 'This email is already in use.',
             'phone.regex' => 'Enter a valid phone number.',
-            'password.min' => 'Password must be at least 8 characters.',
-            'password.confirmed' => 'Password confirmation does not match.',
             'role.required' => 'Please select a role.',
         ]);
 
-        $oldData = $user->only(['name', 'email', 'phone', 'is_active']);
         $oldRole = $user->getRoleNames()->first();
+        $roleChanging = $oldRole !== $validated['role'];
+
+        if ($roleChanging) {
+            if ($user->id === $currentUser->id) {
+                return back()->withErrors(['role' => 'You cannot change your own role. Ask another superadmin.']);
+            }
+
+            if (!$this->canAssignRole($validated['role'])) {
+                return back()->withErrors(['role' => 'Only a superadmin can grant the superadmin role.']);
+            }
+
+            if ($this->isLastSuperadmin($user)) {
+                return back()->withErrors(['role' => 'This is the only superadmin account, so its role cannot be changed.']);
+            }
+        }
+
+        $oldData = $user->only(['name', 'email', 'phone', 'is_active']);
 
         $user->update([
             'name' => trim($validated['name']),
@@ -112,8 +153,8 @@ class UserController extends Controller
         ]);
 
         if (!empty($validated['password'])) {
-            $user->update(['password' => Hash::make($validated['password'])]);
-            
+            $this->writePassword($user, $validated['password']);
+
             ActivityLog::create([
                 'user_id' => $currentUser->id,
                 'action' => 'password_reset',
@@ -123,9 +164,9 @@ class UserController extends Controller
             ]);
         }
 
-        $user->syncRoles([$validated['role']]);
+        if ($roleChanging) {
+            $user->syncRoles([$validated['role']]);
 
-        if ($oldRole !== $validated['role']) {
             ActivityLog::create([
                 'user_id' => $currentUser->id,
                 'action' => 'role_changed',
@@ -155,14 +196,12 @@ class UserController extends Controller
         }
 
         $validated = $request->validate([
-            'password' => 'required|string|min:8|confirmed',
-        ], [
+            'password' => 'required|'.self::PASSWORD_RULES.'|confirmed',
+        ], self::PASSWORD_MESSAGES + [
             'password.required' => 'New password is required.',
-            'password.min' => 'Password must be at least 8 characters.',
-            'password.confirmed' => 'Password confirmation does not match.',
         ]);
 
-        $user->update(['password' => Hash::make($validated['password'])]);
+        $this->writePassword($user, $validated['password']);
 
         ActivityLog::create([
             'user_id' => $currentUser->id,
@@ -185,6 +224,10 @@ class UserController extends Controller
 
         if ($user->id === $currentUser->id) {
             return back()->withErrors(['error' => 'You cannot lock your own account.']);
+        }
+
+        if (!$user->isLocked() && $this->isLastSuperadmin($user)) {
+            return back()->withErrors(['error' => 'This is the only superadmin account, so it cannot be locked.']);
         }
 
         if ($user->isLocked()) {
@@ -221,6 +264,10 @@ class UserController extends Controller
             return back()->withErrors(['error' => 'Only superadmins can modify superadmin accounts.']);
         }
 
+        if ($user->is_active && $this->isLastSuperadmin($user)) {
+            return back()->withErrors(['error' => 'This is the only active superadmin account, so it cannot be deactivated.']);
+        }
+
         $user->update(['is_active' => !$user->is_active]);
 
         $status = $user->is_active ? 'activated' : 'deactivated';
@@ -245,6 +292,13 @@ class UserController extends Controller
             return back()->withErrors(['error' => 'Cannot delete a Super Admin account.']);
         }
 
+        $transactionCount = $user->transactions()->withTrashed()->count();
+        if ($transactionCount > 0) {
+            return back()->withErrors([
+                'error' => "This account has {$transactionCount} transaction(s) attached to it. Deleting it would erase those records and their audit trail. Deactivate it instead.",
+            ]);
+        }
+
         $name = $user->name;
         $user->delete();
 
@@ -255,5 +309,42 @@ class UserController extends Controller
         ]);
 
         return redirect()->route('users.index')->with('success', "User {$name} deleted.");
+    }
+
+    private function assignableRoles()
+    {
+        if (auth()->user()->hasRole('superadmin')) {
+            return Role::all();
+        }
+
+        return Role::where('name', '!=', 'superadmin')->get();
+    }
+
+    private function canAssignRole(string $role): bool
+    {
+        return $role !== 'superadmin' || auth()->user()->hasRole('superadmin');
+    }
+
+    private function isLastSuperadmin(User $user): bool
+    {
+        if (!$user->hasRole('superadmin')) {
+            return false;
+        }
+
+        return User::where('is_active', true)
+            ->whereHas('roles', fn($q) => $q->where('name', 'superadmin'))
+            ->where('id', '!=', $user->id)
+            ->doesntExist();
+    }
+
+    /**
+     * Clearing the remember token stops a stolen "remember me" cookie from
+     * outliving the password it was issued against.
+     */
+    private function writePassword(User $user, string $plain): void
+    {
+        $user->password = Hash::make($plain);
+        $user->remember_token = null;
+        $user->save();
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
@@ -29,30 +30,58 @@ class RolePermissionController extends Controller
 
         $role = Role::create(['name' => strtolower(str_replace(' ', '', $validated['name'])), 'guard_name' => 'web']);
 
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'role_created',
+            'description' => "Role {$role->name} created",
+            'new_value' => $role->name,
+        ]);
+
         return redirect()->route('admin.roles')->with('success', "Role \"{$validated['name']}\" created.");
     }
 
     public function update(Request $request, Role $role)
     {
+        if ($role->name === 'superadmin' && !auth()->user()->hasRole('superadmin')) {
+            abort(403, 'Only superadmins can change the Super Admin role permissions.');
+        }
+
         $request->validate([
             'permissions' => 'array',
             'permissions.*' => 'exists:permissions,name',
         ]);
 
+        $before = $role->permissions->pluck('name')->sort()->values()->all();
         $role->syncPermissions($request->permissions ?? []);
+        $after = $role->refresh()->permissions->pluck('name')->sort()->values()->all();
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'role_permissions_changed',
+            'description' => 'Permissions updated for role ' . $role->name,
+            'old_value' => json_encode($before),
+            'new_value' => json_encode($after),
+        ]);
 
         return redirect()->route('admin.roles')->with('success', "Permissions updated for {$this->displayName($role->name)}.");
     }
 
-    public function destroy(Role $role)
+    public function destroy(Request $request, Role $role)
     {
+        if (in_array($role->name, ['superadmin', 'admin', 'agent', 'staff'], true)) {
+            return back()->withErrors(['error' => 'Built-in roles cannot be deleted.']);
+        }
+
         if ($role->users()->count() > 0) {
             return back()->withErrors(['error' => "Cannot delete {$this->displayName($role->name)}: {$role->users()->count()} user(s) still assigned to this role."]);
         }
 
-        if (in_array($role->name, ['superadmin'])) {
-            return back()->withErrors(['error' => 'Cannot delete the Super Admin role.']);
-        }
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'role_deleted',
+            'description' => "Role {$role->name} deleted",
+            'old_value' => $role->name,
+        ]);
 
         $role->delete();
 
