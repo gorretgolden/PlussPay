@@ -15,7 +15,8 @@
         <li>Maximum file size: 10 MB</li>
         <li>First row must contain column headers</li>
         <li>Required columns: <strong>sender_name</strong>, <strong>receiver_name</strong>, <strong>amount</strong></li>
-        <li>Optional columns: sender_contact, receiver_contact, currency (UGX/USD, default: USD), charge_rate, purpose, notes</li>
+        <li>Optional columns: sender_contact, receiver_contact, currency (UGX/USD, default: USD), purpose, notes</li>
+        <li>Charge rate is not a column: every row uses the rate set by an admin in System Settings</li>
     </ul>
 </div>
 
@@ -57,7 +58,6 @@
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">receiver_contact</th>
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">currency</th>
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">amount</th>
-                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">charge_rate</th>
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">purpose</th>
                 </tr>
             </thead>
@@ -69,7 +69,6 @@
                     <td class="px-3 py-2 text-gray-600">+86 138 0000 0001</td>
                     <td class="px-3 py-2 text-gray-600">USD</td>
                     <td class="px-3 py-2 text-gray-900">500</td>
-                    <td class="px-3 py-2 text-gray-600">5</td>
                     <td class="px-3 py-2 text-gray-600">Business</td>
                 </tr>
                 <tr>
@@ -79,7 +78,6 @@
                     <td class="px-3 py-2 text-gray-600">+86 138 0000 0002</td>
                     <td class="px-3 py-2 text-gray-600">UGX</td>
                     <td class="px-3 py-2 text-gray-900">1000000</td>
-                    <td class="px-3 py-2 text-gray-600">5</td>
                     <td class="px-3 py-2 text-gray-600">Family Support</td>
                 </tr>
             </tbody>
