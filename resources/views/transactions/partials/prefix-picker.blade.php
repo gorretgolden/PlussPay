@@ -27,7 +27,7 @@
         <ul class="max-h-56 overflow-y-auto">
             @foreach($prefixes as $p)
             <li class="prefix-option px-3 py-2 text-sm hover:bg-green-50 cursor-pointer flex items-center gap-2 {{ $p['code'] === $default ? 'bg-green-50' : '' }}"
-                data-value="{{ $p['code'] }}" data-label="{{ $p['flag'] }} {{ $p['code'] }}" data-search="{{ strtolower($p['name'] . ' ' . $p['code'] . ' ' . ltrim($p['code'], '+')) }}">
+                data-value="{{ $p['code'] }}" data-label="{{ $p['flag'] }} {{ $p['name'] }} {{ $p['code'] }}" data-search="{{ strtolower($p['name'] . ' ' . $p['code'] . ' ' . ltrim($p['code'], '+')) }}">
                 <span>{{ $p['flag'] }}</span>
                 <span class="text-gray-700">{{ $p['name'] }}</span>
                 <span class="ml-auto text-gray-500">{{ $p['code'] }}</span>
