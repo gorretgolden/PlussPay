@@ -45,8 +45,10 @@ class TransactionController extends Controller
             'amount' => 'required|numeric|min:100|max:100000000',
             'charge_rate' => 'required|numeric|min:0|max:100',
             'purpose' => 'nullable|string|max:100',
+            'purpose_other' => 'required_if:purpose,Other|nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
         ], [
+            'purpose_other.required_if' => 'Please say what the other reason is.',
             'sender_name.required' => 'Sender name is required.',
             'sender_name.min' => 'Sender name must be at least 2 characters.',
             'sender_contact.required' => 'Sender contact is required.',
@@ -84,6 +86,11 @@ class TransactionController extends Controller
         $chargeRate = (float) \App\Models\Setting::get('default_charge_rate', 5);
         $chargeAmount = bcmul($usdEquivalent, (string) ($chargeRate / 100), 2);
 
+        $purpose = $validated['purpose'] ?? null;
+        if ($purpose === 'Other') {
+            $purpose = trim($validated['purpose_other'] ?? '') ?: 'Other';
+        }
+
         $transaction = Transaction::create([
             'receipt_number' => Transaction::generateReceiptNumber(),
             'sender_name' => trim($validated['sender_name']),
@@ -99,7 +106,7 @@ class TransactionController extends Controller
             'total_usd_equivalent' => $usdEquivalent,
             'status' => auth()->user()->hasRole('admin') ? 'completed' : 'pending',
             'created_by' => auth()->id(),
-            'purpose' => !empty($validated['purpose']) ? trim($validated['purpose']) : null,
+            'purpose' => $purpose ? trim($purpose) : null,
             'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
         ]);
 

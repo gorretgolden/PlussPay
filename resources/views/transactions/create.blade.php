@@ -5,6 +5,7 @@
 @section('content')
 @php
     $serverRepopulated = $errors->any();
+    $errorFields = $errors->keys();
     $trimRate = fn ($r) => rtrim(rtrim(number_format((float) $r, 6, '.', ''), '0'), '.');
 @endphp
 <div class="max-w-4xl mx-auto">
@@ -175,18 +176,24 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Purpose (optional)</label>
-                    <select name="purpose"
+                    <label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose (optional)</label>
+                    <select name="purpose" id="purpose"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                         <option value="">Select purpose...</option>
                         @foreach(['Family Support', 'Business', 'Education', 'Medical', 'Investment', 'Personal', 'Other'] as $option)
                             <option value="{{ $option }}" {{ old('purpose') === $option ? 'selected' : '' }}>{{ $option }}</option>
                         @endforeach
                     </select>
+                    <div id="purpose-other-wrap" class="mt-3 hidden">
+                        <label for="purpose_other" class="block text-sm font-medium text-gray-700 mb-1">Reason for other *</label>
+                        <input type="text" name="purpose_other" id="purpose_other" maxlength="100" value="{{ old('purpose_other') }}"
+                            placeholder="e.g. Church contribution"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
-                    <input type="text" name="notes" value="{{ old('notes') }}" maxlength="500"
+                    <input type="text" name="notes" value="{{ old('notes', 'Sending money to China') }}" maxlength="500"
                         placeholder="Any additional notes..."
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                 </div>
@@ -258,6 +265,7 @@
 <script>
 const usdToRmbRate = {{ $usdToRmb ? $usdToRmb->rate : 0 }};
 const ugxToUsdRate = {{ $ugxToUsdRate ?? 0 }};
+const errorFields = @json($errorFields);
 let currentStep = 1;
 
 function nationalDigits(prefixId, contactId) {
@@ -328,6 +336,19 @@ document.getElementById('sender_contact').addEventListener('input', function() {
 document.getElementById('receiver_contact').addEventListener('input', function() {
     buildFullContact('receiver_prefix', 'receiver_contact', 'receiver_full_contact');
 });
+
+const purposeSelect = document.getElementById('purpose');
+const purposeOtherWrap = document.getElementById('purpose-other-wrap');
+const purposeOther = document.getElementById('purpose_other');
+
+function syncPurposeOther() {
+    const show = purposeSelect.value === 'Other';
+    purposeOtherWrap.classList.toggle('hidden', !show);
+    purposeOther.required = show;
+    if (!show) purposeOther.value = '';
+}
+purposeSelect.addEventListener('change', syncPurposeOther);
+syncPurposeOther();
 
 function validateStep(step) {
     const el = document.getElementById('step-' + step);
@@ -458,7 +479,8 @@ function populateReview() {
     document.getElementById('rev_rmb').textContent = '¥' + rmbAmount.toFixed(2);
     document.getElementById('rev_charge').textContent = '$' + chargeAmount.toFixed(2);
 
-    const purpose = document.querySelector('[name=purpose]').value;
+    const chosen = purposeSelect.value;
+    const purpose = chosen === 'Other' ? (purposeOther.value.trim() || 'Other') : chosen;
     document.getElementById('rev_purpose').textContent = purpose ? 'Purpose: ' + purpose : '';
 }
 
@@ -483,7 +505,7 @@ document.getElementById('transactionForm').addEventListener('submit', function(e
 
 // ---- Draft save / restore ----
 const DRAFT_KEY = 'pluspay_send_draft';
-const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'amount', 'purpose', 'notes'];
+const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'amount', 'purpose', 'purpose_other', 'notes'];
 let draftCleared = false;
 
 function collectDraft() {
@@ -529,8 +551,16 @@ function pickPrefix(which, value) {
 }
 
 function restoreDraft() {
-    // After a validation error the server already repopulated the fields; leave the draft untouched.
-    if ({{ $serverRepopulated ? 'true' : 'false' }}) return;
+    // After a validation error the server already repopulated the fields; leave the draft untouched
+    // but open the step that holds the first problem so the message is not hidden behind step 1.
+    if ({{ $serverRepopulated ? 'true' : 'false' }}) {
+        for (const name of errorFields) {
+            const el = document.querySelector('[name="' + name + '"]');
+            const stepEl = el && el.closest('.wizard-step');
+            if (stepEl) { showStep(parseInt(stepEl.id.split('-')[1], 10)); break; }
+        }
+        return;
+    }
     const data = readDraft();
     if (!data) return;
 
