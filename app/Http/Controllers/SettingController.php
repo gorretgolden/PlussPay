@@ -26,7 +26,8 @@ class SettingController extends Controller
             'company_phone' => 'nullable|string|max:60',
             'company_email' => 'nullable|email|max:100',
             'company_website' => 'nullable|string|max:100',
-            'service_fee_ugx_per_100usd' => 'nullable|numeric|min:0',
+            'service_fee_ugx' => 'nullable|numeric|min:0',
+            'service_fee_usd' => 'nullable|numeric|min:0.01',
             'min_transaction_amount' => 'nullable|numeric|min:0',
             'max_transaction_amount' => 'nullable|numeric|min:0',
             'receipt_prefix' => ['nullable', 'string', 'max:10', 'regex:/^[A-Za-z0-9]+$/'],
@@ -38,6 +39,7 @@ class SettingController extends Controller
             'usd_ugx_rate.min' => 'The dollar rate must be at least 0.01.',
             'usd_ugx_rate.max' => 'The dollar rate is too high.',
             'usd_rmb_rate.numeric' => 'The RMB per dollar rate must be a number, e.g. 7.24.',
+            'service_fee_usd.min' => 'The USD amount must be greater than zero, e.g. 100.',
         ]);
 
         // Rates live in the exchange rate table, not settings, so every screen converts with the same figure.
@@ -48,7 +50,7 @@ class SettingController extends Controller
         $changes = [];
 
         foreach ($validated as $key => $value) {
-            $type = in_array($key, ['service_fee_ugx_per_100usd', 'min_transaction_amount', 'max_transaction_amount']) ? 'float' : 'string';
+            $type = in_array($key, ['service_fee_ugx', 'service_fee_usd', 'min_transaction_amount', 'max_transaction_amount']) ? 'float' : 'string';
             $group = str_starts_with($key, 'company_') ? 'company' : 'transaction';
 
             $previous = Setting::get($key);

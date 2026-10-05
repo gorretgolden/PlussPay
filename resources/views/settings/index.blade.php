@@ -51,10 +51,15 @@
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Transaction Settings</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Service Fee (UGX per 100 USD)</label>
-                <input type="number" step="0.01" name="service_fee_ugx_per_100usd" value="{{ old('service_fee_ugx_per_100usd', \App\Models\Setting::get('service_fee_ugx_per_100usd', '2000')) }}"
+                <label class="block text-sm font-medium text-gray-700 mb-1">Service Fee (UGX)</label>
+                <input type="number" step="0.01" name="service_fee_ugx" value="{{ old('service_fee_ugx', \App\Models\Setting::get('service_fee_ugx', '2000')) }}"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-                <p class="text-xs text-gray-500 mt-1">Charged for every 100 USD sent. Scales with the amount.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Charged Per (USD)</label>
+                <input type="number" step="0.01" name="service_fee_usd" value="{{ old('service_fee_usd', \App\Models\Setting::get('service_fee_usd', '100')) }}"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                <p class="text-xs text-gray-500 mt-1">The fee is charged for each block of this many dollars, and scales with the amount sent.</p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Min Transaction Amount</label>

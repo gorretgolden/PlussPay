@@ -37,35 +37,38 @@ class TransactionController extends Controller
         $usdToRmb = ExchangeRate::getActiveRate('USD', 'RMB');
         $usdToUgx = ExchangeRate::usdToUgx();
         $ugxToUsdRate = $usdToUgx ? 1 / $usdToUgx : null;
-        $serviceFeeUgx = (float) \App\Models\Setting::get('service_fee_ugx_per_100usd', 2000);
+        $serviceFeeUgx = (float) \App\Models\Setting::get('service_fee_ugx', 2000);
+        $serviceFeeUsd = (float) \App\Models\Setting::get('service_fee_usd', 100);
 
         // One-time token so a replayed or double-posted submit cannot mint a second receipt.
         $formId = (string) Str::uuid();
         session(['transaction_form_id' => $formId]);
 
-        return view('transactions.create', compact('usdToRmb', 'ugxToUsdRate', 'serviceFeeUgx', 'formId'));
+        return view('transactions.create', compact('usdToRmb', 'ugxToUsdRate', 'serviceFeeUgx', 'serviceFeeUsd', 'formId'));
     }
 
     /**
-     * The service fee is quoted as UGX per 100 USD sent, so it scales with the
-     * amount. Returns the UGX charge, its USD equivalent for accounting, and the
-     * equivalent flat percentage. Null when no USD/UGX rate is active.
+     * The fee is quoted as a UGX amount for each block of USD sent, so it scales
+     * with the amount. Returns the UGX charge, its USD equivalent for accounting,
+     * and the equivalent flat percentage. Null when it cannot be calculated.
      */
     private function serviceFee(string $usdEquivalent): ?array
     {
-        $feeUgx = (float) \App\Models\Setting::get('service_fee_ugx_per_100usd', 2000);
+        $feeUgx = (float) \App\Models\Setting::get('service_fee_ugx', 2000);
+        $feeBlockUsd = (float) \App\Models\Setting::get('service_fee_usd', 100);
         $usdToUgx = (float) (ExchangeRate::usdToUgx() ?? 0);
 
-        if ($usdToUgx <= 0) {
+        if ($usdToUgx <= 0 || $feeBlockUsd <= 0) {
             return null;
         }
 
-        $chargeUgx = bcmul($usdEquivalent, (string) ($feeUgx / 100), 2);
+        $ugxPerUsd = $feeUgx / $feeBlockUsd;
+        $chargeUgx = bcmul($usdEquivalent, (string) $ugxPerUsd, 2);
 
         return [
             'ugx' => $chargeUgx,
             'usd' => bcdiv($chargeUgx, (string) $usdToUgx, 2),
-            'rate' => $feeUgx / $usdToUgx,
+            'rate' => $ugxPerUsd * 100 / $usdToUgx,
         ];
     }
 

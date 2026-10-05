@@ -312,7 +312,8 @@ class SecurityHardeningTest extends TestCase
 
     public function test_client_cannot_for_its_own_rate_or_charge(): void
     {
-        Setting::set('service_fee_ugx_per_100usd', '2000', 'float', 'transaction');
+        Setting::set('service_fee_ugx', '2000', 'float', 'transaction');
+        Setting::set('service_fee_usd', '100', 'float', 'transaction');
 
         $agent = $this->makeUser('agent');
         $this->actingAs($agent);

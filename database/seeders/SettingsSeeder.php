@@ -41,10 +41,16 @@ class SettingsSeeder extends Seeder
                 'description' => 'Prefix for generated receipt numbers, e.g. PS-20261005-0001',
             ],
             [
-                'key' => 'service_fee_ugx_per_100usd',
+                'key' => 'service_fee_ugx',
                 'value' => '2000',
-                'type' => 'number',
-                'description' => 'Service fee charged in UGX for every 100 USD sent',
+                'type' => 'float',
+                'description' => 'Service fee charged in UGX for every service_fee_usd block sent',
+            ],
+            [
+                'key' => 'service_fee_usd',
+                'value' => '100',
+                'type' => 'float',
+                'description' => 'The USD amount the service fee is charged for, e.g. 100',
             ],
             [
                 'key' => 'max_login_attempts',

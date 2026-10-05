@@ -9,6 +9,7 @@
     $draftKey = 'pluspay_send_draft_u' . (auth()->id() ?? 'guest');
     $keepKey = 'pluspay_keep_draft_u' . (auth()->id() ?? 'guest');
     $trimRate = fn ($r) => rtrim(rtrim(number_format((float) $r, 6, '.', ''), '0'), '.');
+    $trimMoney = fn ($v) => rtrim(rtrim(number_format((float) $v, 2, '.', ','), '0'), '.');
 @endphp
 <div class="max-w-4xl mx-auto">
     <div class="mb-6">
@@ -134,14 +135,17 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Service Fee</label>
-                    <div class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-between gap-2">
-                        <span class="text-gray-700 font-medium">UGX {{ number_format($serviceFeeUgx) }} per 100 USD</span>
-                        <span class="flex items-center gap-1 text-xs text-gray-500">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                            Locked
-                        </span>
+                    <div class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-gray-700 font-medium">UGX {{ $trimMoney($serviceFeeUgx) }} per {{ $trimMoney($serviceFeeUsd) }} USD</span>
+                            <span class="flex items-center gap-1 text-xs text-gray-500">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                Locked
+                            </span>
+                        </div>
+                        <div class="text-sm font-medium text-green-700 mt-2">This transfer: <span id="fee_live">enter an amount</span></div>
+                        <p class="text-xs text-gray-500 mt-1">UGX {{ $trimMoney($serviceFeeUgx) }} ÷ {{ $trimMoney($serviceFeeUsd) }} USD = UGX {{ $trimMoney($serviceFeeUsd > 0 ? $serviceFeeUgx / $serviceFeeUsd : 0) }} for every dollar sent, set by admin in System Settings.</p>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1">Set by admin in System Settings</p>
                 </div>
             </div>
 
@@ -268,6 +272,7 @@
 const usdToRmbRate = {{ $usdToRmb ? $usdToRmb->rate : 0 }};
 const ugxToUsdRate = {{ $ugxToUsdRate ?? 0 }};
 const serviceFeeUgx = {{ $serviceFeeUgx ?? 0 }};
+const serviceFeeUsd = {{ $serviceFeeUsd ?? 0 }};
 const errorFields = @json($errorFields);
 let currentStep = 1;
 
@@ -426,12 +431,14 @@ function calculate() {
     }
 
     const rmbAmount = usdEquivalent * usdToRmbRate;
-    const feeUgx = usdEquivalent / 100 * serviceFeeUgx;
+    const feePerUsd = serviceFeeUsd > 0 ? serviceFeeUgx / serviceFeeUsd : 0;
+    const feeUgx = usdEquivalent * feePerUsd;
     const chargeAmount = feeUgx * ugxToUsdRate;
 
     document.getElementById('preview_usd').textContent = '$' + usdEquivalent.toFixed(2);
     document.getElementById('preview_rmb').textContent = '¥' + rmbAmount.toFixed(2);
     document.getElementById('preview_charge').textContent = 'UGX ' + Math.round(feeUgx).toLocaleString();
+    document.getElementById('fee_live').textContent = amount ? 'UGX ' + Math.round(feeUgx).toLocaleString() : 'enter an amount';
 
     const formula = document.getElementById('preview_formula');
     if (!amount) {
@@ -447,7 +454,7 @@ function calculate() {
     if (usdToRmbRate) {
         steps.push('$' + usdEquivalent.toFixed(2) + ' × ' + trimRate(usdToRmbRate) + ' = ¥' + rmbAmount.toFixed(2));
     }
-    steps.push('Charge: $' + usdEquivalent.toFixed(2) + ' ÷ 100 × UGX ' + serviceFeeUgx.toLocaleString() + ' = UGX ' + feeUgx.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' = $' + chargeAmount.toFixed(2));
+    steps.push('Charge: $' + usdEquivalent.toFixed(2) + ' ÷ ' + serviceFeeUsd.toLocaleString() + ' × UGX ' + serviceFeeUgx.toLocaleString() + ' = UGX ' + feeUgx.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' = $' + chargeAmount.toFixed(2));
     formula.textContent = steps.join('   ·   ');
 }
 
@@ -474,7 +481,7 @@ function populateReview() {
     const amount = parseFloat(document.getElementById('amount').value) || 0;
     let usdEquivalent = currency === 'UGX' ? amount * ugxToUsdRate : amount;
     const rmbAmount = usdEquivalent * usdToRmbRate;
-    const feeUgx = usdEquivalent / 100 * serviceFeeUgx;
+    const feeUgx = usdEquivalent * (serviceFeeUsd > 0 ? serviceFeeUgx / serviceFeeUsd : 0);
 
     document.getElementById('rev_amount').textContent = currency + ' ' + amount.toLocaleString(undefined, {minimumFractionDigits: 2});
     document.getElementById('rev_usd').textContent = '$' + usdEquivalent.toFixed(2);
