@@ -31,7 +31,7 @@ class AuditLogController extends Controller
     {
         $query = DB::table('activity_logs')
             ->join('users', 'activity_logs.user_id', '=', 'users.id')
-            ->where('activity_logs.action', 'like', '%login%')
+            ->whereIn('activity_logs.action', ['login', 'logout'])
             ->select('activity_logs.*', 'users.name as user_name', 'users.email')
             ->orderBy('activity_logs.created_at', 'desc');
 

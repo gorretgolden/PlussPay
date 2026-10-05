@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -76,11 +77,18 @@ class AuthController extends Controller
 
         $authenticatedUser->recordSuccessfulLogin($request->ip());
 
+        ActivityLog::logAuth($authenticatedUser->id, 'login', "User {$authenticatedUser->name} logged in from {$request->ip()}");
+
         return redirect()->intended('/dashboard');
     }
 
     public function logout(Request $request)
     {
+        $user = Auth::user();
+        if ($user) {
+            ActivityLog::logAuth($user->id, 'logout', "User {$user->name} logged out from {$request->ip()}");
+        }
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

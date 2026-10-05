@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -12,62 +13,71 @@ class DashboardController extends Controller
     public function index()
     {
         $user = auth()->user();
-        $query = Transaction::query();
+        $role = $user->getRoleNames()->first() ?? 'User';
 
-        if ($user->hasRole('agent')) {
-            $query->where('created_by', $user->id);
-        }
+        $scope = $user->hasRole('agent') ? $user->id : null;
 
-        $todayQuery = Transaction::whereDate('created_at', today());
-        if ($user->hasRole('agent')) {
-            $todayQuery->where('created_by', $user->id);
-        }
+        $stats = DB::table('transactions')
+            ->when($scope, fn($q) => $q->where('created_by', $scope))
+            ->selectRaw("
+                COUNT(*) as total_transactions,
+                COALESCE(SUM(CASE WHEN status='completed' THEN total_usd_equivalent ELSE 0 END), 0) as total_usd_sent,
+                COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as total_revenue,
+                COALESCE(SUM(CASE WHEN status='completed' THEN rmb_amount ELSE 0 END), 0) as total_rmb_sent,
+                SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) as pending_transactions,
+                SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed_transactions,
+                SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) as cancelled_transactions,
+                COALESCE(AVG(CASE WHEN status='completed' THEN total_usd_equivalent ELSE NULL END), 0) as avg_transaction
+            ")
+            ->first();
 
-        $stats = [
-            'total_transactions' => (clone $query)->count(),
-            'total_usd_sent' => (clone $query)->where('status', 'completed')->sum('total_usd_equivalent'),
-            'total_revenue' => (clone $query)->where('status', 'completed')->sum('charge_amount'),
-            'total_rmb_sent' => (clone $query)->where('status', 'completed')->sum('rmb_amount'),
-            'pending_transactions' => (clone $query)->where('status', 'pending')->count(),
-            'completed_transactions' => (clone $query)->where('status', 'completed')->count(),
-            'cancelled_transactions' => (clone $query)->where('status', 'cancelled')->count(),
-            'avg_transaction' => (clone $query)->where('status', 'completed')->avg('total_usd_equivalent') ?? 0,
-            'total_users' => User::where('is_active', true)->count(),
-            'active_rates' => \App\Models\ExchangeRate::where('is_active', true)->count(),
-            'today_transactions' => (clone $todayQuery)->count(),
-            'today_usd_sent' => (clone $todayQuery)->where('status', 'completed')->sum('total_usd_equivalent'),
-            'today_revenue' => (clone $todayQuery)->where('status', 'completed')->sum('charge_amount'),
-        ];
+        $todayStats = DB::table('transactions')
+            ->when($scope, fn($q) => $q->where('created_by', $scope))
+            ->whereDate('created_at', today())
+            ->selectRaw("
+                COUNT(*) as today_transactions,
+                COALESCE(SUM(CASE WHEN status='completed' THEN total_usd_equivalent ELSE 0 END), 0) as today_usd_sent,
+                COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as today_revenue
+            ")
+            ->first();
 
-        $recentTransactions = (clone $query)
-            ->with('creator')
+        $stats = (array) $stats + (array) $todayStats;
+        $stats['total_users'] = $user->hasRole(['admin', 'superadmin']) ? User::where('is_active', true)->count() : 0;
+        $stats['active_rates'] = $user->hasRole(['admin', 'superadmin']) ? ExchangeRate::where('is_active', true)->count() : 0;
+
+        $recentTransactions = Transaction::when($scope, fn($q) => $q->where('created_by', $scope))
             ->latest()
             ->take(10)
             ->get();
 
-        $last7Days = collect();
-        $last7DaysLabels = collect();
+        $chartData = $this->buildChartData($scope);
+
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role'));
+    }
+
+    private function buildChartData(?int $scope): array
+    {
+        $startDate = now()->subDays(6)->startOfDay();
+
+        $daily = DB::table('transactions')
+            ->when($scope, fn($q) => $q->where('created_by', $scope))
+            ->where('created_at', '>=', $startDate)
+            ->selectRaw("DATE(created_at) as date, COUNT(*) as transactions, COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as revenue")
+            ->groupBy(DB::raw('DATE(created_at)'))
+            ->get()
+            ->keyBy('date');
+
+        $labels = [];
+        $transactions = [];
+        $revenue = [];
+
         for ($i = 6; $i >= 0; $i--) {
             $date = now()->subDays($i)->format('Y-m-d');
-            $last7DaysLabels->push(now()->subDays($i)->format('M d'));
-
-            $dayQuery = Transaction::whereDate('created_at', $date);
-            if ($user->hasRole('agent')) {
-                $dayQuery->where('created_by', $user->id);
-            }
-
-            $last7Days->push([
-                'transactions' => (clone $dayQuery)->count(),
-                'revenue' => (clone $dayQuery)->where('status', 'completed')->sum('charge_amount'),
-            ]);
+            $labels[] = now()->subDays($i)->format('M d');
+            $transactions[] = (int) ($daily[$date]->transactions ?? 0);
+            $revenue[] = (float) ($daily[$date]->revenue ?? 0);
         }
 
-        $chartData = [
-            'labels' => $last7DaysLabels->toArray(),
-            'transactions' => $last7Days->pluck('transactions')->toArray(),
-            'revenue' => $last7Days->pluck('revenue')->map(fn($v) => (float)$v)->toArray(),
-        ];
-
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData'));
+        return compact('labels', 'transactions', 'revenue');
     }
 }

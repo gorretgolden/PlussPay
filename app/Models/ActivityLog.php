@@ -24,4 +24,14 @@ class ActivityLog extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public static function logAuth(int $userId, string $action, string $description): void
+    {
+        static::create([
+            'transaction_id' => null,
+            'user_id' => $userId,
+            'action' => $action,
+            'description' => $description,
+        ]);
+    }
 }

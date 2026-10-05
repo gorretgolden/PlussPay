@@ -6,6 +6,10 @@
 <div class="mb-6">
     <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
     <p class="text-gray-600">Welcome, {{ auth()->user()->name }}</p>
+    <div class="flex items-center gap-4 mt-2">
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize">{{ $role }}</span>
+        <span class="text-sm text-gray-500" id="liveClock">{{ now()->format('l, F d, Y') }} — {{ now()->format('h:i:s A') }}</span>
+    </div>
 </div>
 
 <div class="bg-green-800 rounded-lg shadow p-6 mb-6">
@@ -104,7 +108,7 @@
     </a>
 </div>
 
-@role('admin')
+@role('admin|superadmin')
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
     <a href="{{ route('users.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
         <div class="flex items-center justify-between">
@@ -241,5 +245,22 @@
             }
         }
     });
+
+    function updateClock() {
+        const now = new Date();
+        const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const day = days[now.getDay()];
+        const month = months[now.getMonth()];
+        const date = now.getDate();
+        const year = now.getFullYear();
+        let h = now.getHours();
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        const m = String(now.getMinutes()).padStart(2, '0');
+        const s = String(now.getSeconds()).padStart(2, '0');
+        document.getElementById('liveClock').textContent = `${day}, ${month} ${String(date).padStart(2, '0')}, ${year} — ${String(h).padStart(2, '0')}:${m}:${s} ${ampm}`;
+    }
+    setInterval(updateClock, 1000);
 </script>
 @endsection
