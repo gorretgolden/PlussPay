@@ -349,9 +349,19 @@ function calculate() {
     document.getElementById('preview_charge').textContent = '$' + chargeAmount.toFixed(2);
 }
 
+function titleCaseName(input) {
+    input.value = input.value.toLowerCase().replace(/(^|[\s.'\-])\p{L}/gu, m => m.toUpperCase());
+}
+
+document.querySelectorAll('input[name="sender_name"], input[name="receiver_name"]').forEach(i => {
+    i.addEventListener('blur', () => titleCaseName(i));
+});
+
 function populateReview() {
     buildFullContact('sender_prefix', 'sender_contact', 'sender_full_contact');
     buildFullContact('receiver_prefix', 'receiver_contact', 'receiver_full_contact');
+
+    document.querySelectorAll('input[name="sender_name"], input[name="receiver_name"]').forEach(titleCaseName);
 
     document.getElementById('rev_sender_name').textContent = document.querySelector('[name=sender_name]').value;
     document.getElementById('rev_sender_contact').textContent = document.getElementById('sender_full_contact').value;
