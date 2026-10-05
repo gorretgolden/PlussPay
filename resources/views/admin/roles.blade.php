@@ -51,9 +51,16 @@
             </form>
             @endif
         </div>
-        <form method="POST" action="{{ route('admin.roles.update', $role) }}">
+        <form method="POST" action="{{ route('admin.roles.update', $role) }}" class="role-perm-form">
             @csrf
             @method('PUT')
+            <div class="px-6 pt-4 flex items-center justify-between">
+                <span class="text-xs text-gray-500"><span class="perm-selected">0</span> of {{ $permissions->flatten()->count() }} selected</span>
+                <div class="flex gap-4 text-sm">
+                    <button type="button" data-check="true" class="text-green-800 hover:underline font-medium">Select all</button>
+                    <button type="button" data-check="false" class="text-red-600 hover:underline font-medium">Remove all</button>
+                </div>
+            </div>
             <div class="p-6 max-h-96 overflow-y-auto space-y-4">
                 @foreach($permissions as $group => $perms)
                 <div>
@@ -81,3 +88,23 @@
     @endforeach
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.querySelectorAll('.role-perm-form').forEach(form => {
+        const boxes = form.querySelectorAll('input[name="permissions[]"]');
+        const counter = form.querySelector('.perm-selected');
+
+        function refresh() {
+            counter.textContent = form.querySelectorAll('input[name="permissions[]"]:checked').length;
+        }
+        form.querySelectorAll('[data-check]').forEach(btn => btn.addEventListener('click', () => {
+            const check = btn.dataset.check === 'true';
+            boxes.forEach(b => b.checked = check);
+            refresh();
+        }));
+        boxes.forEach(b => b.addEventListener('change', refresh));
+        refresh();
+    });
+</script>
+@endpush
