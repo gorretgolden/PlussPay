@@ -10,9 +10,21 @@ class RoleAndUserSeeder extends Seeder
 {
     public function run(): void
     {
+        $superadminRole = Role::firstOrCreate(['name' => 'superadmin']);
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
         $agentRole = Role::firstOrCreate(['name' => 'agent']);
         $staffRole = Role::firstOrCreate(['name' => 'staff']);
+
+        $superadmin = User::firstOrCreate(
+            ['email' => 'superadmin@plussave.com'],
+            [
+                'name' => 'Super Admin',
+                'phone' => '',
+                'password' => bcrypt('superadmin123'),
+                'is_active' => true,
+            ]
+        );
+        $superadmin->assignRole($superadminRole);
 
         $admin = User::firstOrCreate(
             ['email' => 'admin@plussave.com'],

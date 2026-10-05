@@ -6,8 +6,9 @@
     <title>Login - PlusPay</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-green-900 min-h-screen flex items-center justify-center">
-    <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md mx-4">
+<body class="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat" style="background-image: url('{{ asset('login-background.png') }}');">
+    <div class="absolute inset-0 bg-black/40"></div>
+    <div class="relative bg-white rounded-lg shadow-2xl p-8 w-full max-w-md mx-4 backdrop-blur-sm bg-white/95">
         <div class="text-center mb-8">
             <h1 class="text-3xl font-bold text-green-800">PlusPay</h1>
             <p class="text-gray-600 mt-1">Plus Save Financial Solutions</p>

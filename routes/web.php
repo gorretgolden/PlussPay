@@ -34,12 +34,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
     Route::get('/reports/export', [ReportsController::class, 'exportExcel'])->name('reports.export');
 
-    Route::middleware(['role:admin'])->group(function () {
+    Route::middleware(['role:admin|superadmin'])->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
 
         Route::get('/exchange-rates', [ExchangeRateController::class, 'index'])->name('exchange-rates.index');
         Route::post('/exchange-rates', [ExchangeRateController::class, 'store'])->name('exchange-rates.store');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -68,6 +69,12 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        $currentUser = auth()->user();
+        
+        if ($user->hasRole('superadmin') && !$currentUser->hasRole('superadmin')) {
+            return back()->withErrors(['error' => 'Only superadmins can modify other superadmin accounts.']);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100', 'min:2', 'regex:/^[a-zA-Z\s\-\.]+$/'],
             'email' => 'required|email|max:100|unique:users,email,' . $user->id,
@@ -88,6 +95,9 @@ class UserController extends Controller
             'role.required' => 'Please select a role.',
         ]);
 
+        $oldData = $user->only(['name', 'email', 'phone', 'is_active']);
+        $oldRole = $user->getRoleNames()->first();
+
         $user->update([
             'name' => trim($validated['name']),
             'email' => strtolower(trim($validated['email'])),
@@ -97,10 +107,65 @@ class UserController extends Controller
 
         if (!empty($validated['password'])) {
             $user->update(['password' => Hash::make($validated['password'])]);
+            
+            ActivityLog::create([
+                'user_id' => $currentUser->id,
+                'action' => 'password_reset',
+                'description' => "Password reset for user {$user->name} ({$user->email})",
+                'old_value' => null,
+                'new_value' => 'password_changed',
+            ]);
         }
 
         $user->syncRoles([$validated['role']]);
 
+        if ($oldRole !== $validated['role']) {
+            ActivityLog::create([
+                'user_id' => $currentUser->id,
+                'action' => 'role_changed',
+                'description' => "Role changed from {$oldRole} to {$validated['role']} for user {$user->name}",
+                'old_value' => $oldRole,
+                'new_value' => $validated['role'],
+            ]);
+        }
+
+        ActivityLog::create([
+            'user_id' => $currentUser->id,
+            'action' => 'user_updated',
+            'description' => "User {$user->name} updated",
+            'old_value' => json_encode($oldData),
+            'new_value' => json_encode($user->only(['name', 'email', 'phone', 'is_active'])),
+        ]);
+
         return redirect()->route('users.index')->with('success', 'User updated successfully.');
+    }
+
+    public function resetPassword(Request $request, User $user)
+    {
+        $currentUser = auth()->user();
+        
+        if ($user->hasRole('superadmin') && !$currentUser->hasRole('superadmin')) {
+            return back()->withErrors(['error' => 'Only superadmins can reset superadmin passwords.']);
+        }
+
+        $validated = $request->validate([
+            'password' => 'required|string|min:8|confirmed',
+        ], [
+            'password.required' => 'New password is required.',
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
+        ]);
+
+        $user->update(['password' => Hash::make($validated['password'])]);
+
+        ActivityLog::create([
+            'user_id' => $currentUser->id,
+            'action' => 'password_reset',
+            'description' => "Password reset for user {$user->name} ({$user->email})",
+            'old_value' => null,
+            'new_value' => 'password_changed',
+        ]);
+
+        return back()->with('success', 'Password reset successfully.');
     }
 }
