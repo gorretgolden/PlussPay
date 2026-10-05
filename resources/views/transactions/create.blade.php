@@ -257,7 +257,7 @@
 @push('scripts')
 <script>
 const usdToRmbRate = {{ $usdToRmb ? $usdToRmb->rate : 0 }};
-const ugxToUsdRate = {{ $ugxToUsd ? $ugxToUsd->rate : 0 }};
+const ugxToUsdRate = {{ $ugxToUsdRate ?? 0 }};
 let currentStep = 1;
 
 function nationalDigits(prefixId, contactId) {
