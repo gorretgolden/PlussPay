@@ -134,11 +134,15 @@
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
     <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Transactions (Last 7 Days)</h2>
-        <canvas id="transactionsChart" height="200"></canvas>
+        <div style="position:relative; height:250px;">
+            <canvas id="transactionsChart"></canvas>
+        </div>
     </div>
     <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Revenue (Last 7 Days)</h2>
-        <canvas id="revenueChart" height="200"></canvas>
+        <div style="position:relative; height:250px;">
+            <canvas id="revenueChart"></canvas>
+        </div>
     </div>
 </div>
 
