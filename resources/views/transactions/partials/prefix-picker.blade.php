@@ -1,17 +1,17 @@
 @php
     $prefixes = [
-        ['code' => '+256', 'flag' => '🇺🇬', 'name' => 'Uganda'],
-        ['code' => '+86', 'flag' => '🇨🇳', 'name' => 'China'],
-        ['code' => '+1', 'flag' => '🇺🇸', 'name' => 'United States'],
-        ['code' => '+44', 'flag' => '🇬🇧', 'name' => 'United Kingdom'],
-        ['code' => '+254', 'flag' => '🇰🇪', 'name' => 'Kenya'],
-        ['code' => '+255', 'flag' => '🇹🇿', 'name' => 'Tanzania'],
-        ['code' => '+250', 'flag' => '🇷🇼', 'name' => 'Rwanda'],
-        ['code' => '+971', 'flag' => '🇦🇪', 'name' => 'United Arab Emirates'],
-        ['code' => '+91', 'flag' => '🇮🇳', 'name' => 'India'],
-        ['code' => '+27', 'flag' => '🇿🇦', 'name' => 'South Africa'],
-        ['code' => '+81', 'flag' => '🇯🇵', 'name' => 'Japan'],
-        ['code' => '+82', 'flag' => '🇰🇷', 'name' => 'South Korea'],
+        ['code' => '+256', 'name' => 'Uganda'],
+        ['code' => '+86', 'name' => 'China'],
+        ['code' => '+1', 'name' => 'United States'],
+        ['code' => '+44', 'name' => 'United Kingdom'],
+        ['code' => '+254', 'name' => 'Kenya'],
+        ['code' => '+255', 'name' => 'Tanzania'],
+        ['code' => '+250', 'name' => 'Rwanda'],
+        ['code' => '+971', 'name' => 'United Arab Emirates'],
+        ['code' => '+91', 'name' => 'India'],
+        ['code' => '+27', 'name' => 'South Africa'],
+        ['code' => '+81', 'name' => 'Japan'],
+        ['code' => '+82', 'name' => 'South Korea'],
     ];
 @endphp
 <div class="relative prefix-picker">
@@ -27,8 +27,7 @@
         <ul class="max-h-56 overflow-y-auto">
             @foreach($prefixes as $p)
             <li class="prefix-option px-3 py-2 text-sm hover:bg-green-50 cursor-pointer flex items-center gap-2 {{ $p['code'] === $default ? 'bg-green-50' : '' }}"
-                data-value="{{ $p['code'] }}" data-label="{{ $p['flag'] }} {{ $p['name'] }} {{ $p['code'] }}" data-search="{{ strtolower($p['name'] . ' ' . $p['code'] . ' ' . ltrim($p['code'], '+')) }}">
-                <span>{{ $p['flag'] }}</span>
+                data-value="{{ $p['code'] }}" data-label="{{ $p['name'] }} {{ $p['code'] }}" data-search="{{ strtolower($p['name'] . ' ' . $p['code'] . ' ' . ltrim($p['code'], '+')) }}">
                 <span class="text-gray-700">{{ $p['name'] }}</span>
                 <span class="ml-auto text-gray-500">{{ $p['code'] }}</span>
             </li>
