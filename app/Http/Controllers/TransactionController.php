@@ -213,7 +213,7 @@ class TransactionController extends Controller
                 }
 
                 $rmbAmount = bcmul($usdEquivalent, (string) $usdToRmbRate->rate, 2);
-                $chargeRate = (float) ($row['charge_rate'] ?? $defaultChargeRate);
+                $chargeRate = (float) $defaultChargeRate;
                 $chargeAmount = bcmul($usdEquivalent, (string) ($chargeRate / 100), 2);
 
                 try {

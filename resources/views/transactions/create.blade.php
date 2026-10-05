@@ -129,9 +129,15 @@
                     <p class="text-xs text-gray-500 mt-1">Minimum: 100 UGX</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Charge Rate (% per 100 USD) *</label>
-                    <input type="number" name="charge_rate" id="charge_rate" value="{{ $defaultChargeRate }}" step="0.01" min="0" required readonly
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Charge Rate (% per 100 USD)</label>
+                    <div class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-between gap-2">
+                        <span class="text-gray-700 font-medium">{{ $defaultChargeRate }}%</span>
+                        <span class="flex items-center gap-1 text-xs text-gray-500">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                            Locked
+                        </span>
+                    </div>
+                    <input type="hidden" name="charge_rate" id="charge_rate" value="{{ $defaultChargeRate }}">
                     <p class="text-xs text-gray-500 mt-1">Set by admin in System Settings</p>
                 </div>
             </div>
@@ -458,7 +464,6 @@ function populateReview() {
 
 document.getElementById('currency').addEventListener('change', calculate);
 document.getElementById('amount').addEventListener('input', calculate);
-document.getElementById('charge_rate').addEventListener('input', calculate);
 calculate();
 
 document.getElementById('transactionForm').addEventListener('submit', function(e) {

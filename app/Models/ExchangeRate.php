@@ -60,6 +60,18 @@ class ExchangeRate extends Model
             ->first();
     }
 
+    public static function setPair(string $from, string $to, float $rate): self
+    {
+        static::where('from_currency', $from)->where('to_currency', $to)->update(['is_active' => false]);
+
+        return static::create([
+            'from_currency' => strtoupper($from),
+            'to_currency' => strtoupper($to),
+            'rate' => $rate,
+            'is_active' => true,
+        ]);
+    }
+
     public static function convert(decimal|int|float $amount, string $from, string $to): ?string
     {
         $rate = static::getActiveRate($from, $to);
