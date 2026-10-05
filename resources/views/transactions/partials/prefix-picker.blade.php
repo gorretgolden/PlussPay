@@ -15,7 +15,7 @@
     ];
 @endphp
 <div class="relative prefix-picker">
-    <button type="button" class="prefix-btn px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg bg-gray-50 text-sm hover:bg-gray-100 focus:ring-2 focus:ring-green-500 focus:border-green-500 flex items-center gap-2">
+    <button type="button" class="prefix-btn h-full px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg bg-gray-50 text-sm hover:bg-gray-100 focus:ring-2 focus:ring-green-500 focus:border-green-500 flex items-center gap-2">
         <span class="prefix-label whitespace-nowrap"></span>
         <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
     </button>
