@@ -20,6 +20,7 @@ Route::get('/', function () {
 });
 Route::post('/admin/login', [AuthController::class, 'login'])->name('login.post');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::get('/logout', [AuthController::class, 'logout'])->name('logout.get');
 
 Route::get('/receipts/{receiptNumber}/view', [ReceiptController::class, 'show'])->name('receipts.public-view');
 

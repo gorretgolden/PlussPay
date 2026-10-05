@@ -203,6 +203,27 @@
             group.classList.toggle('hidden');
             chevron.classList.toggle('rotate-180');
         }
+
+        @auth
+        // Inactivity auto-logout: 30 minutes
+        (function() {
+            const INACTIVE_LIMIT = 30 * 60 * 1000;
+            let timer;
+
+            function resetTimer() {
+                clearTimeout(timer);
+                timer = setTimeout(function() {
+                    window.location.href = '/logout?reason=inactive';
+                }, INACTIVE_LIMIT);
+            }
+
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(function(evt) {
+                document.addEventListener(evt, resetTimer, { passive: true });
+            });
+
+            resetTimer();
+        })();
+        @endauth
     </script>
 </body>
 </html>

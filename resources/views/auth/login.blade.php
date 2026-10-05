@@ -16,6 +16,12 @@
             <p class="text-sm text-gray-500 mt-1">Sign in to your PlusPay account</p>
         </div>
 
+        @if(session('success'))
+            <div class="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm">
+                {{ session('success') }}
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('login.post') }}" class="space-y-4" id="loginForm">
             @csrf
 

@@ -86,13 +86,18 @@ class AuthController extends Controller
     {
         $user = Auth::user();
         if ($user) {
-            ActivityLog::logAuth($user->id, 'logout', "User {$user->name} logged out from {$request->ip()}");
+            $reason = $request->query('reason') === 'inactive' ? ' (inactive session)' : '';
+            ActivityLog::logAuth($user->id, 'logout', "User {$user->name} logged out from {$request->ip()}{$reason}");
         }
 
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        if ($request->query('reason') === 'inactive') {
+            return redirect()->route('login')->with('success', 'You have been logged out due to inactivity.');
+        }
+
+        return redirect()->route('login')->with('success', 'You have been logged out successfully.');
     }
 }
