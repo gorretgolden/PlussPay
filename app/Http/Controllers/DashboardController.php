@@ -52,7 +52,27 @@ class DashboardController extends Controller
 
         $chartData = $this->buildChartData($scope);
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role'));
+        $usdToUgx = $this->usdToUgxRate();
+        if ($usdToUgx) {
+            $chartData['revenue'] = array_map(fn($r) => round($r * $usdToUgx), $chartData['revenue']);
+        }
+
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx'));
+    }
+
+    private function usdToUgxRate(): ?float
+    {
+        $direct = ExchangeRate::getActiveRate('USD', 'UGX');
+        if ($direct && (float) $direct->rate > 0) {
+            return (float) $direct->rate;
+        }
+
+        $inverse = ExchangeRate::getActiveRate('UGX', 'USD');
+        if ($inverse && (float) $inverse->rate > 0) {
+            return 1 / (float) $inverse->rate;
+        }
+
+        return null;
     }
 
     private function buildChartData(?int $scope): array

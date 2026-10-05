@@ -3,6 +3,10 @@
 @section('title', 'Dashboard')
 
 @section('content')
+@php
+    $cur = $usdToUgx ? 'UGX' : 'USD';
+    $money = fn($usd) => $usdToUgx ? 'UGX ' . number_format($usd * $usdToUgx) : '$' . number_format($usd, 2);
+@endphp
 <div class="mb-6">
     <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
     <p class="text-gray-600">Welcome, {{ auth()->user()->name }}</p>
@@ -20,12 +24,12 @@
             <div class="text-white text-3xl font-bold mt-1">{{ number_format($stats['today_transactions']) }}</div>
         </div>
         <div class="bg-white/10 rounded-lg p-4">
-            <div class="text-green-200 text-sm">Money Sent (USD)</div>
-            <div class="text-white text-3xl font-bold mt-1">${{ number_format($stats['today_usd_sent'], 2) }}</div>
+            <div class="text-green-200 text-sm">Money Sent ({{ $cur }})</div>
+            <div class="text-white text-3xl font-bold mt-1">{{ $money($stats['today_usd_sent']) }}</div>
         </div>
         <div class="bg-white/10 rounded-lg p-4">
             <div class="text-green-200 text-sm">Revenue Today</div>
-            <div class="text-white text-3xl font-bold mt-1">${{ number_format($stats['today_revenue'], 2) }}</div>
+            <div class="text-white text-3xl font-bold mt-1">{{ $money($stats['today_revenue']) }}</div>
         </div>
     </div>
 </div>
@@ -43,8 +47,8 @@
     <a href="{{ route('transactions.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
         <div class="flex items-center justify-between">
             <div>
-                <div class="text-sm text-gray-500">Money Sent (USD)</div>
-                <div class="text-3xl font-bold text-green-700 mt-1">${{ number_format($stats['total_usd_sent'], 2) }}</div>
+                <div class="text-sm text-gray-500">Money Sent ({{ $cur }})</div>
+                <div class="text-3xl font-bold text-green-700 mt-1">{{ $money($stats['total_usd_sent']) }}</div>
             </div>
             <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
@@ -62,7 +66,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <div class="text-sm text-gray-500">Total Revenue</div>
-                <div class="text-3xl font-bold text-green-700 mt-1">${{ number_format($stats['total_revenue'], 2) }}</div>
+                <div class="text-3xl font-bold text-green-700 mt-1">{{ $money($stats['total_revenue']) }}</div>
             </div>
             <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
         </div>
@@ -101,7 +105,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <div class="text-sm text-gray-500">Avg Transaction</div>
-                <div class="text-3xl font-bold text-blue-700 mt-1">${{ number_format($stats['avg_transaction'], 2) }}</div>
+                <div class="text-3xl font-bold text-blue-700 mt-1">{{ $money($stats['avg_transaction']) }}</div>
             </div>
             <svg class="w-10 h-10 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
         </div>
@@ -233,7 +237,7 @@
         data: {
             labels: chartData.labels,
             datasets: [{
-                label: 'Revenue (USD)',
+                label: 'Revenue ({{ $cur }})',
                 data: chartData.revenue,
                 backgroundColor: 'rgba(22, 163, 74, 0.8)',
                 borderColor: 'rgb(22, 163, 74)',
