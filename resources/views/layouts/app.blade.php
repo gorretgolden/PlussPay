@@ -161,7 +161,8 @@
         <div class="ml-64 w-[calc(100%-16rem)]">
             <main class="p-6">
                 @if(session('success'))
-                    <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded no-print">
+                    <div id="flash-toast" class="fixed top-4 right-4 z-50 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 transition-opacity duration-500 no-print">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                         {{ session('success') }}
                     </div>
                 @endif
@@ -369,6 +370,14 @@
             document.querySelectorAll('select').forEach(enhance);
         })();
 
+        (function() {
+            const toast = document.getElementById('flash-toast');
+            if (toast) {
+                setTimeout(function() { toast.classList.add('opacity-0'); }, 3000);
+                setTimeout(function() { toast.remove(); }, 3500);
+            }
+        })();
+
         @auth
         // Inactivity auto-logout: 30 minutes
         (function() {
@@ -378,7 +387,10 @@
             function resetTimer() {
                 clearTimeout(timer);
                 timer = setTimeout(function() {
-                    window.location.href = '/logout?reason=inactive';
+                    const form = document.querySelector('form[action="{{ route('logout') }}"]');
+                    if (!form) return;
+                    form.action = '{{ route('logout') }}?reason=inactive';
+                    form.submit();
                 }, INACTIVE_LIMIT);
             }
 

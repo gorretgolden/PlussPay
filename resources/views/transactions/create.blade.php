@@ -6,6 +6,8 @@
 @php
     $serverRepopulated = $errors->any();
     $errorFields = $errors->keys();
+    $draftKey = 'pluspay_send_draft_u' . (auth()->id() ?? 'guest');
+    $keepKey = 'pluspay_keep_draft_u' . (auth()->id() ?? 'guest');
     $trimRate = fn ($r) => rtrim(rtrim(number_format((float) $r, 6, '.', ''), '0'), '.');
 @endphp
 <div class="max-w-4xl mx-auto">
@@ -51,6 +53,7 @@
 
     <form method="POST" action="{{ route('transactions.store') }}" id="transactionForm">
         @csrf
+        <input type="hidden" name="form_id" value="{{ $formId }}">
 
         {{-- Step 1: Sender --}}
         <div class="wizard-step bg-white rounded-lg shadow p-8" id="step-1">
@@ -63,10 +66,10 @@
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Sender's Phone *</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Sender's Phone</label>
                     <div class="flex">
                         @include('transactions.partials.prefix-picker', ['who' => 'sender', 'default' => '+256'])
-                        <input type="tel" name="sender_contact" id="sender_contact" value="{{ old('sender_contact') }}" required maxlength="15"
+                        <input type="tel" name="sender_contact" id="sender_contact" value="{{ old('sender_contact') }}" maxlength="15"
                             placeholder="700 000 000"
                             class="flex-1 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                     </div>
@@ -91,10 +94,10 @@
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Receiver's Phone *</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Receiver's Phone</label>
                     <div class="flex">
                         @include('transactions.partials.prefix-picker', ['who' => 'receiver', 'default' => '+86'])
-                        <input type="tel" name="receiver_contact" id="receiver_contact" value="{{ old('receiver_contact') }}" required maxlength="15"
+                        <input type="tel" name="receiver_contact" id="receiver_contact" value="{{ old('receiver_contact') }}" maxlength="15"
                             placeholder="138 0000 0000"
                             class="flex-1 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                     </div>
@@ -503,8 +506,11 @@ document.getElementById('transactionForm').addEventListener('submit', function(e
     btn.textContent = 'Processing...';
 });
 
-// ---- Draft save / restore ----
-const DRAFT_KEY = 'pluspay_send_draft';
+// ---- Draft save / restore (scoped to the signed-in user) ----
+const DRAFT_KEY = @json($draftKey);
+const KEEP_KEY = @json($keepKey);
+localStorage.removeItem('pluspay_send_draft');
+localStorage.removeItem('pluspay_keep_draft');
 const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'amount', 'purpose', 'purpose_other', 'notes'];
 let draftCleared = false;
 
@@ -587,11 +593,11 @@ function restoreDraft() {
     });
     document.getElementById('editLink').addEventListener('click', function () {
         // Keep editing on the fresh page without the banner; draft itself stays until submitted or discarded.
-        sessionStorage.setItem('pluspay_keep_draft', '1');
+        sessionStorage.setItem(KEEP_KEY, '1');
     });
 
-    if (sessionStorage.getItem('pluspay_keep_draft')) {
-        sessionStorage.removeItem('pluspay_keep_draft');
+    if (sessionStorage.getItem(KEEP_KEY)) {
+        sessionStorage.removeItem(KEEP_KEY);
         document.getElementById('draftBar').classList.add('hidden');
         return;
     }

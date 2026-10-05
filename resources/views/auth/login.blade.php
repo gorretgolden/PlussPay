@@ -18,7 +18,8 @@
         </div>
 
         @if(session('success'))
-            <div class="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm">
+            <div id="flash-toast" class="fixed top-4 right-4 z-50 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 transition-opacity duration-500">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                 {{ session('success') }}
             </div>
         @endif
@@ -75,19 +76,19 @@
                 <div class="flex-1 h-px bg-gray-200"></div>
             </div>
             <div class="grid grid-cols-2 gap-3">
-                <button type="button" onclick="fillLogin('admin@plussave.com', 'admin123')"
+                <button type="button" onclick="fillEmail('admin@plussave.com')"
                     class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
                     Admin
                 </button>
-                <button type="button" onclick="fillLogin('superadmin@plussave.com', 'superadmin123')"
+                <button type="button" onclick="fillEmail('superadmin@plussave.com')"
                     class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
                     Superadmin
                 </button>
-                <button type="button" onclick="fillLogin('agent@plussave.com', 'agent123')"
+                <button type="button" onclick="fillEmail('agent@plussave.com')"
                     class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
                     Agent
                 </button>
-                <button type="button" onclick="fillLogin('staff@plussave.com', 'staff123')"
+                <button type="button" onclick="fillEmail('staff@plussave.com')"
                     class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
                     Staff
                 </button>
@@ -96,9 +97,17 @@
     </div>
 
     <script>
-        function fillLogin(email, password) {
+        (function() {
+            const toast = document.getElementById('flash-toast');
+            if (toast) {
+                setTimeout(function() { toast.classList.add('opacity-0'); }, 3000);
+                setTimeout(function() { toast.remove(); }, 3500);
+            }
+        })();
+
+        function fillEmail(email) {
             document.getElementById('email').value = email;
-            document.getElementById('password').value = password;
+            document.getElementById('password').focus();
         }
 
         function togglePassword() {

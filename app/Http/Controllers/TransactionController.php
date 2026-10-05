@@ -7,14 +7,22 @@ use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class TransactionController extends Controller
 {
+    private const ALLOWED_STATUS_TRANSITIONS = [
+        'pending' => ['completed', 'cancelled'],
+        'completed' => ['cancelled'],
+        'cancelled' => [],
+    ];
+
     public function index(Request $request)
     {
         $transactions = Transaction::with('creator')
+            ->visibleTo($request->user())
             ->filtered($request)
-            ->when($request->user()->hasRole('agent'), fn($q) => $q->where('created_by', $request->user()->id))
             ->latest()
             ->paginate(20)
             ->withQueryString();
@@ -31,38 +39,50 @@ class TransactionController extends Controller
         $ugxToUsdRate = $usdToUgx ? 1 / $usdToUgx : null;
         $defaultChargeRate = \App\Models\Setting::get('default_charge_rate', 5);
 
-        return view('transactions.create', compact('usdToRmb', 'ugxToUsdRate', 'defaultChargeRate'));
+        // One-time token so a replayed or double-posted submit cannot mint a second receipt.
+        $formId = (string) Str::uuid();
+        session(['transaction_form_id' => $formId]);
+
+        return view('transactions.create', compact('usdToRmb', 'ugxToUsdRate', 'defaultChargeRate', 'formId'));
     }
 
     public function store(Request $request)
     {
+        $minAmount = (float) \App\Models\Setting::get('min_transaction_amount', 100);
+        $maxAmount = (float) \App\Models\Setting::get('max_transaction_amount', 100000000);
+
         $validated = $request->validate([
+            'form_id' => 'required|string',
             'sender_name' => 'required|string|max:100|min:2',
-            'sender_contact' => ['required', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
+            'sender_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
             'receiver_name' => 'required|string|max:100|min:2',
-            'receiver_contact' => ['required', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
+            'receiver_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
             'currency' => 'required|in:UGX,USD',
-            'amount' => 'required|numeric|min:100|max:100000000',
+            'amount' => "required|numeric|min:{$minAmount}|max:{$maxAmount}|decimal_places:2",
             'charge_rate' => 'required|numeric|min:0|max:100',
             'purpose' => 'nullable|string|max:100',
             'purpose_other' => 'required_if:purpose,Other|nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
         ], [
+            'form_id.required' => 'This form has expired. Please reload the page and try again.',
+            'amount.min' => "Minimum amount is {$minAmount}.",
+            'amount.max' => "Maximum amount is ".number_format($maxAmount).".",
+            'amount.decimal_places' => 'Amount cannot have more than 2 decimal places.',
             'purpose_other.required_if' => 'Please say what the other reason is.',
             'sender_name.required' => 'Sender name is required.',
             'sender_name.min' => 'Sender name must be at least 2 characters.',
-            'sender_contact.required' => 'Sender contact is required.',
             'sender_contact.regex' => 'Enter a valid phone number (e.g. +256 700 000 000).',
             'receiver_name.required' => 'Receiver name is required.',
             'receiver_name.min' => 'Receiver name must be at least 2 characters.',
-            'receiver_contact.required' => 'Receiver contact is required.',
             'receiver_contact.regex' => 'Enter a valid phone number (e.g. +86 138 0000 0000).',
             'amount.required' => 'Amount is required.',
-            'amount.min' => 'Minimum amount is 100.',
-            'amount.max' => 'Maximum amount is 100,000,000.',
             'charge_rate.required' => 'Charge rate is required.',
             'charge_rate.max' => 'Charge rate cannot exceed 100%.',
         ]);
+
+        if (! hash_equals((string) session('transaction_form_id', ''), $validated['form_id'])) {
+            return back()->withErrors(['form_id' => 'This transaction was already submitted. Start a new form to send another.']);
+        }
 
         $usdToRmbRate = ExchangeRate::getActiveRate('USD', 'RMB');
         if (!$usdToRmbRate) {
@@ -91,12 +111,11 @@ class TransactionController extends Controller
             $purpose = trim($validated['purpose_other'] ?? '') ?: 'Other';
         }
 
-        $transaction = Transaction::create([
-            'receipt_number' => Transaction::generateReceiptNumber(),
+        $transaction = Transaction::createWithReceiptNumber([
             'sender_name' => trim($validated['sender_name']),
-            'sender_contact' => trim($validated['sender_contact']),
+            'sender_contact' => trim($validated['sender_contact'] ?? ''),
             'receiver_name' => trim($validated['receiver_name']),
-            'receiver_contact' => trim($validated['receiver_contact']),
+            'receiver_contact' => trim($validated['receiver_contact'] ?? ''),
             'currency' => $currency,
             'amount' => $amount,
             'exchange_rate' => $usdToRmbRate->rate,
@@ -104,11 +123,13 @@ class TransactionController extends Controller
             'charge_rate' => $chargeRate,
             'charge_amount' => $chargeAmount,
             'total_usd_equivalent' => $usdEquivalent,
-            'status' => auth()->user()->hasRole('admin') ? 'completed' : 'pending',
+            'status' => auth()->user()->hasRole(['admin', 'superadmin']) ? 'completed' : 'pending',
             'created_by' => auth()->id(),
             'purpose' => $purpose ? trim($purpose) : null,
             'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
         ]);
+
+        session(['transaction_form_id' => (string) Str::uuid()]);
 
         ActivityLog::create([
             'transaction_id' => $transaction->id,
@@ -121,8 +142,10 @@ class TransactionController extends Controller
         return redirect()->route('receipts.show', $transaction->receipt_number);
     }
 
-    public function show(Transaction $transaction)
+    public function show(Request $request, Transaction $transaction)
     {
+        abort_unless($this->canView($request, $transaction), 403, 'You can only open transactions you created.');
+
         $transaction->load('activityLogs.user');
 
         return view('transactions.show', compact('transaction'));
@@ -135,9 +158,21 @@ class TransactionController extends Controller
         ]);
 
         $oldStatus = $transaction->status;
-        $transaction->update(['status' => $validated['status']]);
+        $newStatus = $validated['status'];
 
-        $action = match ($validated['status']) {
+        if ($oldStatus === $newStatus) {
+            return back()->with('warning', 'That transaction is already ' . $newStatus . '.');
+        }
+
+        if (!in_array($newStatus, self::ALLOWED_STATUS_TRANSITIONS[$oldStatus] ?? [], true)) {
+            return back()->withErrors([
+                'status' => "Cannot move a {$oldStatus} transaction to {$newStatus}.",
+            ]);
+        }
+
+        $transaction->update(['status' => $newStatus]);
+
+        $action = match ($newStatus) {
             'completed' => 'approved',
             'cancelled' => 'rejected',
             default => 'status_changed',
@@ -147,12 +182,18 @@ class TransactionController extends Controller
             'transaction_id' => $transaction->id,
             'user_id' => auth()->id(),
             'action' => $action,
-            'description' => "Status changed from {$oldStatus} to {$validated['status']}",
+            'description' => "Status changed from {$oldStatus} to {$newStatus}",
             'old_value' => $oldStatus,
-            'new_value' => $validated['status'],
+            'new_value' => $newStatus,
         ]);
 
-        return back()->with('success', 'Transaction status updated to ' . ucfirst($validated['status']) . '.');
+        return back()->with('success', 'Transaction status updated to ' . ucfirst($newStatus) . '.');
+    }
+
+    private function canView(Request $request, Transaction $transaction): bool
+    {
+        return $transaction->created_by === $request->user()->id
+            || $request->user()->hasRole(['superadmin', 'admin']);
     }
 
     public function showBulkImport()
@@ -185,6 +226,12 @@ class TransactionController extends Controller
                 return back()->withErrors(['exchange_rate' => 'USD to RMB rate not set. Please configure exchange rates first.']);
             }
 
+            if (count($rows) > 1000) {
+                return back()->withErrors(['file' => 'A file can hold at most 1,000 rows. Split it into smaller files.']);
+            }
+
+            $minAmount = (float) \App\Models\Setting::get('min_transaction_amount', 100);
+            $maxAmount = (float) \App\Models\Setting::get('max_transaction_amount', 100000000);
             $defaultChargeRate = \App\Models\Setting::get('default_charge_rate', 5);
             $imported = 0;
             $errors = [];
@@ -192,22 +239,25 @@ class TransactionController extends Controller
             foreach ($rows as $index => $row) {
                 $rowNumber = $index + 2;
 
-                if (empty($row['sender_name']) || empty($row['receiver_name']) || empty($row['amount'])) {
-                    $errors[] = "Row {$rowNumber}: Missing required fields (sender_name, receiver_name, or amount)";
+                $checked = Validator::make($row, [
+                    'sender_name' => 'required|string|max:100|min:2',
+                    'sender_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
+                    'receiver_name' => 'required|string|max:100|min:2',
+                    'receiver_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
+                    'currency' => 'required|in:UGX,USD',
+                    'amount' => "required|numeric|min:{$minAmount}|max:{$maxAmount}",
+                    'purpose' => 'nullable|string|max:100',
+                    'notes' => 'nullable|string|max:500',
+                ]);
+
+                if ($checked->fails()) {
+                    $errors[] = "Row {$rowNumber}: " . implode(' ', $checked->errors()->all());
                     continue;
                 }
 
-                $currency = strtoupper(trim($row['currency'] ?? 'USD'));
-                if (!in_array($currency, ['UGX', 'USD'])) {
-                    $errors[] = "Row {$rowNumber}: Invalid currency '{$currency}'. Must be UGX or USD.";
-                    continue;
-                }
-
-                $amount = (float) ($row['amount'] ?? 0);
-                if ($amount < 100) {
-                    $errors[] = "Row {$rowNumber}: Amount must be at least 100 {$currency}";
-                    continue;
-                }
+                $data = $checked->validated();
+                $currency = strtoupper(trim($data['currency']));
+                $amount = (float) $data['amount'];
 
                 if ($currency === 'UGX') {
                     $usdToUgx = ExchangeRate::usdToUgx();
@@ -225,12 +275,11 @@ class TransactionController extends Controller
                 $chargeAmount = bcmul($usdEquivalent, (string) ($chargeRate / 100), 2);
 
                 try {
-                    $transaction = Transaction::create([
-                        'receipt_number' => Transaction::generateReceiptNumber(),
-                        'sender_name' => trim($row['sender_name']),
-                        'sender_contact' => trim($row['sender_contact'] ?? ''),
-                        'receiver_name' => trim($row['receiver_name']),
-                        'receiver_contact' => trim($row['receiver_contact'] ?? ''),
+                    $transaction = Transaction::createWithReceiptNumber([
+                        'sender_name' => trim($data['sender_name']),
+                        'sender_contact' => trim($data['sender_contact'] ?? ''),
+                        'receiver_name' => trim($data['receiver_name']),
+                        'receiver_contact' => trim($data['receiver_contact'] ?? ''),
                         'currency' => $currency,
                         'amount' => $amount,
                         'exchange_rate' => $usdToRmbRate->rate,
@@ -240,8 +289,8 @@ class TransactionController extends Controller
                         'total_usd_equivalent' => $usdEquivalent,
                         'status' => 'completed',
                         'created_by' => auth()->id(),
-                        'purpose' => !empty($row['purpose']) ? trim($row['purpose']) : null,
-                        'notes' => !empty($row['notes']) ? trim($row['notes']) : null,
+                        'purpose' => !empty($data['purpose']) ? trim($data['purpose']) : null,
+                        'notes' => !empty($data['notes']) ? trim($data['notes']) : null,
                     ]);
 
                     ActivityLog::create([
@@ -254,8 +303,18 @@ class TransactionController extends Controller
 
                     $imported++;
                 } catch (\Exception $e) {
-                    $errors[] = "Row {$rowNumber}: " . $e->getMessage();
+                    report($e);
+                    $errors[] = "Row {$rowNumber}: Could not be saved. Check the sender, receiver and amount values.";
                 }
+            }
+
+            if ($imported > 0) {
+                ActivityLog::create([
+                    'user_id' => auth()->id(),
+                    'action' => 'bulk_import',
+                    'description' => "Bulk imported {$imported} transaction(s), " . count($errors) . ' row(s) rejected',
+                    'new_value' => (string) $imported,
+                ]);
             }
 
             $message = "Successfully imported {$imported} transaction(s).";
@@ -265,7 +324,8 @@ class TransactionController extends Controller
 
             return back()->with('success', $message)->with('import_errors', $errors);
         } catch (\Exception $e) {
-            return back()->withErrors(['file' => 'Error processing file: ' . $e->getMessage()]);
+            report($e);
+            return back()->withErrors(['file' => 'That file could not be read. Check that it is a valid CSV or Excel export.']);
         }
     }
 

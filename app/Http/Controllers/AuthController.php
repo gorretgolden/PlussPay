@@ -79,7 +79,7 @@ class AuthController extends Controller
 
         ActivityLog::logAuth($authenticatedUser->id, 'login', "User {$authenticatedUser->name} logged in from {$request->ip()}");
 
-        return redirect()->intended('/dashboard');
+        return redirect()->intended('/dashboard')->with('success', 'Welcome back, ' . $authenticatedUser->name . '!');
     }
 
     public function logout(Request $request)
