@@ -46,6 +46,8 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
         Route::patch('/users/{user}/toggle-lock', [UserController::class, 'toggleLock'])->name('users.toggle-lock');
+        Route::patch('/users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
         Route::get('/exchange-rates', [ExchangeRateController::class, 'index'])->name('exchange-rates.index');
         Route::post('/exchange-rates', [ExchangeRateController::class, 'store'])->name('exchange-rates.store');
@@ -63,8 +65,10 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/agents/performance', [AgentPerformanceController::class, 'index'])->name('agents.performance');
 
-        Route::get('/admin/roles', [RolePermissionController::class, 'roles'])->name('admin.roles');
-        Route::put('/admin/roles/{role}', [RolePermissionController::class, 'updateRole'])->name('admin.roles.update');
+        Route::get('/admin/roles', [RolePermissionController::class, 'index'])->name('admin.roles');
+        Route::post('/admin/roles', [RolePermissionController::class, 'store'])->name('admin.roles.store');
+        Route::put('/admin/roles/{role}', [RolePermissionController::class, 'update'])->name('admin.roles.update');
+        Route::delete('/admin/roles/{role}', [RolePermissionController::class, 'destroy'])->name('admin.roles.destroy');
         Route::get('/admin/permissions', [RolePermissionController::class, 'permissions'])->name('admin.permissions');
 
         Route::get('/admin/activity-logs', [AuditLogController::class, 'activityLogs'])->name('admin.activity-logs');

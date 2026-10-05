@@ -202,4 +202,52 @@ class UserController extends Controller
         $message = $user->is_locked ? 'Account locked successfully.' : 'Account unlocked successfully.';
         return back()->with('success', $message);
     }
+
+    public function toggleActive(Request $request, User $user)
+    {
+        $currentUser = auth()->user();
+
+        if ($user->id === $currentUser->id) {
+            return back()->withErrors(['error' => 'You cannot deactivate your own account.']);
+        }
+
+        if ($user->hasRole('superadmin') && !$currentUser->hasRole('superadmin')) {
+            return back()->withErrors(['error' => 'Only superadmins can modify superadmin accounts.']);
+        }
+
+        $user->update(['is_active' => !$user->is_active]);
+
+        $status = $user->is_active ? 'activated' : 'deactivated';
+        ActivityLog::create([
+            'user_id' => $currentUser->id,
+            'action' => "user_{$status}",
+            'description' => "User {$user->name} {$status}",
+        ]);
+
+        return back()->with('success', "User {$user->name} {$status}.");
+    }
+
+    public function destroy(User $user)
+    {
+        $currentUser = auth()->user();
+
+        if ($user->id === $currentUser->id) {
+            return back()->withErrors(['error' => 'You cannot delete your own account.']);
+        }
+
+        if ($user->hasRole('superadmin')) {
+            return back()->withErrors(['error' => 'Cannot delete a Super Admin account.']);
+        }
+
+        $name = $user->name;
+        $user->delete();
+
+        ActivityLog::create([
+            'user_id' => $currentUser->id,
+            'action' => 'user_deleted',
+            'description' => "User {$name} deleted",
+        ]);
+
+        return redirect()->route('users.index')->with('success', "User {$name} deleted.");
+    }
 }

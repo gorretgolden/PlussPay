@@ -13,55 +13,97 @@ class PermissionsSeeder extends Seeder
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
         $permissions = [
+            // Dashboard
             'view-dashboard',
+
+            // Transactions
             'create-transaction',
-            'view-transaction',
+            'view-transactions',
             'view-own-transactions',
-            'view-all-transactions',
+            'edit-transaction',
+            'delete-transaction',
             'approve-transaction',
-            'view-receipt',
+            'bulk-import-transactions',
+
+            // Receipts
+            'view-receipts',
             'print-receipt',
+
+            // Reports
             'view-reports',
             'export-reports',
+
+            // Customers
             'view-customers',
-            'create-customers',
-            'edit-customers',
-            'delete-customers',
+            'create-customer',
+            'edit-customer',
+            'delete-customer',
+
+            // Users
             'view-users',
-            'create-users',
-            'edit-users',
+            'create-user',
+            'edit-user',
+            'delete-user',
+            'toggle-user-status',
+            'reset-user-password',
+            'lock-user',
+
+            // Roles & Permissions
+            'view-roles',
+            'create-role',
+            'edit-role',
+            'delete-role',
+            'assign-permissions',
+
+            // Exchange Rates
             'view-exchange-rates',
             'manage-exchange-rates',
+
+            // Settings
             'view-settings',
             'manage-settings',
+
+            // Agent Performance
+            'view-agent-performance',
+
+            // Audit Logs
+            'view-activity-logs',
+            'view-login-logs',
         ];
 
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
 
+        // Super Admin: all permissions
         $superadmin = Role::firstOrCreate(['name' => 'superadmin', 'guard_name' => 'web']);
-        $superadmin->syncPermissions($permissions);
+        $superadmin->syncPermissions(Permission::all());
 
+        // Admin: all except deleting superadmin-level things
         $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
         $admin->syncPermissions($permissions);
 
+        // Agent: day-to-day operations
         $agent = Role::firstOrCreate(['name' => 'agent', 'guard_name' => 'web']);
         $agent->syncPermissions([
             'view-dashboard',
             'create-transaction',
+            'view-transactions',
             'view-own-transactions',
-            'view-receipt',
+            'view-receipts',
             'print-receipt',
             'view-reports',
             'view-customers',
+            'create-customer',
         ]);
 
+        // Staff: limited view-only
         $staff = Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
         $staff->syncPermissions([
             'view-dashboard',
+            'view-transactions',
             'view-own-transactions',
-            'view-receipt',
+            'view-receipts',
             'print-receipt',
         ]);
     }
