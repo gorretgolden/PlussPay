@@ -114,13 +114,9 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Charge Rate (% per 100 USD) *</label>
-                    @php $rateEditable = auth()->user()->hasRole(['admin', 'superadmin']); @endphp
-                    <input type="number" name="charge_rate" id="charge_rate" value="{{ $rateEditable ? old('charge_rate', $defaultChargeRate) : $defaultChargeRate }}" step="0.01" min="0" required
-                        @unless($rateEditable) readonly @endunless
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 {{ $rateEditable ? '' : 'bg-gray-100 text-gray-600 cursor-not-allowed' }}">
-                    @unless($rateEditable)
+                    <input type="number" name="charge_rate" id="charge_rate" value="{{ $defaultChargeRate }}" step="0.01" min="0" required readonly
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed">
                     <p class="text-xs text-gray-500 mt-1">Set by admin in System Settings</p>
-                    @endunless
                 </div>
             </div>
 

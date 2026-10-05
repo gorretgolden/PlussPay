@@ -80,9 +80,7 @@ class TransactionController extends Controller
         }
 
         $rmbAmount = bcmul($usdEquivalent, (string) $usdToRmbRate->rate, 2);
-        $chargeRate = auth()->user()->hasRole(['admin', 'superadmin'])
-            ? (float) $validated['charge_rate']
-            : (float) \App\Models\Setting::get('default_charge_rate', 5);
+        $chargeRate = (float) \App\Models\Setting::get('default_charge_rate', 5);
         $chargeAmount = bcmul($usdEquivalent, (string) ($chargeRate / 100), 2);
 
         $transaction = Transaction::create([

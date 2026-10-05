@@ -87,19 +87,14 @@
     </div>
 </div>
 
-@if(session('success'))
+@if(session('import_errors') && count(session('import_errors')) > 0)
     <div class="bg-green-50 border border-green-200 rounded-lg p-4 mt-6">
-        <p class="text-green-800 font-medium">{{ session('success') }}</p>
-        @if(session('import_errors') && count(session('import_errors')) > 0)
-            <div class="mt-3">
-                <h4 class="text-sm font-semibold text-green-900 mb-2">Errors encountered:</h4>
-                <ul class="text-sm text-green-800 space-y-1 list-disc list-inside max-h-48 overflow-y-auto">
-                    @foreach(session('import_errors') as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
+        <h4 class="text-sm font-semibold text-green-900 mb-2">Errors encountered:</h4>
+        <ul class="text-sm text-green-800 space-y-1 list-disc list-inside max-h-48 overflow-y-auto">
+            @foreach(session('import_errors') as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
     </div>
 @endif
 

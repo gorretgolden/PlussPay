@@ -3,12 +3,6 @@
 @section('title', 'Transaction ' . $transaction->receipt_number)
 
 @section('content')
-@if(session('success'))
-<div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded">
-    {{ session('success') }}
-</div>
-@endif
-
 <div class="mb-6 flex justify-between items-center">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Transaction: {{ $transaction->receipt_number }}</h1>

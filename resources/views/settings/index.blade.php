@@ -8,12 +8,6 @@
     <p class="text-gray-600">Configure your system preferences</p>
 </div>
 
-@if(session('success'))
-<div class="mb-4 bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded">
-    {{ session('success') }}
-</div>
-@endif
-
 <form method="POST" action="{{ route('settings.update') }}" class="space-y-6">
     @csrf
     @method('PUT')
