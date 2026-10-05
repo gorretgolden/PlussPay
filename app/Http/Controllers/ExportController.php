@@ -33,8 +33,8 @@ class ExportController extends Controller
                 $t->currency . ' ' . number_format((float) $t->amount, 2),
                 $this->ugx((float) $t->total_usd_equivalent),
                 '¥' . number_format((float) $t->rmb_amount, 2),
-                number_format((float) $t->charge_rate, 2) . '%',
-                $this->ugx((float) $t->charge_amount),
+                'UGX ' . number_format((float) $t->charge_ugx),
+                'USD ' . number_format((float) $t->charge_amount, 2),
                 $t->purpose ?? '-',
                 ucfirst($t->status),
                 $t->creator?->name ?? '-',
@@ -43,7 +43,7 @@ class ExportController extends Controller
 
         return $this->download('transactions', [
             'Receipt #', 'Date', 'Sender', 'Sender Contact', 'Receiver', 'Receiver Contact',
-            'Amount', 'UGX Equivalent', 'RMB', 'Charge Rate', 'Charge Amount', 'Purpose', 'Status', 'Created By',
+            'Amount', 'UGX Equivalent', 'RMB', 'Service Fee (UGX)', 'Service Fee (USD)', 'Purpose', 'Status', 'Created By',
         ], $rows);
     }
 
@@ -60,13 +60,13 @@ class ExportController extends Controller
                 $t->receiver_name,
                 $t->currency . ' ' . number_format((float) $t->amount, 2),
                 '¥' . number_format((float) $t->rmb_amount, 2),
-                $this->ugx((float) $t->charge_amount),
+                'UGX ' . number_format((float) $t->charge_ugx),
                 $t->creator?->name ?? '-',
             ])
             ->all();
 
         return $this->download('receipts', [
-            'Receipt #', 'Date', 'Sender', 'Receiver', 'Amount', 'RMB', 'Charge', 'Created By',
+            'Receipt #', 'Date', 'Sender', 'Receiver', 'Amount', 'RMB', 'Charge (UGX)', 'Created By',
         ], $rows);
     }
 

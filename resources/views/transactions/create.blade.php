@@ -169,7 +169,7 @@
                         <div class="font-bold text-lg text-purple-700" id="preview_rmb">-</div>
                     </div>
                     <div>
-                        <div class="text-gray-500">Service Charge</div>
+                        <div class="text-gray-500">Service Charge (UGX)</div>
                         <div class="font-bold text-lg text-green-700" id="preview_charge">-</div>
                     </div>
                 </div>
@@ -244,7 +244,7 @@
                         <div class="font-bold text-lg text-purple-700" id="rev_rmb">-</div>
                     </div>
                     <div>
-                        <div class="text-xs text-gray-500">Service Charge</div>
+                        <div class="text-xs text-gray-500">Service Charge (UGX)</div>
                         <div class="font-bold text-lg text-green-700" id="rev_charge">-</div>
                     </div>
                 </div>
@@ -431,7 +431,7 @@ function calculate() {
 
     document.getElementById('preview_usd').textContent = '$' + usdEquivalent.toFixed(2);
     document.getElementById('preview_rmb').textContent = '¥' + rmbAmount.toFixed(2);
-    document.getElementById('preview_charge').textContent = '$' + chargeAmount.toFixed(2);
+    document.getElementById('preview_charge').textContent = 'UGX ' + Math.round(feeUgx).toLocaleString();
 
     const formula = document.getElementById('preview_formula');
     if (!amount) {
@@ -474,12 +474,12 @@ function populateReview() {
     const amount = parseFloat(document.getElementById('amount').value) || 0;
     let usdEquivalent = currency === 'UGX' ? amount * ugxToUsdRate : amount;
     const rmbAmount = usdEquivalent * usdToRmbRate;
-    const chargeAmount = (usdEquivalent / 100 * serviceFeeUgx) * ugxToUsdRate;
+    const feeUgx = usdEquivalent / 100 * serviceFeeUgx;
 
     document.getElementById('rev_amount').textContent = currency + ' ' + amount.toLocaleString(undefined, {minimumFractionDigits: 2});
     document.getElementById('rev_usd').textContent = '$' + usdEquivalent.toFixed(2);
     document.getElementById('rev_rmb').textContent = '¥' + rmbAmount.toFixed(2);
-    document.getElementById('rev_charge').textContent = '$' + chargeAmount.toFixed(2);
+    document.getElementById('rev_charge').textContent = 'UGX ' + Math.round(feeUgx).toLocaleString();
 
     const chosen = purposeSelect.value;
     const purpose = chosen === 'Other' ? (purposeOther.value.trim() || 'Other') : chosen;

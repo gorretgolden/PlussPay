@@ -58,7 +58,7 @@
             <tr class="bg-gray-100">
                 <th class="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-700">Particulars</th>
                 <th class="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-700">Rate</th>
-                <th class="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-700">Charge</th>
+                <th class="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-700">Charge (UGX)</th>
                 <th class="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-700">Amount (USD/RMB)</th>
             </tr>
         </thead>
@@ -66,7 +66,7 @@
             <tr>
                 <td class="border border-gray-300 px-4 py-3 text-sm">Send to China ({{ $transaction->currency }})</td>
                 <td class="border border-gray-300 px-4 py-3 text-sm">{{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</td>
-                <td class="border border-gray-300 px-4 py-3 text-sm">${{ number_format($transaction->charge_amount, 2) }}</td>
+                <td class="border border-gray-300 px-4 py-3 text-sm">UGX {{ number_format((float) $transaction->charge_ugx) }}</td>
                 <td class="border border-gray-300 px-4 py-3 text-sm">
                     {{ $transaction->currency }} {{ number_format($transaction->amount, 2) }}<br>
                     ¥{{ number_format($transaction->rmb_amount, 2) }} RMB

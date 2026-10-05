@@ -117,7 +117,7 @@ class ReportsController extends Controller
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ];
 
-        $headers = ['Receipt #', 'Date', 'Sender Name', 'Sender Contact', 'Receiver Name', 'Receiver Contact', 'Currency', 'Amount', 'USD Equivalent', 'Exchange Rate', 'RMB Amount', 'Charge Rate %', 'Charge Amount', 'Status', 'Agent'];
+        $headers = ['Receipt #', 'Date', 'Sender Name', 'Sender Contact', 'Receiver Name', 'Receiver Contact', 'Currency', 'Amount', 'USD Equivalent', 'Exchange Rate', 'RMB Amount', 'Charge (UGX)', 'Charge (USD)', 'Status', 'Agent'];
         $col = 'A';
         foreach ($headers as $header) {
             $sheet->setCellValue($col . '1', $header);
@@ -140,7 +140,7 @@ class ReportsController extends Controller
             $sheet->setCellValue('I' . $row, (float) $t->total_usd_equivalent);
             $sheet->setCellValue('J' . $row, (float) $t->exchange_rate);
             $sheet->setCellValue('K' . $row, (float) $t->rmb_amount);
-            $sheet->setCellValue('L' . $row, (float) $t->charge_rate);
+            $sheet->setCellValue('L' . $row, (float) $t->charge_ugx);
             $sheet->setCellValue('M' . $row, (float) $t->charge_amount);
             $this->putText($sheet, 'N' . $row, ucfirst((string) $t->status));
             $this->putText($sheet, 'O' . $row, (string) ($t->creator?->name ?? '-'));
@@ -151,7 +151,7 @@ class ReportsController extends Controller
         $sheet->getStyle('I2:I' . ($row - 1))->getNumberFormat()->setFormatCode('$#,##0.00');
         $sheet->getStyle('K2:K' . ($row - 1))->getNumberFormat()->setFormatCode('¥#,##0.00');
         $sheet->getStyle('M2:M' . ($row - 1))->getNumberFormat()->setFormatCode('$#,##0.00');
-        $sheet->getStyle('L2:L' . ($row - 1))->getNumberFormat()->setFormatCode('0.00"%"');
+        $sheet->getStyle('L2:L' . ($row - 1))->getNumberFormat()->setFormatCode('#,##0');
 
         $sheet->getStyle('A2:O' . ($row - 1))->applyFromArray([
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],

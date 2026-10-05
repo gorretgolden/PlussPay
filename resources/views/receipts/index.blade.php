@@ -57,7 +57,7 @@
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $r->receiver_name }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $r->currency }} {{ number_format($r->amount, 2) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($r->rmb_amount, 2) }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">${{ number_format($r->charge_amount, 2) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">UGX {{ number_format((float) $r->charge_ugx) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-500">{{ $r->created_at->format('M d, Y H:i') }}</td>
                 <td class="px-6 py-4 text-sm">
                     <a href="{{ route('receipts.show', $r->receipt_number) }}" class="text-green-600 hover:text-green-800 mr-2">View</a>

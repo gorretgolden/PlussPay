@@ -47,16 +47,26 @@ class TransactionController extends Controller
     }
 
     /**
-     * The service fee is set as UGX per 100 USD sent. Because it scales with the
-     * amount it reduces to a flat percentage of the USD value: feeUgx / usdToUgx.
-     * Returns null when the UGX rate is missing so callers can block the save.
+     * The service fee is quoted as UGX per 100 USD sent, so it scales with the
+     * amount. Returns the UGX charge, its USD equivalent for accounting, and the
+     * equivalent flat percentage. Null when no USD/UGX rate is active.
      */
-    private function chargeRatePercent(): ?float
+    private function serviceFee(string $usdEquivalent): ?array
     {
         $feeUgx = (float) \App\Models\Setting::get('service_fee_ugx_per_100usd', 2000);
         $usdToUgx = (float) (ExchangeRate::usdToUgx() ?? 0);
 
-        return $usdToUgx > 0 ? $feeUgx / $usdToUgx : null;
+        if ($usdToUgx <= 0) {
+            return null;
+        }
+
+        $chargeUgx = bcmul($usdEquivalent, (string) ($feeUgx / 100), 2);
+
+        return [
+            'ugx' => $chargeUgx,
+            'usd' => bcdiv($chargeUgx, (string) $usdToUgx, 2),
+            'rate' => $feeUgx / $usdToUgx,
+        ];
     }
 
     public function store(Request $request)
@@ -113,11 +123,10 @@ class TransactionController extends Controller
         }
 
         $rmbAmount = bcmul($usdEquivalent, (string) $usdToRmbRate->rate, 2);
-        $chargeRate = $this->chargeRatePercent();
-        if ($chargeRate === null) {
+        $fee = $this->serviceFee($usdEquivalent);
+        if ($fee === null) {
             return back()->withErrors(['exchange_rate' => 'UGX rate not set. The service fee cannot be calculated.'])->withInput();
         }
-        $chargeAmount = bcmul($usdEquivalent, (string) ($chargeRate / 100), 2);
 
         $purpose = $validated['purpose'] ?? null;
         if ($purpose === 'Other') {
@@ -133,8 +142,9 @@ class TransactionController extends Controller
             'amount' => $amount,
             'exchange_rate' => $usdToRmbRate->rate,
             'rmb_amount' => $rmbAmount,
-            'charge_rate' => $chargeRate,
-            'charge_amount' => $chargeAmount,
+            'charge_rate' => $fee['rate'],
+            'charge_amount' => $fee['usd'],
+            'charge_ugx' => $fee['ugx'],
             'total_usd_equivalent' => $usdEquivalent,
             'status' => auth()->user()->hasRole(['admin', 'superadmin']) ? 'completed' : 'pending',
             'created_by' => auth()->id(),
@@ -245,8 +255,7 @@ class TransactionController extends Controller
 
             $minAmount = (float) \App\Models\Setting::get('min_transaction_amount', 100);
             $maxAmount = (float) \App\Models\Setting::get('max_transaction_amount', 100000000);
-            $chargeRate = $this->chargeRatePercent();
-            if ($chargeRate === null) {
+            if (! ExchangeRate::usdToUgx()) {
                 return back()->withErrors(['file' => 'UGX rate not set. The service fee cannot be calculated.']);
             }
             $imported = 0;
@@ -287,7 +296,11 @@ class TransactionController extends Controller
                 }
 
                 $rmbAmount = bcmul($usdEquivalent, (string) $usdToRmbRate->rate, 2);
-                $chargeAmount = bcmul($usdEquivalent, (string) ($chargeRate / 100), 2);
+                $fee = $this->serviceFee($usdEquivalent);
+                if ($fee === null) {
+                    $errors[] = "Row {$rowNumber}: UGX to USD rate not set";
+                    continue;
+                }
 
                 try {
                     $transaction = Transaction::createWithReceiptNumber([
@@ -299,8 +312,9 @@ class TransactionController extends Controller
                         'amount' => $amount,
                         'exchange_rate' => $usdToRmbRate->rate,
                         'rmb_amount' => $rmbAmount,
-                        'charge_rate' => $chargeRate,
-                        'charge_amount' => $chargeAmount,
+                        'charge_rate' => $fee['rate'],
+                        'charge_amount' => $fee['usd'],
+                        'charge_ugx' => $fee['ugx'],
                         'total_usd_equivalent' => $usdEquivalent,
                         'status' => 'completed',
                         'created_by' => auth()->id(),

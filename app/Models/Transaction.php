@@ -26,6 +26,7 @@ class Transaction extends Model
         'rmb_amount',
         'charge_rate',
         'charge_amount',
+        'charge_ugx',
         'total_usd_equivalent',
         'status',
         'created_by',
@@ -39,6 +40,7 @@ class Transaction extends Model
         'rmb_amount' => 'decimal:2',
         'charge_rate' => 'decimal:4',
         'charge_amount' => 'decimal:2',
+        'charge_ugx' => 'decimal:2',
         'total_usd_equivalent' => 'decimal:2',
     ];
 

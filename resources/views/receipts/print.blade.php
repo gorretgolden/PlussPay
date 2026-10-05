@@ -96,7 +96,7 @@
             <tr>
                 <th>PARTICULARS</th>
                 <th>RATE</th>
-                <th>CHARGE</th>
+                <th>CHARGE (UGX)</th>
                 <th style="text-align:right;">AMOUNT (USD/RMB)</th>
             </tr>
         </thead>
@@ -104,7 +104,7 @@
             <tr>
                 <td>Send to China ({{ $transaction->currency }})</td>
                 <td class="amount-cell">{{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</td>
-                <td class="amount-cell">${{ number_format($transaction->charge_amount, 2) }}</td>
+                <td class="amount-cell">UGX {{ number_format((float) $transaction->charge_ugx) }}</td>
                 <td class="amount-cell">
                     {{ $transaction->currency }} {{ number_format($transaction->amount, 2) }}<br>
                     ¥{{ number_format($transaction->rmb_amount, 2) }} RMB

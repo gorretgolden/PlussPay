@@ -107,7 +107,7 @@
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $t->currency }} {{ number_format($t->amount, 2) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($t->rmb_amount, 2) }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">${{ number_format($t->charge_amount, 2) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">UGX {{ number_format((float) $t->charge_ugx) }}</td>
                 <td class="px-6 py-4">
                     <span class="px-2 py-1 text-xs rounded-full
                         @if($t->status === 'completed') bg-green-100 text-green-800

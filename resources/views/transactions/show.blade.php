@@ -36,7 +36,7 @@
             <div><span class="text-gray-500">Amount:</span> {{ $transaction->currency }} {{ number_format($transaction->amount, 2) }}</div>
             <div><span class="text-gray-500">Exchange Rate:</span> {{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</div>
             <div><span class="text-gray-500">RMB Amount:</span> ¥{{ number_format($transaction->rmb_amount, 2) }}</div>
-            <div><span class="text-gray-500">Service Fee:</span> ${{ number_format($transaction->charge_amount, 2) }}</div>
+            <div><span class="text-gray-500">Service Fee:</span> UGX {{ number_format((float) $transaction->charge_ugx) }}</div>
             <div><span class="text-gray-500">USD Equivalent:</span> ${{ number_format($transaction->total_usd_equivalent, 2) }}</div>
             <div>
                 <span class="text-gray-500">Status:</span>

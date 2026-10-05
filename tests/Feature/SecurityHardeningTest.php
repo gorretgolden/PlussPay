@@ -337,8 +337,8 @@ class SecurityHardeningTest extends TestCase
         $transaction = Transaction::first();
 
         // The client sent charge_rate 0, exchange_rate 1 and status completed; all three are recomputed server-side.
-        // UGX 2,000 per 100 USD at USD/UGX 3700 is a flat 0.5405%, so $1,000 pays $5.40.
-        $this->assertSame('0.5405', (string) $transaction->charge_rate);
+        // UGX 2,000 per 100 USD means $1,000 is charged UGX 20,000, which is $5.40 at USD/UGX 3700.
+        $this->assertSame('20000.00', (string) $transaction->charge_ugx);
         $this->assertSame('5.40', (string) $transaction->charge_amount);
         $this->assertSame('7.240000', (string) $transaction->exchange_rate);
         $this->assertSame('7240.00', (string) $transaction->rmb_amount);

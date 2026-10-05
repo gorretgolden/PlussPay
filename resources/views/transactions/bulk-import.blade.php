@@ -16,7 +16,7 @@
         <li>First row must contain column headers</li>
         <li>Required columns: <strong>sender_name</strong>, <strong>receiver_name</strong>, <strong>amount</strong></li>
         <li>Optional columns: sender_contact, receiver_contact, currency (UGX/USD, default: USD), purpose, notes</li>
-        <li>Charge rate is not a column: every row uses the rate set by an admin in System Settings</li>
+        <li>Service fee is not a column: every row is charged the UGX per 100 USD fee set by an admin in System Settings</li>
     </ul>
 </div>
 
