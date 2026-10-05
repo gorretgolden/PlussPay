@@ -23,8 +23,10 @@
         {{-- Sidebar --}}
         <aside class="w-64 bg-green-900 text-white flex flex-col no-print fixed h-full">
             <div class="p-6 border-b border-green-800">
-                <a href="{{ route('dashboard') }}" class="text-2xl font-bold">PlusPay</a>
-                <p class="text-green-300 text-xs mt-1">Plus Save Financial Solutions</p>
+                <a href="{{ route('dashboard') }}" class="block">
+                    <img src="{{ asset('logo.png') }}" alt="PlusPay" class="w-full h-auto">
+                </a>
+                <p class="text-green-300 text-xs mt-2 text-center">Plus Save Financial Solutions</p>
             </div>
             <nav class="flex-1 py-4">
                 <a href="{{ route('dashboard') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('dashboard') ? 'active' : '' }}">

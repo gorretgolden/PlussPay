@@ -10,8 +10,8 @@
     <div class="absolute inset-0 bg-black/40"></div>
     <div class="relative bg-white rounded-lg shadow-2xl p-8 w-full max-w-md mx-4 backdrop-blur-sm bg-white/95">
         <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-green-800">PlusPay</h1>
-            <p class="text-gray-600 mt-1">Plus Save Financial Solutions</p>
+            <img src="{{ asset('logo.png') }}" alt="PlusPay" class="w-48 h-auto mx-auto mb-4">
+            <p class="text-gray-600">Plus Save Financial Solutions</p>
             <p class="text-sm text-gray-500 mt-2">Send Money to China</p>
         </div>
 
