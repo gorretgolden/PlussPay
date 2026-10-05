@@ -4,14 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - PlusPay</title>
+    <link rel="preload" as="image" href="{{ asset('login-background.webp') }}" fetchpriority="high">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="min-h-screen flex items-center justify-center bg-cover bg-center px-4" style="background-image: url('{{ asset('login-background.png') }}');">
+<body class="min-h-screen flex items-center justify-center bg-cover bg-center px-4 bg-green-950" style="background-image: url('{{ asset('login-background.webp') }}');">
     <div class="absolute inset-0 bg-black/60"></div>
 
     <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
         <div class="text-center mb-4">
-            <img src="{{ asset('logo.png') }}" alt="PlusPay" class="h-14 mx-auto mb-2">
+            <img src="{{ asset('logo.webp') }}" alt="PlusPay" width="640" height="232" class="h-14 w-auto mx-auto mb-2">
             <h1 class="text-2xl font-bold text-gray-900">Welcome back</h1>
             <p class="text-sm text-gray-500 mt-1">Sign in to your PlusPay account</p>
         </div>

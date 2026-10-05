@@ -30,7 +30,7 @@
         <aside class="w-64 bg-green-900 text-white flex flex-col no-print fixed h-full">
             <div class="p-4 border-b border-green-800">
                 <a href="{{ route('dashboard') }}" class="block">
-                    <img src="{{ asset('logo.png') }}" alt="PlusPay" class="w-full h-auto">
+                    <img src="{{ asset('logo.webp') }}" alt="PlusPay" width="640" height="232" class="w-full h-auto">
                 </a>
             </div>
             <nav class="sidebar-nav flex-1 py-4 overflow-y-auto">
