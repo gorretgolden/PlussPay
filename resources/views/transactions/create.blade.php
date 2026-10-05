@@ -3,10 +3,23 @@
 @section('title', 'New Transaction')
 
 @section('content')
+@php $serverRepopulated = $errors->any(); @endphp
 <div class="max-w-4xl mx-auto">
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Send Money to China</h1>
         <p class="text-gray-600">Complete each step to create a new transaction</p>
+    </div>
+
+    {{-- Draft restored banner --}}
+    <div id="draftBar" class="hidden mb-6 bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-center justify-between gap-4">
+        <div>
+            <p class="text-sm font-medium text-amber-900" id="draftMessage">Draft restored</p>
+            <p class="text-xs text-amber-700 mt-1">Your unfinished transaction was saved in this browser.</p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+            <a href="{{ route('transactions.create') }}" id="editLink" class="text-sm bg-white border border-amber-300 text-amber-900 px-4 py-2 rounded-lg hover:bg-amber-100 font-medium">Edit Draft</a>
+            <button type="button" id="discardDraft" class="text-sm bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-500 font-medium">Discard</button>
+        </div>
     </div>
 
     {{-- Stepper --}}
@@ -345,6 +358,7 @@ function showStep(step) {
     });
 
     currentStep = step;
+    saveDraft();
 }
 
 function nextStep(from) {
@@ -425,10 +439,99 @@ document.getElementById('transactionForm').addEventListener('submit', function(e
     document.querySelector('[name=sender_contact]').value = document.getElementById('sender_full_contact').value;
     document.querySelector('[name=receiver_contact]').value = document.getElementById('receiver_full_contact').value;
 
+    draftCleared = true;
+    localStorage.removeItem(DRAFT_KEY);
+
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
     btn.textContent = 'Processing...';
 });
+
+// ---- Draft save / restore ----
+const DRAFT_KEY = 'pluspay_send_draft';
+const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'amount', 'purpose', 'notes'];
+let draftCleared = false;
+
+function collectDraft() {
+    const data = { step: currentStep };
+    DRAFT_FIELDS.forEach(name => {
+        const el = document.querySelector('[name="' + name + '"]');
+        if (el) data[name] = el.value;
+    });
+    data.sender_prefix = document.getElementById('sender_prefix').value;
+    data.receiver_prefix = document.getElementById('receiver_prefix').value;
+    return data;
+}
+
+let draftTimer = null;
+function saveDraft() {
+    if (draftCleared) return;
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => {
+        try { localStorage.setItem(DRAFT_KEY, JSON.stringify(collectDraft())); } catch (err) {}
+    }, 300);
+}
+
+function readDraft() {
+    try {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        const hasContent = DRAFT_FIELDS.some(name => data[name] && data[name].trim() !== '');
+        return hasContent ? data : null;
+    } catch (err) {
+        return null;
+    }
+}
+
+const form = document.getElementById('transactionForm');
+form.addEventListener('input', saveDraft);
+form.addEventListener('change', saveDraft);
+
+function pickPrefix(which, value) {
+    const picker = document.querySelectorAll('.prefix-picker')[which === 'sender' ? 0 : 1];
+    const opt = Array.from(picker.querySelectorAll('.prefix-option')).find(o => o.dataset.value === value);
+    if (opt) opt.click();
+}
+
+function restoreDraft() {
+    // After a validation error the server already repopulated the fields; leave the draft untouched.
+    if ({{ $serverRepopulated ? 'true' : 'false' }}) return;
+    const data = readDraft();
+    if (!data) return;
+
+    DRAFT_FIELDS.forEach(name => {
+        const el = document.querySelector('[name="' + name + '"]');
+        if (el && data[name] !== undefined) el.value = data[name];
+    });
+    pickPrefix('sender', data.sender_prefix);
+    pickPrefix('receiver', data.receiver_prefix);
+
+    document.getElementById('draftMessage').textContent =
+        'Welcome back - we restored your unfinished transaction for ' + (data.sender_name || 'the sender') + '.';
+
+    // Step 4 is the review screen; it needs live data, so restore up to step 3 max.
+    const step = Math.min(parseInt(data.step) || 1, 3);
+    if (step > 1) showStep(step);
+
+    const bar = document.getElementById('draftBar');
+    bar.classList.remove('hidden');
+    document.getElementById('discardDraft').addEventListener('click', function () {
+        localStorage.removeItem(DRAFT_KEY);
+        location.reload();
+    });
+    document.getElementById('editLink').addEventListener('click', function () {
+        // Keep editing on the fresh page without the banner; draft itself stays until submitted or discarded.
+        sessionStorage.setItem('pluspay_keep_draft', '1');
+    });
+
+    if (sessionStorage.getItem('pluspay_keep_draft')) {
+        sessionStorage.removeItem('pluspay_keep_draft');
+        document.getElementById('draftBar').classList.add('hidden');
+        return;
+    }
+}
+restoreDraft();
 </script>
 @endpush
 @endsection
