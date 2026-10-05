@@ -57,7 +57,6 @@
             </button>
         </form>
 
-        @env('local')
         <div class="mt-5">
             <div class="flex items-center gap-3 mb-3">
                 <div class="flex-1 h-px bg-gray-200"></div>
@@ -83,7 +82,6 @@
                 </button>
             </div>
         </div>
-        @endenv
     </div>
 
     <script>
