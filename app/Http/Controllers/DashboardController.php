@@ -27,6 +27,7 @@ class DashboardController extends Controller
                 SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) as cancelled_transactions,
                 COALESCE(AVG(CASE WHEN status='completed' THEN total_usd_equivalent ELSE NULL END), 0) as avg_transaction
             ")
+            ->toBase()
             ->first();
 
         $todayStats = Transaction::query()
@@ -37,6 +38,7 @@ class DashboardController extends Controller
                 COALESCE(SUM(CASE WHEN status='completed' THEN total_usd_equivalent ELSE 0 END), 0) as today_usd_sent,
                 COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as today_revenue
             ")
+            ->toBase()
             ->first();
 
         $stats = (array) $stats + (array) $todayStats;

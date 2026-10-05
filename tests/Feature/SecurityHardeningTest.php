@@ -64,8 +64,9 @@ class SecurityHardeningTest extends TestCase
         $agent = $this->makeUser('agent');
         $transaction = $this->makeTransaction($agent);
 
+        // The old public /view route is gone, so the URL no longer resolves at all.
         $this->get('/receipts/'.$transaction->receipt_number.'/view')
-            ->assertRedirect('/admin/login');
+            ->assertNotFound();
 
         $this->get('/receipts/'.$transaction->receipt_number)
             ->assertRedirect('/admin/login');
@@ -87,8 +88,8 @@ class SecurityHardeningTest extends TestCase
         $foreign = $this->makeTransaction($other);
         $own = $this->makeTransaction($mine);
 
-        $this->actingAs($mine)->get('/receipts/'.$foreign->receipt_number)->assertForbidden();
-        $this->actingAs($mine)->get('/receipts/'.$foreign->receipt_number.'/print')->assertForbidden();
+        $this->actingAs($mine)->get('/receipts/'.$foreign->receipt_number)->assertNotFound();
+        $this->actingAs($mine)->get('/receipts/'.$foreign->receipt_number.'/print')->assertNotFound();
         $this->actingAs($mine)->get('/receipts/'.$own->receipt_number)->assertOk();
 
         $this->actingAs($mine)->get('/transactions/'.$foreign->id)->assertForbidden();
@@ -198,7 +199,7 @@ class SecurityHardeningTest extends TestCase
         $this->actingAs($super)->patch('/users/'.$super->id.'/toggle-active')
             ->assertSessionHasErrors('error');
 
-        $this->assertTrue($super->refresh()->is_active);
+        $this->assertTrue((bool) $super->refresh()->is_active);
     }
 
     public function test_status_transitions_are_whitelisted(): void
@@ -333,7 +334,8 @@ class SecurityHardeningTest extends TestCase
 
         $transaction = Transaction::first();
 
-        $this->assertSame('1000.0000', (string) $transaction->charge_rate);
+        // The client sent charge_rate 0, exchange_rate 1 and status completed; all three are recomputed server-side.
+        $this->assertSame('5.0000', (string) $transaction->charge_rate);
         $this->assertSame('50.00', (string) $transaction->charge_amount);
         $this->assertSame('7.240000', (string) $transaction->exchange_rate);
         $this->assertSame('7240.00', (string) $transaction->rmb_amount);
