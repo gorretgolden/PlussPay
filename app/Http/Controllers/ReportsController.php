@@ -19,6 +19,7 @@ class ReportsController extends Controller
     {
         $dateFrom = $request->input('date_from', now()->startOfMonth()->toDateString());
         $dateTo = $request->input('date_to', now()->toDateString());
+        $reportType = $request->input('type', 'hub');
 
         $query = Transaction::whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
 
@@ -63,7 +64,7 @@ class ReportsController extends Controller
             ->orderBy('date')
             ->get();
 
-        return view('reports.index', compact('stats', 'byCurrency', 'byAgent', 'dailySummary', 'dateFrom', 'dateTo', 'transactions'));
+        return view('reports.index', compact('stats', 'byCurrency', 'byAgent', 'dailySummary', 'dateFrom', 'dateTo', 'transactions', 'reportType'));
     }
 
     public function exportExcel(Request $request)

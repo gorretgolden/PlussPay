@@ -5,15 +5,30 @@
 @section('content')
 <div class="mb-6 flex justify-between items-center">
     <div>
-        <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
-        <p class="text-gray-600">Transaction summaries and analytics</p>
+        <h1 class="text-2xl font-bold text-gray-900">
+            @if($reportType === 'transaction') Transaction Report
+            @elseif($reportType === 'revenue') Revenue Report
+            @elseif($reportType === 'agent') Agent Report
+            @elseif($reportType === 'daily') Daily Summary
+            @else Reports Hub
+            @endif
+        </h1>
+        <p class="text-gray-600">
+            @if($reportType === 'transaction') Detailed transaction breakdown
+            @elseif($reportType === 'revenue') Revenue and charge analysis
+            @elseif($reportType === 'agent') Agent performance metrics
+            @elseif($reportType === 'daily') Day-by-day transaction summary
+            @else Transaction summaries and analytics
+            @endif
+        </p>
     </div>
-    <a href="{{ route('reports.export', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Export Excel</a>
+    <a href="{{ route('reports.export', ['date_from' => $dateFrom, 'date_to' => $dateTo, 'type' => $reportType]) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Export Excel</a>
 </div>
 
 {{-- Date Filter --}}
 <div class="bg-white rounded-lg shadow p-4 mb-6 no-print">
     <form method="GET" action="{{ route('reports.index') }}" class="flex items-end gap-4 flex-wrap">
+        <input type="hidden" name="type" value="{{ $reportType }}">
         <div>
             <label class="block text-sm text-gray-600 mb-1">From</label>
             <input type="date" name="date_from" value="{{ $dateFrom }}" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
@@ -23,17 +38,17 @@
             <input type="date" name="date_to" value="{{ $dateTo }}" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
         </div>
         <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Apply</button>
-        <a href="{{ route('reports.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Reset</a>
+        <a href="{{ route('reports.index', ['type' => $reportType]) }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Reset</a>
         <div class="flex gap-2 ml-auto">
-            <a href="{{ route('reports.index', ['date_from' => today()->toDateString(), 'date_to' => today()->toDateString()]) }}" class="px-3 py-1 text-xs rounded-full {{ $dateFrom === today()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Today</a>
-            <a href="{{ route('reports.index', ['date_from' => now()->startOfMonth()->toDateString(), 'date_to' => now()->toDateString()]) }}" class="px-3 py-1 text-xs rounded-full {{ $dateFrom === now()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">This Month</a>
-            <a href="{{ route('reports.index', ['date_from' => now()->subMonth()->startOfMonth()->toDateString(), 'date_to' => now()->subMonth()->endOfMonth()->toDateString()]) }}" class="px-3 py-1 text-xs rounded-full {{ $dateFrom === now()->subMonth()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Last Month</a>
+            <a href="{{ route('reports.index', ['type' => $reportType, 'date_from' => today()->toDateString(), 'date_to' => today()->toDateString()]) }}" class="px-3 py-1 text-xs rounded-full {{ $dateFrom === today()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Today</a>
+            <a href="{{ route('reports.index', ['type' => $reportType, 'date_from' => now()->startOfMonth()->toDateString(), 'date_to' => now()->toDateString()]) }}" class="px-3 py-1 text-xs rounded-full {{ $dateFrom === now()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">This Month</a>
+            <a href="{{ route('reports.index', ['type' => $reportType, 'date_from' => now()->subMonth()->startOfMonth()->toDateString(), 'date_to' => now()->subMonth()->endOfMonth()->toDateString()]) }}" class="px-3 py-1 text-xs rounded-full {{ $dateFrom === now()->subMonth()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Last Month</a>
         </div>
     </form>
 </div>
 
 {{-- Summary Stats --}}
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+<div id="section-hub" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
     <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">Total Transactions</div>
         <div class="text-2xl font-bold text-green-800 mt-1">{{ number_format($stats['total_transactions']) }}</div>
@@ -55,7 +70,7 @@
 </div>
 
 {{-- Charts Section --}}
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+<div id="section-transaction" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
     <div class="bg-white rounded-lg shadow p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Transaction Volume</h3>
         <div style="position:relative;height:250px"><canvas id="dailyTransactionsChart"></canvas></div>
@@ -66,12 +81,12 @@
     </div>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+<div id="section-revenue" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
     <div class="bg-white rounded-lg shadow p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Transaction Status Distribution</h3>
         <div style="position:relative;height:250px"><canvas id="statusChart"></canvas></div>
     </div>
-    <div class="bg-white rounded-lg shadow p-6">
+    <div id="section-agent" class="bg-white rounded-lg shadow p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Agent Performance Comparison</h3>
         <div style="position:relative;height:250px"><canvas id="agentChart"></canvas></div>
     </div>
@@ -138,7 +153,7 @@
 </div>
 
 {{-- Daily Summary --}}
-<div class="bg-white rounded-lg shadow mb-6">
+<div id="section-daily" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">Daily Summary</h3>
     </div>
@@ -322,6 +337,14 @@
                 }
             }
         });
+    }
+</script>
+<script>
+    const reportType = @json($reportType);
+    const sectionMap = { transaction: 'section-transaction', revenue: 'section-revenue', agent: 'section-agent', daily: 'section-daily' };
+    if (sectionMap[reportType]) {
+        const el = document.getElementById(sectionMap[reportType]);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 </script>
 @endsection
