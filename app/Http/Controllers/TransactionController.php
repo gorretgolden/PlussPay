@@ -27,10 +27,11 @@ class TransactionController extends Controller
     public function create()
     {
         $usdToRmb = ExchangeRate::getActiveRate('USD', 'RMB');
-        $ugxToUsd = ExchangeRate::getActiveRate('UGX', 'USD');
+        $usdToUgx = ExchangeRate::usdToUgx();
+        $ugxToUsdRate = $usdToUgx ? 1 / $usdToUgx : null;
         $defaultChargeRate = \App\Models\Setting::get('default_charge_rate', 5);
 
-        return view('transactions.create', compact('usdToRmb', 'ugxToUsd', 'defaultChargeRate'));
+        return view('transactions.create', compact('usdToRmb', 'ugxToUsdRate', 'defaultChargeRate'));
     }
 
     public function store(Request $request)
@@ -70,11 +71,11 @@ class TransactionController extends Controller
         $currency = $validated['currency'];
 
         if ($currency === 'UGX') {
-            $ugxToUsdRate = ExchangeRate::getActiveRate('UGX', 'USD');
-            if (!$ugxToUsdRate) {
+            $usdToUgx = ExchangeRate::usdToUgx();
+            if (!$usdToUgx) {
                 return back()->withErrors(['exchange_rate' => 'UGX to USD rate not set. Please contact admin.']);
             }
-            $usdEquivalent = bcmul((string) $amount, (string) $ugxToUsdRate->rate, 2);
+            $usdEquivalent = bcdiv((string) $amount, (string) $usdToUgx, 2);
         } else {
             $usdEquivalent = (string) $amount;
         }
@@ -202,12 +203,12 @@ class TransactionController extends Controller
                 }
 
                 if ($currency === 'UGX') {
-                    $ugxToUsdRate = ExchangeRate::getActiveRate('UGX', 'USD');
-                    if (!$ugxToUsdRate) {
+                    $usdToUgx = ExchangeRate::usdToUgx();
+                    if (!$usdToUgx) {
                         $errors[] = "Row {$rowNumber}: UGX to USD rate not set";
                         continue;
                     }
-                    $usdEquivalent = bcmul((string) $amount, (string) $ugxToUsdRate->rate, 2);
+                    $usdEquivalent = bcdiv((string) $amount, (string) $usdToUgx, 2);
                 } else {
                     $usdEquivalent = (string) $amount;
                 }
