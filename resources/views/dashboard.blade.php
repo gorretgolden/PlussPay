@@ -8,7 +8,7 @@
     <p class="text-gray-600">Welcome, {{ auth()->user()->name }}</p>
     <div class="flex items-center gap-4 mt-2">
         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize">{{ $role }}</span>
-        <span class="text-sm text-gray-500" id="liveClock">{{ now()->format('l, F d, Y') }} — {{ now()->format('h:i:s A') }}</span>
+        <span class="text-sm text-gray-500" id="liveClock">{{ now()->format('l, F d, Y') }} · {{ now()->format('h:i:s A') }}</span>
     </div>
 </div>
 
@@ -263,7 +263,7 @@
         h = h % 12 || 12;
         const m = String(now.getMinutes()).padStart(2, '0');
         const s = String(now.getSeconds()).padStart(2, '0');
-        document.getElementById('liveClock').textContent = `${day}, ${month} ${String(date).padStart(2, '0')}, ${year} — ${String(h).padStart(2, '0')}:${m}:${s} ${ampm}`;
+        document.getElementById('liveClock').textContent = `${day}, ${month} ${String(date).padStart(2, '0')}, ${year} · ${String(h).padStart(2, '0')}:${m}:${s} ${ampm}`;
     }
     setInterval(updateClock, 1000);
 </script>
