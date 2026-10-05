@@ -170,26 +170,13 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Purpose (optional)</label>
-                    <div class="relative" id="purpose-picker">
-                        <input type="hidden" name="purpose" id="purpose" value="{{ old('purpose') }}">
-                        <button type="button" id="purpose-btn"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between gap-2 focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                            <span id="purpose-label" class="truncate text-gray-500">Select purpose...</span>
-                            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                        <div id="purpose-panel" class="hidden absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                            <div class="p-2 border-b border-gray-100">
-                                <input type="text" id="purpose-search" placeholder="Search purpose..." autocomplete="off"
-                                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500">
-                            </div>
-                            <ul class="max-h-56 overflow-y-auto py-1">
-                                <li class="purpose-option px-4 py-2 text-sm cursor-pointer hover:bg-green-50 text-gray-500" data-value="">Select purpose...</li>
-                                @foreach(['Family Support', 'Business', 'Education', 'Medical', 'Investment', 'Personal', 'Other'] as $option)
-                                    <li class="purpose-option px-4 py-2 text-sm cursor-pointer hover:bg-green-50" data-value="{{ $option }}">{{ $option }}</li>
-                                @endforeach
-                            </ul>
-                        </div>
-                    </div>
+                    <select name="purpose"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <option value="">Select purpose...</option>
+                        @foreach(['Family Support', 'Business', 'Education', 'Medical', 'Investment', 'Personal', 'Other'] as $option)
+                            <option value="{{ $option }}" {{ old('purpose') === $option ? 'selected' : '' }}>{{ $option }}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
@@ -322,37 +309,6 @@ document.querySelectorAll('.prefix-picker').forEach(picker => {
     }));
     document.addEventListener('click', e => { if (!picker.contains(e.target)) close(); });
 });
-
-const purposeHidden = document.getElementById('purpose');
-const purposeBtn = document.getElementById('purpose-btn');
-const purposeLabel = document.getElementById('purpose-label');
-const purposePanel = document.getElementById('purpose-panel');
-const purposeSearch = document.getElementById('purpose-search');
-const purposeOptions = Array.from(document.querySelectorAll('.purpose-option'));
-
-function applyPurpose(value) {
-    const opt = purposeOptions.find(o => o.dataset.value === value) || purposeOptions[0];
-    purposeHidden.value = opt.dataset.value;
-    purposeLabel.textContent = opt.dataset.value === '' ? 'Select purpose...' : opt.dataset.value;
-    purposeLabel.classList.toggle('text-gray-500', opt.dataset.value === '');
-    purposeOptions.forEach(o => o.classList.toggle('bg-green-50', o === opt));
-}
-function filterPurposes() {
-    const q = purposeSearch.value.trim().toLowerCase();
-    purposeOptions.forEach(o => o.classList.toggle('hidden', !o.dataset.value.toLowerCase().includes(q)));
-}
-function openPurposes() { purposePanel.classList.remove('hidden'); purposeSearch.value = ''; filterPurposes(); purposeSearch.focus(); }
-function closePurposes() { purposePanel.classList.add('hidden'); }
-
-applyPurpose(purposeHidden.value);
-purposeBtn.addEventListener('click', () => purposePanel.classList.contains('hidden') ? openPurposes() : closePurposes());
-purposeSearch.addEventListener('input', filterPurposes);
-purposeOptions.forEach(o => o.addEventListener('click', () => {
-    applyPurpose(o.dataset.value);
-    purposeHidden.dispatchEvent(new Event('change', { bubbles: true }));
-    closePurposes();
-}));
-document.addEventListener('click', e => { if (!document.getElementById('purpose-picker').contains(e.target)) closePurposes(); });
 
 document.getElementById('sender_prefix').addEventListener('change', function() {
     buildFullContact('sender_prefix', 'sender_contact', 'sender_full_contact');
@@ -579,7 +535,7 @@ function restoreDraft() {
     });
     pickPrefix('sender', data.sender_prefix);
     pickPrefix('receiver', data.receiver_prefix);
-    applyPurpose(data.purpose || '');
+    form.querySelectorAll('select').forEach(sel => sel.dispatchEvent(new Event('change', { bubbles: true })));
 
     document.getElementById('draftMessage').textContent =
         'Welcome back - we restored your unfinished transaction for ' + (data.sender_name || 'the sender') + '.';
