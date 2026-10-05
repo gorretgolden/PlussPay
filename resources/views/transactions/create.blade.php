@@ -254,11 +254,29 @@ const usdToRmbRate = {{ $usdToRmb ? $usdToRmb->rate : 0 }};
 const ugxToUsdRate = {{ $ugxToUsd ? $ugxToUsd->rate : 0 }};
 let currentStep = 1;
 
+function nationalDigits(prefixId, contactId) {
+    const code = document.getElementById(prefixId).value.replace(/\D/g, '');
+    let digits = document.getElementById(contactId).value.replace(/\D/g, '');
+    if (digits.startsWith(code) && digits.length > code.length) {
+        digits = digits.slice(code.length);
+    } else if (digits.startsWith('0')) {
+        digits = digits.slice(1);
+    }
+    return digits;
+}
+
 function buildFullContact(prefixId, contactId, hiddenId) {
     const prefix = document.getElementById(prefixId).value;
-    const contact = document.getElementById(contactId).value.trim();
-    document.getElementById(hiddenId).value = prefix + ' ' + contact;
+    document.getElementById(hiddenId).value = prefix + ' ' + nationalDigits(prefixId, contactId);
 }
+
+['sender', 'receiver'].forEach(who => {
+    document.getElementById(who + '_contact').addEventListener('blur', function () {
+        const digits = nationalDigits(who + '_prefix', who + '_contact');
+        if (digits) this.value = digits;
+        buildFullContact(who + '_prefix', who + '_contact', who + '_full_contact');
+    });
+});
 
 document.getElementById('sender_prefix').addEventListener('change', function() {
     buildFullContact('sender_prefix', 'sender_contact', 'sender_full_contact');
