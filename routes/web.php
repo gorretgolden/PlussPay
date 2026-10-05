@@ -19,6 +19,8 @@ Route::get('/', function () {
 Route::post('/admin/login', [AuthController::class, 'login'])->name('login.post');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+Route::get('/receipts/{receiptNumber}/view', [ReceiptController::class, 'show'])->name('receipts.public-view');
+
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -41,6 +43,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+        Route::patch('/users/{user}/toggle-lock', [UserController::class, 'toggleLock'])->name('users.toggle-lock');
 
         Route::get('/exchange-rates', [ExchangeRateController::class, 'index'])->name('exchange-rates.index');
         Route::post('/exchange-rates', [ExchangeRateController::class, 'store'])->name('exchange-rates.store');
@@ -49,6 +52,9 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('customers', CustomerController::class);
 
         Route::patch('/transactions/{transaction}/status', [TransactionController::class, 'updateStatus'])->name('transactions.update-status');
+
+        Route::get('/transactions/bulk/import', [TransactionController::class, 'showBulkImport'])->name('transactions.bulk-import');
+        Route::post('/transactions/bulk/import', [TransactionController::class, 'bulkImport'])->name('transactions.bulk-import.store');
 
         Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
         Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');

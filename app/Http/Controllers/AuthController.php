@@ -28,6 +28,19 @@ class AuthController extends Controller
             'password.required' => 'Password is required.',
         ]);
 
+        $user = \App\Models\User::where('email', $request->email)->first();
+
+        if ($user && $user->isLocked()) {
+            $message = 'Your account is locked.';
+            if ($user->locked_until && $user->locked_until->isFuture()) {
+                $minutes = (int) ceil(now()->diffInSeconds($user->locked_until) / 60);
+                $message .= " Try again in {$minutes} minute(s).";
+            } else {
+                $message .= ' Contact admin.';
+            }
+            return back()->withErrors(['email' => $message])->onlyInput('email');
+        }
+
         $key = 'login:' . $request->ip();
 
         if (RateLimiter::tooManyAttempts($key, 5)) {
@@ -40,8 +53,12 @@ class AuthController extends Controller
         if (!Auth::attempt(['email' => $request->email, 'password' => $request->password], $request->boolean('remember'))) {
             RateLimiter::hit($key, 60);
 
-            $user = \App\Models\User::where('email', $request->email)->first();
-            $message = $user ? 'Invalid password.' : 'Invalid email.';
+            if ($user) {
+                $user->recordFailedLogin();
+                $message = 'Invalid password.';
+            } else {
+                $message = 'Invalid email.';
+            }
 
             return back()->withErrors(['email' => $message])->onlyInput('email');
         }
@@ -50,10 +67,14 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
-        if (!Auth::user()->is_active) {
+        $authenticatedUser = Auth::user();
+
+        if (!$authenticatedUser->is_active) {
             Auth::logout();
             return back()->withErrors(['email' => 'Your account has been deactivated. Contact admin.']);
         }
+
+        $authenticatedUser->recordSuccessfulLogin($request->ip());
 
         return redirect()->intended('/dashboard');
     }

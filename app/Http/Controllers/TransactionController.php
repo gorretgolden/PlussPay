@@ -48,8 +48,9 @@ class TransactionController extends Controller
     {
         $usdToRmb = ExchangeRate::getActiveRate('USD', 'RMB');
         $ugxToUsd = ExchangeRate::getActiveRate('UGX', 'USD');
+        $defaultChargeRate = \App\Models\Setting::get('default_charge_rate', 5);
 
-        return view('transactions.create', compact('usdToRmb', 'ugxToUsd'));
+        return view('transactions.create', compact('usdToRmb', 'ugxToUsd', 'defaultChargeRate'));
     }
 
     public function store(Request $request)
@@ -164,5 +165,184 @@ class TransactionController extends Controller
         ]);
 
         return back()->with('success', 'Transaction status updated to ' . ucfirst($validated['status']) . '.');
+    }
+
+    public function showBulkImport()
+    {
+        return view('transactions.bulk-import');
+    }
+
+    public function bulkImport(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:csv,xlsx,xls|max:10240',
+        ]);
+
+        $file = $request->file('file');
+        $extension = $file->getClientOriginalExtension();
+
+        try {
+            if ($extension === 'csv') {
+                $rows = $this->parseCsv($file);
+            } else {
+                $rows = $this->parseExcel($file);
+            }
+
+            if (empty($rows)) {
+                return back()->withErrors(['file' => 'The file is empty or could not be parsed.']);
+            }
+
+            $usdToRmbRate = ExchangeRate::getActiveRate('USD', 'RMB');
+            if (!$usdToRmbRate) {
+                return back()->withErrors(['exchange_rate' => 'USD to RMB rate not set. Please configure exchange rates first.']);
+            }
+
+            $defaultChargeRate = \App\Models\Setting::get('default_charge_rate', 5);
+            $imported = 0;
+            $errors = [];
+
+            foreach ($rows as $index => $row) {
+                $rowNumber = $index + 2;
+
+                if (empty($row['sender_name']) || empty($row['receiver_name']) || empty($row['amount'])) {
+                    $errors[] = "Row {$rowNumber}: Missing required fields (sender_name, receiver_name, or amount)";
+                    continue;
+                }
+
+                $currency = strtoupper(trim($row['currency'] ?? 'USD'));
+                if (!in_array($currency, ['UGX', 'USD'])) {
+                    $errors[] = "Row {$rowNumber}: Invalid currency '{$currency}'. Must be UGX or USD.";
+                    continue;
+                }
+
+                $amount = (float) ($row['amount'] ?? 0);
+                if ($amount < 100) {
+                    $errors[] = "Row {$rowNumber}: Amount must be at least 100 {$currency}";
+                    continue;
+                }
+
+                if ($currency === 'UGX') {
+                    $ugxToUsdRate = ExchangeRate::getActiveRate('UGX', 'USD');
+                    if (!$ugxToUsdRate) {
+                        $errors[] = "Row {$rowNumber}: UGX to USD rate not set";
+                        continue;
+                    }
+                    $usdEquivalent = bcmul((string) $amount, (string) $ugxToUsdRate->rate, 2);
+                } else {
+                    $usdEquivalent = (string) $amount;
+                }
+
+                $rmbAmount = bcmul($usdEquivalent, (string) $usdToRmbRate->rate, 2);
+                $chargeRate = (float) ($row['charge_rate'] ?? $defaultChargeRate);
+                $chargeAmount = bcmul($usdEquivalent, (string) ($chargeRate / 100), 2);
+
+                try {
+                    $transaction = Transaction::create([
+                        'receipt_number' => Transaction::generateReceiptNumber(),
+                        'sender_name' => trim($row['sender_name']),
+                        'sender_contact' => trim($row['sender_contact'] ?? ''),
+                        'receiver_name' => trim($row['receiver_name']),
+                        'receiver_contact' => trim($row['receiver_contact'] ?? ''),
+                        'currency' => $currency,
+                        'amount' => $amount,
+                        'exchange_rate' => $usdToRmbRate->rate,
+                        'rmb_amount' => $rmbAmount,
+                        'charge_rate' => $chargeRate,
+                        'charge_amount' => $chargeAmount,
+                        'total_usd_equivalent' => $usdEquivalent,
+                        'status' => 'completed',
+                        'created_by' => auth()->id(),
+                        'purpose' => !empty($row['purpose']) ? trim($row['purpose']) : null,
+                        'notes' => !empty($row['notes']) ? trim($row['notes']) : null,
+                    ]);
+
+                    ActivityLog::create([
+                        'transaction_id' => $transaction->id,
+                        'user_id' => auth()->id(),
+                        'action' => 'bulk_imported',
+                        'description' => 'Transaction imported via bulk upload',
+                        'new_value' => 'completed',
+                    ]);
+
+                    $imported++;
+                } catch (\Exception $e) {
+                    $errors[] = "Row {$rowNumber}: " . $e->getMessage();
+                }
+            }
+
+            $message = "Successfully imported {$imported} transaction(s).";
+            if (!empty($errors)) {
+                $message .= ' ' . count($errors) . ' row(s) had errors.';
+            }
+
+            return back()->with('success', $message)->with('import_errors', $errors);
+        } catch (\Exception $e) {
+            return back()->withErrors(['file' => 'Error processing file: ' . $e->getMessage()]);
+        }
+    }
+
+    private function parseCsv($file): array
+    {
+        $rows = [];
+        $handle = fopen($file->getRealPath(), 'r');
+
+        if ($handle === false) {
+            return [];
+        }
+
+        $headers = fgetcsv($handle);
+        if ($headers === false) {
+            fclose($handle);
+            return [];
+        }
+
+        $headers = array_map(fn($h) => strtolower(trim($h)), $headers);
+
+        while (($data = fgetcsv($handle)) !== false) {
+            if (count($data) === 1 && empty($data[0])) {
+                continue;
+            }
+            $row = [];
+            foreach ($headers as $index => $header) {
+                $row[$header] = $data[$index] ?? '';
+            }
+            $rows[] = $row;
+        }
+
+        fclose($handle);
+        return $rows;
+    }
+
+    private function parseExcel($file): array
+    {
+        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getRealPath());
+        $sheet = $spreadsheet->getActiveSheet();
+        $highestRow = $sheet->getHighestRow();
+        $highestColumn = $sheet->getHighestColumn();
+        $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
+
+        $headers = [];
+        for ($col = 1; $col <= $highestColumnIndex; $col++) {
+            $value = $sheet->getCell([$col, 1])->getValue();
+            $headers[$col] = strtolower(trim($value));
+        }
+
+        $rows = [];
+        for ($row = 2; $row <= $highestRow; $row++) {
+            $rowData = [];
+            $isEmpty = true;
+            for ($col = 1; $col <= $highestColumnIndex; $col++) {
+                $value = $sheet->getCell([$col, $row])->getValue();
+                $rowData[$headers[$col]] = $value ?? '';
+                if (!empty($value)) {
+                    $isEmpty = false;
+                }
+            }
+            if (!$isEmpty) {
+                $rows[] = $rowData;
+            }
+        }
+
+        return $rows;
     }
 }

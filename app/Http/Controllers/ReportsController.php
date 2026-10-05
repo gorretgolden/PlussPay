@@ -77,6 +77,27 @@ class ReportsController extends Controller
             $query->where('created_by', auth()->id());
         }
 
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('agent_id')) {
+            $query->where('created_by', $request->agent_id);
+        }
+
+        if ($request->filled('currency')) {
+            $query->where('currency', $request->currency);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('receipt_number', 'like', "%{$search}%")
+                  ->orWhere('sender_name', 'like', "%{$search}%")
+                  ->orWhere('receiver_name', 'like', "%{$search}%");
+            });
+        }
+
         $transactions = $query->with('creator')->latest()->get();
 
         $spreadsheet = new Spreadsheet();

@@ -168,4 +168,38 @@ class UserController extends Controller
 
         return back()->with('success', 'Password reset successfully.');
     }
+
+    public function toggleLock(Request $request, User $user)
+    {
+        $currentUser = auth()->user();
+
+        if ($user->hasRole('superadmin') && !$currentUser->hasRole('superadmin')) {
+            return back()->withErrors(['error' => 'Only superadmins can lock/unlock superadmin accounts.']);
+        }
+
+        if ($user->id === $currentUser->id) {
+            return back()->withErrors(['error' => 'You cannot lock your own account.']);
+        }
+
+        if ($user->isLocked()) {
+            $user->unlock();
+            $action = 'unlocked';
+            $description = "Account unlocked for user {$user->name}";
+        } else {
+            $user->update(['is_locked' => true]);
+            $action = 'locked';
+            $description = "Account locked for user {$user->name}";
+        }
+
+        ActivityLog::create([
+            'user_id' => $currentUser->id,
+            'action' => $action,
+            'description' => $description,
+            'old_value' => $user->is_locked ? 'locked' : 'unlocked',
+            'new_value' => $user->is_locked ? 'locked' : 'unlocked',
+        ]);
+
+        $message = $user->is_locked ? 'Account locked successfully.' : 'Account unlocked successfully.';
+        return back()->with('success', $message);
+    }
 }

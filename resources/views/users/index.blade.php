@@ -17,6 +17,7 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
         </thead>
@@ -36,13 +37,38 @@
                         {{ $user->is_active ? 'Active' : 'Inactive' }}
                     </span>
                 </td>
+                <td class="px-6 py-4">
+                    @if($user->isLocked())
+                        <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
+                            Locked
+                        </span>
+                        @if($user->locked_until && $user->locked_until->isFuture())
+                            <div class="text-xs text-gray-500 mt-1">Until {{ $user->locked_until->format('M d, H:i') }}</div>
+                        @endif
+                    @else
+                        <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                            Unlocked
+                        </span>
+                    @endif
+                </td>
                 <td class="px-6 py-4 text-sm">
-                    <a href="{{ route('users.edit', $user) }}" class="text-green-600 hover:text-green-800">Edit</a>
+                    <div class="flex gap-2">
+                        <a href="{{ route('users.edit', $user) }}" class="text-green-600 hover:text-green-800">Edit</a>
+                        @if($user->id !== auth()->id() && !$user->hasRole('superadmin'))
+                            <form method="POST" action="{{ route('users.toggle-lock', $user) }}" class="inline">
+                                @csrf
+                                @method('PATCH')
+                                <button type="submit" class="{{ $user->isLocked() ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800' }}">
+                                    {{ $user->isLocked() ? 'Unlock' : 'Lock' }}
+                                </button>
+                            </form>
+                        @endif
+                    </div>
                 </td>
             </tr>
             @empty
             <tr>
-                <td colspan="6" class="px-6 py-8 text-center text-gray-500">No users found.</td>
+                <td colspan="7" class="px-6 py-8 text-center text-gray-500">No users found.</td>
             </tr>
             @endforelse
         </tbody>

@@ -5,9 +5,14 @@
 @section('content')
 <div class="mb-6 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-900">Transactions</h1>
-    @role('admin|agent')
-    <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Transaction</a>
-    @endrole
+    <div class="flex gap-2">
+        @role('admin|superadmin')
+        <a href="{{ route('transactions.bulk-import') }}" class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Bulk Import</a>
+        @endrole
+        @role('admin|agent')
+        <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Transaction</a>
+        @endrole
+    </div>
 </div>
 
 <div class="bg-white rounded-lg shadow p-4 mb-6 no-print">

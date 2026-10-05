@@ -54,6 +54,29 @@
     </div>
 </div>
 
+{{-- Charts Section --}}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Transaction Volume</h3>
+        <canvas id="dailyTransactionsChart" height="200"></canvas>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Revenue</h3>
+        <canvas id="dailyRevenueChart" height="200"></canvas>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Transaction Status Distribution</h3>
+        <canvas id="statusChart" height="200"></canvas>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Agent Performance Comparison</h3>
+        <canvas id="agentChart" height="200"></canvas>
+    </div>
+</div>
+
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
     {{-- By Currency --}}
     <div class="bg-white rounded-lg shadow p-6">
@@ -111,6 +134,28 @@
                 </tbody>
             </table>
         @endif
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Transaction Volume</h3>
+        <canvas id="dailyTransactionsChart" height="200"></canvas>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Revenue</h3>
+        <canvas id="dailyRevenueChart" height="200"></canvas>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Transaction Status Distribution</h3>
+        <canvas id="statusChart" height="200"></canvas>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Agent Performance Comparison</h3>
+        <canvas id="agentChart" height="200"></canvas>
     </div>
 </div>
 
@@ -184,4 +229,117 @@
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    const dailySummary = @json($dailySummary);
+    const byAgent = @json($byAgent);
+    const stats = @json($stats);
+
+    if (dailySummary.length > 0) {
+        const dates = dailySummary.map(d => d.date);
+        const counts = dailySummary.map(d => d.count);
+        const totals = dailySummary.map(d => d.total_usd);
+        const revenues = dailySummary.map(d => d.revenue);
+
+        new Chart(document.getElementById('dailyTransactionsChart'), {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'Transactions',
+                    data: counts,
+                    borderColor: 'rgb(22, 163, 74)',
+                    backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        new Chart(document.getElementById('dailyRevenueChart'), {
+            type: 'bar',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'Revenue (USD)',
+                    data: revenues,
+                    backgroundColor: 'rgba(21, 128, 61, 0.8)',
+                    borderColor: 'rgb(21, 128, 61)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    new Chart(document.getElementById('statusChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Completed', 'Pending', 'Cancelled'],
+            datasets: [{
+                data: [stats.completed, stats.pending, stats.cancelled],
+                backgroundColor: [
+                    'rgba(22, 163, 74, 0.8)',
+                    'rgba(234, 179, 8, 0.8)',
+                    'rgba(239, 68, 68, 0.8)'
+                ],
+                borderColor: [
+                    'rgb(22, 163, 74)',
+                    'rgb(234, 179, 8)',
+                    'rgb(239, 68, 68)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+
+    if (byAgent.length > 0) {
+        const agentNames = byAgent.map(a => a.creator?.name || 'Unknown');
+        const agentCounts = byAgent.map(a => a.count);
+        const agentRevenue = byAgent.map(a => a.total_revenue);
+
+        new Chart(document.getElementById('agentChart'), {
+            type: 'bar',
+            data: {
+                labels: agentNames,
+                datasets: [
+                    {
+                        label: 'Transactions',
+                        data: agentCounts,
+                        backgroundColor: 'rgba(22, 163, 74, 0.8)',
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Revenue (USD)',
+                        data: agentRevenue,
+                        backgroundColor: 'rgba(147, 51, 234, 0.8)',
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'top' } },
+                scales: {
+                    y: { beginAtZero: true, position: 'left', title: { display: true, text: 'Transactions' } },
+                    y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Revenue (USD)' } }
+                }
+            }
+        });
+    }
+</script>
 @endsection
