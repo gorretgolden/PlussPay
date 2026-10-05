@@ -16,7 +16,7 @@
             <p class="text-sm text-gray-500 mt-1">Sign in to your PlusPay account</p>
         </div>
 
-        <form method="POST" action="{{ route('login.post') }}" class="space-y-4">
+        <form method="POST" action="{{ route('login.post') }}" class="space-y-4" id="loginForm">
             @csrf
 
             <div>
@@ -51,9 +51,13 @@
                 <a href="#" class="text-green-700 font-medium hover:underline">Forgot password?</a>
             </div>
 
-            <button type="submit"
-                class="w-full rounded-lg bg-green-800 hover:bg-green-700 active:bg-green-900 text-white font-semibold py-3 shadow-md transition">
-                Sign In
+            <button type="submit" id="signInBtn"
+                class="w-full rounded-lg bg-green-800 hover:bg-green-700 active:bg-green-900 text-white font-semibold py-3 shadow-md transition flex items-center justify-center gap-2">
+                <span id="signInText">Sign In</span>
+                <svg id="signInSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
             </button>
         </form>
 
@@ -94,6 +98,15 @@
             const p = document.getElementById('password');
             p.type = p.type === 'password' ? 'text' : 'password';
         }
+
+        document.getElementById('loginForm').addEventListener('submit', function () {
+            const btn = document.getElementById('signInBtn');
+            const text = document.getElementById('signInText');
+            const spinner = document.getElementById('signInSpinner');
+            btn.disabled = true;
+            text.textContent = 'Signing in...';
+            spinner.classList.remove('hidden');
+        });
     </script>
 </body>
 </html>
