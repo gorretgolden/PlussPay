@@ -1,3 +1,9 @@
+@php
+    $companyName = \App\Models\Setting::get('company_name', 'Plus Save Financial Solutions');
+    $companyPhone = \App\Models\Setting::get('company_phone');
+    $companyAddress = \App\Models\Setting::get('company_address');
+    $companyWebsite = \App\Models\Setting::get('company_website');
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,8 +62,7 @@
     <div class="watermark">PLUS SAVE</div>
 
     <div class="header">
-        <h1>PLUSPAY</h1>
-        <div class="company">Plus Save Financial Solutions</div>
+        <h1>{{ strtoupper($companyName) }}</h1>
         <div class="title">RECEIPT</div>
         <div class="receipt-no">No: {{ $transaction->receipt_number }}</div>
     </div>
@@ -111,7 +116,7 @@
     <div class="signatures">
         <div class="sig-block">
             <div class="sig-line"></div>
-            <div class="sig-label">Signature & Name: For Plus Save Financial Solutions</div>
+            <div class="sig-label">Signature & Name: For {{ $companyName }}</div>
         </div>
         <div class="sig-block">
             <div class="sig-line"></div>
@@ -120,10 +125,15 @@
     </div>
 
     <div class="footer">
-        <p>Level 3 Room TA, Saasa Plaza Nabugabo Street</p>
-        <p>& Level 2, Old Taxi Park - Aponye mall</p>
-        <p>CALL/WHATSAPP: +256 393 256 744 | +256 702 799 326</p>
-        <p>www.plussavefinancialsolutions.com</p>
+        @foreach($companyAddress ? preg_split('/\r\n|\r|\n/', $companyAddress) : [] as $line)
+            <p>{{ $line }}</p>
+        @endforeach
+        @if($companyPhone)
+            <p>CALL/WHATSAPP: {{ $companyPhone }}</p>
+        @endif
+        @if($companyWebsite)
+            <p>{{ $companyWebsite }}</p>
+        @endif
     </div>
 
     <div class="no-print" style="text-align:center; margin-top:16px;">

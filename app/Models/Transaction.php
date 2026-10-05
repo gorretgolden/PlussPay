@@ -94,13 +94,18 @@ class Transaction extends Model
 
     public static function generateReceiptNumber(): string
     {
+        $prefix = trim((string) Setting::get('receipt_prefix', 'PS'), " \t\n\r\0\x0B-") ?: 'PS';
         $date = now()->format('Ymd');
-        $last = static::where('receipt_number', 'like', "PS-{$date}-%")
+
+        $last = static::where('receipt_number', 'like', "{$prefix}-{$date}-%")
             ->orderBy('id', 'desc')
             ->first();
 
-        $next = $last ? (int) substr($last->receipt_number, -4) + 1 : 1;
+        $next = 1;
+        if ($last && ($dash = strrpos($last->receipt_number, '-')) !== false) {
+            $next = (int) substr($last->receipt_number, $dash + 1) + 1;
+        }
 
-        return sprintf('PS-%s-%04d', $date, $next);
+        return sprintf('%s-%s-%04d', $prefix, $date, $next);
     }
 }

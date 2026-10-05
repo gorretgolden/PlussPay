@@ -22,8 +22,9 @@ class SettingController extends Controller
         $validated = $request->validate([
             'company_name' => 'nullable|string|max:100',
             'company_address' => 'nullable|string|max:255',
-            'company_phone' => 'nullable|string|max:20',
+            'company_phone' => 'nullable|string|max:60',
             'company_email' => 'nullable|email|max:100',
+            'company_website' => 'nullable|string|max:100',
             'default_charge_rate' => 'nullable|numeric|min:0|max:100',
             'min_transaction_amount' => 'nullable|numeric|min:0',
             'max_transaction_amount' => 'nullable|numeric|min:0',

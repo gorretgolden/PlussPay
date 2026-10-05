@@ -12,9 +12,33 @@ class SettingsSeeder extends Seeder
         $settings = [
             [
                 'key' => 'company_name',
-                'value' => 'PlusPay',
+                'value' => 'Plus Save Financial Solutions',
                 'type' => 'string',
                 'description' => 'Company name displayed on receipts and reports',
+            ],
+            [
+                'key' => 'company_phone',
+                'value' => '+256 393 256 744 | +256 702 799 326',
+                'type' => 'string',
+                'description' => 'Call / WhatsApp numbers printed on receipts',
+            ],
+            [
+                'key' => 'company_address',
+                'value' => "Level 3 Room TA, Saasa Plaza Nabugabo Street\n& Level 2, Old Taxi Park - Aponye Mall",
+                'type' => 'string',
+                'description' => 'Branch addresses printed on receipts',
+            ],
+            [
+                'key' => 'company_website',
+                'value' => 'www.plussavefinancialsolutions.com',
+                'type' => 'string',
+                'description' => 'Website printed on receipts',
+            ],
+            [
+                'key' => 'receipt_prefix',
+                'value' => 'PS',
+                'type' => 'string',
+                'description' => 'Prefix for generated receipt numbers, e.g. PS-20261005-0001',
             ],
             [
                 'key' => 'default_charge_rate',

@@ -26,14 +26,23 @@
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Call / WhatsApp</label>
                 <input type="text" name="company_phone" value="{{ old('company_phone', \App\Models\Setting::get('company_phone')) }}"
+                    placeholder="+256 393 256 744"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
             </div>
-            <div class="md:col-span-2">
+            <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
                 <textarea name="company_address" rows="2"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">{{ old('company_address', \App\Models\Setting::get('company_address')) }}</textarea>
+                <p class="text-xs text-gray-500 mt-1">Each line prints separately on the receipt.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                <input type="text" name="company_website" value="{{ old('company_website', \App\Models\Setting::get('company_website')) }}"
+                    placeholder="www.example.com"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                <p class="text-xs text-gray-500 mt-1">Company name, phone, address and website all print on receipts.</p>
             </div>
         </div>
     </div>

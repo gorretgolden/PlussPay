@@ -3,6 +3,13 @@
 @section('title', 'Receipt ' . $transaction->receipt_number)
 
 @section('content')
+@php
+    $companyName = \App\Models\Setting::get('company_name', 'Plus Save Financial Solutions');
+    $companyPhone = \App\Models\Setting::get('company_phone');
+    $companyEmail = \App\Models\Setting::get('company_email');
+    $companyAddress = \App\Models\Setting::get('company_address');
+    $companyWebsite = \App\Models\Setting::get('company_website');
+@endphp
 <div class="mb-6 flex justify-between items-center no-print">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Receipt: {{ $transaction->receipt_number }}</h1>
@@ -19,8 +26,7 @@
     {{-- Header --}}
     <div class="flex justify-between items-start mb-6 border-b pb-4">
         <div>
-            <h2 class="text-2xl font-bold text-green-800">PLUSPAY</h2>
-            <p class="text-sm text-gray-600">Plus Save Financial Solutions</p>
+            <h2 class="text-2xl font-bold text-green-800">{{ $companyName }}</h2>
         </div>
         <div class="text-right">
             <div class="bg-green-800 text-white px-4 py-1 rounded text-sm font-bold inline-block">RECEIPT</div>
@@ -83,7 +89,7 @@
     <div class="grid grid-cols-2 gap-8 mt-8 pt-4 border-t">
         <div>
             <p class="text-sm font-medium text-gray-700 mb-8">Signature & Name:</p>
-            <p class="text-xs text-gray-500 border-t pt-1">For Plus Save Financial Solutions</p>
+            <p class="text-xs text-gray-500 border-t pt-1">For {{ $companyName }}</p>
         </div>
         <div>
             <p class="text-sm font-medium text-gray-700 mb-8">Signature & Name:</p>
@@ -96,13 +102,21 @@
         <div class="flex justify-between">
             <div>
                 <p class="font-medium">CONTACT US</p>
-                <p>CALL / WHATSAPP:</p>
-                <p>+256 393 256 744 | +256 702 799 326</p>
+                @if($companyPhone)
+                    <p>CALL / WHATSAPP:</p>
+                    <p>{{ $companyPhone }}</p>
+                @endif
+                @if($companyEmail ?? null)
+                    <p>{{ $companyEmail }}</p>
+                @endif
             </div>
             <div class="text-right">
-                <p>Level 3 Room TA, Saasa Plaza Nabugabo Street</p>
-                <p>& Level 2, Old Taxi Park - Aponye mall</p>
-                <p>www.plussavefinancialsolutions.com</p>
+                @foreach($companyAddress ? preg_split('/\r\n|\r|\n/', $companyAddress) : [] as $line)
+                    <p>{{ $line }}</p>
+                @endforeach
+                @if($companyWebsite)
+                    <p>{{ $companyWebsite }}</p>
+                @endif
             </div>
         </div>
     </div>
