@@ -9,19 +9,19 @@
 <body class="min-h-screen flex items-center justify-center bg-cover bg-center px-4" style="background-image: url('{{ asset('login-background.png') }}');">
     <div class="absolute inset-0 bg-black/60"></div>
 
-    <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-8">
-        <div class="text-center mb-6">
-            <img src="{{ asset('logo.png') }}" alt="PlusPay" class="h-16 mx-auto mb-4">
+    <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
+        <div class="text-center mb-4">
+            <img src="{{ asset('logo.png') }}" alt="PlusPay" class="h-14 mx-auto mb-2">
             <h1 class="text-2xl font-bold text-gray-900">Welcome back</h1>
             <p class="text-sm text-gray-500 mt-1">Sign in to your PlusPay account</p>
         </div>
 
-        <form method="POST" action="{{ route('login.post') }}" class="space-y-5">
+        <form method="POST" action="{{ route('login.post') }}" class="space-y-4">
             @csrf
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" name="email" id="email" value="{{ old('email') }}" required autofocus placeholder="you@example.com"
+                <input type="email" name="email" id="email" value="{{ old('email') }}" required autofocus
                     class="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition @error('email') border-red-500 @enderror">
                 @error('email')
                     <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
@@ -58,8 +58,8 @@
         </form>
 
         @env('local')
-        <div class="mt-8">
-            <div class="flex items-center gap-3 mb-4">
+        <div class="mt-5">
+            <div class="flex items-center gap-3 mb-3">
                 <div class="flex-1 h-px bg-gray-200"></div>
                 <span class="text-xs uppercase tracking-wide text-gray-400">Demo accounts</span>
                 <div class="flex-1 h-px bg-gray-200"></div>
