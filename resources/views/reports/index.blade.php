@@ -58,22 +58,22 @@
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
     <div class="bg-white rounded-lg shadow p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Transaction Volume</h3>
-        <canvas id="dailyTransactionsChart" height="200"></canvas>
+        <div style="position:relative;height:250px"><canvas id="dailyTransactionsChart"></canvas></div>
     </div>
     <div class="bg-white rounded-lg shadow p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Revenue</h3>
-        <canvas id="dailyRevenueChart" height="200"></canvas>
+        <div style="position:relative;height:250px"><canvas id="dailyRevenueChart"></canvas></div>
     </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
     <div class="bg-white rounded-lg shadow p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Transaction Status Distribution</h3>
-        <canvas id="statusChart" height="200"></canvas>
+        <div style="position:relative;height:250px"><canvas id="statusChart"></canvas></div>
     </div>
     <div class="bg-white rounded-lg shadow p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Agent Performance Comparison</h3>
-        <canvas id="agentChart" height="200"></canvas>
+        <div style="position:relative;height:250px"><canvas id="agentChart"></canvas></div>
     </div>
 </div>
 
@@ -134,28 +134,6 @@
                 </tbody>
             </table>
         @endif
-    </div>
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Transaction Volume</h3>
-        <canvas id="dailyTransactionsChart" height="200"></canvas>
-    </div>
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Revenue</h3>
-        <canvas id="dailyRevenueChart" height="200"></canvas>
-    </div>
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Transaction Status Distribution</h3>
-        <canvas id="statusChart" height="200"></canvas>
-    </div>
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Agent Performance Comparison</h3>
-        <canvas id="agentChart" height="200"></canvas>
     </div>
 </div>
 
@@ -257,6 +235,7 @@
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: { y: { beginAtZero: true } }
             }
@@ -276,6 +255,7 @@
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: { y: { beginAtZero: true } }
             }
@@ -303,6 +283,7 @@
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: { legend: { position: 'bottom' } }
         }
     });
@@ -333,6 +314,7 @@
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: { legend: { position: 'top' } },
                 scales: {
                     y: { beginAtZero: true, position: 'left', title: { display: true, text: 'Transactions' } },
