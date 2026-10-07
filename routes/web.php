@@ -50,6 +50,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::get('/export/exchange-rates', [ExportController::class, 'exchangeRates'])->name('export.exchange-rates');
         Route::get('/export/account-ledger', [ExportController::class, 'accountLedger'])->name('export.account-ledger');
         Route::get('/export/daily-balances', [ExportController::class, 'dailyBalances'])->name('export.daily-balances');
+        Route::get('/export/profit-report', [ExportController::class, 'profitReport'])->name('export.profit-report');
 
         Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
         Route::get('/accounts/daily-balances', [AccountController::class, 'dailyBalances'])->name('accounts.daily-balances');

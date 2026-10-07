@@ -41,6 +41,11 @@ class ReportsController extends Controller
                 : 0,
         ];
 
+        $profit = $this->profitTotals($transactions->where('status', 'completed'), $stats['total_usd_sent']);
+        $unpricedCount = $transactions->where('status', 'completed')
+            ->whereNull('rate_buy_ugx')
+            ->count();
+
         $byCurrency = $transactions->where('status', 'completed')
             ->groupBy('currency')
             ->map(fn ($items) => [
@@ -53,19 +58,40 @@ class ReportsController extends Controller
             ->visibleTo(auth()->user())
             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
             ->where('status', 'completed')
-            ->select('created_by', DB::raw('count(*) as count'), DB::raw('sum(total_usd_equivalent) as total_usd'), DB::raw('sum(charge_amount) as total_revenue'))
+            ->select('created_by', DB::raw('count(*) as count'), DB::raw('sum(total_usd_equivalent) as total_usd'), DB::raw('sum(charge_amount) as total_revenue'), DB::raw('sum(charge_ugx) as fee_ugx'), DB::raw('sum(fx_profit_ugx) as fx_ugx'), DB::raw('sum(fx_profit_usd) as fx_usd'))
             ->groupBy('created_by')
             ->get();
 
         $dailySummary = Transaction::visibleTo(auth()->user())
             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
             ->where('status', 'completed')
-            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as count'), DB::raw('sum(total_usd_equivalent) as total_usd'), DB::raw('sum(charge_amount) as revenue'))
+            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as count'), DB::raw('sum(total_usd_equivalent) as total_usd'), DB::raw('sum(charge_amount) as revenue'), DB::raw('sum(charge_ugx) as fee_ugx'), DB::raw('sum(fx_profit_ugx) as fx_ugx'), DB::raw('sum(fx_profit_usd) as fx_usd'))
             ->groupBy(DB::raw('DATE(created_at)'))
             ->orderBy('date')
             ->get();
 
-        return view('reports.index', compact('stats', 'byCurrency', 'byAgent', 'dailySummary', 'dateFrom', 'dateTo', 'transactions', 'reportType'));
+        return view('reports.index', compact('stats', 'profit', 'unpricedCount', 'byCurrency', 'byAgent', 'dailySummary', 'dateFrom', 'dateTo', 'transactions', 'reportType'));
+    }
+
+    private function profitTotals($completed, float $usdSent): array
+    {
+        $feeUgx = (float) $completed->sum('charge_ugx');
+        $feeUsd = (float) $completed->sum('charge_amount');
+        $fxUgx = (float) $completed->sum('fx_profit_ugx');
+        $fxUsd = (float) $completed->sum('fx_profit_usd');
+        $totalUgx = $feeUgx + $fxUgx;
+        $totalUsd = $feeUsd + $fxUsd;
+
+        return [
+            'fee_ugx' => $feeUgx,
+            'fee_usd' => $feeUsd,
+            'fx_ugx' => $fxUgx,
+            'fx_usd' => $fxUsd,
+            'total_ugx' => $totalUgx,
+            'total_usd' => $totalUsd,
+            'per_dollar_ugx' => $usdSent > 0 ? $totalUgx / $usdSent : 0,
+            'per_dollar_usd' => $usdSent > 0 ? $totalUsd / $usdSent : 0,
+        ];
     }
 
     public function exportExcel(Request $request)
@@ -117,13 +143,13 @@ class ReportsController extends Controller
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ];
 
-        $headers = ['Receipt #', 'Date', 'Sender Name', 'Sender Contact', 'Receiver Name', 'Receiver Contact', 'Currency', 'Amount', 'USD Equivalent', 'Exchange Rate', 'RMB Amount', 'Charge (UGX)', 'Charge (USD)', 'Status', 'Agent'];
+        $headers = ['Receipt #', 'Date', 'Sender Name', 'Sender Contact', 'Receiver Name', 'Receiver Contact', 'Currency', 'Amount', 'USD Equivalent', 'Exchange Rate', 'RMB Amount', 'Charge (UGX)', 'Charge (USD)', 'Status', 'Agent', 'Dollar Margin (UGX)', 'Total Profit (UGX)', 'Total Profit (USD)'];
         $col = 'A';
         foreach ($headers as $header) {
             $sheet->setCellValue($col . '1', $header);
             $col++;
         }
-        $sheet->getStyle('A1:O1')->applyFromArray($headerStyle);
+        $sheet->getStyle('A1:R1')->applyFromArray($headerStyle);
 
         $row = 2;
         foreach ($transactions as $t) {
@@ -144,6 +170,9 @@ class ReportsController extends Controller
             $sheet->setCellValue('M' . $row, (float) $t->charge_amount);
             $this->putText($sheet, 'N' . $row, ucfirst((string) $t->status));
             $this->putText($sheet, 'O' . $row, (string) ($t->creator?->name ?? '-'));
+            $sheet->setCellValue('P' . $row, (float) $t->fx_profit_ugx);
+            $sheet->setCellValue('Q' . $row, (float) $t->charge_ugx + (float) $t->fx_profit_ugx);
+            $sheet->setCellValue('R' . $row, (float) $t->charge_amount + (float) $t->fx_profit_usd);
             $row++;
         }
 
@@ -152,13 +181,15 @@ class ReportsController extends Controller
         $sheet->getStyle('K2:K' . ($row - 1))->getNumberFormat()->setFormatCode('¥#,##0.00');
         $sheet->getStyle('M2:M' . ($row - 1))->getNumberFormat()->setFormatCode('$#,##0.00');
         $sheet->getStyle('L2:L' . ($row - 1))->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle('P2:Q' . ($row - 1))->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle('R2:R' . ($row - 1))->getNumberFormat()->setFormatCode('$#,##0.00');
 
-        $sheet->getStyle('A2:O' . ($row - 1))->applyFromArray([
+        $sheet->getStyle('A2:R' . ($row - 1))->applyFromArray([
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
             'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
         ]);
 
-        foreach (range('A', 'O') as $colLetter) {
+        foreach (range('A', 'R') as $colLetter) {
             $sheet->getColumnDimension($colLetter)->setAutoSize(true);
         }
 

@@ -10,6 +10,7 @@ use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -37,6 +38,9 @@ class ExportController extends Controller
                 '¥' . number_format((float) $t->rmb_amount, 2),
                 'UGX ' . number_format((float) $t->charge_ugx),
                 'USD ' . number_format((float) $t->charge_amount, 2),
+                'UGX ' . number_format((float) $t->fx_profit_ugx),
+                'UGX ' . number_format((float) $t->charge_ugx + (float) $t->fx_profit_ugx),
+                'USD ' . number_format((float) $t->charge_amount + (float) $t->fx_profit_usd, 2),
                 $t->purpose ?? '-',
                 ucfirst($t->status),
                 $t->creator?->name ?? '-',
@@ -45,7 +49,8 @@ class ExportController extends Controller
 
         return $this->download('transactions', [
             'Receipt #', 'Date', 'Sender', 'Sender Contact', 'Receiver', 'Receiver Contact',
-            'Amount', 'UGX Equivalent', 'RMB', 'Service Fee (UGX)', 'Service Fee (USD)', 'Purpose', 'Status', 'Created By',
+            'Amount', 'UGX Equivalent', 'RMB', 'Service Fee (UGX)', 'Service Fee (USD)',
+            'Dollar Margin (UGX)', 'Total Profit (UGX)', 'Total Profit (USD)', 'Purpose', 'Status', 'Created By',
         ], $rows);
     }
 
@@ -274,6 +279,57 @@ class ExportController extends Controller
         }
 
         return $this->download('daily-balances', $headers, $rows, $from.'-'.$to);
+    }
+
+    public function profitReport(Request $request)
+    {
+        $from = $request->input('date_from', now()->startOfMonth()->toDateString());
+        $to = $request->input('date_to', now()->toDateString());
+
+        $days = Transaction::visibleTo($request->user())
+            ->where('status', 'completed')
+            ->whereBetween('created_at', [$from, $to . ' 23:59:59'])
+            ->select(
+                DB::raw('DATE(created_at) as day'),
+                DB::raw('count(*) as count'),
+                DB::raw('sum(total_usd_equivalent) as usd_sent'),
+                DB::raw('sum(charge_ugx) as fee_ugx'),
+                DB::raw('sum(charge_amount) as fee_usd'),
+                DB::raw('sum(fx_profit_ugx) as fx_ugx'),
+                DB::raw('sum(fx_profit_usd) as fx_usd'),
+            )
+            ->groupBy(DB::raw('DATE(created_at)'))
+            ->orderBy('day')
+            ->get();
+
+        $rows = $days->map(fn ($d) => [
+            $d->day,
+            (string) $d->count,
+            number_format((float) $d->usd_sent, 2),
+            number_format((float) $d->fee_ugx),
+            number_format((float) $d->fee_usd, 2),
+            number_format((float) $d->fx_ugx),
+            number_format((float) $d->fx_usd, 2),
+            number_format((float) $d->fee_ugx + (float) $d->fx_ugx),
+            number_format((float) $d->fee_usd + (float) $d->fx_usd, 2),
+        ])->all();
+
+        $rows[] = [
+            'TOTAL',
+            (string) $days->sum('count'),
+            number_format((float) $days->sum('usd_sent'), 2),
+            number_format((float) $days->sum('fee_ugx')),
+            number_format((float) $days->sum('fee_usd'), 2),
+            number_format((float) $days->sum('fx_ugx')),
+            number_format((float) $days->sum('fx_usd'), 2),
+            number_format((float) $days->sum('fee_ugx') + (float) $days->sum('fx_ugx')),
+            number_format((float) $days->sum('fee_usd') + (float) $days->sum('fx_usd'), 2),
+        ];
+
+        return $this->download('profit-report', [
+            'Date', 'Transactions', 'USD Sent', 'Fee Income (UGX)', 'Fee Income (USD)',
+            'Dollar Margin (UGX)', 'Dollar Margin (USD)', 'Total Profit (UGX)', 'Total Profit (USD)',
+        ], $rows, $from . '-' . $to);
     }
 
     private function transactionQuery(Request $request)

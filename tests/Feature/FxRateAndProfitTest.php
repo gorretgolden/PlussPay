@@ -94,6 +94,54 @@ class FxRateAndProfitTest extends TestCase
         $this->assertSame('0.00', (string) $transaction->fx_profit_usd);
     }
 
+    public function test_profit_report_adds_the_fee_and_the_dollar_margin_in_both_currencies(): void
+    {
+        $transaction = $this->storeUgxTransfer(3760000);
+        $admin = $transaction->creator;
+
+        // UGX 20,000 of service fee plus UGX 10,000 of margin on the 1,000 dollars bought.
+        $this->actingAs($admin)
+            ->get('/reports?type=profit')
+            ->assertOk()
+            ->assertSee('Profit on One Dollar Sent')
+            ->assertSee('UGX 30,000')
+            ->assertSee('UGX 30.00');
+    }
+
+    public function test_agents_never_see_the_profit_report(): void
+    {
+        $this->storeUgxTransfer(3760000);
+
+        $agent = User::create([
+            'name' => 'Field Agent',
+            'email' => 'agent'.uniqid().'@plussave.test',
+            'password' => 'Password123',
+            'is_active' => true,
+        ]);
+        $agent->assignRole('agent');
+
+        $this->actingAs($agent)
+            ->get('/reports?type=profit')
+            ->assertOk()
+            ->assertDontSee('Margin on Dollars');
+
+        $this->actingAs($agent)->get('/export/profit-report')->assertForbidden();
+    }
+
+    public function test_profit_report_exports_as_excel(): void
+    {
+        $transaction = $this->storeUgxTransfer(3760000);
+
+        $this->actingAs($transaction->creator)
+            ->get('/export/profit-report')
+            ->assertOk();
+
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $transaction->created_by,
+            'action' => 'exported',
+        ]);
+    }
+
     private function storeUgxTransfer(float $amount): Transaction
     {
         $admin = $this->admin();

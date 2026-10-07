@@ -98,6 +98,11 @@
                         <a href="{{ route('reports.index', ['type' => 'revenue']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'revenue' ? 'active' : '' }}">
                             Revenue Report
                         </a>
+                        @role('admin|superadmin')
+                        <a href="{{ route('reports.index', ['type' => 'profit']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'profit' ? 'active' : '' }}">
+                            Profit Report
+                        </a>
+                        @endrole
                         <a href="{{ route('reports.index', ['type' => 'agent']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'agent' ? 'active' : '' }}">
                             Agent Report
                         </a>

@@ -8,6 +8,7 @@
         <h1 class="text-2xl font-bold text-gray-900">
             @if($reportType === 'transaction') Transaction Report
             @elseif($reportType === 'revenue') Revenue Report
+            @elseif($reportType === 'profit') Profit Report
             @elseif($reportType === 'agent') Agent Report
             @elseif($reportType === 'daily') Daily Summary
             @else Reports Hub
@@ -16,6 +17,7 @@
         <p class="text-gray-600">
             @if($reportType === 'transaction') Detailed transaction breakdown
             @elseif($reportType === 'revenue') Revenue and charge analysis
+            @elseif($reportType === 'profit') Service fee income plus the margin made on every dollar
             @elseif($reportType === 'agent') Agent performance metrics
             @elseif($reportType === 'daily') Day-by-day transaction summary
             @else Transaction summaries and analytics
@@ -64,10 +66,125 @@
     </div>
     <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">Revenue (Charges)</div>
-        <div class="text-2xl font-bold text-green-700 mt-1">${{ number_format($stats['total_revenue'], 2) }}</div>
-        <div class="text-xs text-gray-400 mt-1">Avg: ${{ number_format($stats['avg_transaction'], 2) }}/tx</div>
+        <div class="text-2xl font-bold text-green-700 mt-1">UGX {{ number_format($profit['fee_ugx']) }}</div>
+        <div class="text-xs text-gray-400 mt-1">USD {{ number_format($profit['fee_usd'], 2) }} | Avg: ${{ number_format($stats['avg_transaction'], 2) }}/tx</div>
     </div>
 </div>
+
+@role('admin|superadmin')
+<div id="section-profit" class="mb-6">
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900">Profit</h3>
+                <p class="text-sm text-gray-500">Service fee income plus the margin between the dollar buying rate and the selling rate.</p>
+            </div>
+            <a href="{{ route('export.profit-report', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700 whitespace-nowrap">Export Excel</a>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
+            <div class="rounded-lg border border-green-200 bg-green-50 p-4">
+                <div class="text-sm text-green-900">Total Profit</div>
+                <div class="text-2xl font-bold text-green-800 mt-1">UGX {{ number_format($profit['total_ugx']) }}</div>
+                <div class="text-xs text-green-700 mt-1">USD {{ number_format($profit['total_usd'], 2) }}</div>
+            </div>
+            <div class="rounded-lg border bg-gray-50 p-4">
+                <div class="text-sm text-gray-500">Service Fee Income</div>
+                <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['fee_ugx']) }}</div>
+                <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['fee_usd'], 2) }}</div>
+            </div>
+            <div class="rounded-lg border bg-gray-50 p-4">
+                <div class="text-sm text-gray-500">Margin on Dollars</div>
+                <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['fx_ugx']) }}</div>
+                <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['fx_usd'], 2) }}</div>
+            </div>
+            <div class="rounded-lg border bg-gray-50 p-4">
+                <div class="text-sm text-gray-500">Profit on One Dollar Sent</div>
+                <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['per_dollar_ugx'], 2) }}</div>
+                <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['per_dollar_usd'], 2) }}</div>
+            </div>
+        </div>
+
+        @if($unpricedCount > 0)
+        <div class="mx-6 mb-4 rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+            {{ number_format($unpricedCount) }} completed transaction(s) in this period have no dollar buying rate recorded, so their margin counts as zero. Enter the buying rate in System Settings before creating transfers.
+        </div>
+        @endif
+
+        <div class="overflow-x-auto border-t">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Txns</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Fee (UGX)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin (UGX)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total (UGX)</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total (USD)</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    @forelse($dailySummary as $day)
+                    <tr>
+                        <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($day->date)->format('M d, Y') }}</td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $day->count }}</td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->fee_ugx) }}</td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->fx_ugx) }}</td>
+                        <td class="px-4 py-3 text-sm text-right font-medium text-gray-900">{{ number_format((float) $day->fee_ugx + (float) $day->fx_ugx) }}</td>
+                        <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->revenue + (float) $day->fx_usd, 2) }}</td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-gray-500">No completed transactions in this period.</td>
+                    </tr>
+                    @endforelse
+                </tbody>
+                @if($dailySummary->isNotEmpty())
+                <tfoot class="bg-gray-50">
+                    <tr>
+                        <td class="px-6 py-3 text-sm font-bold text-gray-900">Total</td>
+                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ $dailySummary->sum('count') }}</td>
+                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $dailySummary->sum('fee_ugx')) }}</td>
+                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $dailySummary->sum('fx_ugx')) }}</td>
+                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_ugx']) }}</td>
+                        <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_usd'], 2) }}</td>
+                    </tr>
+                </tfoot>
+                @endif
+            </table>
+        </div>
+
+        <div class="overflow-x-auto border-t">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Txns</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Profit (UGX)</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Profit (USD)</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    @forelse($byAgent as $agent)
+                    <tr>
+                        <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ $agent->creator?->name ?? 'Unknown' }}</td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $agent->count }}</td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->total_usd, 2) }}</td>
+                        <td class="px-4 py-3 text-sm text-right font-medium text-gray-900">{{ number_format((float) $agent->fee_ugx + (float) $agent->fx_ugx) }}</td>
+                        <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->total_revenue + (float) $agent->fx_usd, 2) }}</td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-gray-500">No completed transactions in this period.</td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+@endrole
 
 {{-- Charts Section --}}
 <div id="section-transaction" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -341,7 +458,7 @@
 </script>
 <script>
     const reportType = @json($reportType);
-    const sectionMap = { transaction: 'section-transaction', revenue: 'section-revenue', agent: 'section-agent', daily: 'section-daily' };
+    const sectionMap = { transaction: 'section-transaction', revenue: 'section-revenue', profit: 'section-profit', agent: 'section-agent', daily: 'section-daily' };
     if (sectionMap[reportType]) {
         const el = document.getElementById(sectionMap[reportType]);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
