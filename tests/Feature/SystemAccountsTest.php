@@ -181,4 +181,20 @@ class SystemAccountsTest extends TestCase
         $this->actingAs($admin)->get('/accounts/entries/create')->assertOk();
         $this->actingAs($admin)->get('/accounts/daily-balances')->assertOk();
     }
+
+    public function test_an_opening_balance_can_be_posted_from_the_entry_form(): void
+    {
+        $account = $this->ugxCash();
+
+        $this->actingAs($this->admin())->post('/accounts/entries', [
+            'kind' => 'opening_balance',
+            'account_id' => $account->id,
+            'amount' => '62889200',
+            'entry_date' => '2026-05-01',
+            'description' => 'Balance carried from the workbook',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('62889200.00', $account->fresh()->balance());
+        $this->assertSame('opening_balance', AccountEntry::where('account_id', $account->id)->firstOrFail()->type);
+    }
 }

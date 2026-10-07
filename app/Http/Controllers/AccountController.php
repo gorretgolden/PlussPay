@@ -81,7 +81,7 @@ class AccountController extends Controller
         $kind = $request->input('kind');
 
         $validated = $request->validate([
-            'kind' => 'required|in:money_in,money_out,transfer,exchange,adjustment_in,adjustment_out',
+            'kind' => 'required|in:opening_balance,money_in,money_out,transfer,exchange,adjustment_in,adjustment_out',
             'account_id' => 'required|integer|exists:accounts,id',
             'counterparty_id' => 'nullable|required_if:kind,transfer,exchange|integer|exists:accounts,id|different:account_id',
             'amount' => 'required|numeric|min:0.01',

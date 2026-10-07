@@ -5,6 +5,7 @@
 @section('content')
 @php
     $kinds = [
+        'opening_balance' => ['Opening balance', 'What was already in the account before the system started tracking it. Enter it once, dated the day you begin.'],
         'money_in' => ['Money received', 'Cash that came in from outside: a customer payment, mobile money, money from the office.'],
         'money_out' => ['Money paid out', 'Cash that left and is gone: a recipient payout in China, rent, mobile money charges, commission.'],
         'transfer' => ['Move between my accounts', 'The same currency travelling between your own accounts, such as dollars sent from Uganda to China. Nothing is gained or lost.'],

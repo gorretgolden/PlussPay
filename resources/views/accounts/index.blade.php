@@ -61,6 +61,7 @@
         <li>Cancelling a completed transfer takes the same amount back out and records why.</li>
         <li>Everything else you already track by hand goes in through <strong>Add Ledger Entry</strong>: dollars bought, money sent to China, RMB paid out to recipients, expenses and corrections.</li>
         <li>An exchange writes two lines, one out of each account, so no money can vanish between countries.</li>
+        <li>Start each account once with <strong>Add Ledger Entry</strong> and pick <strong>Opening balance</strong> for the figure it already held.</li>
     </ul>
 </div>
 @endsection
