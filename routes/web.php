@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AgentPerformanceController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
@@ -47,6 +48,14 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::get('/export/login-logs', [ExportController::class, 'loginLogs'])->name('export.login-logs');
         Route::get('/export/agent-performance', [ExportController::class, 'agentPerformance'])->name('export.agent-performance');
         Route::get('/export/exchange-rates', [ExportController::class, 'exchangeRates'])->name('export.exchange-rates');
+        Route::get('/export/account-ledger', [ExportController::class, 'accountLedger'])->name('export.account-ledger');
+        Route::get('/export/daily-balances', [ExportController::class, 'dailyBalances'])->name('export.daily-balances');
+
+        Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
+        Route::get('/accounts/daily-balances', [AccountController::class, 'dailyBalances'])->name('accounts.daily-balances');
+        Route::get('/accounts/entries/create', [AccountController::class, 'createEntry'])->name('accounts.entries.create');
+        Route::post('/accounts/entries', [AccountController::class, 'storeEntry'])->name('accounts.entries.store');
+        Route::get('/accounts/{account}', [AccountController::class, 'show'])->name('accounts.show');
 
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UserController::class, 'create'])->name('users.create');

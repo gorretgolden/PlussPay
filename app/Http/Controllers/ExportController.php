@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Account;
+use App\Models\AccountEntry;
 use App\Models\ActivityLog;
 use App\Models\Customer;
 use App\Models\ExchangeRate;
@@ -186,15 +188,92 @@ class ExportController extends Controller
             ->map(fn($r) => [
                 $r->from_currency,
                 $r->to_currency,
-                $r->rate,
+                $r->sell_rate ?? $r->rate,
+                $r->buy_rate,
+                $r->buy_rate === null ? null : (float) ($r->sell_rate ?? $r->rate) - (float) $r->buy_rate,
                 $r->is_active ? 'Active' : 'Inactive',
                 $r->updated_at->format('Y-m-d H:i'),
             ])
             ->all();
 
         return $this->download('exchange-rates', [
-            'From', 'To', 'Rate', 'Status', 'Updated',
+            'From', 'To', 'Selling Rate', 'Buying Rate', 'Margin', 'Status', 'Updated',
         ], $rows);
+    }
+
+    public function accountLedger(Request $request)
+    {
+        $account = Account::findOrFail((int) $request->input('account_id'));
+        $currency = $account->currency;
+
+        $balance = $request->filled('date_from')
+            ? $account->balanceBefore($request->date_from)
+            : (string) $account->opening_balance;
+
+        $rows = $account->entries()->filtered($request)->get()
+            ->map(function (AccountEntry $entry) use (&$balance, $currency) {
+                $balance = $entry->direction === 'in'
+                    ? bcadd($balance, (string) $entry->amount, 2)
+                    : bcsub($balance, (string) $entry->amount, 2);
+
+                return [
+                    $entry->entry_date->format('Y-m-d'),
+                    AccountEntry::labelFor($entry->type),
+                    $entry->direction === 'in' ? number_format((float) $entry->amount, 2) : '',
+                    $entry->direction === 'out' ? number_format((float) $entry->amount, 2) : '',
+                    $currency,
+                    number_format((float) $balance, 2),
+                    $entry->counterparty?->name ?? '-',
+                    $entry->reference ?? '-',
+                    $entry->description,
+                    $entry->creator?->name ?? 'System',
+                ];
+            })
+            ->all();
+
+        return $this->download(
+            'account-ledger',
+            ['Date', 'Movement', 'Money In ('.$currency.')', 'Money Out ('.$currency.')', 'Currency', 'Running Balance ('.$currency.')', 'Other Account', 'Reference', 'Description', 'Entered By'],
+            $rows,
+            str_replace(' ', '-', $account->name)
+        );
+    }
+
+    public function dailyBalances(Request $request)
+    {
+        $from = $request->input('date_from', now()->subDays(13)->toDateString());
+        $to = $request->input('date_to', now()->toDateString());
+        $accounts = Account::ordered();
+
+        $dates = Account::dateRange($from, $to);
+
+        $closings = [];
+        foreach ($accounts as $account) {
+            foreach ($account->dailyClosing($from, $dates) as $day => $values) {
+                $closings[$day][$account->id] = $values;
+            }
+        }
+
+        $headers = ['Date'];
+        foreach ($accounts as $account) {
+            $headers[] = $account->name.' In ('.$account->currency.')';
+            $headers[] = $account->name.' Out ('.$account->currency.')';
+            $headers[] = $account->name.' Closing ('.$account->currency.')';
+        }
+
+        $rows = [];
+        foreach ($dates as $day) {
+            $row = [$day];
+            foreach ($accounts as $account) {
+                $values = $closings[$day][$account->id] ?? ['in' => '0.00', 'out' => '0.00', 'closing' => '0.00'];
+                $row[] = number_format((float) $values['in'], 2);
+                $row[] = number_format((float) $values['out'], 2);
+                $row[] = number_format((float) $values['closing'], 2);
+            }
+            $rows[] = $row;
+        }
+
+        return $this->download('daily-balances', $headers, $rows, $from.'-'.$to);
     }
 
     private function transactionQuery(Request $request)

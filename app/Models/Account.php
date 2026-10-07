@@ -1,0 +1,167 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Http\Request;
+
+class Account extends Model
+{
+    public const UGX_UGANDA = 'UGX-UG';
+    public const USD_UGANDA = 'USD-UG';
+    public const USD_CHINA = 'USD-CN';
+    public const RMB_CHINA = 'RMB-CN';
+
+    protected $fillable = [
+        'code',
+        'name',
+        'country',
+        'currency',
+        'opening_balance',
+        'is_active',
+        'description',
+    ];
+
+    protected $casts = [
+        'opening_balance' => 'decimal:2',
+        'is_active' => 'boolean',
+    ];
+
+    public function entries(): HasMany
+    {
+        return $this->hasMany(AccountEntry::class)->orderBy('entry_date')->orderBy('id');
+    }
+
+    /**
+     * Accounts are created by a migration, so look them up by code and rebuild on demand.
+     * A production box that skipped the seed must still be able to post entries.
+     */
+    public static function byCode(string $code): self
+    {
+        return static::firstOrCreate(
+            ['code' => $code],
+            ['name' => static::nameFor($code), 'country' => str_ends_with($code, 'UG') ? 'UG' : 'CN',
+                'currency' => substr($code, 0, 3), 'is_active' => true]
+        );
+    }
+
+    private static function nameFor(string $code): string
+    {
+        return match ($code) {
+            self::UGX_UGANDA => 'UGX Cash (Uganda)',
+            self::USD_UGANDA => 'Dollar Account (Uganda)',
+            self::USD_CHINA => 'Dollar Account (China)',
+            self::RMB_CHINA => 'RMB Account (China)',
+            default => $code,
+        };
+    }
+
+    public static function ordered(): array
+    {
+        $codes = [self::UGX_UGANDA, self::USD_UGANDA, self::USD_CHINA, self::RMB_CHINA];
+
+        foreach ($codes as $code) {
+            static::byCode($code);
+        }
+
+        return static::whereIn('code', $codes)
+            ->get()
+            ->sortBy(fn (self $a) => array_search($a->code, $codes))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Money is only ever added in the account's own currency, so the balance is the
+     * opening figure plus everything in, minus everything out, up to the given day.
+     */
+    /**
+     * Every day between two dates, inclusive and capped, so a mistyped range cannot build a
+     * million rows on one page.
+     *
+     * @return array<int, string>
+     */
+    public static function dateRange(string $from, string $to): array
+    {
+        $dates = [];
+        $cursor = strtotime($from);
+        $end = strtotime($to);
+
+        if ($cursor === false || $end === false || $end < $cursor) {
+            return [];
+        }
+
+        while ($cursor <= $end && count($dates) < 400) {
+            $dates[] = date('Y-m-d', $cursor);
+            $cursor = strtotime('+1 day', $cursor);
+        }
+
+        return $dates;
+    }
+
+    public function balance(?string $asOfDate = null): string
+    {
+        $in = $this->sumFor('in', $asOfDate);
+        $out = $this->sumFor('out', $asOfDate);
+
+        return bcadd(bcsub((string) $this->opening_balance, '0.00', 2), bcsub($in, $out, 2), 2);
+    }
+
+    /**
+     * The figure carried into a day, so a page or export that starts mid-year can still show
+     * an honest running balance.
+     */
+    public function balanceBefore(string $date): string
+    {
+        $balance = (string) $this->opening_balance;
+
+        foreach ($this->entries()->whereDate('entry_date', '<', $date)->cursor() as $entry) {
+            $balance = $entry->direction === 'in'
+                ? bcadd($balance, (string) $entry->amount, 2)
+                : bcsub($balance, (string) $entry->amount, 2);
+        }
+
+        return $balance;
+    }
+
+    /**
+     * Closing balance for every day in the range, which is the end-of-day figure she writes
+     * per account. Days with no movement still get a row so the trail has no gaps.
+     *
+     * @return array<string, array{in: string, out: string, closing: string}>
+     */
+    public function dailyClosing(string $from, array $dates): array
+    {
+        $rows = [];
+        $balance = $this->balanceBefore($from);
+
+        $byDay = $this->entries()
+            ->whereBetween('entry_date', [$from, end($dates) ?: $from])
+            ->get()
+            ->groupBy(fn (AccountEntry $entry) => $entry->entry_date->toDateString());
+
+        foreach ($dates as $day) {
+            $movement = $byDay->get($day, collect());
+            $in = (string) $movement->where('direction', 'in')->sum('amount');
+            $out = (string) $movement->where('direction', 'out')->sum('amount');
+            $balance = bcadd(bcadd($balance, $in, 2), bcsub('0.00', $out, 2), 2);
+
+            $rows[$day] = ['in' => $in, 'out' => $out, 'closing' => $balance];
+        }
+
+        return $rows;
+    }
+
+    private function sumFor(string $direction, ?string $asOfDate): string
+    {
+        $query = $this->entries()->where('direction', $direction);
+
+        if ($asOfDate !== null) {
+            $query->whereDate('entry_date', '<=', $asOfDate);
+        }
+
+        return (string) ($query->sum('amount') ?? '0');
+    }
+}

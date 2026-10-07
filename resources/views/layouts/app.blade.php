@@ -56,6 +56,30 @@
                     Customers
                 </a>
                 @endrole
+
+                {{-- Accounts Group (admin only) --}}
+                @role('admin|superadmin')
+                <div>
+                    <button type="button" onclick="toggleAccountsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.*') ? 'bg-green-800' : '' }}">
+                        <span class="flex items-center">
+                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                            Accounts
+                        </span>
+                        <svg id="accountsChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('accounts.*') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div id="accountsGroup" class="{{ request()->routeIs('accounts.*') ? '' : 'hidden' }}">
+                        <a href="{{ route('accounts.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.index') ? 'active' : '' }}">
+                            Balances
+                        </a>
+                        <a href="{{ route('accounts.entries.create') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.entries.create') ? 'active' : '' }}">
+                            Add Ledger Entry
+                        </a>
+                        <a href="{{ route('accounts.daily-balances') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.daily-balances') ? 'active' : '' }}">
+                            Daily Balances
+                        </a>
+                    </div>
+                </div>
+                @endrole
                 <div>
                     <button type="button" onclick="toggleReportsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('reports.*') ? 'bg-green-800' : '' }}">
                         <span class="flex items-center">
@@ -192,6 +216,12 @@
         function toggleReportsGroup() {
             const group = document.getElementById('reportsGroup');
             const chevron = document.getElementById('reportsChevron');
+            group.classList.toggle('hidden');
+            chevron.classList.toggle('rotate-180');
+        }
+        function toggleAccountsGroup() {
+            const group = document.getElementById('accountsGroup');
+            const chevron = document.getElementById('accountsChevron');
             group.classList.toggle('hidden');
             chevron.classList.toggle('rotate-180');
         }
