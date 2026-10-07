@@ -21,6 +21,7 @@ class ExchangeRateController extends Controller
             'from_currency' => 'required|string|max:10|in:USD,RMB,UGX',
             'to_currency' => 'required|string|max:10|in:USD,RMB,UGX|different:from_currency',
             'rate' => 'required|numeric|min:0.000001|max:999999.999999',
+            'buy_rate' => 'nullable|numeric|min:0.000001|max:999999.999999',
         ], [
             'from_currency.required' => 'Source currency is required.',
             'from_currency.in' => 'Invalid source currency.',
@@ -30,6 +31,8 @@ class ExchangeRateController extends Controller
             'rate.required' => 'Exchange rate is required.',
             'rate.min' => 'Exchange rate must be greater than zero.',
             'rate.max' => 'Exchange rate is too high.',
+            'buy_rate.min' => 'The buying rate must be greater than zero.',
+            'buy_rate.max' => 'The buying rate is too high.',
         ]);
 
         $existing = ExchangeRate::where('from_currency', $validated['from_currency'])
@@ -47,10 +50,13 @@ class ExchangeRateController extends Controller
             ->where('to_currency', $validated['to_currency'])
             ->update(['is_active' => false]);
 
+        // The single rate entered here is always the customer-facing (selling) price.
         ExchangeRate::create([
             'from_currency' => strtoupper($validated['from_currency']),
             'to_currency' => strtoupper($validated['to_currency']),
             'rate' => $validated['rate'],
+            'buy_rate' => $validated['buy_rate'] ?? $validated['rate'],
+            'sell_rate' => $validated['rate'],
             'is_active' => true,
         ]);
 

@@ -84,41 +84,96 @@
             <h2 class="text-lg font-semibold text-gray-900">Currency Rates</h2>
             <a href="{{ route('exchange-rates.index') }}" class="text-xs text-green-700 underline hover:text-green-900">Rate history</a>
         </div>
-        <p class="text-sm text-gray-500 mb-4">Enter what one US dollar costs. These figures drive every conversion in the system.</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">UGX per 1 USD</label>
-                <div class="relative">
-                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">UGX</span>
-                    <input type="number" step="0.0001" min="0.01" name="usd_ugx_rate"
-                        value="{{ old('usd_ugx_rate', $usdToUgx ? rtrim(rtrim(number_format($usdToUgx, 4, '.', ''), '0'), '.') : '') }}"
-                        placeholder="e.g. 3700"
-                        class="w-full pl-14 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+        @php
+            $trimRate = fn ($v) => rtrim(rtrim(number_format((float) $v, 6, '.', ''), '0'), '.');
+            $trimMoney = fn ($v) => rtrim(rtrim(number_format((float) $v, 2, '.', ','), '0'), '.');
+            $ugxMargin = ($usdUgxPair['sell'] ?? 0) - ($usdUgxPair['buy'] ?? 0);
+        @endphp
+        <p class="text-sm text-gray-500 mb-4">Two prices per currency: what a dollar costs you to buy, and what the customer pays you for it. The difference is your profit on every dollar.</p>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="border border-gray-200 rounded-lg p-4">
+                <h3 class="text-sm font-semibold text-gray-900 mb-3">US Dollar in UGX</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Buying rate (UGX)</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">UGX</span>
+                            <input type="number" step="0.0001" min="0.01" name="usd_ugx_buying"
+                                value="{{ old('usd_ugx_buying', isset($usdUgxPair) ? $trimRate($usdUgxPair['buy']) : '') }}"
+                                placeholder="e.g. 3750"
+                                class="w-full pl-14 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">What you pay for one dollar.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Selling rate (UGX)</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">UGX</span>
+                            <input type="number" step="0.0001" min="0.01" name="usd_ugx_selling"
+                                value="{{ old('usd_ugx_selling', isset($usdUgxPair) ? $trimRate($usdUgxPair['sell']) : '') }}"
+                                placeholder="e.g. 3760"
+                                class="w-full pl-14 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">What customers pay you for one dollar. This rate drives every conversion.</p>
+                    </div>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">
-                    @if($usdToUgx)
-                        Current: 1 USD = {{ rtrim(rtrim(number_format($usdToUgx, 4, '.', ''), '0'), '.') }} UGX, so 100,000 UGX = ${{ number_format(100000 / $usdToUgx, 2) }}
-                    @else
-                        Not set yet. Transactions in UGX cannot be converted until this is saved.
-                    @endif
-                </p>
+                @if($usdUgxPair)
+                    <div class="mt-3 rounded-md px-3 py-2 text-sm {{ $ugxMargin >= 0 ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700' }}">
+                        Profit on one dollar:
+                        <span class="font-semibold">UGX {{ $trimMoney(abs($ugxMargin)) }}</span>
+                        @if($ugxMargin >= 0)
+                            <span class="text-xs text-green-700">(buying {{ $trimRate($usdUgxPair['buy']) }}, selling {{ $trimRate($usdUgxPair['sell']) }})</span>
+                        @else
+                            <span class="text-xs">(you would lose on each dollar as entered)</span>
+                        @endif
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">
+                        100,000 UGX at the selling rate = ${{ number_format(100000 / (float) $usdUgxPair['sell'], 2) }}
+                        @if($usdUgxPair['buy'] > 0)
+                            , which costs you UGX {{ number_format(round(100000 / (float) $usdUgxPair['sell'] * (float) $usdUgxPair['buy'])) }} to buy.
+                        @endif
+                    </p>
+                @else
+                    <p class="text-xs text-amber-700 mt-3">Not set yet. Transactions in UGX cannot be converted or priced until the selling rate is saved.</p>
+                @endif
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">RMB per 1 USD</label>
-                <div class="relative">
-                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">CNY</span>
-                    <input type="number" step="0.000001" min="0.000001" name="usd_rmb_rate"
-                        value="{{ old('usd_rmb_rate', $usdToRmb ? rtrim(rtrim(number_format((float) $usdToRmb->rate, 6, '.', ''), '0'), '.') : '') }}"
-                        placeholder="e.g. 7.24"
-                        class="w-full pl-14 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+
+            <div class="border border-gray-200 rounded-lg p-4">
+                <h3 class="text-sm font-semibold text-gray-900 mb-3">US Dollar in RMB</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Buying rate (RMB)</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">CNY</span>
+                            <input type="number" step="0.000001" min="0.000001" name="usd_rmb_buying"
+                                value="{{ old('usd_rmb_buying', isset($usdRmbPair) ? $trimRate($usdRmbPair['buy']) : '') }}"
+                                placeholder="e.g. 6.70"
+                                class="w-full pl-14 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">What the China side pays for one dollar.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Selling rate (RMB)</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">CNY</span>
+                            <input type="number" step="0.000001" min="0.000001" name="usd_rmb_selling"
+                                value="{{ old('usd_rmb_selling', isset($usdRmbPair) ? $trimRate($usdRmbPair['sell']) : '') }}"
+                                placeholder="e.g. 6.75"
+                                class="w-full pl-14 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">What RMB is priced at per dollar. Recipients are paid at this rate.</p>
+                    </div>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">
-                    @if($usdToRmb)
-                        Current: 1 USD = {{ rtrim(rtrim(number_format((float) $usdToRmb->rate, 6, '.', ''), '0'), '.') }} RMB, so $100 = ¥{{ number_format(100 * (float) $usdToRmb->rate, 2) }}
-                    @else
-                        Not set yet. Senders cannot receive RMB quotes until this is saved.
-                    @endif
-                </p>
+                @if($usdRmbPair)
+                    <div class="mt-3 rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                        Spread on one dollar:
+                        <span class="font-semibold">RMB {{ $trimMoney(abs(($usdRmbPair['sell'] ?? 0) - ($usdRmbPair['buy'] ?? 0))) }}</span>
+                        <span class="text-xs text-gray-500">(buying {{ $trimRate($usdRmbPair['buy']) }}, selling {{ $trimRate($usdRmbPair['sell']) }})</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">$100 at the selling rate = ¥{{ number_format(100 * (float) $usdRmbPair['sell'], 2) }}.</p>
+                @else
+                    <p class="text-xs text-amber-700 mt-3">Not set yet. Senders cannot receive RMB quotes until the selling rate is saved.</p>
+                @endif
             </div>
         </div>
         @if($usdToRmb)

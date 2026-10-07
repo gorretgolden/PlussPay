@@ -13,9 +13,17 @@ class SettingController extends Controller
     {
         $settings = Setting::all()->groupBy('group');
         $usdToUgx = ExchangeRate::usdToUgx();
+        $usdUgxPair = ExchangeRate::usdUgxPair();
         $usdToRmb = ExchangeRate::getActiveRate('USD', 'RMB');
+        $usdRmbPair = ExchangeRate::pair('USD', 'RMB');
 
-        return view('settings.index', compact('settings', 'usdToUgx', 'usdToRmb'));
+        return view('settings.index', compact(
+            'settings',
+            'usdToUgx',
+            'usdUgxPair',
+            'usdToRmb',
+            'usdRmbPair'
+        ));
     }
 
     public function update(Request $request)
@@ -31,21 +39,33 @@ class SettingController extends Controller
             'min_transaction_amount' => 'nullable|numeric|min:0',
             'max_transaction_amount' => 'nullable|numeric|min:0',
             'receipt_prefix' => ['nullable', 'string', 'max:10', 'regex:/^[A-Za-z0-9]+$/'],
-            'usd_ugx_rate' => 'nullable|numeric|min:0.01|max:999999.99',
-            'usd_rmb_rate' => 'nullable|numeric|min:0.000001|max:999999.999999',
+            'usd_ugx_buying' => 'nullable|numeric|min:0.01|max:999999.99',
+            'usd_ugx_selling' => 'nullable|numeric|min:0.01|max:999999.99',
+            'usd_rmb_buying' => 'nullable|numeric|min:0.000001|max:999999.999999',
+            'usd_rmb_selling' => 'nullable|numeric|min:0.000001|max:999999.999999',
         ], [
             'receipt_prefix.regex' => 'The receipt prefix can only contain letters and numbers, e.g. PS.',
-            'usd_ugx_rate.numeric' => 'The dollar rate must be a number, e.g. 3700.',
-            'usd_ugx_rate.min' => 'The dollar rate must be at least 0.01.',
-            'usd_ugx_rate.max' => 'The dollar rate is too high.',
-            'usd_rmb_rate.numeric' => 'The RMB per dollar rate must be a number, e.g. 7.24.',
+            'usd_ugx_buying.numeric' => 'The UGX buying rate must be a number, e.g. 3750.',
+            'usd_ugx_selling.numeric' => 'The UGX selling rate must be a number, e.g. 3760.',
+            'usd_ugx_buying.min' => 'The UGX buying rate must be at least 0.01.',
+            'usd_ugx_selling.min' => 'The UGX selling rate must be at least 0.01.',
+            'usd_ugx_selling.max' => 'The UGX rate is too high.',
+            'usd_rmb_buying.numeric' => 'The RMB buying rate must be a number, e.g. 6.70.',
+            'usd_rmb_selling.numeric' => 'The RMB selling rate must be a number, e.g. 6.75.',
             'service_fee_usd.min' => 'The USD amount must be greater than zero, e.g. 100.',
         ]);
 
         // Rates live in the exchange rate table, not settings, so every screen converts with the same figure.
-        $usdUgx = $validated['usd_ugx_rate'] ?? null;
-        $usdRmb = $validated['usd_rmb_rate'] ?? null;
-        unset($validated['usd_ugx_rate'], $validated['usd_rmb_rate']);
+        $ugxBuy = $this->rateInput($request, 'usd_ugx_buying');
+        $ugxSell = $this->rateInput($request, 'usd_ugx_selling');
+        $rmbBuy = $this->rateInput($request, 'usd_rmb_buying');
+        $rmbSell = $this->rateInput($request, 'usd_rmb_selling');
+        unset(
+            $validated['usd_ugx_buying'],
+            $validated['usd_ugx_selling'],
+            $validated['usd_rmb_buying'],
+            $validated['usd_rmb_selling']
+        );
 
         $changes = [];
 
@@ -62,16 +82,19 @@ class SettingController extends Controller
             $changes[] = "{$key} changed from ".($previous ?? 'unset').' to '.($value ?? 'blank');
         }
 
-        if ($usdUgx !== null && $usdUgx !== '') {
-            $before = ExchangeRate::usdToUgx();
-            ExchangeRate::setPair('USD', 'UGX', (float) $usdUgx);
-            $changes[] = 'USD to UGX rate changed from '.($before ?? 'unset').' to '.$usdUgx;
+        if ($ugxSell !== null) {
+            $before = ExchangeRate::usdUgxPair();
+            // The customer-facing figure keeps driving every conversion; the buying rate only measures margin.
+            ExchangeRate::setPair('USD', 'UGX', $ugxSell, $ugxBuy ?? $ugxSell, $ugxSell);
+            $changes[] = 'USD to UGX selling rate changed from '.($before['sell'] ?? 'unset').' to '.$ugxSell
+                .($ugxBuy !== null ? ', buying rate to '.$ugxBuy : '');
         }
 
-        if ($usdRmb !== null && $usdRmb !== '') {
-            $before = ExchangeRate::getActiveRate('USD', 'RMB');
-            ExchangeRate::setPair('USD', 'RMB', (float) $usdRmb);
-            $changes[] = 'USD to RMB rate changed from '.($before?->rate ?? 'unset').' to '.$usdRmb;
+        if ($rmbSell !== null) {
+            $before = ExchangeRate::pair('USD', 'RMB');
+            ExchangeRate::setPair('USD', 'RMB', $rmbSell, $rmbBuy ?? $rmbSell, $rmbSell);
+            $changes[] = 'USD to RMB selling rate changed from '.($before['sell'] ?? 'unset').' to '.$rmbSell
+                .($rmbBuy !== null ? ', buying rate to '.$rmbBuy : '');
         }
 
         if ($changes) {
@@ -84,5 +107,15 @@ class SettingController extends Controller
         }
 
         return back()->with('success', 'Settings updated successfully.');
+    }
+
+    /**
+     * A blank rate box means "leave that rate alone", not "set it to zero".
+     */
+    private function rateInput(Request $request, string $key): ?float
+    {
+        $value = trim((string) $request->input($key, ''));
+
+        return $value === '' ? null : (float) $value;
     }
 }

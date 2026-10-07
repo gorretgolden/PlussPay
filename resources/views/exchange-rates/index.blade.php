@@ -38,7 +38,7 @@
 
 <div class="bg-white rounded-lg shadow p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-4">Add / Update Rate</h2>
-    <form method="POST" action="{{ route('exchange-rates.store') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <form method="POST" action="{{ route('exchange-rates.store') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
         @csrf
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">From Currency</label>
@@ -57,14 +57,20 @@
             </select>
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Rate</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Selling rate</label>
             <input type="number" name="rate" step="0.000001" required
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Buying rate</label>
+            <input type="number" name="buy_rate" step="0.000001"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
         </div>
         <div class="flex items-end">
             <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Save Rate</button>
         </div>
     </form>
+    <p class="text-xs text-gray-500 mt-3">The selling rate is what customers are quoted and is used for every conversion. The buying rate is what the dollar costs you, and only measures profit. Leave it blank to make both the same.</p>
 </div>
 
 <div class="bg-white rounded-lg shadow overflow-x-auto">
@@ -73,7 +79,9 @@
             <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">From</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">To</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rate</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Selling</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Buying</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Margin</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Updated</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -84,7 +92,12 @@
             <tr>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $rate->from_currency }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $rate->to_currency }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900 font-medium">{{ rtrim(rtrim(number_format((float) $rate->rate, 6, '.', ''), '0'), '.') }}</td>
+                @php $trim = fn ($v) => rtrim(rtrim(number_format((float) $v, 6, '.', ''), '0'), '.'); @endphp
+                <td class="px-6 py-4 text-sm text-gray-900 font-medium">{{ $trim($rate->sell_rate ?? $rate->rate) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">{{ $rate->buy_rate === null ? 'Not set' : $trim($rate->buy_rate) }}</td>
+                <td class="px-6 py-4 text-sm {{ ($rate->buy_rate === null) ? 'text-gray-400' : (((float) ($rate->sell_rate ?? $rate->rate) - (float) $rate->buy_rate) >= 0 ? 'text-green-700' : 'text-red-600') }}">
+                    {{ $rate->buy_rate === null ? '-' : $trim((float) ($rate->sell_rate ?? $rate->rate) - (float) $rate->buy_rate) }}
+                </td>
                 <td class="px-6 py-4">
                     <span class="px-2 py-1 text-xs rounded-full {{ $rate->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
                         {{ $rate->is_active ? 'Active' : 'Inactive' }}
@@ -103,7 +116,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="6" class="px-6 py-8 text-center text-gray-500">No exchange rates configured.</td>
+                <td colspan="8" class="px-6 py-8 text-center text-gray-500">No exchange rates configured.</td>
             </tr>
             @endforelse
         </tbody>

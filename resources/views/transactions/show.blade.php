@@ -50,6 +50,35 @@
         </div>
     </div>
 
+    @role('admin|superadmin')
+    @php
+        $trim = fn ($v) => rtrim(rtrim(number_format((float) $v, 4, '.', ''), '0'), '.');
+        $marginPerUsd = ($transaction->rate_sell_ugx && $transaction->rate_buy_ugx)
+            ? (float) $transaction->rate_sell_ugx - (float) $transaction->rate_buy_ugx
+            : null;
+        $totalProfitUgx = (float) $transaction->charge_ugx + (float) $transaction->fx_profit_ugx;
+        $totalProfitUsd = (float) $transaction->charge_amount + (float) $transaction->fx_profit_usd;
+    @endphp
+    <div class="border-t pt-4 mb-6">
+        <h3 class="text-sm font-medium text-gray-500 mb-3">Profit (admin only, never shown on a receipt)</h3>
+        <div class="grid grid-cols-2 gap-4 text-sm">
+            <div><span class="text-gray-500">Selling rate used:</span> UGX {{ $trim($transaction->rate_sell_ugx) }} per 1 USD</div>
+            <div><span class="text-gray-500">Buying rate:</span> UGX {{ $trim($transaction->rate_buy_ugx) }} per 1 USD</div>
+            <div><span class="text-gray-500">Profit on each dollar:</span> UGX {{ $marginPerUsd === null ? 'not set' : number_format($marginPerUsd, 2) }}</div>
+            <div><span class="text-gray-500">Dollars moved:</span> ${{ number_format($transaction->total_usd_equivalent, 2) }}</div>
+            <div><span class="text-gray-500">FX profit:</span> UGX {{ number_format((float) $transaction->fx_profit_ugx) }}</div>
+            <div><span class="text-gray-500">Service fee:</span> UGX {{ number_format((float) $transaction->charge_ugx) }}</div>
+            <div class="col-span-2 pt-2 border-t text-base font-semibold text-gray-900">
+                Total profit: UGX {{ number_format($totalProfitUgx) }}
+                <span class="text-sm font-normal text-gray-500">= ${{ number_format($totalProfitUsd, 2) }} (fee ${{ number_format((float) $transaction->charge_amount, 2) }} + FX ${{ number_format((float) $transaction->fx_profit_usd, 2) }})</span>
+            </div>
+        </div>
+        @if($marginPerUsd === null)
+            <p class="text-xs text-amber-700 mt-2">No buying rate was recorded on this transfer, so only the service fee counts as profit here. Set both rates in System Settings for new transfers.</p>
+        @endif
+    </div>
+    @endrole
+
     @if($transaction->notes)
     <div class="border-t pt-4">
         <h3 class="text-sm font-medium text-gray-500 mb-1">Notes</h3>

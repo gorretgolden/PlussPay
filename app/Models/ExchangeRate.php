@@ -12,11 +12,15 @@ class ExchangeRate extends Model
         'from_currency',
         'to_currency',
         'rate',
+        'buy_rate',
+        'sell_rate',
         'is_active',
     ];
 
     protected $casts = [
         'rate' => 'decimal:6',
+        'buy_rate' => 'decimal:6',
+        'sell_rate' => 'decimal:6',
         'is_active' => 'boolean',
     ];
 
@@ -60,7 +64,49 @@ class ExchangeRate extends Model
             ->first();
     }
 
-    public static function setPair(string $from, string $to, float $rate): self
+    /**
+     * The two prices for a pair: what one unit costs us to obtain (buy) and what we
+     * hand over in exchange for it (sell). A pair saved before the split only has one
+     * figure, so both sides report that figure and the margin comes out as zero rather
+     * than breaking the conversion.
+     *
+     * @return array{buy: float, sell: float}|null
+     */
+    public static function pair(string $from, string $to): ?array
+    {
+        $row = static::getActiveRate($from, $to);
+        if (! $row) {
+            return null;
+        }
+
+        $sell = (float) ($row->sell_rate ?: $row->rate);
+        $buy = (float) ($row->buy_rate ?: $sell);
+
+        return ['buy' => $buy, 'sell' => $sell];
+    }
+
+    /**
+     * @return array{buy: float, sell: float}|null
+     */
+    public static function usdUgxPair(): ?array
+    {
+        $direct = static::pair('USD', 'UGX');
+        if ($direct) {
+            return $direct;
+        }
+
+        // Only the inverse quote is stored, so there is no spread to recover from it.
+        $inverse = static::getActiveRate('UGX', 'USD');
+        if ($inverse && (float) $inverse->rate > 0) {
+            $rate = 1 / (float) $inverse->rate;
+
+            return ['buy' => $rate, 'sell' => $rate];
+        }
+
+        return null;
+    }
+
+    public static function setPair(string $from, string $to, float $rate, ?float $buy = null, ?float $sell = null): self
     {
         static::where('from_currency', $from)->where('to_currency', $to)->update(['is_active' => false]);
 
@@ -68,6 +114,8 @@ class ExchangeRate extends Model
             'from_currency' => strtoupper($from),
             'to_currency' => strtoupper($to),
             'rate' => $rate,
+            'buy_rate' => $buy,
+            'sell_rate' => $sell ?? $rate,
             'is_active' => true,
         ]);
     }

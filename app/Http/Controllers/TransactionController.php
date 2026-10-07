@@ -72,6 +72,30 @@ class TransactionController extends Controller
         ];
     }
 
+    /**
+     * Margin made on the currency itself: these dollars are priced to the customer at the
+     * selling rate and cost the buying rate to obtain, so the gap times the dollars is what
+     * one transfer earns before any service fee.
+     *
+     * @return array{buy: float|null, sell: float|null, ugx: string, usd: string}
+     */
+    private function fxProfit(string $usdEquivalent): array
+    {
+        $pair = ExchangeRate::usdUgxPair();
+        if (! $pair || $pair['sell'] <= 0) {
+            return ['buy' => null, 'sell' => null, 'ugx' => '0.00', 'usd' => '0.00'];
+        }
+
+        $ugx = bcmul($usdEquivalent, bcsub((string) $pair['sell'], (string) $pair['buy'], 6), 2);
+
+        return [
+            'buy' => $pair['buy'],
+            'sell' => $pair['sell'],
+            'ugx' => $ugx,
+            'usd' => bcdiv($ugx, (string) $pair['sell'], 2),
+        ];
+    }
+
     public function store(Request $request)
     {
         $minAmount = (float) \App\Models\Setting::get('min_transaction_amount', 100);
@@ -130,6 +154,7 @@ class TransactionController extends Controller
         if ($fee === null) {
             return back()->withErrors(['exchange_rate' => 'UGX rate not set. The service fee cannot be calculated.'])->withInput();
         }
+        $fx = $this->fxProfit($usdEquivalent);
 
         $purpose = $validated['purpose'] ?? null;
         if ($purpose === 'Other') {
@@ -144,10 +169,14 @@ class TransactionController extends Controller
             'currency' => $currency,
             'amount' => $amount,
             'exchange_rate' => $usdToRmbRate->rate,
+            'rate_buy_ugx' => $fx['buy'],
+            'rate_sell_ugx' => $fx['sell'],
             'rmb_amount' => $rmbAmount,
             'charge_rate' => $fee['rate'],
             'charge_amount' => $fee['usd'],
             'charge_ugx' => $fee['ugx'],
+            'fx_profit_ugx' => $fx['ugx'],
+            'fx_profit_usd' => $fx['usd'],
             'total_usd_equivalent' => $usdEquivalent,
             'status' => auth()->user()->hasRole(['admin', 'superadmin']) ? 'completed' : 'pending',
             'created_by' => auth()->id(),
@@ -304,6 +333,7 @@ class TransactionController extends Controller
                     $errors[] = "Row {$rowNumber}: UGX to USD rate not set";
                     continue;
                 }
+                $fx = $this->fxProfit($usdEquivalent);
 
                 try {
                     $transaction = Transaction::createWithReceiptNumber([
@@ -314,10 +344,14 @@ class TransactionController extends Controller
                         'currency' => $currency,
                         'amount' => $amount,
                         'exchange_rate' => $usdToRmbRate->rate,
+                        'rate_buy_ugx' => $fx['buy'],
+                        'rate_sell_ugx' => $fx['sell'],
                         'rmb_amount' => $rmbAmount,
                         'charge_rate' => $fee['rate'],
                         'charge_amount' => $fee['usd'],
                         'charge_ugx' => $fee['ugx'],
+                        'fx_profit_ugx' => $fx['ugx'],
+                        'fx_profit_usd' => $fx['usd'],
                         'total_usd_equivalent' => $usdEquivalent,
                         'status' => 'completed',
                         'created_by' => auth()->id(),
