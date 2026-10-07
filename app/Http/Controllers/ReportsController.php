@@ -156,7 +156,7 @@ class ReportsController extends Controller
             // Text cells are forced to TYPE_STRING so a name starting with =, + or @
             // cannot become an executable formula when the report is opened.
             $this->putText($sheet, 'A' . $row, (string) $t->receipt_number);
-            $this->putText($sheet, 'B' . $row, $t->created_at->format('Y-m-d H:i'));
+            $this->putText($sheet, 'B' . $row, $t->created_at->format('Y-m-d h:i A'));
             $this->putText($sheet, 'C' . $row, (string) $t->sender_name);
             $this->putText($sheet, 'D' . $row, (string) $t->sender_contact);
             $this->putText($sheet, 'E' . $row, (string) $t->receiver_name);

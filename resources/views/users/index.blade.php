@@ -76,7 +76,7 @@
                     @endif
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-500">
-                    {{ $user->last_login_at ? $user->last_login_at->format('M d, H:i') : 'Never' }}
+                    {{ $user->last_login_at ? $user->last_login_at->format('M d, h:i A') : 'Never' }}
                 </td>
                 <td data-row-menu-host class="px-4 py-3 text-right relative">
                     <button type="button" onclick="toggleMenu({{ $user->id }})" class="p-1 rounded hover:bg-gray-100">

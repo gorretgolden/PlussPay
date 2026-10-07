@@ -103,7 +103,7 @@
                         {{ $rate->is_active ? 'Active' : 'Inactive' }}
                     </span>
                 </td>
-                <td class="px-6 py-4 text-sm text-gray-500">{{ $rate->updated_at->format('M d, Y H:i') }}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">{{ $rate->updated_at->format('M d, Y h:i A') }}</td>
                 <td class="px-6 py-4 text-sm">
                     <form method="POST" action="{{ route('exchange-rates.toggle', $rate) }}" class="inline">
                         @csrf

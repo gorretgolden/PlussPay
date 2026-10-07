@@ -6,7 +6,7 @@
 <div class="mb-6 flex justify-between items-center">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Transaction: {{ $transaction->receipt_number }}</h1>
-        <p class="text-gray-600">{{ $transaction->created_at->format('M d, Y H:i') }}</p>
+        <p class="text-gray-600">{{ $transaction->created_at->format('M d, Y h:i A') }}</p>
     </div>
     <div class="flex gap-2">
         <a href="{{ route('receipts.print', $transaction->receipt_number) }}" target="_blank"

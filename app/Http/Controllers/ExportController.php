@@ -28,7 +28,7 @@ class ExportController extends Controller
             ->get()
             ->map(fn($t) => [
                 $t->receipt_number,
-                $t->created_at->format('Y-m-d H:i'),
+                $t->created_at->format('Y-m-d h:i A'),
                 $t->sender_name,
                 $t->sender_contact,
                 $t->receiver_name,
@@ -62,7 +62,7 @@ class ExportController extends Controller
             ->get()
             ->map(fn($t) => [
                 $t->receipt_number,
-                $t->created_at->format('Y-m-d H:i'),
+                $t->created_at->format('Y-m-d h:i A'),
                 $t->sender_name,
                 $t->receiver_name,
                 $t->currency . ' ' . number_format((float) $t->amount, 2),
@@ -89,7 +89,7 @@ class ExportController extends Controller
                 RolePermissionController::displayName($u->getRoleNames()->first() ?? ''),
                 $u->is_active ? 'Active' : 'Inactive',
                 $u->isLocked() ? 'Locked' : 'Unlocked',
-                $u->last_login_at?->format('Y-m-d H:i') ?? 'Never',
+                $u->last_login_at?->format('Y-m-d h:i A') ?? 'Never',
                 $u->created_at->format('Y-m-d'),
             ])
             ->all();
@@ -127,7 +127,7 @@ class ExportController extends Controller
             ->latest()
             ->get()
             ->map(fn($log) => [
-                $log->created_at->format('Y-m-d H:i'),
+                $log->created_at->format('Y-m-d h:i A'),
                 $log->user?->name ?? 'System',
                 $log->action,
                 $log->description ?? '-',
@@ -148,7 +148,7 @@ class ExportController extends Controller
             ->latest()
             ->get()
             ->map(fn($log) => [
-                $log->created_at->format('Y-m-d H:i'),
+                $log->created_at->format('Y-m-d h:i A'),
                 $log->user?->name ?? 'System',
                 $log->user?->email ?? '-',
                 ucfirst($log->action),
@@ -197,7 +197,7 @@ class ExportController extends Controller
                 $r->buy_rate,
                 $r->buy_rate === null ? null : (float) ($r->sell_rate ?? $r->rate) - (float) $r->buy_rate,
                 $r->is_active ? 'Active' : 'Inactive',
-                $r->updated_at->format('Y-m-d H:i'),
+                $r->updated_at->format('Y-m-d h:i A'),
             ])
             ->all();
 

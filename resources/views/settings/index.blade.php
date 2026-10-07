@@ -177,7 +177,7 @@
             </div>
         </div>
         @if($usdToRmb)
-            <p class="text-xs text-gray-400 mt-3">Saved as new active rates. The old ones stay in the history, last change {{ optional($usdToRmb)->created_at?->format('M d, Y H:i') }}.</p>
+            <p class="text-xs text-gray-400 mt-3">Saved as new active rates. The old ones stay in the history, last change {{ optional($usdToRmb)->created_at?->format('M d, Y h:i A') }}.</p>
         @endif
     </div>
 
