@@ -16,6 +16,23 @@
     </div>
 </div>
 
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    @foreach($wallets as $currency => $account)
+    <a href="{{ route('wallet.index') }}" class="bg-white rounded-lg shadow p-5 hover:shadow-lg transition-shadow block">
+        <div class="text-sm text-gray-500 uppercase tracking-wide">{{ $currency }} Wallet</div>
+        <div class="text-2xl font-bold text-gray-900 mt-1">
+            @if($currency === 'UGX')
+                UGX {{ number_format((float) $account->balance(), 0) }}
+            @elseif($currency === 'RMB')
+                &yen;{{ number_format((float) $account->balance(), 2) }}
+            @else
+                ${{ number_format((float) $account->balance(), 2) }}
+            @endif
+        </div>
+    </a>
+    @endforeach
+</div>
+
 <div class="bg-green-800 rounded-lg shadow p-6 mb-6">
     <h2 class="text-white text-lg font-semibold mb-4">Today's Summary</h2>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -88,12 +88,116 @@ class RolePermissionController extends Controller
         return redirect()->route('admin.roles')->with('success', 'Role deleted successfully.');
     }
 
-    public function permissions()
+    public function permissions(Request $request)
     {
-        $permissions = Permission::orderBy('name')->get();
-        $roles = Role::all();
+        $query = Permission::orderBy('name');
 
-        return view('admin.permissions', compact('permissions', 'roles'));
+        if ($search = $request->input('search')) {
+            $query->where('name', 'like', "%{$search}%");
+        }
+
+        $permissions = $query->paginate(25)->withQueryString();
+        $roles = Role::with('permissions')->get();
+        $totalPermissions = Permission::count();
+
+        return view('admin.permissions', compact('permissions', 'roles', 'totalPermissions'));
+    }
+
+    public function toggleRolePermission(Request $request, Permission $permission, Role $role)
+    {
+        if ($role->name === 'superadmin' && !auth()->user()->hasRole('superadmin')) {
+            return response()->json(['error' => 'Only superadmins can change Super Admin permissions.'], 403);
+        }
+
+        $before = $role->hasPermissionTo($permission);
+
+        if ($before) {
+            $role->revokePermissionTo($permission);
+        } else {
+            $role->givePermissionTo($permission);
+        }
+
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'role_permission_toggled',
+            'description' => ($before ? 'Revoked' : 'Granted') . " {$permission->name} " . ($before ? 'from' : 'to') . " role {$role->name}",
+            'old_value' => $before ? 'granted' : 'revoked',
+            'new_value' => $before ? 'revoked' : 'granted',
+        ]);
+
+        return response()->json(['granted' => !$before]);
+    }
+
+    public function storePermission(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100|unique:permissions,name',
+        ], [
+            'name.unique' => 'A permission with this name already exists.',
+        ]);
+
+        $name = strtolower(str_replace(' ', '-', $validated['name']));
+        $permission = Permission::create(['name' => $name, 'guard_name' => 'web']);
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'permission_created',
+            'description' => "Permission {$permission->name} created",
+            'new_value' => $permission->name,
+        ]);
+
+        return redirect()->route('admin.permissions')->with('success', "Permission \"{$permission->name}\" created.");
+    }
+
+    public function updatePermission(Request $request, Permission $permission)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100|unique:permissions,name,' . $permission->id,
+        ], [
+            'name.unique' => 'A permission with this name already exists.',
+        ]);
+
+        $oldName = $permission->name;
+        $newName = strtolower(str_replace(' ', '-', $validated['name']));
+        $permission->update(['name' => $newName]);
+
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'permission_updated',
+            'description' => "Permission renamed from {$oldName} to {$newName}",
+            'old_value' => $oldName,
+            'new_value' => $newName,
+        ]);
+
+        return redirect()->route('admin.permissions')->with('success', "Permission renamed to \"{$newName}\".");
+    }
+
+    public function destroyPermission(Permission $permission)
+    {
+        $roleCount = $permission->roles()->count();
+        $userCount = \DB::table('model_has_permissions')
+            ->where('permission_id', $permission->id)
+            ->count();
+
+        if ($roleCount > 0 || $userCount > 0) {
+            return back()->withErrors(['error' => "Cannot delete \"{$permission->name}\": assigned to {$roleCount} role(s) and {$userCount} user(s). Remove it from all roles and users first."]);
+        }
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'permission_deleted',
+            'description' => "Permission {$permission->name} deleted",
+            'old_value' => $permission->name,
+        ]);
+
+        $permission->delete();
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
+        return redirect()->route('admin.permissions')->with('success', 'Permission deleted successfully.');
     }
 
     public static function displayName(string $slug): string

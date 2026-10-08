@@ -14,6 +14,7 @@ class TransactionObserver
     {
         if ($transaction->status === 'completed') {
             AccountLedger::postCompletedTransfer($transaction);
+            AccountLedger::postAgentFee($transaction);
         }
     }
 
@@ -25,12 +26,14 @@ class TransactionObserver
 
         if ($transaction->status === 'completed') {
             AccountLedger::postCompletedTransfer($transaction);
+            AccountLedger::postAgentFee($transaction);
 
             return;
         }
 
         if ($transaction->getOriginal('status') === 'completed') {
             AccountLedger::reverseCompletedTransfer($transaction);
+            AccountLedger::reverseAgentFee($transaction);
         }
     }
 
@@ -38,6 +41,7 @@ class TransactionObserver
     {
         if ($transaction->status === 'completed') {
             AccountLedger::reverseCompletedTransfer($transaction);
+            AccountLedger::reverseAgentFee($transaction);
         }
     }
 }

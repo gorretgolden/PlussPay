@@ -75,11 +75,11 @@ class SystemAccountsTest extends TestCase
 
         // UGX 3,760,000 handed over plus the UGX 20,000 fee.
         $this->assertSame('3780000.00', $this->ugxCash()->balance());
-        $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->count());
+        $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'money_in')->count());
 
         // Re-running the posting must not double count.
         AccountLedger::postCompletedTransfer($transaction);
-        $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->count());
+        $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'money_in')->count());
     }
 
     public function test_cancelling_a_completed_transfer_takes_the_money_back_out(): void
@@ -101,7 +101,7 @@ class SystemAccountsTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame('0.00', $this->ugxCash()->balance());
-        $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->where('direction', 'out')->count());
+        $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'reversal')->count());
     }
 
     public function test_sending_dollars_to_china_moves_the_same_amount_across_both_accounts(): void

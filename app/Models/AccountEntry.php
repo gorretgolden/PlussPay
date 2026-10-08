@@ -24,6 +24,8 @@ class AccountEntry extends Model
         'adjustment_in' => ['label' => 'Correction (adds money)', 'direction' => 'in', 'group' => 'single'],
         'adjustment_out' => ['label' => 'Correction (removes money)', 'direction' => 'out', 'group' => 'single'],
         'reversal' => ['label' => 'Cancelled transfer', 'direction' => 'out', 'group' => 'single'],
+        'agent_fee' => ['label' => 'Agent commission', 'direction' => 'in', 'group' => 'single'],
+        'agent_fee_reversal' => ['label' => 'Reversed agent commission', 'direction' => 'out', 'group' => 'single'],
     ];
 
     protected $fillable = [

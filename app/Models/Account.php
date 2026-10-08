@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
 
@@ -16,6 +17,7 @@ class Account extends Model
 
     protected $fillable = [
         'code',
+        'owner_id',
         'name',
         'country',
         'currency',
@@ -163,5 +165,56 @@ class Account extends Model
         }
 
         return (string) ($query->sum('amount') ?? '0');
+    }
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function isWallet(): bool
+    {
+        return $this->owner_id !== null;
+    }
+
+    /**
+     * Get or create the wallet account for a given user and currency.
+     */
+    public static function walletFor(User $user, string $currency): self
+    {
+        return static::firstOrCreate(
+            ['owner_id' => $user->id, 'currency' => strtoupper($currency)],
+            [
+                'code' => 'W-' . strtoupper($currency) . '-' . $user->id,
+                'name' => $user->name . ' (' . strtoupper($currency) . ')',
+                'country' => 'UG',
+                'is_active' => true,
+            ]
+        );
+    }
+
+    /**
+     * All three wallet accounts for a user, created on demand.
+     *
+     * @return array<string, self>
+     */
+    public static function walletsFor(User $user): array
+    {
+        $wallets = [];
+        foreach (['UGX', 'USD', 'RMB'] as $currency) {
+            $wallets[$currency] = static::walletFor($user, $currency);
+        }
+
+        return $wallets;
+    }
+
+    public function scopeCompanyAccounts(Builder $query): Builder
+    {
+        return $query->whereNull('owner_id');
+    }
+
+    public function scopeAgentWallets(Builder $query): Builder
+    {
+        return $query->whereNotNull('owner_id');
     }
 }

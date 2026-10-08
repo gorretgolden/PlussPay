@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -115,6 +116,82 @@ class AccountLedger
             "Transfer {$transaction->receipt_number} collected from {$transaction->sender_name}"
                 .(bccomp($fee, '0', 2) > 0 ? ' (includes '.$currency.' '.number_format((float) $fee, 2).' fee)' : ''),
             $transaction->created_at?->toDateString(),
+            $transaction->receipt_number,
+            $transaction->id,
+        );
+    }
+
+    /**
+     * The agent who created the transfer earns the service fee in their UGX wallet.
+     */
+    public static function postAgentFee(Transaction $transaction): void
+    {
+        if (! $transaction->created_by) {
+            return;
+        }
+
+        $fee = (string) $transaction->charge_ugx;
+
+        if (bccomp($fee, '0', 2) <= 0) {
+            return;
+        }
+
+        $alreadyPosted = AccountEntry::where('transaction_id', $transaction->id)
+            ->where('type', 'agent_fee')
+            ->exists();
+
+        if ($alreadyPosted) {
+            return;
+        }
+
+        $agent = User::find($transaction->created_by);
+
+        if (! $agent) {
+            return;
+        }
+
+        $wallet = Account::walletFor($agent, 'UGX');
+
+        static::record(
+            $wallet,
+            'agent_fee',
+            $fee,
+            "Commission on transfer {$transaction->receipt_number}",
+            $transaction->created_at?->toDateString(),
+            $transaction->receipt_number,
+            $transaction->id,
+        );
+    }
+
+    /**
+     * A cancelled transfer takes back the agent's commission too.
+     */
+    public static function reverseAgentFee(Transaction $transaction): void
+    {
+        $deposit = AccountEntry::where('transaction_id', $transaction->id)
+            ->where('type', 'agent_fee')
+            ->first();
+
+        if (! $deposit) {
+            return;
+        }
+
+        $reversed = AccountEntry::where('transaction_id', $transaction->id)
+            ->where('type', 'agent_fee_reversal')
+            ->exists();
+
+        if ($reversed) {
+            return;
+        }
+
+        $wallet = Account::find($deposit->account_id);
+
+        static::record(
+            $wallet ?? Account::walletFor(User::find($transaction->created_by), 'UGX'),
+            'agent_fee_reversal',
+            (string) $deposit->amount,
+            "Reversed commission on cancelled transfer {$transaction->receipt_number}",
+            now()->toDateString(),
             $transaction->receipt_number,
             $transaction->id,
         );

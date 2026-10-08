@@ -14,6 +14,7 @@ use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/admin/login', [AuthController::class, 'showLogin'])->name('login');
@@ -25,6 +26,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 Route::middleware(['auth', 'account.active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
 
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
     Route::get('/transactions/create', [TransactionController::class, 'create'])->name('transactions.create');
@@ -89,6 +91,10 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::put('/admin/roles/{role}', [RolePermissionController::class, 'update'])->name('admin.roles.update');
         Route::delete('/admin/roles/{role}', [RolePermissionController::class, 'destroy'])->name('admin.roles.destroy');
         Route::get('/admin/permissions', [RolePermissionController::class, 'permissions'])->name('admin.permissions');
+        Route::post('/admin/permissions', [RolePermissionController::class, 'storePermission'])->name('admin.permissions.store');
+        Route::put('/admin/permissions/{permission}', [RolePermissionController::class, 'updatePermission'])->name('admin.permissions.update');
+        Route::delete('/admin/permissions/{permission}', [RolePermissionController::class, 'destroyPermission'])->name('admin.permissions.destroy');
+        Route::post('/admin/permissions/{permission}/roles/{role}/toggle', [RolePermissionController::class, 'toggleRolePermission'])->name('admin.permissions.toggle-role');
 
         Route::get('/admin/activity-logs', [AuditLogController::class, 'activityLogs'])->name('admin.activity-logs');
         Route::get('/admin/login-logs', [AuditLogController::class, 'loginLogs'])->name('admin.login-logs');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Account;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
@@ -58,7 +59,9 @@ class DashboardController extends Controller
             $chartData['revenue'] = array_map(fn($r) => round($r * $usdToUgx), $chartData['revenue']);
         }
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx'));
+        $wallets = Account::walletsFor($user);
+
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets'));
     }
 
     private function usdToUgxRate(): ?float
