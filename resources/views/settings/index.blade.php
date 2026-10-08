@@ -13,73 +13,6 @@
     @method('PUT')
 
     <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Company Information</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                <input type="text" name="company_name" value="{{ old('company_name', \App\Models\Setting::get('company_name', 'Plus Save Financial Solutions')) }}"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" name="company_email" value="{{ old('company_email', \App\Models\Setting::get('company_email')) }}"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Call / WhatsApp</label>
-                <input type="text" name="company_phone" value="{{ old('company_phone', \App\Models\Setting::get('company_phone')) }}"
-                    placeholder="+256 393 256 744"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <textarea name="company_address" rows="2"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">{{ old('company_address', \App\Models\Setting::get('company_address')) }}</textarea>
-                <p class="text-xs text-gray-500 mt-1">Each line prints separately on the receipt.</p>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Website</label>
-                <input type="text" name="company_website" value="{{ old('company_website', \App\Models\Setting::get('company_website')) }}"
-                    placeholder="www.example.com"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-                <p class="text-xs text-gray-500 mt-1">Company name, phone, address and website all print on receipts.</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Transaction Settings</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Service Fee (UGX)</label>
-                <input type="number" step="0.01" name="service_fee_ugx" value="{{ old('service_fee_ugx', \App\Models\Setting::get('service_fee_ugx', '2000')) }}"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Charged Per (USD)</label>
-                <input type="number" step="0.01" name="service_fee_usd" value="{{ old('service_fee_usd', \App\Models\Setting::get('service_fee_usd', '100')) }}"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-                <p class="text-xs text-gray-500 mt-1">The fee is charged for each block of this many dollars, and scales with the amount sent.</p>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Min Transaction Amount</label>
-                <input type="number" step="0.01" name="min_transaction_amount" value="{{ old('min_transaction_amount', \App\Models\Setting::get('min_transaction_amount', '100')) }}"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Max Transaction Amount</label>
-                <input type="number" step="0.01" name="max_transaction_amount" value="{{ old('max_transaction_amount', \App\Models\Setting::get('max_transaction_amount', '100000000')) }}"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Receipt Prefix</label>
-                <input type="text" name="receipt_prefix" value="{{ old('receipt_prefix', \App\Models\Setting::get('receipt_prefix', 'PS')) }}"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
-            </div>
-        </div>
-    </div>
-
-    <div class="bg-white rounded-lg shadow p-6">
         <div class="flex items-center justify-between mb-1">
             <h2 class="text-lg font-semibold text-gray-900">Currency Rates</h2>
             <a href="{{ route('exchange-rates.index') }}" class="text-xs text-green-700 underline hover:text-green-900">Rate history</a>
@@ -179,6 +112,73 @@
         @if($usdToRmb)
             <p class="text-xs text-gray-400 mt-3">Saved as new active rates. The old ones stay in the history, last change {{ optional($usdToRmb)->created_at?->format('M d, Y h:i A') }}.</p>
         @endif
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Transaction Settings</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Service Fee (UGX)</label>
+                <input type="number" step="0.01" min="0" name="service_fee_ugx" value="{{ old('service_fee_ugx', \App\Models\Setting::get('service_fee_ugx', '2000')) }}"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Charged Per (USD)</label>
+                <input type="number" step="0.01" min="0.01" name="service_fee_usd" value="{{ old('service_fee_usd', \App\Models\Setting::get('service_fee_usd', '100')) }}"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                <p class="text-xs text-gray-500 mt-1">The fee is charged for each block of this many dollars, and scales with the amount sent.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Min Transaction Amount</label>
+                <input type="number" step="0.01" min="0" name="min_transaction_amount" value="{{ old('min_transaction_amount', \App\Models\Setting::get('min_transaction_amount', '100')) }}"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Max Transaction Amount</label>
+                <input type="number" step="0.01" min="0" name="max_transaction_amount" value="{{ old('max_transaction_amount', \App\Models\Setting::get('max_transaction_amount', '100000000')) }}"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Receipt Prefix</label>
+                <input type="text" name="receipt_prefix" value="{{ old('receipt_prefix', \App\Models\Setting::get('receipt_prefix', 'PS')) }}"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Company Information</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                <input type="text" name="company_name" value="{{ old('company_name', \App\Models\Setting::get('company_name', 'Plus Save Financial Solutions')) }}"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" name="company_email" value="{{ old('company_email', \App\Models\Setting::get('company_email')) }}"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Call / WhatsApp</label>
+                <input type="text" name="company_phone" value="{{ old('company_phone', \App\Models\Setting::get('company_phone')) }}"
+                    placeholder="+256 393 256 744"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <textarea name="company_address" rows="2"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">{{ old('company_address', \App\Models\Setting::get('company_address')) }}</textarea>
+                <p class="text-xs text-gray-500 mt-1">Each line prints separately on the receipt.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                <input type="text" name="company_website" value="{{ old('company_website', \App\Models\Setting::get('company_website')) }}"
+                    placeholder="www.example.com"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                <p class="text-xs text-gray-500 mt-1">Company name, phone, address and website all print on receipts.</p>
+            </div>
+        </div>
     </div>
 
     <div class="flex justify-end">
