@@ -54,10 +54,42 @@
 </div>
 
 <div class="bg-white rounded-lg shadow">
+    {{-- Bulk Actions --}}
+    <div id="bulkBar" class="px-6 py-3 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center gap-3">
+        <span class="text-sm text-gray-700"><span id="bulkCount">0</span> selected</span>
+
+        <form method="POST" action="{{ route('admin.permissions.bulk') }}" id="bulkForm" class="flex flex-wrap items-center gap-2">
+            @csrf
+            <div id="bulkIds"></div>
+
+            <select name="role_id" class="text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                <option value="">Select role...</option>
+                @foreach($roles as $role)
+                <option value="{{ $role->id }}">{{ \App\Http\Controllers\RolePermissionController::displayName($role->name) }}</option>
+                @endforeach
+            </select>
+
+            <button type="submit" name="action" value="assign" class="bulk-action bg-green-800 text-white px-4 py-1.5 rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                Add to role
+            </button>
+            <button type="submit" name="action" value="remove" class="bulk-action bg-gray-600 text-white px-4 py-1.5 rounded-lg hover:bg-gray-500 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                Remove from role
+            </button>
+            <button type="submit" name="action" value="delete" class="bg-red-600 text-white px-4 py-1.5 rounded-lg hover:bg-red-500 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                Delete selected
+            </button>
+        </form>
+
+        <button type="button" id="clearSelection" class="text-sm text-gray-500 hover:text-gray-700 hidden">Clear selection</button>
+    </div>
+
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
+                    <th class="px-4 py-3 text-left">
+                        <input type="checkbox" id="selectAll" class="rounded border-gray-300 text-green-700 focus:ring-green-600">
+                    </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50 z-10">Permission</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                     @foreach($roles as $role)
@@ -75,6 +107,9 @@
                     $inUse = $roleCount > 0 || $userCount > 0;
                 @endphp
                 <tr data-id="{{ $permission->id }}">
+                    <td class="px-4 py-4">
+                        <input type="checkbox" name="perm_select" value="{{ $permission->id }}" class="perm-check rounded border-gray-300 text-green-700 focus:ring-green-600">
+                    </td>
                     <td class="px-6 py-4 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">{{ $permission->name }}</td>
                     <td class="px-6 py-4 text-sm text-gray-600">{{ ucwords(str_replace('-', ' ', $permission->name)) }}</td>
                     @foreach($roles as $role)
@@ -118,7 +153,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="{{ 4 + $roles->count() }}" class="px-6 py-8 text-center text-gray-500">
+                    <td colspan="{{ 5 + $roles->count() }}" class="px-6 py-8 text-center text-gray-500">
                         {{ request('search') ? 'No permissions match "' . e(request('search')) . '".' : 'No permissions found.' }}
                     </td>
                 </tr>
@@ -206,5 +241,48 @@
             .catch(() => alert('Failed to update permission.'));
         });
     });
+
+    const selectAll = document.getElementById('selectAll');
+    const checks = document.querySelectorAll('.perm-check');
+    const bulkIds = document.getElementById('bulkIds');
+    const bulkCount = document.getElementById('bulkCount');
+    const bulkForm = document.getElementById('bulkForm');
+    const clearBtn = document.getElementById('clearSelection');
+    const roleSelect = bulkForm.querySelector('select[name="role_id"]');
+
+    function refreshBulk() {
+        const picked = [...checks].filter(c => c.checked);
+        bulkIds.innerHTML = picked.map(c => '<input type="hidden" name="permission_ids[]" value="' + c.value + '">').join('');
+        bulkCount.textContent = picked.length;
+        clearBtn.classList.toggle('hidden', picked.length === 0);
+
+        const hasSelection = picked.length > 0;
+        bulkForm.querySelectorAll('.bulk-action').forEach(b => b.disabled = !(hasSelection && roleSelect.value));
+        bulkForm.querySelector('[value="delete"]').disabled = !hasSelection;
+        selectAll.checked = hasSelection && picked.length === checks.length;
+    }
+
+    checks.forEach(c => c.addEventListener('change', refreshBulk));
+    selectAll.addEventListener('change', () => {
+        checks.forEach(c => c.checked = selectAll.checked);
+        refreshBulk();
+    });
+    roleSelect.addEventListener('change', refreshBulk);
+    clearBtn.addEventListener('click', () => {
+        checks.forEach(c => c.checked = false);
+        selectAll.checked = false;
+        refreshBulk();
+    });
+
+    bulkForm.addEventListener('submit', e => {
+        const action = e.submitter ? e.submitter.value : '';
+        const n = bulkCount.textContent;
+        const msg = action === 'delete'
+            ? 'Delete ' + n + ' selected permission(s)? Those still in use by a role or user will be skipped.'
+            : (action === 'assign' ? 'Add ' : 'Remove ') + n + ' permission(s) ' + (action === 'assign' ? 'to' : 'from') + ' ' + roleSelect.options[roleSelect.selectedIndex].text + '?';
+        if (!confirm(msg)) e.preventDefault();
+    });
+
+    refreshBulk();
 </script>
 @endpush

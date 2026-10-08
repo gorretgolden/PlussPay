@@ -200,6 +200,79 @@ class RolePermissionController extends Controller
         return redirect()->route('admin.permissions')->with('success', 'Permission deleted successfully.');
     }
 
+    public function bulk(Request $request)
+    {
+        $validated = $request->validate([
+            'action' => 'required|in:assign,remove,delete',
+            'permission_ids' => 'required|array|min:1',
+            'permission_ids.*' => 'integer|exists:permissions,id',
+            'role_id' => 'required_if:action,assign,remove|integer|exists:roles,id',
+        ]);
+
+        $ids = collect($validated['permission_ids'])->unique()->values();
+        $permissions = Permission::whereIn('id', $ids)->get();
+        $action = $validated['action'];
+
+        if ($action === 'delete') {
+            $deletable = $permissions->filter(function ($permission) {
+                return $permission->roles()->count() === 0
+                    && \DB::table('model_has_permissions')->where('permission_id', $permission->id)->count() === 0;
+            });
+
+            $skipped = $permissions->count() - $deletable->count();
+
+            foreach ($deletable as $permission) {
+                ActivityLog::create([
+                    'user_id' => auth()->id(),
+                    'action' => 'permission_deleted',
+                    'description' => "Permission {$permission->name} deleted (bulk)",
+                    'old_value' => $permission->name,
+                ]);
+                $permission->delete();
+            }
+
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
+            $message = $deletable->count() . ' permission(s) deleted.';
+            if ($skipped > 0) {
+                return back()->with('success', $message)->withErrors(['error' => "{$skipped} permission(s) were skipped because they are still assigned to a role or user."]);
+            }
+
+            return back()->with('success', $message);
+        }
+
+        $role = Role::findOrFail($validated['role_id']);
+
+        if ($role->name === 'superadmin' && !auth()->user()->hasRole('superadmin')) {
+            return back()->withErrors(['error' => 'Only superadmins can change Super Admin permissions.']);
+        }
+
+        $changed = 0;
+
+        foreach ($permissions as $permission) {
+            $hasIt = $role->hasPermissionTo($permission);
+
+            if ($action === 'assign' && !$hasIt) {
+                $role->givePermissionTo($permission);
+                $changed++;
+            } elseif ($action === 'remove' && $hasIt) {
+                $role->revokePermissionTo($permission);
+                $changed++;
+            }
+        }
+
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'role_permissions_bulk_changed',
+            'description' => ucfirst($action) . " {$changed} permission(s) " . ($action === 'assign' ? 'to' : 'from') . " role {$role->name}",
+            'new_value' => json_encode($permissions->pluck('name')->all()),
+        ]);
+
+        return back()->with('success', "{$changed} permission(s) " . ($action === 'assign' ? "added to" : "removed from") . " {$this->displayName($role->name)}.");
+    }
+
     public static function displayName(string $slug): string
     {
         $map = [

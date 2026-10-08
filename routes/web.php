@@ -94,6 +94,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::post('/admin/permissions', [RolePermissionController::class, 'storePermission'])->name('admin.permissions.store');
         Route::put('/admin/permissions/{permission}', [RolePermissionController::class, 'updatePermission'])->name('admin.permissions.update');
         Route::delete('/admin/permissions/{permission}', [RolePermissionController::class, 'destroyPermission'])->name('admin.permissions.destroy');
+        Route::post('/admin/permissions/bulk', [RolePermissionController::class, 'bulk'])->name('admin.permissions.bulk');
         Route::post('/admin/permissions/{permission}/roles/{role}/toggle', [RolePermissionController::class, 'toggleRolePermission'])->name('admin.permissions.toggle-role');
 
         Route::get('/admin/activity-logs', [AuditLogController::class, 'activityLogs'])->name('admin.activity-logs');
