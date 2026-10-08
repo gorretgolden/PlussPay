@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -195,5 +197,61 @@ class RolePermissionTest extends TestCase
         ])->assertSessionHasErrors('error');
 
         $this->assertTrue($superadmin->hasPermissionTo('view-transactions'));
+    }
+
+    public function test_saving_a_role_with_a_long_permission_list_writes_the_whole_audit_entry(): void
+    {
+        $names = $this->manyPermissions(25);
+        $role = Role::where('name', 'staff')->firstOrFail();
+
+        $this->actingAs($this->superadmin())
+            ->put("/admin/roles/{$role->id}", ['permissions' => $names])
+            ->assertSessionHasNoErrors();
+
+        $entry = ActivityLog::where('action', 'role_permissions_changed')->latest('id')->firstOrFail();
+
+        $this->assertGreaterThan(255, strlen($entry->new_value));
+        $this->assertCount(25, json_decode($entry->new_value, true));
+    }
+
+    public function test_creating_a_role_with_a_long_permission_list_writes_the_whole_audit_entry(): void
+    {
+        $names = $this->manyPermissions(25);
+
+        $this->actingAs($this->superadmin())
+            ->post('/admin/roles', ['name' => 'Reconciliations', 'permissions' => $names])
+            ->assertSessionHasNoErrors();
+
+        $entry = ActivityLog::where('action', 'role_created')->latest('id')->firstOrFail();
+
+        $this->assertGreaterThan(255, strlen($entry->new_value));
+        $this->assertCount(25, json_decode($entry->new_value, true));
+    }
+
+    public function test_activity_log_value_columns_are_text_not_varchar(): void
+    {
+        $columns = collect(DB::getSchemaBuilder()->getColumns('activity_logs'))->keyBy('name');
+
+        foreach (['old_value', 'new_value'] as $column) {
+            $this->assertSame(
+                'text',
+                $columns[$column]['type'] ?? null,
+                "activity_logs.{$column} must be text: a JSON permission list overflows a 255 character column on MySQL."
+            );
+        }
+    }
+
+    /** @return array<int, string> */
+    private function manyPermissions(int $count): array
+    {
+        $names = [];
+
+        for ($i = 1; $i <= $count; $i++) {
+            $name = sprintf('manage-reconciliation-record-%02d', $i);
+            Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+            $names[] = $name;
+        }
+
+        return $names;
     }
 }
