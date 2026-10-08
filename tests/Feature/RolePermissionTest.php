@@ -128,6 +128,17 @@ class RolePermissionTest extends TestCase
             ->assertSee('value="Supervisor"', false);
     }
 
+    public function test_roles_can_be_searched_by_name_from_the_top_of_the_page(): void
+    {
+        $this->actingAs($this->superadmin())->post('/admin/roles', ['name' => 'Supervisor']);
+
+        $this->actingAs($this->superadmin())->get('/admin/roles')
+            ->assertOk()
+            ->assertSee('Search roles by name', false)
+            ->assertSee('data-role-name="superadmin super admin"', false)
+            ->assertSee('data-role-name="supervisor supervisor"', false);
+    }
+
     public function test_bulk_add_assigns_every_selected_permission_to_the_role(): void
     {
         $role = Role::where('name', 'staff')->firstOrFail();

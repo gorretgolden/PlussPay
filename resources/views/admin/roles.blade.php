@@ -22,10 +22,22 @@
 </div>
 @endif
 
+{{-- Role Search --}}
+<div class="mb-6 bg-white rounded-lg shadow p-4">
+    <div class="relative">
+        <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input type="text" id="roleSearch" autocomplete="off" placeholder="Search roles by name... e.g. superadmin"
+            class="w-full pl-10 pr-28 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+        <span id="roleSearchCount" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500"></span>
+    </div>
+</div>
+
 {{-- Role Cards --}}
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div id="roleCards" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     @foreach($roles as $role)
-    <div class="bg-white rounded-lg shadow">
+    <div class="bg-white rounded-lg shadow" data-role-name="{{ strtolower($role->name.' '.\App\Http\Controllers\RolePermissionController::displayName($role->name)) }}">
         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
             <div class="flex items-center gap-3">
                 <h3 class="text-lg font-semibold text-gray-900">{{ \App\Http\Controllers\RolePermissionController::displayName($role->name) }}</h3>
@@ -53,6 +65,10 @@
     </div>
     @endforeach
 </div>
+
+<p id="roleNoMatch" class="hidden bg-white rounded-lg shadow p-8 text-center text-sm text-gray-500">
+    No role called "<span id="roleNoMatchTerm"></span>".
+</p>
 
 {{-- Add Role Modal --}}
 <div id="addRoleModal" class="fixed inset-0 z-50 {{ $errors->any() ? '' : 'hidden' }}">
@@ -104,6 +120,25 @@
     addRoleModal.querySelectorAll('.modal-cancel').forEach(btn => btn.addEventListener('click', () => addRoleModal.classList.add('hidden')));
     addRoleModal.querySelector('.modal-backdrop').addEventListener('click', () => addRoleModal.classList.add('hidden'));
     document.addEventListener('keydown', e => { if (e.key === 'Escape') addRoleModal.classList.add('hidden'); });
+
+    const roleSearch = document.getElementById('roleSearch');
+    const roleCards = [...document.querySelectorAll('#roleCards [data-role-name]')];
+    const roleNoMatch = document.getElementById('roleNoMatch');
+
+    roleSearch.addEventListener('input', () => {
+        const q = roleSearch.value.trim().toLowerCase();
+        let shown = 0;
+
+        roleCards.forEach(card => {
+            const hit = !q || card.dataset.roleName.includes(q);
+            card.classList.toggle('hidden', !hit);
+            if (hit) shown++;
+        });
+
+        document.getElementById('roleNoMatchTerm').textContent = roleSearch.value.trim();
+        roleNoMatch.classList.toggle('hidden', shown !== 0);
+        document.getElementById('roleSearchCount').textContent = q ? shown + ' of ' + roleCards.length + ' roles' : '';
+    });
 
     document.querySelectorAll('.perm-picker').forEach(picker => {
         const boxes = picker.querySelectorAll('input[name="permissions[]"]');
