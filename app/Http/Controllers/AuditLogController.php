@@ -22,6 +22,13 @@ class AuditLogController extends Controller
         return view('admin.activity-logs', compact('logs', 'actions', 'users'));
     }
 
+    public function details(ActivityLog $activityLog)
+    {
+        $activityLog->load(['user', 'transaction']);
+
+        return view('admin.partials._activity-details', ['log' => $activityLog]);
+    }
+
     public function loginLogs(Request $request)
     {
         $logs = ActivityLog::with('user')

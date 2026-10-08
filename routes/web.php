@@ -98,6 +98,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::post('/admin/permissions/{permission}/roles/{role}/toggle', [RolePermissionController::class, 'toggleRolePermission'])->name('admin.permissions.toggle-role');
 
         Route::get('/admin/activity-logs', [AuditLogController::class, 'activityLogs'])->name('admin.activity-logs');
+        Route::get('/admin/activity-logs/{activityLog}/details', [AuditLogController::class, 'details'])->name('admin.activity-logs.details');
         Route::get('/admin/login-logs', [AuditLogController::class, 'loginLogs'])->name('admin.login-logs');
     });
 });

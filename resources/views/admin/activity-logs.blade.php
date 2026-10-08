@@ -64,6 +64,7 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transaction</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Details</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -82,10 +83,14 @@
                         -
                         @endif
                     </td>
+                    <td class="px-6 py-4 text-sm text-right">
+                        <button type="button" data-log-details="{{ route('admin.activity-logs.details', $log) }}"
+                            class="text-green-700 hover:text-green-900 hover:underline">View</button>
+                    </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="5" class="px-6 py-8 text-center text-gray-500">No activity logs found.</td>
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">No activity logs found.</td>
                 </tr>
                 @endforelse
             </tbody>
@@ -97,4 +102,59 @@
     </div>
     @endif
 </div>
+
+{{-- Log Details Modal --}}
+<div id="logDetailModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black bg-opacity-50 log-detail-close"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[85vh] pointer-events-auto">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-900">Change Details</h3>
+                <button type="button" class="log-detail-close text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+            </div>
+            <div id="logDetailBody" class="px-6 py-5 overflow-y-auto text-sm">
+                <p class="text-gray-500">Loading...</p>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
+                <button type="button" class="log-detail-close px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
+
+@push('scripts')
+<script>
+    const logDetailModal = document.getElementById('logDetailModal');
+    const logDetailBody = document.getElementById('logDetailBody');
+
+    const closeLogDetail = () => logDetailModal.classList.add('hidden');
+
+    document.querySelectorAll('[data-log-details]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            logDetailModal.classList.remove('hidden');
+            logDetailBody.innerHTML = '<p class="text-gray-500">Loading...</p>';
+
+            try {
+                const response = await fetch(button.dataset.logDetails, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+
+                logDetailBody.innerHTML = await response.text();
+            } catch (error) {
+                logDetailBody.innerHTML = '<p class="text-red-700">Could not load these details. Refresh the page and try again.</p>';
+            }
+        });
+    });
+
+    document.querySelectorAll('.log-detail-close').forEach((el) => el.addEventListener('click', closeLogDetail));
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeLogDetail();
+    });
+</script>
+@endpush

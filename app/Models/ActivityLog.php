@@ -11,11 +11,29 @@ class ActivityLog extends Model
     protected $fillable = [
         'transaction_id',
         'user_id',
+        'ip_address',
+        'request_path',
         'action',
         'description',
         'old_value',
         'new_value',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $log) {
+            $request = request();
+
+            // A resolved route means this came from a real HTTP request. Console
+            // and queue writes have one too, and recording it would be misleading.
+            if (! $request || ! $request->route()) {
+                return;
+            }
+
+            $log->ip_address ??= $request->ip();
+            $log->request_path ??= $request->method().' '.$request->path();
+        });
+    }
 
     public function transaction()
     {
@@ -64,5 +82,93 @@ class ActivityLog extends Model
             'action' => $action,
             'description' => $description,
         ]);
+    }
+
+    /**
+     * Turns the stored old_value/new_value pair into something renderable.
+     * The columns hold three shapes: a JSON object of fields, a JSON list of
+     * names, or a plain scalar such as a rate or a status.
+     */
+    public function changes(): array
+    {
+        $old = $this->decode($this->old_value);
+        $new = $this->decode($this->new_value);
+
+        if ($old === null && $new === null) {
+            return ['kind' => 'none'];
+        }
+
+        if (is_array($old) || is_array($new)) {
+            if ($this->isAssoc($old) || $this->isAssoc($new)) {
+                return ['kind' => 'fields', 'rows' => $this->fieldRows($old, $new)];
+            }
+
+            $old = is_array($old) ? $old : [];
+            $new = is_array($new) ? $new : [];
+
+            return [
+                'kind' => 'items',
+                'added' => array_values(array_diff($new, $old)),
+                'removed' => array_values(array_diff($old, $new)),
+                'kept' => array_values(array_intersect($old, $new)),
+            ];
+        }
+
+        return ['kind' => 'scalar', 'old' => $this->render($old), 'new' => $this->render($new)];
+    }
+
+    private function fieldRows($old, $new): array
+    {
+        $old = is_array($old) ? $old : [];
+        $new = is_array($new) ? $new : [];
+        $keys = array_unique(array_merge(array_keys($old), array_keys($new)));
+        $rows = [];
+
+        foreach ($keys as $key) {
+            $before = $this->render($old[$key] ?? null);
+            $after = $this->render($new[$key] ?? null);
+
+            $rows[] = [
+                'label' => ucwords(str_replace(['_', '-'], ' ', (string) $key)),
+                'old' => $before,
+                'new' => $after,
+                'changed' => $before !== $after,
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function decode(?string $value)
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $decoded = json_decode($value, true);
+
+        return json_last_error() === JSON_ERROR_NONE ? $decoded : $value;
+    }
+
+    private function isAssoc($value): bool
+    {
+        return is_array($value) && $value !== [] && array_keys($value) !== range(0, count($value) - 1);
+    }
+
+    private function render($value): string
+    {
+        if ($value === null || $value === '') {
+            return '-';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        if (is_array($value)) {
+            return implode(', ', array_map(fn ($item) => $this->render($item), $value));
+        }
+
+        return (string) $value;
     }
 }
