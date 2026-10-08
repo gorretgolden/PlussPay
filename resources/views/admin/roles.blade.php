@@ -6,23 +6,32 @@
 <div class="mb-6 flex justify-between items-center">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Roles & Permissions</h1>
-        <p class="text-gray-600">Manage roles and assign permissions</p>
+        <p class="text-gray-600">{{ $roles->count() }} role(s) &middot; {{ $permissions->flatten()->count() }} permission(s) available</p>
     </div>
 </div>
 
 {{-- Create Role --}}
-<div class="bg-white rounded-lg shadow p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-800 mb-4">Add New Role</h2>
-    <form method="POST" action="{{ route('admin.roles.store') }}" class="flex gap-3 items-end">
+<div class="bg-white rounded-lg shadow mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-800">Add New Role</h2>
+        <p class="text-sm text-gray-500">Name it and tick the permissions it should have, in one step.</p>
+    </div>
+    <form method="POST" action="{{ route('admin.roles.store') }}" class="role-perm-form pb-6">
         @csrf
-        <div class="flex-1">
+        <div class="px-6 pt-5 max-w-md">
             <label class="block text-sm font-medium text-gray-700 mb-1">Role Name</label>
-            <input type="text" name="name" required placeholder="e.g. Manager, Supervisor"
+            <input type="text" name="name" value="{{ old('name') }}" required placeholder="e.g. Manager, Supervisor"
                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            @error('name')
+            <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+            @enderror
         </div>
-        <button type="submit" class="bg-green-800 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-sm font-medium">
-            Create Role
-        </button>
+        @include('admin.partials._perm-picker', ['groups' => $permissions, 'checked' => old('permissions', [])])
+        <div class="px-6 pt-2">
+            <button type="submit" class="bg-green-800 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-sm font-medium">
+                Create Role
+            </button>
+        </div>
     </form>
 </div>
 
@@ -44,34 +53,11 @@
             </form>
             @endif
         </div>
-        <form method="POST" action="{{ route('admin.roles.update', $role) }}" class="role-perm-form">
+        <form method="POST" action="{{ route('admin.roles.update', $role) }}" class="role-perm-form pb-6">
             @csrf
             @method('PUT')
-            <div class="px-6 pt-4 flex items-center justify-between">
-                <span class="text-xs text-gray-500"><span class="perm-selected">0</span> of {{ $permissions->flatten()->count() }} selected</span>
-                <div class="flex gap-4 text-sm">
-                    <button type="button" data-check="true" class="text-green-800 hover:underline font-medium">Select all</button>
-                    <button type="button" data-check="false" class="text-red-600 hover:underline font-medium">Remove all</button>
-                </div>
-            </div>
-            <div class="p-6 max-h-96 overflow-y-auto space-y-4">
-                @foreach($permissions as $group => $perms)
-                <div>
-                    <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{{ ucwords(str_replace('-', ' ', $group)) }}</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-1">
-                        @foreach($perms as $permission)
-                        <label class="flex items-center gap-2 text-sm py-1">
-                            <input type="checkbox" name="permissions[]" value="{{ $permission->name }}"
-                                {{ $role->hasPermissionTo($permission->name) ? 'checked' : '' }}
-                                class="rounded border-gray-300 text-green-700 focus:ring-green-600">
-                            <span class="text-gray-700">{{ $permission->name }}</span>
-                        </label>
-                        @endforeach
-                    </div>
-                </div>
-                @endforeach
-            </div>
-            <div class="px-6 py-4 border-t border-gray-200">
+            @include('admin.partials._perm-picker', ['groups' => $permissions, 'checked' => $role->permissions->pluck('name')->all()])
+            <div class="px-6 pt-2">
                 <button type="submit" class="w-full bg-green-800 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 font-medium">
                     Save Permissions
                 </button>
@@ -84,18 +70,43 @@
 
 @push('scripts')
 <script>
-    document.querySelectorAll('.role-perm-form').forEach(form => {
-        const boxes = form.querySelectorAll('input[name="permissions[]"]');
-        const counter = form.querySelector('.perm-selected');
+    document.querySelectorAll('.perm-picker').forEach(picker => {
+        const boxes = picker.querySelectorAll('input[name="permissions[]"]');
+        const items = [...picker.querySelectorAll('.perm-item')];
+        const groups = [...picker.querySelectorAll('.perm-group')];
+        const counter = picker.querySelector('.perm-selected');
+        const filter = picker.querySelector('.perm-filter');
+        const noMatch = picker.querySelector('.perm-no-match');
 
         function refresh() {
-            counter.textContent = form.querySelectorAll('input[name="permissions[]"]:checked').length;
+            counter.textContent = items.filter(i => i.querySelector('input').checked).length;
         }
-        form.querySelectorAll('[data-check]').forEach(btn => btn.addEventListener('click', () => {
+
+        filter.addEventListener('input', () => {
+            const q = filter.value.trim().toLowerCase();
+            let visible = 0;
+
+            items.forEach(item => {
+                const hit = !q || item.dataset.name.toLowerCase().includes(q);
+                item.classList.toggle('hidden', !hit);
+                if (hit) visible++;
+            });
+
+            groups.forEach(group => {
+                const any = [...group.querySelectorAll('.perm-item')].some(i => !i.classList.contains('hidden'));
+                group.classList.toggle('hidden', !any);
+            });
+
+            noMatch.classList.toggle('hidden', visible !== 0);
+        });
+
+        picker.querySelectorAll('[data-check]').forEach(btn => btn.addEventListener('click', () => {
             const check = btn.dataset.check === 'true';
-            boxes.forEach(b => b.checked = check);
+            items.filter(i => !i.classList.contains('hidden'))
+                .forEach(i => i.querySelector('input').checked = check);
             refresh();
         }));
+
         boxes.forEach(b => b.addEventListener('change', refresh));
         refresh();
     });

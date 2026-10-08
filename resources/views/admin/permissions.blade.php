@@ -43,7 +43,7 @@
             @csrf
             <div class="flex-1">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Permission Name</label>
-                <input type="text" name="name" required placeholder="e.g. manage-inventory"
+                <input type="text" name="name" value="{{ old('name') }}" required placeholder="e.g. manage-inventory"
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
             </div>
             <button type="submit" class="bg-green-800 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-sm font-medium">

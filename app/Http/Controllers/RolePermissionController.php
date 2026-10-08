@@ -23,18 +23,25 @@ class RolePermissionController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:50|unique:roles,name',
-        ], [
-            'name.unique' => 'A role with this name already exists.',
+            'name' => 'required|string|max:50',
+            'permissions' => 'array',
+            'permissions.*' => 'exists:permissions,name',
         ]);
 
-        $role = Role::create(['name' => strtolower(str_replace(' ', '', $validated['name'])), 'guard_name' => 'web']);
+        $name = strtolower(str_replace(' ', '', $validated['name']));
+
+        if (Role::where('name', $name)->exists()) {
+            return back()->withInput()->withErrors(['name' => 'A role with this name already exists.']);
+        }
+
+        $role = Role::create(['name' => $name, 'guard_name' => 'web']);
+        $role->syncPermissions($validated['permissions'] ?? []);
 
         ActivityLog::create([
             'user_id' => auth()->id(),
             'action' => 'role_created',
-            'description' => "Role {$role->name} created",
-            'new_value' => $role->name,
+            'description' => "Role {$role->name} created with " . count($validated['permissions'] ?? []) . ' permission(s)',
+            'new_value' => json_encode($role->fresh()->permissions->pluck('name')->all()),
         ]);
 
         return redirect()->route('admin.roles')->with('success', "Role \"{$validated['name']}\" created.");
@@ -133,12 +140,15 @@ class RolePermissionController extends Controller
     public function storePermission(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:100|unique:permissions,name',
-        ], [
-            'name.unique' => 'A permission with this name already exists.',
+            'name' => 'required|string|max:100',
         ]);
 
         $name = strtolower(str_replace(' ', '-', $validated['name']));
+
+        if (Permission::where('name', $name)->exists()) {
+            return back()->withInput()->withErrors(['name' => 'A permission with this name already exists.']);
+        }
+
         $permission = Permission::create(['name' => $name, 'guard_name' => 'web']);
 
         ActivityLog::create([
@@ -154,13 +164,16 @@ class RolePermissionController extends Controller
     public function updatePermission(Request $request, Permission $permission)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:100|unique:permissions,name,' . $permission->id,
-        ], [
-            'name.unique' => 'A permission with this name already exists.',
+            'name' => 'required|string|max:100',
         ]);
 
         $oldName = $permission->name;
         $newName = strtolower(str_replace(' ', '-', $validated['name']));
+
+        if ($newName !== $oldName && Permission::where('name', $newName)->exists()) {
+            return back()->withErrors(['error' => "A permission named \"{$newName}\" already exists."]);
+        }
+
         $permission->update(['name' => $newName]);
 
         app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
