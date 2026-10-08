@@ -12,8 +12,8 @@ class RolePermissionController extends Controller
 {
     public function index()
     {
-        $roles = Role::with('permissions')->withCount('users')->get();
-        $permissions = Permission::orderBy('name')->get()->groupBy(function ($p) {
+        $roles = Role::with('permissions')->withCount('users')->latest()->get();
+        $permissions = Permission::latest()->get()->groupBy(function ($p) {
             return Str::before($p->name, '-');
         });
 
@@ -90,14 +90,14 @@ class RolePermissionController extends Controller
 
     public function permissions(Request $request)
     {
-        $query = Permission::orderBy('name');
+        $query = Permission::latest();
 
         if ($search = $request->input('search')) {
             $query->where('name', 'like', "%{$search}%");
         }
 
         $permissions = $query->paginate(25)->withQueryString();
-        $roles = Role::with('permissions')->get();
+        $roles = Role::with('permissions')->latest()->get();
         $totalPermissions = Permission::count();
 
         return view('admin.permissions', compact('permissions', 'roles', 'totalPermissions'));
