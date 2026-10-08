@@ -8,32 +8,19 @@
         <h1 class="text-2xl font-bold text-gray-900">Roles & Permissions</h1>
         <p class="text-gray-600">{{ $roles->count() }} role(s) &middot; {{ $permissions->flatten()->count() }} permission(s) available</p>
     </div>
+    <button type="button" id="openAddRole" class="bg-green-800 text-white px-5 py-2 rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Add Role
+    </button>
 </div>
 
-{{-- Create Role --}}
-<div class="bg-white rounded-lg shadow mb-6">
-    <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-semibold text-gray-800">Add New Role</h2>
-        <p class="text-sm text-gray-500">Name it and tick the permissions it should have, in one step.</p>
-    </div>
-    <form method="POST" action="{{ route('admin.roles.store') }}" class="role-perm-form pb-6">
-        @csrf
-        <div class="px-6 pt-5 max-w-md">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Role Name</label>
-            <input type="text" name="name" value="{{ old('name') }}" required placeholder="e.g. Manager, Supervisor"
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-            @error('name')
-            <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
-            @enderror
-        </div>
-        @include('admin.partials._perm-picker', ['groups' => $permissions, 'checked' => old('permissions', [])])
-        <div class="px-6 pt-2">
-            <button type="submit" class="bg-green-800 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-sm font-medium">
-                Create Role
-            </button>
-        </div>
-    </form>
+@if($errors->any())
+<div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+    @foreach($errors->all() as $error)
+    <p>{{ $error }}</p>
+    @endforeach
 </div>
+@endif
 
 {{-- Role Cards --}}
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -66,10 +53,58 @@
     </div>
     @endforeach
 </div>
+
+{{-- Add Role Modal --}}
+<div id="addRoleModal" class="fixed inset-0 z-50 {{ $errors->any() ? '' : 'hidden' }}">
+    <div class="absolute inset-0 bg-black bg-opacity-50 modal-backdrop"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-start">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Add New Role</h3>
+                    <p class="text-sm text-gray-500">Name it and tick the permissions it should have, in one step.</p>
+                </div>
+                <button type="button" class="modal-cancel text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+            </div>
+            <form method="POST" action="{{ route('admin.roles.store') }}" class="role-perm-form flex flex-col min-h-0 flex-1">
+                @csrf
+                <div class="px-6 pt-5">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Role Name</label>
+                    <input type="text" name="name" value="{{ old('name') }}" required placeholder="e.g. Manager, Supervisor"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div class="flex-1 min-h-0 flex flex-col">
+                    @include('admin.partials._perm-picker', [
+                        'groups' => $permissions,
+                        'checked' => old('permissions', []),
+                        'listClass' => 'flex-1 min-h-0 overflow-y-auto',
+                    ])
+                </div>
+                <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+                    <button type="button" class="modal-cancel px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+                    <button type="submit" class="bg-green-800 text-white px-6 py-2 rounded-lg hover:bg-green-700 text-sm font-medium">
+                        Create Role
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
 <script>
+    const addRoleModal = document.getElementById('addRoleModal');
+
+    document.getElementById('openAddRole').addEventListener('click', () => {
+        addRoleModal.classList.remove('hidden');
+        addRoleModal.querySelector('input[name="name"]').focus();
+    });
+
+    addRoleModal.querySelectorAll('.modal-cancel').forEach(btn => btn.addEventListener('click', () => addRoleModal.classList.add('hidden')));
+    addRoleModal.querySelector('.modal-backdrop').addEventListener('click', () => addRoleModal.classList.add('hidden'));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') addRoleModal.classList.add('hidden'); });
+
     document.querySelectorAll('.perm-picker').forEach(picker => {
         const boxes = picker.querySelectorAll('input[name="permissions[]"]');
         const items = [...picker.querySelectorAll('.perm-item')];

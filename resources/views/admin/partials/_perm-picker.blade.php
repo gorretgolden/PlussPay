@@ -3,7 +3,7 @@
     $total = $groups->flatten()->count();
 @endphp
 
-<div class="perm-picker">
+<div class="perm-picker flex flex-col min-h-0">
     <div class="px-6 pt-4">
         <input type="text" class="perm-filter w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
             placeholder="Search permissions... e.g. view-transactions">
@@ -15,7 +15,7 @@
             <button type="button" data-check="false" class="text-red-600 hover:underline font-medium">Remove all</button>
         </div>
     </div>
-    <div class="p-6 max-h-96 overflow-y-auto space-y-4">
+    <div class="p-6 space-y-4 {{ $listClass ?? 'max-h-96 overflow-y-auto' }}">
         @foreach($groups as $group => $perms)
         <div class="perm-group">
             <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{{ ucwords(str_replace('-', ' ', $group)) }}</h4>

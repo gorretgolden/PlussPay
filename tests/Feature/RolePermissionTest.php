@@ -106,6 +106,26 @@ class RolePermissionTest extends TestCase
         );
     }
 
+    public function test_add_role_form_is_hidden_behind_a_button_until_needed(): void
+    {
+        $this->actingAs($this->superadmin())->get('/admin/roles')
+            ->assertSee('Add Role')
+            ->assertSee('id="addRoleModal" class="fixed inset-0 z-50 hidden', false);
+    }
+
+    public function test_a_rejected_role_name_reopens_the_modal_and_keeps_the_ticks(): void
+    {
+        $admin = $this->superadmin();
+
+        $this->actingAs($admin)->post('/admin/roles', ['name' => 'Supervisor', 'permissions' => ['view-transactions']]);
+        $this->actingAs($admin)->post('/admin/roles', ['name' => 'Supervisor', 'permissions' => ['view-transactions']]);
+
+        $this->actingAs($admin)->get('/admin/roles')
+            ->assertSee('A role with this name already exists.', false)
+            ->assertDontSee('id="addRoleModal" class="fixed inset-0 z-50 hidden', false)
+            ->assertSee('value="Supervisor"', false);
+    }
+
     public function test_bulk_add_assigns_every_selected_permission_to_the_role(): void
     {
         $role = Role::where('name', 'staff')->firstOrFail();
