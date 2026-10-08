@@ -130,13 +130,16 @@ class ExportController extends Controller
                 $log->created_at->format('Y-m-d h:i A'),
                 $log->user?->name ?? 'System',
                 $log->action,
+                $log->sourceIp() ?? '-',
+                $log->request_path ?? '-',
                 $log->description ?? '-',
+                $log->changeText() ?: '-',
                 $log->transaction?->receipt_number ?? '-',
             ])
             ->all();
 
         return $this->download('activity-logs', [
-            'Date', 'User', 'Action', 'Description', 'Receipt #',
+            'Date', 'User', 'Action', 'IP Address', 'Recorded From', 'Description', 'What Changed', 'Receipt #',
         ], $rows);
     }
 
@@ -152,12 +155,13 @@ class ExportController extends Controller
                 $log->user?->name ?? 'System',
                 $log->user?->email ?? '-',
                 ucfirst($log->action),
+                $log->sourceIp() ?? '-',
                 $log->description ?? '-',
             ])
             ->all();
 
         return $this->download('login-logs', [
-            'Date', 'User', 'Email', 'Event', 'Details',
+            'Date', 'User', 'Email', 'Event', 'IP Address', 'Details',
         ], $rows);
     }
 

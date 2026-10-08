@@ -34,6 +34,7 @@ class Transaction extends Model
         'total_usd_equivalent',
         'status',
         'created_by',
+        'updated_by',
         'notes',
         'purpose',
     ];
@@ -61,11 +62,22 @@ class Transaction extends Model
                 }
             }
         });
+
+        static::updating(function (self $transaction) {
+            if (auth()->check()) {
+                $transaction->updated_by = auth()->id();
+            }
+        });
     }
 
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function editor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 
     public function activityLogs(): HasMany

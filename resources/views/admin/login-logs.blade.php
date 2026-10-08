@@ -62,6 +62,7 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
                 </tr>
             </thead>
@@ -76,11 +77,12 @@
                             {{ ucfirst($log->action) }}
                         </span>
                     </td>
+                    <td class="px-6 py-4 text-sm font-mono text-gray-900">{{ $log->sourceIp() ?? 'not recorded' }}</td>
                     <td class="px-6 py-4 text-sm text-gray-600">{{ $log->description ?? '-' }}</td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="5" class="px-6 py-8 text-center text-gray-500">No login logs found.</td>
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">No login logs found.</td>
                 </tr>
                 @endforelse
             </tbody>

@@ -57,6 +57,7 @@ class ActivityLog extends Model
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('description', 'like', "%{$search}%")
+                    ->orWhere('ip_address', 'like', "%{$search}%")
                     ->orWhereHas('user', fn($u) => $u->where('name', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%"))
                     ->orWhereHas('transaction', fn($t) => $t->where('receipt_number', 'like', "%{$search}%"));
@@ -82,6 +83,41 @@ class ActivityLog extends Model
             'action' => $action,
             'description' => $description,
         ]);
+    }
+
+    /**
+     * Entries written before the ip_address column existed only carry the address
+     * inside the login and logout description, so read it back out of there.
+     */
+    public function sourceIp(): ?string
+    {
+        if ($this->ip_address) {
+            return $this->ip_address;
+        }
+
+        return preg_match('/\b(?:\d{1,3}\.){3}\d{1,3}\b/', (string) $this->description, $m) ? $m[0] : null;
+    }
+
+    /**
+     * The changes() result flattened onto one line for the Excel exports, which
+     * have no room for the modal's layout.
+     */
+    public function changeText(): string
+    {
+        $changes = $this->changes();
+
+        return match ($changes['kind']) {
+            'scalar' => "was: {$changes['old']} | now: {$changes['new']}",
+            'fields' => implode('; ', array_map(
+                fn ($row) => "{$row['label']}: {$row['old']} -> {$row['new']}",
+                array_filter($changes['rows'], fn ($row) => $row['changed'])
+            )),
+            'items' => trim(implode(' | ', array_filter([
+                count($changes['added']) ? '+ ' . implode(', ', $changes['added']) : '',
+                count($changes['removed']) ? '- ' . implode(', ', $changes['removed']) : '',
+            ]))),
+            default => '',
+        };
     }
 
     /**

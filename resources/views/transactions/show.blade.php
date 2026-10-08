@@ -86,11 +86,12 @@
     </div>
     @endif
 
-    @if($transaction->creator)
-    <div class="border-t pt-4 mt-4 text-sm text-gray-500">
-        Created by: {{ $transaction->creator->name }}
+    <div class="border-t pt-4 mt-4 text-sm text-gray-500 space-y-1">
+        @if($transaction->creator)
+        <p>Created by <span class="font-medium text-gray-900">{{ $transaction->creator->name }}</span> on {{ $transaction->created_at->format('M d, Y h:i A') }}</p>
+        @endif
+        <p>Last updated on {{ $transaction->updated_at->format('M d, Y h:i A') }}@if($transaction->editor) by <span class="font-medium text-gray-900">{{ $transaction->editor->name }}</span>@endif</p>
     </div>
-    @endif
 
     @if($transaction->status === 'pending' && auth()->user()->hasRole('admin'))
     <div class="border-t pt-4 mt-4">
