@@ -12,6 +12,7 @@ use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\SystemLogController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WalletController;
@@ -23,6 +24,11 @@ Route::get('/', function () {
 });
 Route::post('/admin/login', [AuthController::class, 'login'])->name('login.post');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+// Two-factor challenge: the password is proven but the session is not trusted yet.
+Route::get('/two-factor', [AuthController::class, 'showTwoFactor'])->name('two-factor.challenge');
+Route::post('/two-factor', [AuthController::class, 'verifyTwoFactor'])->name('two-factor.verify');
+Route::post('/two-factor/cancel', [AuthController::class, 'cancelTwoFactor'])->name('two-factor.cancel');
 
 Route::middleware(['auth', 'account.active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -48,6 +54,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::get('/export/customers', [ExportController::class, 'customers'])->name('export.customers');
         Route::get('/export/activity-logs', [ExportController::class, 'activityLogs'])->name('export.activity-logs');
         Route::get('/export/login-logs', [ExportController::class, 'loginLogs'])->name('export.login-logs');
+        Route::get('/export/system-logs', [ExportController::class, 'systemLogs'])->name('export.system-logs');
         Route::get('/export/agent-performance', [ExportController::class, 'agentPerformance'])->name('export.agent-performance');
         Route::get('/export/exchange-rates', [ExportController::class, 'exchangeRates'])->name('export.exchange-rates');
         Route::get('/export/account-ledger', [ExportController::class, 'accountLedger'])->name('export.account-ledger');
@@ -63,11 +70,16 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::post('/users/bulk', [UserController::class, 'bulk'])->name('users.bulk');
         Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
         Route::patch('/users/{user}/toggle-lock', [UserController::class, 'toggleLock'])->name('users.toggle-lock');
         Route::patch('/users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+        Route::get('/users/{user}/two-factor', [UserController::class, 'twoFactorForm'])->name('users.two-factor');
+        Route::post('/users/{user}/two-factor', [UserController::class, 'twoFactorEnable'])->name('users.two-factor.enable');
+        Route::post('/users/{user}/two-factor/reset', [UserController::class, 'twoFactorReset'])->name('users.two-factor.reset');
+        Route::delete('/users/{user}/two-factor', [UserController::class, 'twoFactorDisable'])->name('users.two-factor.disable');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
         Route::get('/exchange-rates', [ExchangeRateController::class, 'index'])->name('exchange-rates.index');
@@ -100,5 +112,6 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::get('/admin/activity-logs', [AuditLogController::class, 'activityLogs'])->name('admin.activity-logs');
         Route::get('/admin/activity-logs/{activityLog}/details', [AuditLogController::class, 'details'])->name('admin.activity-logs.details');
         Route::get('/admin/login-logs', [AuditLogController::class, 'loginLogs'])->name('admin.login-logs');
+        Route::get('/admin/system-logs', [SystemLogController::class, 'index'])->name('admin.system-logs');
     });
 });

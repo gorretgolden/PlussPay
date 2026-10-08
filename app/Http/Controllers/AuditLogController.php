@@ -32,7 +32,7 @@ class AuditLogController extends Controller
     public function loginLogs(Request $request)
     {
         $logs = ActivityLog::with('user')
-            ->whereIn('action', ['login', 'logout'])
+            ->whereIn('action', ['login', 'logout', 'login_blocked'])
             ->filtered($request)
             ->latest()
             ->paginate(50)

@@ -37,6 +37,16 @@ class EnsureAccountIsActive
             return redirect()->route('login')->withErrors(['email' => 'Your account is locked. Contact admin.']);
         }
 
+        $windowReason = $user->loginWindowBlockReason();
+
+        if ($windowReason) {
+            ActivityLog::logAuth($user->id, 'login_blocked', "User {$user->name} was signed out outside their allowed login hours from {$request->ip()}");
+
+            $this->endSession($request);
+
+            return redirect()->route('login')->withErrors(['email' => $windowReason . ' You were signed out.']);
+        }
+
         $lastActivity = $request->session()->get('last_activity_at');
         $idleSeconds = $lastActivity ? abs(now()->getTimestamp() - Carbon::parse($lastActivity)->getTimestamp()) : 0;
 

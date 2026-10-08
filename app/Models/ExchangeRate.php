@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\Request;
 
 class ExchangeRate extends Model
@@ -15,6 +16,8 @@ class ExchangeRate extends Model
         'buy_rate',
         'sell_rate',
         'is_active',
+        'created_by',
+        'updated_by',
     ];
 
     protected $casts = [
@@ -24,8 +27,50 @@ class ExchangeRate extends Model
         'is_active' => 'boolean',
     ];
 
+    protected static function booted(): void
+    {
+        static::updating(function (self $rate): void {
+            if (! $rate->isDirty('updated_by') && ($editor = auth()->id())) {
+                $rate->updated_by = $editor;
+            }
+        });
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function editor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /**
+     * Retire the live rate for a pair. Query builder updates skip model events, so the person
+     * responsible is stamped by hand here rather than by the updating hook.
+     */
+    public static function retirePair(string $from, string $to): void
+    {
+        static::where('from_currency', $from)
+            ->where('to_currency', $to)
+            ->where('is_active', true)
+            ->update(['is_active' => false] + (auth()->id() ? ['updated_by' => auth()->id()] : []));
+    }
+
     public function scopeFiltered(Builder $query, Request $request): Builder
     {
+        if ($request->filled('search')) {
+            $term = trim($request->search);
+            $currency = '%'.addcslashes(mb_strtoupper($term), '%_\\').'%';
+            $person = '%'.addcslashes($term, '%_\\').'%';
+            $query->where(function ($q) use ($currency, $person) {
+                $q->where('from_currency', 'like', $currency)
+                    ->orWhere('to_currency', 'like', $currency)
+                    ->orWhereHas('creator', fn (Builder $c) => $c->where('name', 'like', $person));
+            });
+        }
+
         if ($request->filled('currency')) {
             $currency = $request->currency;
             $query->where(function ($q) use ($currency) {
@@ -35,6 +80,18 @@ class ExchangeRate extends Model
 
         if ($request->filled('status')) {
             $query->where('is_active', $request->status === 'active');
+        }
+
+        if ($request->filled('created_by')) {
+            $query->where('created_by', $request->created_by);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
         }
 
         return $query;
@@ -108,7 +165,7 @@ class ExchangeRate extends Model
 
     public static function setPair(string $from, string $to, float $rate, ?float $buy = null, ?float $sell = null): self
     {
-        static::where('from_currency', $from)->where('to_currency', $to)->update(['is_active' => false]);
+        static::retirePair($from, $to);
 
         return static::create([
             'from_currency' => strtoupper($from),
@@ -117,6 +174,7 @@ class ExchangeRate extends Model
             'buy_rate' => $buy,
             'sell_rate' => $sell ?? $rate,
             'is_active' => true,
+            'created_by' => auth()->id(),
         ]);
     }
 

@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\SystemLogReader;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -89,13 +90,15 @@ class ExportController extends Controller
                 RolePermissionController::displayName($u->getRoleNames()->first() ?? ''),
                 $u->is_active ? 'Active' : 'Inactive',
                 $u->isLocked() ? 'Locked' : 'Unlocked',
+                $u->loginWindowSummary(),
+                $u->two_factor_enabled ? 'On' : 'Off',
                 $u->last_login_at?->format('Y-m-d h:i A') ?? 'Never',
                 $u->created_at->format('Y-m-d'),
             ])
             ->all();
 
         return $this->download('users', [
-            'Name', 'Email', 'Phone', 'Role', 'Status', 'Lock', 'Last Login', 'Added',
+            'Name', 'Email', 'Phone', 'Role', 'Status', 'Lock', 'Login Hours', 'Two-factor', 'Last Login', 'Added',
         ], $rows);
     }
 
@@ -146,7 +149,7 @@ class ExportController extends Controller
     public function loginLogs(Request $request)
     {
         $rows = ActivityLog::with('user')
-            ->whereIn('action', ['login', 'logout'])
+            ->whereIn('action', ['login', 'logout', 'login_blocked'])
             ->filtered($request)
             ->latest()
             ->get()
@@ -154,7 +157,7 @@ class ExportController extends Controller
                 $log->created_at->format('Y-m-d h:i A'),
                 $log->user?->name ?? 'System',
                 $log->user?->email ?? '-',
-                ucfirst($log->action),
+                $log->actionLabel(),
                 $log->sourceIp() ?? '-',
                 $log->description ?? '-',
             ])
@@ -163,6 +166,21 @@ class ExportController extends Controller
         return $this->download('login-logs', [
             'Date', 'User', 'Email', 'Event', 'IP Address', 'Details',
         ], $rows);
+    }
+
+    public function systemLogs(Request $request)
+    {
+        $meta = SystemLogReader::read($request->input('file'), SystemLogReader::window($request));
+        $entries = SystemLogReader::filter($meta['entries'], $request);
+
+        $suffix = str_replace('.log', '', (string) $meta['file']);
+
+        return $this->download(
+            'system-logs',
+            SystemLogReader::exportHeaders(),
+            SystemLogReader::exportRows($entries),
+            $suffix
+        );
     }
 
     public function agentPerformance(Request $request)
@@ -190,9 +208,10 @@ class ExportController extends Controller
 
     public function exchangeRates(Request $request)
     {
-        $rows = ExchangeRate::filtered($request)
-            ->orderBy('from_currency')
-            ->orderBy('to_currency')
+        $rows = ExchangeRate::with(['creator', 'editor'])
+            ->filtered($request)
+            ->latest()
+            ->orderByDesc('id')
             ->get()
             ->map(fn($r) => [
                 $r->from_currency,
@@ -201,12 +220,15 @@ class ExportController extends Controller
                 $r->buy_rate,
                 $r->buy_rate === null ? null : (float) ($r->sell_rate ?? $r->rate) - (float) $r->buy_rate,
                 $r->is_active ? 'Active' : 'Inactive',
+                $r->creator?->name ?? 'Not recorded',
+                $r->created_at->format('Y-m-d h:i A'),
+                $r->editor?->name ?? 'Not recorded',
                 $r->updated_at->format('Y-m-d h:i A'),
             ])
             ->all();
 
         return $this->download('exchange-rates', [
-            'From', 'To', 'Selling Rate', 'Buying Rate', 'Margin', 'Status', 'Updated',
+            'From', 'To', 'Selling Rate', 'Buying Rate', 'Margin', 'Status', 'Added By', 'Added', 'Edited By', 'Updated',
         ], $rows);
     }
 
@@ -363,22 +385,49 @@ class ExportController extends Controller
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle(ucfirst(str_replace('-', ' ', $name)));
+        $report = ucwords(str_replace('-', ' ', $name));
+        $sheet->setTitle($report);
 
         $lastColumn = Coordinate::stringFromColumnIndex(count($headers));
+        $headerRow = 5;
+        $firstDataRow = $headerRow + 1;
+        $lastDataRow = $firstDataRow + count($rows) - 1;
+
+        $sheet->mergeCells("A1:{$lastColumn}1");
+        $sheet->setCellValue('A1', 'PlusPay');
+        $sheet->getStyle('A1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 14],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '14532D']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER, 'indent' => 1],
+        ]);
+        $sheet->getRowDimension(1)->setRowHeight(26);
+
+        $sheet->mergeCells("A2:{$lastColumn}2");
+        $sheet->setCellValue('A2', $report);
+        $sheet->getStyle('A2')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => '14532D'], 'size' => 12],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER, 'indent' => 1],
+        ]);
+
+        $sheet->mergeCells("A3:{$lastColumn}3");
+        $sheet->setCellValue('A3', 'Plus Save Financial Solutions  |  Generated ' . now()->format('M d, Y h:i A') . '  |  ' . count($rows) . ' record(s)');
+        $sheet->getStyle('A3')->applyFromArray([
+            'font' => ['italic' => true, 'color' => ['rgb' => '6B7280'], 'size' => 9],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER, 'indent' => 1],
+        ]);
 
         foreach ($headers as $index => $header) {
-            $sheet->setCellValue(Coordinate::stringFromColumnIndex($index + 1) . '1', $header);
+            $sheet->setCellValue(Coordinate::stringFromColumnIndex($index + 1) . $headerRow, $header);
         }
 
-        $sheet->getStyle("A1:{$lastColumn}1")->applyFromArray([
+        $sheet->getStyle("A{$headerRow}:{$lastColumn}{$headerRow}")->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '14532D']],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ]);
 
-        $row = 2;
+        $row = $firstDataRow;
         foreach ($rows as $values) {
             foreach (array_values($values) as $index => $value) {
                 $sheet->setCellValueExplicit(
@@ -390,12 +439,16 @@ class ExportController extends Controller
             $row++;
         }
 
-        if ($row > 2) {
-            $sheet->getStyle("A2:{$lastColumn}" . ($row - 1))->applyFromArray([
+        if (count($rows) > 0) {
+            $sheet->getStyle("A{$firstDataRow}:{$lastColumn}{$lastDataRow}")->applyFromArray([
                 'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
-                'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
             ]);
+
+            $sheet->setAutoFilter("A{$headerRow}:{$lastColumn}{$lastDataRow}");
         }
+
+        $sheet->freezePane("A{$firstDataRow}");
 
         foreach (range(1, count($headers)) as $index) {
             $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index))->setAutoSize(true);

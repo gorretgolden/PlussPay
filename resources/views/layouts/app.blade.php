@@ -123,14 +123,14 @@
 
                 {{-- User Management Group --}}
                 <div>
-                    <button type="button" onclick="toggleUserMgmtGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('users.*') || request()->routeIs('admin.roles') || request()->routeIs('admin.permissions') || request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') ? 'bg-green-800' : '' }}">
+                    <button type="button" onclick="toggleUserMgmtGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('users.*') || request()->routeIs('admin.roles') || request()->routeIs('admin.permissions') || request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? 'bg-green-800' : '' }}">
                         <span class="flex items-center">
                             <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                             User Management
                         </span>
-                        <svg id="userMgmtChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('users.*') || request()->routeIs('admin.roles') || request()->routeIs('admin.permissions') || request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        <svg id="userMgmtChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('users.*') || request()->routeIs('admin.roles') || request()->routeIs('admin.permissions') || request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
-                    <div id="userMgmtGroup" class="{{ request()->routeIs('users.*') || request()->routeIs('admin.roles') || request()->routeIs('admin.permissions') || request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') ? '' : 'hidden' }}">
+                    <div id="userMgmtGroup" class="{{ request()->routeIs('users.*') || request()->routeIs('admin.roles') || request()->routeIs('admin.permissions') || request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? '' : 'hidden' }}">
                         <a href="{{ route('users.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('users.*') ? 'active' : '' }}">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                             Users
@@ -150,6 +150,10 @@
                         <a href="{{ route('admin.login-logs') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.login-logs') ? 'active' : '' }}">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                             Login Logs
+                        </a>
+                        <a href="{{ route('admin.system-logs') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.system-logs') ? 'active' : '' }}">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                            System Logs
                         </a>
                     </div>
                 </div>
@@ -407,6 +411,33 @@
             }
 
             document.querySelectorAll('select').forEach(enhance);
+        })();
+
+        // Every numeric field in this app holds money or a rate, so a negative is
+        // never valid. The min attribute alone still lets Chrome type a minus and
+        // only rejects it on submit, so block the character at the source.
+        (function() {
+            function isNumberInput(el) {
+                return el && el.tagName === 'INPUT' && el.type === 'number';
+            }
+
+            document.addEventListener('keydown', function(e) {
+                if (!isNumberInput(e.target)) return;
+                if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault();
+            }, true);
+
+            document.addEventListener('paste', function(e) {
+                if (!isNumberInput(e.target)) return;
+                const text = (e.clipboardData || window.clipboardData).getData('text');
+                if (/[-eE]/.test(text)) e.preventDefault();
+            }, true);
+
+            document.addEventListener('input', function(e) {
+                if (!isNumberInput(e.target)) return;
+                if (e.target.value.includes('-')) {
+                    e.target.value = e.target.value.replace(/-/g, '');
+                }
+            }, true);
         })();
 
         (function() {

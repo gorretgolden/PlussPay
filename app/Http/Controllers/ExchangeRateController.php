@@ -4,15 +4,25 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class ExchangeRateController extends Controller
 {
     public function index(Request $request)
     {
-        $rates = ExchangeRate::filtered($request)->latest()->get();
+        $rates = ExchangeRate::with(['creator', 'editor'])
+            ->filtered($request)
+            ->latest()
+            ->orderByDesc('id')
+            ->paginate(20)
+            ->withQueryString();
 
-        return view('exchange-rates.index', compact('rates'));
+        $creators = User::whereIn('id', ExchangeRate::whereNotNull('created_by')->distinct()->pluck('created_by'))
+            ->orderBy('name')
+            ->get();
+
+        return view('exchange-rates.index', compact('rates', 'creators'));
     }
 
     public function store(Request $request)
@@ -46,9 +56,7 @@ class ExchangeRateController extends Controller
 
         $previous = $existing ? (string) $existing->rate : 'none';
 
-        ExchangeRate::where('from_currency', $validated['from_currency'])
-            ->where('to_currency', $validated['to_currency'])
-            ->update(['is_active' => false]);
+        ExchangeRate::retirePair($validated['from_currency'], $validated['to_currency']);
 
         // The single rate entered here is always the customer-facing (selling) price.
         ExchangeRate::create([
@@ -58,6 +66,7 @@ class ExchangeRateController extends Controller
             'buy_rate' => $validated['buy_rate'] ?? $validated['rate'],
             'sell_rate' => $validated['rate'],
             'is_active' => true,
+            'created_by' => $request->user()->id,
         ]);
 
         $pair = strtoupper($validated['from_currency']).'-'.strtoupper($validated['to_currency']);
@@ -85,9 +94,7 @@ class ExchangeRateController extends Controller
             ->where('is_active', true)
             ->first();
 
-        ExchangeRate::where('from_currency', $exchangeRate->from_currency)
-            ->where('to_currency', $exchangeRate->to_currency)
-            ->update(['is_active' => false]);
+        ExchangeRate::retirePair($exchangeRate->from_currency, $exchangeRate->to_currency);
 
         $exchangeRate->update(['is_active' => true]);
 

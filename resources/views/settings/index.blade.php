@@ -13,19 +13,20 @@
     @method('PUT')
 
     <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center justify-between mb-1">
+        <div class="flex items-center justify-between mb-3">
             <h2 class="text-lg font-semibold text-gray-900">Currency Rates</h2>
-            <a href="{{ route('exchange-rates.index') }}" class="text-xs text-green-700 underline hover:text-green-900">Rate history</a>
+            <a href="{{ route('exchange-rates.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Rate history</a>
         </div>
         @php
             $trimRate = fn ($v) => rtrim(rtrim(number_format((float) $v, 6, '.', ''), '0'), '.');
             $trimMoney = fn ($v) => rtrim(rtrim(number_format((float) $v, 2, '.', ','), '0'), '.');
             $ugxMargin = ($usdUgxPair['sell'] ?? 0) - ($usdUgxPair['buy'] ?? 0);
         @endphp
-        <p class="text-sm text-gray-500 mb-4">Two prices per currency: what a dollar costs you to buy, and what the customer pays you for it. The difference is your profit on every dollar.</p>
+        <p class="text-sm text-gray-500 mb-4">These are two separate jobs. Job one turns whatever the customer hands you into dollars. Job two turns those dollars into RMB for China. Buying is always your own cost to obtain one dollar. Selling is always the price applied when dollars leave you.</p>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="border border-gray-200 rounded-lg p-4">
-                <h3 class="text-sm font-semibold text-gray-900 mb-3">US Dollar in UGX</h3>
+                <h3 class="text-sm font-semibold text-gray-900">Shilling rate. Used when the customer pays in UGX.</h3>
+                <p class="text-xs text-gray-500 mb-3">Not used when the customer hands you dollars. Those are already dollars, so that transfer earns you the service fee only.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Buying rate (UGX)</label>
@@ -36,7 +37,7 @@
                                 placeholder="e.g. 3750"
                                 class="w-full pl-14 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
                         </div>
-                        <p class="text-xs text-gray-500 mt-1">What you pay for one dollar.</p>
+                        <p class="text-xs text-gray-500 mt-1">Your own cost to obtain one dollar. Never quoted to a customer.</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Selling rate (UGX)</label>
@@ -47,7 +48,7 @@
                                 placeholder="e.g. 3760"
                                 class="w-full pl-14 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
                         </div>
-                        <p class="text-xs text-gray-500 mt-1">What customers pay you for one dollar. This rate drives every conversion.</p>
+                        <p class="text-xs text-gray-500 mt-1">The price a customer's shillings are converted at. Every UGX transfer uses this figure.</p>
                     </div>
                 </div>
                 @if($usdUgxPair)
@@ -72,7 +73,8 @@
             </div>
 
             <div class="border border-gray-200 rounded-lg p-4">
-                <h3 class="text-sm font-semibold text-gray-900 mb-3">US Dollar in RMB</h3>
+                <h3 class="text-sm font-semibold text-gray-900">RMB rate. Used on every payout to China.</h3>
+                <p class="text-xs text-gray-500 mb-3">This one applies to every transfer, whether the customer paid you in shillings or in dollars.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Buying rate (RMB)</label>
@@ -94,7 +96,7 @@
                                 placeholder="e.g. 6.75"
                                 class="w-full pl-14 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
                         </div>
-                        <p class="text-xs text-gray-500 mt-1">What RMB is priced at per dollar. Recipients are paid at this rate.</p>
+                        <p class="text-xs text-gray-500 mt-1">The rate the recipient's RMB is priced at. Every payout to China uses this figure.</p>
                     </div>
                 </div>
                 @if($usdRmbPair)

@@ -126,6 +126,7 @@
                         <option value="UGX" {{ old('currency') === 'UGX' ? 'selected' : '' }}>UGX (Ugandan Shilling)</option>
                         <option value="USD" {{ old('currency') === 'USD' ? 'selected' : '' }}>USD (US Dollar)</option>
                     </select>
+                    <p class="text-xs text-gray-500 mt-1">UGX if the customer pays in shillings. USD if they hand you dollars, which skips the shilling conversion.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
@@ -447,12 +448,12 @@ function calculate() {
     }
     const steps = [];
     if (currency === 'UGX' && ugxToUsdRate) {
-        steps.push(amount.toLocaleString() + ' UGX ÷ ' + trimRate(1 / ugxToUsdRate) + ' = $' + usdEquivalent.toFixed(2));
+        steps.push('Job 1: ' + amount.toLocaleString() + ' UGX ÷ ' + trimRate(1 / ugxToUsdRate) + ' = $' + usdEquivalent.toFixed(2));
     } else {
-        steps.push('$' + usdEquivalent.toFixed(2) + ' sent');
+        steps.push('Job 1: paid in dollars, so $' + usdEquivalent.toFixed(2) + ' in with no shilling rate used');
     }
     if (usdToRmbRate) {
-        steps.push('$' + usdEquivalent.toFixed(2) + ' × ' + trimRate(usdToRmbRate) + ' = ¥' + rmbAmount.toFixed(2));
+        steps.push('Job 2: $' + usdEquivalent.toFixed(2) + ' × ' + trimRate(usdToRmbRate) + ' = ¥' + rmbAmount.toFixed(2));
     }
     steps.push('Charge: $' + usdEquivalent.toFixed(2) + ' ÷ ' + serviceFeeUsd.toLocaleString() + ' × UGX ' + serviceFeeUgx.toLocaleString() + ' = UGX ' + feeUgx.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' = $' + chargeAmount.toFixed(2));
     formula.textContent = steps.join('   ·   ');

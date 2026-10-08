@@ -24,7 +24,7 @@
             <select name="action" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All Actions</option>
                 @foreach($actions as $action)
-                <option value="{{ $action }}" {{ request('action') === $action ? 'selected' : '' }}>{{ ucfirst($action) }}</option>
+                <option value="{{ $action }}" {{ request('action') === $action ? 'selected' : '' }}>{{ ucfirst(str_replace('_', ' ', $action)) }}</option>
                 @endforeach
             </select>
         </div>
@@ -73,7 +73,7 @@
                     <td class="px-6 py-4 text-sm text-gray-500">{{ $log->created_at->format('M d, Y h:i A') }}</td>
                     <td class="px-6 py-4 text-sm text-gray-900">{{ $log->user?->name ?? 'System' }}</td>
                     <td class="px-6 py-4">
-                        <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">{{ ucfirst($log->action) }}</span>
+                        <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">{{ $log->actionLabel() }}</span>
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-600">{{ $log->description ?? '-' }}</td>
                     <td class="px-6 py-4 text-sm">

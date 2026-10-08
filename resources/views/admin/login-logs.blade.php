@@ -25,6 +25,7 @@
                 <option value="">All Events</option>
                 <option value="login" {{ request('action') === 'login' ? 'selected' : '' }}>Login</option>
                 <option value="logout" {{ request('action') === 'logout' ? 'selected' : '' }}>Logout</option>
+                <option value="login_blocked" {{ request('action') === 'login_blocked' ? 'selected' : '' }}>Login blocked</option>
             </select>
         </div>
         <div>
@@ -73,8 +74,8 @@
                     <td class="px-6 py-4 text-sm text-gray-900">{{ $log->user?->name ?? 'System' }}</td>
                     <td class="px-6 py-4 text-sm text-gray-600">{{ $log->user?->email ?? '-' }}</td>
                     <td class="px-6 py-4">
-                        <span class="px-2 py-1 text-xs rounded-full {{ $log->action === 'login' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' }}">
-                            {{ ucfirst($log->action) }}
+                        <span class="px-2 py-1 text-xs rounded-full {{ $log->action === 'login' ? 'bg-green-100 text-green-800' : ($log->action === 'login_blocked' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700') }}">
+                            {{ str_replace('_', ' ', ucfirst($log->action)) }}
                         </span>
                     </td>
                     <td class="px-6 py-4 text-sm font-mono text-gray-900">{{ $log->sourceIp() ?? 'not recorded' }}</td>

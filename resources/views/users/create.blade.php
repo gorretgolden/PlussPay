@@ -15,18 +15,23 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
             <input type="text" name="name" value="{{ old('name') }}" required
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition">
+            <p class="text-xs text-gray-500 mt-1">First name and last name, like Gorret Golden. We correct the capital letters for you.</p>
+            @error('name')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
         </div>
 
         <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input type="email" name="email" value="{{ old('email') }}" required
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition">
+            @error('email')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
         </div>
 
         <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
             <input type="text" name="phone" value="{{ old('phone') }}"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition">
+            <p class="text-xs text-gray-500 mt-1">Each account needs its own number. Duplicated country codes and leading zeros are corrected automatically.</p>
+            @error('phone')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
         </div>
 
         <div class="mb-4">
@@ -86,6 +91,12 @@
                 <p id="role-empty" class="px-3 py-2 text-sm text-gray-500 hidden">No matching role</p>
             </div>
         </div>
+
+        @include('users.partials.access-fields', [
+            'selectedDays' => old('days', []),
+            'allowedFrom' => old('allowed_from'),
+            'allowedTo' => old('allowed_to'),
+        ])
 
         <div class="flex gap-4">
             <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Create User</button>

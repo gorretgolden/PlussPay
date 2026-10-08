@@ -45,6 +45,11 @@ class ActivityLog extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function actionLabel(): string
+    {
+        return ucfirst(str_replace('_', ' ', $this->action));
+    }
+
     public function scopeFiltered(Builder $query, Request $request): Builder
     {
         foreach (['action', 'user_id'] as $filter) {
