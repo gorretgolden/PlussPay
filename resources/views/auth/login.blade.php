@@ -69,6 +69,9 @@
             </button>
         </form>
 
+        {{-- These four addresses are the real admin accounts, so on the live site this block
+             is a free list of valid usernames for anyone who visits. Local and staging keep it. --}}
+        @if (!app()->environment('production'))
         <div class="mt-5">
             <div class="flex items-center gap-3 mb-3">
                 <div class="flex-1 h-px bg-gray-200"></div>
@@ -94,6 +97,7 @@
                 </button>
             </div>
         </div>
+        @endif
     </div>
 
     <script>
