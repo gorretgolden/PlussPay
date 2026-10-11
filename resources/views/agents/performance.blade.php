@@ -35,12 +35,13 @@
         <thead class="bg-gray-50">
             <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Transactions</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Completed</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pending</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Success Rate</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Amount (USD)</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Revenue Generated</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sent (UGX)</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Revenue (UGX)</th>
             </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -50,6 +51,7 @@
                     <div class="text-sm font-medium text-gray-900">{{ $data['agent']->name }}</div>
                     <div class="text-sm text-gray-500">{{ $data['agent']->email }}</div>
                 </td>
+                <td class="px-6 py-4 text-sm text-gray-600 capitalize">{{ $data['role'] }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ number_format($data['total_transactions']) }}</td>
                 <td class="px-6 py-4 text-sm text-green-600 font-medium">{{ number_format($data['completed_transactions']) }}</td>
                 <td class="px-6 py-4 text-sm text-yellow-600">{{ number_format($data['pending_transactions']) }}</td>
@@ -61,12 +63,12 @@
                         <span class="text-sm text-gray-900">{{ $data['success_rate'] }}%</span>
                     </div>
                 </td>
-                <td class="px-6 py-4 text-sm text-gray-900">${{ number_format($data['total_amount'], 2) }}</td>
-                <td class="px-6 py-4 text-sm font-medium text-green-700">${{ number_format($data['total_revenue'], 2) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">{{ number_format($data['sent_ugx']) }}</td>
+                <td class="px-6 py-4 text-sm font-medium text-green-700">{{ number_format($data['revenue_ugx']) }}</td>
             </tr>
             @empty
             <tr>
-                <td colspan="7" class="px-6 py-8 text-center text-gray-500">No agents found.</td>
+                <td colspan="8" class="px-6 py-8 text-center text-gray-500">Nobody moved money in this period.</td>
             </tr>
             @endforelse
         </tbody>

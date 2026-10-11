@@ -39,8 +39,11 @@ class AuthController extends Controller
         $email = strtolower(trim($request->email));
         $user = User::where('email', $email)->first();
 
+        $key = 'login:' . $request->ip();
+
         if (!$user) {
-            RateLimiter::hit('login:' . $request->ip(), 60);
+            RateLimiter::hit($key, 60);
+            $this->logFailed($request, null, 'no account with that email', $email);
 
             return back()->withErrors(['email' => 'Invalid email.'])->onlyInput('email');
         }
@@ -54,6 +57,9 @@ class AuthController extends Controller
                 $message .= ' Contact admin.';
             }
 
+            RateLimiter::hit($key, 60);
+            $this->logFailed($request, $user, 'account locked');
+
             return back()->withErrors(['email' => $message])->onlyInput('email');
         }
 
@@ -65,10 +71,9 @@ class AuthController extends Controller
             ])->onlyInput('email');
         }
 
-        $key = 'login:' . $request->ip();
-
         if (RateLimiter::tooManyAttempts($key, 5)) {
             $seconds = RateLimiter::availableIn($key);
+            $this->logFailed($request, $user, 'too many attempts from this address');
 
             return back()->withErrors([
                 'email' => 'Too many login attempts. Try again in ' . $seconds . ' seconds.',
@@ -78,6 +83,7 @@ class AuthController extends Controller
         if (!Hash::check($request->password, $user->password)) {
             RateLimiter::hit($key, 60);
             $user->recordFailedLogin();
+            $this->logFailed($request, $user, 'wrong password');
 
             if ($user->isLocked()) {
                 $this->logDenied($user, $request, 'account locked after too many failed passwords');
@@ -150,12 +156,15 @@ class AuthController extends Controller
 
         if ($attempts >= self::MAX_CODE_ATTEMPTS) {
             $this->forgetChallenge($request);
+            $this->logFailed($request, $user, 'two-factor code wrong on all ' . self::MAX_CODE_ATTEMPTS . ' attempts');
             $this->logDenied($user, $request, 'two-factor session dropped after 5 wrong codes');
 
             return redirect()->route('login')->withErrors([
                 'email' => 'Too many wrong codes. Sign in again.',
             ]);
         }
+
+        $this->logFailed($request, $user, "two-factor code wrong, attempt {$attempts} of " . self::MAX_CODE_ATTEMPTS);
 
         return back()->withErrors([
             'code' => 'That code is wrong or has expired. ' . (self::MAX_CODE_ATTEMPTS - $attempts) . ' attempt(s) left.',
@@ -236,5 +245,21 @@ class AuthController extends Controller
     private function logDenied(User $user, Request $request, string $reason): void
     {
         ActivityLog::logAuth($user->id, 'login_blocked', "User {$user->name} sign-in blocked from {$request->ip()}: {$reason}");
+    }
+
+    /**
+     * Every refused attempt leaves a row, not just the ones that trip a lockout.
+     * The user can be null when the email does not belong to any account, which is
+     * still worth keeping because that is how a password-stuffing run reads.
+     */
+    private function logFailed(Request $request, ?User $user, string $reason, ?string $attemptedEmail = null): void
+    {
+        $who = $user?->email ?? ($attemptedEmail ?? 'an unknown address');
+
+        ActivityLog::create([
+            'user_id' => $user?->id,
+            'action' => 'login_failed',
+            'description' => "Failed sign-in for {$who} from {$request->ip()}: {$reason}",
+        ]);
     }
 }

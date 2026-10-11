@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Log;
 
 class Transaction extends Model
 {
@@ -66,6 +67,18 @@ class Transaction extends Model
         static::updating(function (self $transaction) {
             if (auth()->check()) {
                 $transaction->updated_by = auth()->id();
+            }
+        });
+
+        // Both sides of a transfer are people the business will deal with again, so
+        // the directory fills itself instead of waiting for someone to type it in.
+        // Filing is a convenience, so a rejected row is reported and skipped rather
+        // than taking the booking down with it.
+        static::created(function (self $transaction) {
+            try {
+                Customer::syncFromTransaction($transaction);
+            } catch (\Throwable $e) {
+                Log::warning("Customer directory sync skipped for {$transaction->receipt_number}: {$e->getMessage()}");
             }
         });
     }

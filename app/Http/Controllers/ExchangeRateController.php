@@ -50,8 +50,14 @@ class ExchangeRateController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if ($existing && (float) $existing->rate === (float) $validated['rate']) {
-            return back()->withErrors(['rate' => 'This exchange rate is already active.']);
+        // Only a genuinely identical pair is refused. Re-saving the same selling rate
+        // with a different buying price is a real edit, so it has to go through.
+        $newBuy = $validated['buy_rate'] ?? $validated['rate'];
+
+        if ($existing
+            && (float) $existing->rate === (float) $validated['rate']
+            && (float) ($existing->buy_rate ?? $existing->rate) === (float) $newBuy) {
+            return back()->withErrors(['rate' => 'This rate and buying price are already active.']);
         }
 
         $previous = $existing ? (string) $existing->rate : 'none';

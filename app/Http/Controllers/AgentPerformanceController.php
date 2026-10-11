@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -23,7 +24,15 @@ class AgentPerformanceController extends Controller
     {
         $until = $dateTo . ' 23:59:59';
 
-        return User::role('agent')
+        // Anyone who moved money in the window belongs on this page, whatever role
+        // they hold. Filtering to the agent role alone hid work done by an admin and
+        // left the page reading zero while Reports counted the same transfers.
+        $creators = Transaction::whereBetween('created_at', [$dateFrom, $until])
+            ->distinct()
+            ->pluck('created_by');
+
+        return User::where(fn ($q) => $q->role('agent')->orWhereIn('id', $creators))
+            ->with('roles')
             ->withCount(['transactions as total_transactions' => function ($q) use ($dateFrom, $until) {
                 $q->whereBetween('created_at', [$dateFrom, $until]);
             }])
@@ -37,12 +46,15 @@ class AgentPerformanceController extends Controller
             }])
             ->get()
             ->map(function ($agent) use ($dateFrom, $until) {
+                // exchange_rate is the dollar to RMB rate. The UGX a dollar transfer was sold
+                // at is rate_sell_ugx, and rows booked before that was recorded use today's rate.
+                $todaySell = ExchangeRate::usdToUgx() ?? 0.0;
+                $ugxPrice = fn ($t) => (float) ($t->rate_sell_ugx ?: $todaySell);
+
                 $completed = Transaction::where('created_by', $agent->id)
                     ->where('status', 'completed')
-                    ->whereBetween('created_at', [$dateFrom, $until]);
-
-                $totalAmount = (clone $completed)->sum('total_usd_equivalent');
-                $totalRevenue = (clone $completed)->sum('charge_amount');
+                    ->whereBetween('created_at', [$dateFrom, $until])
+                    ->get(['currency', 'amount', 'rate_sell_ugx', 'charge_amount', 'charge_ugx', 'total_usd_equivalent']);
 
                 $successRate = $agent->total_transactions > 0
                     ? round(($agent->completed_transactions / $agent->total_transactions) * 100, 1)
@@ -50,14 +62,23 @@ class AgentPerformanceController extends Controller
 
                 return [
                     'agent' => $agent,
+                    'role' => $agent->roles->pluck('name')->implode(', ') ?: 'No role',
                     'total_transactions' => $agent->total_transactions,
                     'completed_transactions' => $agent->completed_transactions,
                     'pending_transactions' => $agent->pending_transactions,
-                    'total_amount' => $totalAmount,
-                    'total_revenue' => $totalRevenue,
+                    'total_amount' => $completed->sum('total_usd_equivalent'),
+                    'total_revenue' => $completed->sum('charge_amount'),
+                    // UGX comes from what each transfer was actually priced at, the same
+                    // way Reports and the dashboard work, so the pages cannot drift apart.
+                    'sent_ugx' => $completed->sum(fn ($t) => $t->currency === 'UGX'
+                        ? (float) $t->amount
+                        : (float) $t->total_usd_equivalent * $ugxPrice($t)),
+                    'revenue_ugx' => $completed->sum(fn ($t) => (float) $t->charge_ugx > 0
+                        ? (float) $t->charge_ugx
+                        : (float) $t->charge_amount * $ugxPrice($t)),
                     'success_rate' => $successRate,
                 ];
             })
-            ->sortByDesc('total_revenue');
+            ->sortByDesc('revenue_ugx');
     }
 }

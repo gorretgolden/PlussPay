@@ -7,6 +7,7 @@ use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -161,7 +162,9 @@ class TransactionController extends Controller
             $purpose = trim($validated['purpose_other'] ?? '') ?: 'Other';
         }
 
-        $transaction = Transaction::createWithReceiptNumber([
+        // The booking and the ledger entries it posts save together, so a failure part way
+        // through cannot leave a transfer in the books with no money moved for it.
+        $transaction = DB::transaction(fn () => Transaction::createWithReceiptNumber([
             'sender_name' => trim($validated['sender_name']),
             'sender_contact' => trim($validated['sender_contact'] ?? ''),
             'receiver_name' => trim($validated['receiver_name']),
@@ -182,7 +185,7 @@ class TransactionController extends Controller
             'created_by' => auth()->id(),
             'purpose' => $purpose ? trim($purpose) : null,
             'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
-        ]);
+        ]));
 
         session(['transaction_form_id' => (string) Str::uuid()]);
 
@@ -293,6 +296,13 @@ class TransactionController extends Controller
             $imported = 0;
             $errors = [];
 
+            // Uploading the same file twice used to book every transfer a second time, so any
+            // row that repeats the file or the last week of bookings is rejected.
+            $seenInFile = [];
+            $bookedRecently = Transaction::where('created_at', '>=', now()->subDays(7))
+                ->get(['receipt_number', 'sender_contact', 'receiver_contact', 'currency', 'amount', 'created_at'])
+                ->keyBy(fn ($t) => $this->importMatchKey($t->sender_contact, $t->receiver_contact, $t->currency, $t->amount));
+
             foreach ($rows as $index => $row) {
                 $rowNumber = $index + 2;
 
@@ -316,6 +326,22 @@ class TransactionController extends Controller
                 $currency = strtoupper(trim($data['currency']));
                 $amount = (float) $data['amount'];
 
+                $sender = trim($data['sender_contact'] ?? '');
+                $receiver = trim($data['receiver_contact'] ?? '');
+                $matchKey = $this->importMatchKey($sender, $receiver, $currency, $amount);
+
+                if (isset($seenInFile[$matchKey])) {
+                    $errors[] = "Row {$rowNumber}: repeats row {$seenInFile[$matchKey]} in this file. If both are real transfers, book the second one on its own form.";
+                    continue;
+                }
+                $seenInFile[$matchKey] = $rowNumber;
+
+                $already = $bookedRecently->get($matchKey);
+                if ($already) {
+                    $errors[] = "Row {$rowNumber}: matches {$already->receipt_number}, already booked on " . $already->created_at->format('M d, Y') . '. Delete that transfer first if it was entered by mistake.';
+                    continue;
+                }
+
                 if ($currency === 'UGX') {
                     $usdToUgx = ExchangeRate::usdToUgx();
                     if (!$usdToUgx) {
@@ -336,36 +362,41 @@ class TransactionController extends Controller
                 $fx = $this->fxProfit($usdEquivalent);
 
                 try {
-                    $transaction = Transaction::createWithReceiptNumber([
-                        'sender_name' => trim($data['sender_name']),
-                        'sender_contact' => trim($data['sender_contact'] ?? ''),
-                        'receiver_name' => trim($data['receiver_name']),
-                        'receiver_contact' => trim($data['receiver_contact'] ?? ''),
-                        'currency' => $currency,
-                        'amount' => $amount,
-                        'exchange_rate' => $usdToRmbRate->rate,
-                        'rate_buy_ugx' => $fx['buy'],
-                        'rate_sell_ugx' => $fx['sell'],
-                        'rmb_amount' => $rmbAmount,
-                        'charge_rate' => $fee['rate'],
-                        'charge_amount' => $fee['usd'],
-                        'charge_ugx' => $fee['ugx'],
-                        'fx_profit_ugx' => $fx['ugx'],
-                        'fx_profit_usd' => $fx['usd'],
-                        'total_usd_equivalent' => $usdEquivalent,
-                        'status' => 'completed',
-                        'created_by' => auth()->id(),
-                        'purpose' => !empty($data['purpose']) ? trim($data['purpose']) : null,
-                        'notes' => !empty($data['notes']) ? trim($data['notes']) : null,
-                    ]);
+                    // One transaction per row: the booking and the ledger entries it posts are
+                    // either all saved or none of them are, so a bad row cannot leave half a
+                    // transfer in the books.
+                    DB::transaction(function () use ($data, $sender, $receiver, $currency, $amount, $usdToRmbRate, $rmbAmount, $fee, $fx, $usdEquivalent) {
+                        $transaction = Transaction::createWithReceiptNumber([
+                            'sender_name' => trim($data['sender_name']),
+                            'sender_contact' => $sender,
+                            'receiver_name' => trim($data['receiver_name']),
+                            'receiver_contact' => $receiver,
+                            'currency' => $currency,
+                            'amount' => $amount,
+                            'exchange_rate' => $usdToRmbRate->rate,
+                            'rate_buy_ugx' => $fx['buy'],
+                            'rate_sell_ugx' => $fx['sell'],
+                            'rmb_amount' => $rmbAmount,
+                            'charge_rate' => $fee['rate'],
+                            'charge_amount' => $fee['usd'],
+                            'charge_ugx' => $fee['ugx'],
+                            'fx_profit_ugx' => $fx['ugx'],
+                            'fx_profit_usd' => $fx['usd'],
+                            'total_usd_equivalent' => $usdEquivalent,
+                            'status' => 'completed',
+                            'created_by' => auth()->id(),
+                            'purpose' => !empty($data['purpose']) ? trim($data['purpose']) : null,
+                            'notes' => !empty($data['notes']) ? trim($data['notes']) : null,
+                        ]);
 
-                    ActivityLog::create([
-                        'transaction_id' => $transaction->id,
-                        'user_id' => auth()->id(),
-                        'action' => 'bulk_imported',
-                        'description' => 'Transaction imported via bulk upload',
-                        'new_value' => 'completed',
-                    ]);
+                        ActivityLog::create([
+                            'transaction_id' => $transaction->id,
+                            'user_id' => auth()->id(),
+                            'action' => 'bulk_imported',
+                            'description' => 'Transaction imported via bulk upload',
+                            'new_value' => 'completed',
+                        ]);
+                    });
 
                     $imported++;
                 } catch (\Exception $e) {
@@ -393,6 +424,20 @@ class TransactionController extends Controller
             report($e);
             return back()->withErrors(['file' => 'That file could not be read. Check that it is a valid CSV or Excel export.']);
         }
+    }
+
+    /**
+     * Identity of a transfer for duplicate spotting: who sent it, who receives it, and how much.
+     * Phones are compared in their normalized shape so 0772..., +256772... and 256772... match.
+     */
+    private function importMatchKey(?string $sender, ?string $receiver, ?string $currency, float|string $amount): string
+    {
+        return implode('|', [
+            User::normalizePhone($sender) ?? '',
+            User::normalizePhone($receiver) ?? '',
+            strtoupper(trim((string) $currency)),
+            rtrim(rtrim(number_format((float) $amount, 2, '.', ''), '0'), '.'),
+        ]);
     }
 
     private function parseCsv($file): array

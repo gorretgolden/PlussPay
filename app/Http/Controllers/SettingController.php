@@ -84,17 +84,28 @@ class SettingController extends Controller
 
         if ($ugxSell !== null) {
             $before = ExchangeRate::usdUgxPair();
-            // The customer-facing figure keeps driving every conversion; the buying rate only measures margin.
-            ExchangeRate::setPair('USD', 'UGX', $ugxSell, $ugxBuy ?? $ugxSell, $ugxSell);
-            $changes[] = 'USD to UGX selling rate changed from '.($before['sell'] ?? 'unset').' to '.$ugxSell
-                .($ugxBuy !== null ? ', buying rate to '.$ugxBuy : '');
+            $buy = $ugxBuy ?? $ugxSell;
+
+            // Saving with the figures already on the screen must not rewrite the pair.
+            // setPair retires the old row and inserts a new one, so a no-op save was
+            // filling the rates table with duplicates and logging a change that never happened.
+            if (! $this->samePair($before, $buy, $ugxSell)) {
+                // The customer-facing figure keeps driving every conversion; the buying rate only measures margin.
+                ExchangeRate::setPair('USD', 'UGX', $ugxSell, $buy, $ugxSell);
+                $changes[] = 'USD to UGX selling rate changed from '.($before['sell'] ?? 'unset').' to '.$ugxSell
+                    .($ugxBuy !== null ? ', buying rate to '.$ugxBuy : '');
+            }
         }
 
         if ($rmbSell !== null) {
             $before = ExchangeRate::pair('USD', 'RMB');
-            ExchangeRate::setPair('USD', 'RMB', $rmbSell, $rmbBuy ?? $rmbSell, $rmbSell);
-            $changes[] = 'USD to RMB selling rate changed from '.($before['sell'] ?? 'unset').' to '.$rmbSell
-                .($rmbBuy !== null ? ', buying rate to '.$rmbBuy : '');
+            $buy = $rmbBuy ?? $rmbSell;
+
+            if (! $this->samePair($before, $buy, $rmbSell)) {
+                ExchangeRate::setPair('USD', 'RMB', $rmbSell, $buy, $rmbSell);
+                $changes[] = 'USD to RMB selling rate changed from '.($before['sell'] ?? 'unset').' to '.$rmbSell
+                    .($rmbBuy !== null ? ', buying rate to '.$rmbBuy : '');
+            }
         }
 
         if ($changes) {
@@ -117,5 +128,19 @@ class SettingController extends Controller
         $value = trim((string) $request->input($key, ''));
 
         return $value === '' ? null : (float) $value;
+    }
+
+    /**
+     * Both sides come back as decimals cast to float, so compare with a tolerance
+     * instead of equality. A pair saved before the buy and sell split reports the
+     * same figure twice, which still counts as unchanged.
+     *
+     * @param array{buy: float, sell: float}|null $before
+     */
+    private function samePair(?array $before, float $buy, float $sell): bool
+    {
+        return $before !== null
+            && abs($before['sell'] - $sell) < 0.0000005
+            && abs($before['buy'] - $buy) < 0.0000005;
     }
 }

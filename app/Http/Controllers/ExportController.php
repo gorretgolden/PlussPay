@@ -149,13 +149,13 @@ class ExportController extends Controller
     public function loginLogs(Request $request)
     {
         $rows = ActivityLog::with('user')
-            ->whereIn('action', ['login', 'logout', 'login_blocked'])
+            ->whereIn('action', ['login', 'logout', 'login_blocked', 'login_failed'])
             ->filtered($request)
             ->latest()
             ->get()
             ->map(fn($log) => [
                 $log->created_at->format('Y-m-d h:i A'),
-                $log->user?->name ?? 'System',
+                $log->user?->name ?? ($log->action === 'login_failed' ? 'No such account' : 'System'),
                 $log->user?->email ?? '-',
                 $log->actionLabel(),
                 $log->sourceIp() ?? '-',
@@ -192,17 +192,18 @@ class ExportController extends Controller
             ->map(fn($data) => [
                 $data['agent']->name,
                 $data['agent']->email,
+                $data['role'],
                 number_format($data['total_transactions']),
                 number_format($data['completed_transactions']),
                 number_format($data['pending_transactions']),
                 $data['success_rate'] . '%',
-                $this->ugx((float) $data['total_amount']),
-                $this->ugx((float) $data['total_revenue']),
+                $this->ugx((float) $data['sent_ugx']),
+                $this->ugx((float) $data['revenue_ugx']),
             ])
             ->all();
 
         return $this->download('agent-performance', [
-            'Agent', 'Email', 'Transactions', 'Completed', 'Pending', 'Success Rate', 'Amount Sent', 'Revenue Generated',
+            'Agent', 'Email', 'Role', 'Transactions', 'Completed', 'Pending', 'Success Rate', 'Sent (UGX)', 'Revenue (UGX)',
         ], $rows, "{$dateFrom}_to_{$dateTo}");
     }
 
