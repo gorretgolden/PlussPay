@@ -9,7 +9,7 @@ class NormalizeUserAccounts extends Command
 {
     protected $signature = 'users:normalize {--dry-run : Report what would change without saving}';
 
-    protected $description = 'Rewrite existing user names as Title Case and phone numbers into one comparable format';
+    protected $description = 'Rewrite existing user names as Title Case, emails as lowercase and phone numbers into one comparable format';
 
     public function handle(): int
     {
@@ -19,8 +19,9 @@ class NormalizeUserAccounts extends Command
 
         User::chunkById(200, function ($users) use (&$changed, &$clashes, $dryRun) {
             foreach ($users as $user) {
-                // Assigning the current value re-runs the name and phone mutators.
+                // Assigning the current value re-runs the name, email and phone mutators.
                 $user->name = $user->name;
+                $user->email = $user->email;
                 $user->phone = $user->phone;
 
                 if ($user->phone) {

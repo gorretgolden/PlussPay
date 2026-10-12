@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -73,6 +75,72 @@ class UserAccessControlTest extends TestCase
 
         $this->assertSame('Gorret Golden', $user->name);
         $this->assertSame('+256751657654', $user->phone);
+    }
+
+    public function test_an_email_is_stored_lowercase_whatever_case_it_arrives_in(): void
+    {
+        $this->actingAs($this->actor());
+
+        // The address as typed at the desk, with capitals and a stray space.
+        $this->post(route('users.store'), [
+            'name' => 'Gorret Golden',
+            'email' => '  Gorret@PFS.com  ',
+            'password' => 'Password123',
+            'password_confirmation' => 'Password123',
+            'role' => 'staff',
+        ])->assertRedirect(route('users.index'));
+
+        $user = User::firstWhere('email', 'gorret@pfs.com');
+
+        $this->assertNotNull($user, 'The account should be saved lowercase.');
+
+        // Editing the account later cannot put the capitals back.
+        $this->put(route('users.update', $user), [
+            'name' => 'Gorret Golden',
+            'email' => 'Gorret@PFS.com',
+            'role' => 'staff',
+            'is_active' => true,
+        ])->assertRedirect(route('users.index'));
+
+        $this->assertSame('gorret@pfs.com', $user->fresh()->email);
+
+        // Nor can code that writes the model directly, such as a seeder or an import.
+        $direct = User::create([
+            'name' => 'Direct Writer',
+            'email' => 'DIRECT@PFS.com',
+            'password' => 'Password123',
+            'is_active' => true,
+        ]);
+
+        $this->assertSame('direct@pfs.com', $direct->email);
+    }
+
+    public function test_capitals_typed_at_sign_in_still_reach_the_account(): void
+    {
+        $this->clerk('gorret@pfs.com');
+
+        $this->post(route('login.post'), [
+            'email' => 'Gorret@PFS.com',
+            'password' => 'Password123',
+        ])->assertRedirect(route('dashboard'));
+
+        $this->assertAuthenticated();
+    }
+
+    public function test_the_normalize_command_lowercases_accounts_saved_before_the_rule(): void
+    {
+        $user = $this->clerk('gorret@pfs.com');
+
+        // A row written before the mutator existed, so the lookup cannot lowercase it.
+        DB::table('users')->where('id', $user->id)->update(['email' => 'Gorret@PFS.com']);
+
+        Artisan::call('users:normalize', ['--dry-run' => true]);
+        $this->assertStringContainsString('1 account(s) would be rewritten', Artisan::output());
+        $this->assertSame('Gorret@PFS.com', $user->fresh()->email);
+
+        Artisan::call('users:normalize');
+        $this->assertStringContainsString('1 account(s) rewritten', Artisan::output());
+        $this->assertSame('gorret@pfs.com', $user->fresh()->email);
     }
 
     public function test_a_single_word_name_is_refused_with_the_expected_format(): void

@@ -64,6 +64,16 @@ class User extends Authenticatable
     }
 
     /**
+     * Addresses are stored lowercased so that Gorret@PFS.com and gorret@pfs.com are
+     * one account, not two rows that only MySQL's case-insensitive collation saves
+     * from colliding. Sign-in lowercases what is typed, so capitals still work.
+     */
+    public function setEmailAttribute($value): void
+    {
+        $this->attributes['email'] = strtolower(trim((string) $value));
+    }
+
+    /**
      * Rewrites local and repeated-country-code numbers into one comparable form
      * so "0751 657 654", "0751657654" and "+2560751657654" cannot both exist.
      */
