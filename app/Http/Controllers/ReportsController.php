@@ -62,8 +62,8 @@ class ReportsController extends Controller
             ]);
 
         // The yuan figures in these two tables have to be read line by line, so they carry the
-        // same rule the profit cards use. See rmbRateExpression().
-        [$rmbRate, $rmbBinding] = $this->rmbRateExpression();
+        // same rule the profit cards use. See Transaction::yuanRateSql().
+        [$rmbRate, $rmbBinding] = Transaction::yuanRateSql();
 
         $byAgent = Transaction::with('creator')
             ->visibleTo(auth()->user())
@@ -124,28 +124,6 @@ class ReportsController extends Controller
 
             return $row;
         });
-    }
-
-    /**
-     * What one dollar of a line is worth in yuan, read at the rate that transfer was actually
-     * booked at: the yuan it delivered over the dollars it was worth. A row missing either
-     * figure falls back to the USD/RMB rate standing on the sheet today, which is the same
-     * rule the profit cards use, so the cards and these tables cannot disagree.
-     *
-     * The multiply by 1.0 is not decoration. Both columns hold whole numbers whenever a
-     * transfer delivered an exact number of yuan, and sqlite then divides them as integers,
-     * turning a 7.2 rate into 7 and quietly under-pricing every yuan figure.
-     *
-     * @return array{0: string, 1: array<int, float>}
-     */
-    private function rmbRateExpression(): array
-    {
-        $fallback = (float) (ExchangeRate::getActiveRate('USD', 'RMB')->rate ?? 0);
-
-        return [
-            '(CASE WHEN total_usd_equivalent > 0 AND rmb_amount > 0 THEN rmb_amount * 1.0 / total_usd_equivalent ELSE ? END)',
-            [$fallback],
-        ];
     }
 
     /**

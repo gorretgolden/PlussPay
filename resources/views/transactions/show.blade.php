@@ -58,6 +58,7 @@
             : null;
         $totalProfitUgx = (float) $transaction->charge_ugx + (float) $transaction->fx_profit_ugx;
         $totalProfitUsd = (float) $transaction->charge_amount + (float) $transaction->fx_profit_usd;
+        $totalProfitRmb = $totalProfitUsd * $transaction->yuanRatePerUsd();
     @endphp
     <div class="border-t pt-4 mb-6">
         <h3 class="text-sm font-medium text-gray-500 mb-3">Profit (admin only, never shown on a receipt)</h3>
@@ -71,6 +72,10 @@
             <div class="col-span-2 pt-2 border-t text-base font-semibold text-gray-900">
                 Total profit: UGX {{ number_format($totalProfitUgx) }}
                 <span class="text-sm font-normal text-gray-500">= ${{ number_format($totalProfitUsd, 2) }} (fee ${{ number_format((float) $transaction->charge_amount, 2) }} + FX ${{ number_format((float) $transaction->fx_profit_usd, 2) }})</span>
+            </div>
+            <div class="col-span-2 text-sm font-semibold text-gray-900">
+                Total profit in yuan: &yen;{{ number_format($totalProfitUsd * $transaction->yuanRatePerUsd(), 2) }}
+                <span class="text-sm font-normal text-gray-500">at the {{ number_format($transaction->yuanRatePerUsd(), 4) }} yuan this transfer bought per dollar</span>
             </div>
         </div>
         @if($marginPerUsd === null)

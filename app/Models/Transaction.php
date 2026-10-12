@@ -124,6 +124,36 @@ class Transaction extends Model
         return $this->currency . ' ' . number_format((float) $this->amount, 2);
     }
 
+    /**
+     * How many yuan one dollar of this transfer bought. Read from the transfer itself when
+     * it carries both figures; rows booked before those were stored fall back to whatever
+     * USD/RMB rate stands on the rate sheet today.
+     */
+    public function yuanRatePerUsd(): float
+    {
+        if ((float) $this->total_usd_equivalent > 0 && (float) $this->rmb_amount > 0) {
+            return (float) $this->rmb_amount / (float) $this->total_usd_equivalent;
+        }
+
+        return (float) (ExchangeRate::getActiveRate('USD', 'RMB')->rate ?? 0);
+    }
+
+    /**
+     * The same rule as yuanRatePerUsd(), written for aggregate SQL so grouped queries price
+     * each row at its own booking rate. The multiply by 1.0 is not decoration: both columns
+     * hold whole numbers whenever a transfer delivered an exact number of yuan, and sqlite
+     * then divides them as integers, turning a 7.4 rate into 7.
+     */
+    public static function yuanRateSql(): array
+    {
+        $fallback = (float) (ExchangeRate::getActiveRate('USD', 'RMB')->rate ?? 0);
+
+        return [
+            '(CASE WHEN total_usd_equivalent > 0 AND rmb_amount > 0 THEN rmb_amount * 1.0 / total_usd_equivalent ELSE ? END)',
+            [$fallback],
+        ];
+    }
+
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
         if ($user->hasRole(['superadmin', 'admin'])) {

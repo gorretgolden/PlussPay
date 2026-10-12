@@ -107,6 +107,50 @@ class ReportConsolidationTest extends TestCase
         $this->assertSame(4, substr_count($response->getContent(), '>59.08<'));
     }
 
+    public function test_the_yuan_profit_has_its_own_row_of_cards(): void
+    {
+        $admin = $this->user('Gorret Admin', 'admin');
+        $this->transfer($admin, ['fx_profit_ugx' => 1200, 'fx_profit_usd' => 1.5]);
+        $this->transfer($admin, [
+            'exchange_rate' => 7.4,
+            'rmb_amount' => 1850,
+            'charge_amount' => 3,
+            'fx_profit_ugx' => 900,
+            'fx_profit_usd' => 1.2,
+        ]);
+
+        $html = $this->reports($admin)->getContent();
+
+        foreach (['Profit in shillings', 'Profit in yuan'] as $heading) {
+            $this->assertSame(1, substr_count($html, $heading), "Expected [$heading] exactly once.");
+        }
+
+        // Total, fee, and margin in yuan, each read at the rate its own transfer booked at.
+        foreach (['>&yen;59.08<', '>&yen;39.70<', '>&yen;19.38<'] as $figure) {
+            $this->assertStringContainsString($figure, $html);
+        }
+
+        // The yuan cards replace the small sub-lines the old profit cards carried. The hub
+        // card still says "RMB" in its label, so we only check the profit section is clean.
+        $profitSection = substr($html, strpos($html, 'id="section-profit"'), strpos($html, 'id="section-commission"') - strpos($html, 'id="section-profit"'));
+        $this->assertStringNotContainsString(' RMB</div>', $profitSection);
+    }
+
+    public function test_a_transfer_page_shows_what_that_one_transfer_earned_in_yuan(): void
+    {
+        $admin = $this->user('Gorret Admin', 'admin');
+        $transaction = $this->transfer($admin, ['fx_profit_ugx' => 1200, 'fx_profit_usd' => 1.5]);
+
+        // Fee 2.50 plus margin 1.50 is 4.00 dollars, and this transfer delivered 1,750 yuan
+        // on 250 dollars, so seven each: 4.00 x 7 = 28.00.
+        $html = $this->actingAs($admin)
+            ->get('/transactions/'.$transaction->id)
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('&yen;28.00', $html);
+    }
+
     public function test_the_page_holds_one_daily_table_and_one_agent_table(): void
     {
         $admin = $this->user('Gorret Admin', 'admin');

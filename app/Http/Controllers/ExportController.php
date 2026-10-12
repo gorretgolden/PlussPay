@@ -313,18 +313,14 @@ class ExportController extends Controller
         $from = $request->input('date_from', now()->startOfMonth()->toDateString());
         $to = $request->input('date_to', now()->toDateString());
 
+        // Each day's yuan figures price that day's own transfers at the rate they were booked
+        // at, the same rule the profit cards and the reports tables use.
+        [$rate, $binding] = Transaction::yuanRateSql();
+
         $days = Transaction::visibleTo($request->user())
             ->where('status', 'completed')
             ->whereBetween('created_at', [$from, $to . ' 23:59:59'])
-            ->select(
-                DB::raw('DATE(created_at) as day'),
-                DB::raw('count(*) as count'),
-                DB::raw('sum(total_usd_equivalent) as usd_sent'),
-                DB::raw('sum(charge_ugx) as fee_ugx'),
-                DB::raw('sum(charge_amount) as fee_usd'),
-                DB::raw('sum(fx_profit_ugx) as fx_ugx'),
-                DB::raw('sum(fx_profit_usd) as fx_usd'),
-            )
+            ->selectRaw('DATE(created_at) as day, count(*) as count, sum(total_usd_equivalent) as usd_sent, sum(charge_ugx) as fee_ugx, sum(charge_amount) as fee_usd, sum(fx_profit_ugx) as fx_ugx, sum(fx_profit_usd) as fx_usd, sum(charge_amount * '.$rate.') as fee_rmb, sum(fx_profit_usd * '.$rate.') as fx_rmb', array_merge($binding, $binding))
             ->groupBy(DB::raw('DATE(created_at)'))
             ->orderBy('day')
             ->get();
@@ -335,10 +331,13 @@ class ExportController extends Controller
             number_format((float) $d->usd_sent, 2),
             number_format((float) $d->fee_ugx),
             number_format((float) $d->fee_usd, 2),
+            number_format((float) $d->fee_rmb, 2),
             number_format((float) $d->fx_ugx),
             number_format((float) $d->fx_usd, 2),
+            number_format((float) $d->fx_rmb, 2),
             number_format((float) $d->fee_ugx + (float) $d->fx_ugx),
             number_format((float) $d->fee_usd + (float) $d->fx_usd, 2),
+            number_format((float) $d->fee_rmb + (float) $d->fx_rmb, 2),
         ])->all();
 
         $rows[] = [
@@ -347,15 +346,19 @@ class ExportController extends Controller
             number_format((float) $days->sum('usd_sent'), 2),
             number_format((float) $days->sum('fee_ugx')),
             number_format((float) $days->sum('fee_usd'), 2),
+            number_format((float) $days->sum('fee_rmb'), 2),
             number_format((float) $days->sum('fx_ugx')),
             number_format((float) $days->sum('fx_usd'), 2),
+            number_format((float) $days->sum('fx_rmb'), 2),
             number_format((float) $days->sum('fee_ugx') + (float) $days->sum('fx_ugx')),
             number_format((float) $days->sum('fee_usd') + (float) $days->sum('fx_usd'), 2),
+            number_format((float) $days->sum('fee_rmb') + (float) $days->sum('fx_rmb'), 2),
         ];
 
         return $this->download('profit-report', [
-            'Date', 'Transactions', 'USD Sent', 'Fee Income (UGX)', 'Fee Income (USD)',
-            'Dollar Margin (UGX)', 'Dollar Margin (USD)', 'Total Profit (UGX)', 'Total Profit (USD)',
+            'Date', 'Transactions', 'USD Sent', 'Fee Income (UGX)', 'Fee Income (USD)', 'Fee Income (RMB)',
+            'Dollar Margin (UGX)', 'Dollar Margin (USD)', 'Dollar Margin (RMB)',
+            'Total Profit (UGX)', 'Total Profit (USD)', 'Total Profit (RMB)',
         ], $rows, $from . '-' . $to);
     }
 

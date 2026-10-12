@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -113,13 +114,15 @@ class FxRateAndProfitTest extends TestCase
         $transaction = $this->storeUgxTransfer(3760000);
 
         // Those 1,000 dollars were delivered as 7,240 RMB, so each dollar of profit is worth
-        // 7.24 RMB: the UGX 20,000 fee is $5.31 = 38.44, the margin $2.65 = 19.19.
+        // 7.24 RMB: the UGX 20,000 fee is $5.31 = 38.44, the margin $2.65 = 19.19. The yuan
+        // now has its own row of cards rather than a small line under the shilling figure.
         $this->actingAs($transaction->creator)
             ->get('/reports?type=profit')
             ->assertOk()
-            ->assertSee('&yen;38.44 RMB', false)
-            ->assertSee('&yen;19.19 RMB', false)
-            ->assertSee('&yen;57.63 RMB', false);
+            ->assertSee('Profit in yuan')
+            ->assertSee('&yen;38.44', false)
+            ->assertSee('&yen;19.19', false)
+            ->assertSee('&yen;57.63', false);
     }
 
     public function test_agents_never_see_the_profit_report(): void
@@ -154,6 +157,34 @@ class FxRateAndProfitTest extends TestCase
             'user_id' => $transaction->created_by,
             'action' => 'exported',
         ]);
+    }
+
+    public function test_the_profit_export_carries_the_yuan_columns(): void
+    {
+        $transaction = $this->storeUgxTransfer(3760000);
+
+        $response = $this->actingAs($transaction->creator)->get('/export/profit-report');
+        $this->assertSame(200, $response->getStatusCode());
+
+        $path = storage_path('app/profit-export-check.xlsx');
+        file_put_contents($path, $response->streamedContent());
+
+        $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path)->getActiveSheet();
+        unlink($path);
+
+        $cells = [];
+        foreach (range('A', 'L') as $column) {
+            foreach ([5, 6, 7] as $row) {
+                $cells[] = (string) $sheet->getCell($column.$row)->getValue();
+            }
+        }
+        $sheetText = implode('|', $cells);
+
+        // The boss reads the profit in the yuan it was delivered as, so the file he downloads
+        // has to carry it the same way the page does: fee 38.44, margin 19.19, total 57.63.
+        foreach (['Fee Income (RMB)', 'Dollar Margin (RMB)', 'Total Profit (RMB)', '38.44', '19.19', '57.63'] as $needle) {
+            $this->assertStringContainsString($needle, $sheetText);
+        }
     }
 
     private function storeUgxTransfer(float $amount): Transaction

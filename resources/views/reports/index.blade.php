@@ -61,7 +61,7 @@
 </div>
 
 {{-- Summary Stats --}}
-<div id="section-hub" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+<div id="section-hub" class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
     <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">Total Transactions</div>
         <div class="text-2xl font-bold text-green-800 mt-1">{{ number_format($stats['total_transactions']) }}</div>
@@ -80,6 +80,13 @@
         <div class="text-2xl font-bold text-green-700 mt-1">UGX {{ number_format($profit['fee_ugx']) }}</div>
         <div class="text-xs text-gray-400 mt-1">USD {{ number_format($profit['fee_usd'], 2) }} | &yen;{{ number_format($profit['fee_rmb'], 2) }} RMB | Avg: ${{ number_format($stats['avg_transaction'], 2) }}/tx</div>
     </div>
+    @role('admin|superadmin')
+    <div class="bg-white rounded-lg shadow p-5 border-l-4 border-purple-500">
+        <div class="text-sm text-gray-500">Profit (RMB)</div>
+        <div class="text-2xl font-bold text-purple-700 mt-1">&yen;{{ number_format($profit['total_rmb'], 2) }} RMB</div>
+        <div class="text-xs text-gray-400 mt-1">Fee: &yen;{{ number_format($profit['fee_rmb'], 2) }} | FX: &yen;{{ number_format($profit['fx_rmb'], 2) }}</div>
+    </div>
+    @endrole
 </div>
 
 @role('admin|superadmin')
@@ -88,35 +95,61 @@
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <div>
                 <h3 class="text-lg font-semibold text-gray-900">Profit</h3>
-                <p class="text-sm text-gray-500">Service fee income plus the margin between the dollar buying rate and the selling rate. The same profit split by day and by desk is in the Daily Summary and Performance by Agent tables below.</p>
+                <p class="text-sm text-gray-500">Service fee income plus the margin between the dollar buying rate and the selling rate, shown once in shillings and once in the yuan those dollars bought. The same profit split by day and by desk is in the Daily Summary and Performance by Agent tables below.</p>
             </div>
             <a href="{{ route('export.profit-report', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700 whitespace-nowrap">Export Excel</a>
         </div>
 
+        <div class="px-6 pt-5">
+            <div class="text-sm font-semibold text-gray-700">Profit in shillings</div>
+        </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
             <div class="rounded-lg border border-green-200 bg-green-50 p-4">
                 <div class="text-sm text-green-900">Total Profit</div>
                 <div class="text-2xl font-bold text-green-800 mt-1">UGX {{ number_format($profit['total_ugx']) }}</div>
                 <div class="text-xs text-green-700 mt-1">USD {{ number_format($profit['total_usd'], 2) }}</div>
-                <div class="text-xs text-green-700">&yen;{{ number_format($profit['total_rmb'], 2) }} RMB</div>
             </div>
             <div class="rounded-lg border bg-gray-50 p-4">
                 <div class="text-sm text-gray-500">Service Fee Income</div>
                 <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['fee_ugx']) }}</div>
                 <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['fee_usd'], 2) }}</div>
-                <div class="text-xs text-gray-500">&yen;{{ number_format($profit['fee_rmb'], 2) }} RMB</div>
             </div>
             <div class="rounded-lg border bg-gray-50 p-4">
                 <div class="text-sm text-gray-500">Margin on Dollars</div>
                 <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['fx_ugx']) }}</div>
                 <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['fx_usd'], 2) }}</div>
-                <div class="text-xs text-gray-500">&yen;{{ number_format($profit['fx_rmb'], 2) }} RMB</div>
             </div>
             <div class="rounded-lg border bg-gray-50 p-4">
                 <div class="text-sm text-gray-500">Profit on One Dollar Sent</div>
                 <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['per_dollar_ugx'], 2) }}</div>
                 <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['per_dollar_usd'], 2) }}</div>
-                <div class="text-xs text-gray-500">&yen;{{ number_format($profit['per_dollar_rmb'], 2) }} RMB</div>
+            </div>
+        </div>
+
+        <div class="px-6 pb-3">
+            <div class="text-sm font-semibold text-gray-700">Profit in yuan</div>
+            <p class="text-xs text-gray-500 mt-1">Each transfer's profit priced at the yuan rate it was actually booked at, so this is the same money as the row above, counted in what we pay out in China.</p>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 px-6 pb-6">
+            <div class="rounded-lg border border-purple-200 bg-purple-50 p-4">
+                <div class="text-sm text-purple-900">Total Profit</div>
+                <div class="text-2xl font-bold text-purple-800 mt-1">&yen;{{ number_format($profit['total_rmb'], 2) }}</div>
+                <div class="text-xs text-purple-700 mt-1">USD {{ number_format($profit['total_usd'], 2) }}</div>
+            </div>
+            <div class="rounded-lg border bg-gray-50 p-4">
+                <div class="text-sm text-gray-500">Service Fee Income</div>
+                <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['fee_rmb'], 2) }}</div>
+                <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['fee_usd'], 2) }}</div>
+            </div>
+            <div class="rounded-lg border bg-gray-50 p-4">
+                <div class="text-sm text-gray-500">Margin on Dollars</div>
+                <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['fx_rmb'], 2) }}</div>
+                <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['fx_usd'], 2) }}</div>
+            </div>
+            <div class="rounded-lg border bg-gray-50 p-4">
+                <div class="text-sm text-gray-500">Profit on One Dollar Sent</div>
+                <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['per_dollar_rmb'], 4) }}</div>
+                <div class="text-xs text-gray-500 mt-1">for each USD 1 sent</div>
             </div>
         </div>
 
@@ -206,25 +239,69 @@
 </div>
 
 {{-- Charts --}}
-<div id="section-transaction" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Transaction Volume</h3>
-        <div style="position:relative;height:250px"><canvas id="dailyTransactionsChart"></canvas></div>
+<div id="section-transaction" class="mb-6">
+    @role('admin|superadmin')
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
+            <div class="text-xs text-gray-500">Total Profit (RMB)</div>
+            <div class="text-xl font-bold text-purple-700 mt-1">&yen;{{ number_format($profit['total_rmb'], 2) }}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-xs text-gray-500">Fee Income (RMB)</div>
+            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['fee_rmb'], 2) }}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-xs text-gray-500">FX Margin (RMB)</div>
+            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['fx_rmb'], 2) }}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-xs text-gray-500">Per Dollar (RMB)</div>
+            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['per_dollar_rmb'], 4) }}</div>
+        </div>
     </div>
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Revenue</h3>
-        <div style="position:relative;height:250px"><canvas id="dailyRevenueChart"></canvas></div>
+    @endrole
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Transaction Volume</h3>
+            <div style="position:relative;height:250px"><canvas id="dailyTransactionsChart"></canvas></div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Revenue</h3>
+            <div style="position:relative;height:250px"><canvas id="dailyRevenueChart"></canvas></div>
+        </div>
     </div>
 </div>
 
-<div id="section-revenue" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Transaction Status Distribution</h3>
-        <div style="position:relative;height:250px"><canvas id="statusChart"></canvas></div>
+<div id="section-revenue" class="mb-6">
+    @role('admin|superadmin')
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
+            <div class="text-xs text-gray-500">Total Profit (RMB)</div>
+            <div class="text-xl font-bold text-purple-700 mt-1">&yen;{{ number_format($profit['total_rmb'], 2) }}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-xs text-gray-500">Fee Income (RMB)</div>
+            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['fee_rmb'], 2) }}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-xs text-gray-500">FX Margin (RMB)</div>
+            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['fx_rmb'], 2) }}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-xs text-gray-500">Per Dollar (RMB)</div>
+            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['per_dollar_rmb'], 4) }}</div>
+        </div>
     </div>
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Agent Performance Comparison</h3>
-        <div style="position:relative;height:250px"><canvas id="agentChart"></canvas></div>
+    @endrole
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Transaction Status Distribution</h3>
+            <div style="position:relative;height:250px"><canvas id="statusChart"></canvas></div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Agent Performance Comparison</h3>
+            <div style="position:relative;height:250px"><canvas id="agentChart"></canvas></div>
+        </div>
     </div>
 </div>
 
