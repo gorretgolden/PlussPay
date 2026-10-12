@@ -187,16 +187,23 @@
                 @endrole
             </nav>
             <div class="p-4 border-t border-green-800">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm font-medium">{{ auth()->user()->name }}</p>
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-green-700 flex items-center justify-center text-sm font-bold uppercase flex-shrink-0">
+                        {{ mb_substr(auth()->user()->name, 0, 1) }}
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium truncate">{{ auth()->user()->name }}</p>
                         <p class="text-xs text-green-300">{{ \App\Http\Controllers\RolePermissionController::displayName(auth()->user()->getRoleNames()->first() ?? '') }}</p>
                     </div>
-                    <form method="POST" action="{{ route('logout') }}">
-                        @csrf
-                        <button type="submit" class="text-xs text-green-300 hover:text-white">Logout</button>
-                    </form>
                 </div>
+                <form method="POST" action="{{ route('logout') }}" class="mt-3">
+                    @csrf
+                    <button type="submit"
+                        class="w-full flex items-center justify-center gap-2 bg-green-800 hover:bg-green-700 border border-green-600 text-white text-sm font-medium px-3 py-2 rounded-md transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                        Log out
+                    </button>
+                </form>
             </div>
         </aside>
 
