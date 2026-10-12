@@ -36,8 +36,8 @@
     </div>
 
     @if($transaction->status !== 'completed')
-    {{-- Every transfer now books as Pending, so a printed receipt has to say out loud that
-         the money is not released yet. --}}
+    {{-- A booking normally completes as it is entered, so this only appears for the odd
+         transfer left Pending and for cancellations, where the money must not move. --}}
     <div class="mb-6 rounded-md border px-4 py-3 text-sm font-medium
         @if($transaction->status === 'pending') bg-yellow-50 border-yellow-300 text-yellow-800
         @else bg-red-50 border-red-300 text-red-800 @endif">

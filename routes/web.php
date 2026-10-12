@@ -89,8 +89,6 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::resource('customers', CustomerController::class);
 
         Route::patch('/transactions/{transaction}/status', [TransactionController::class, 'updateStatus'])->name('transactions.update-status');
-        Route::get('/approvals', [TransactionController::class, 'approvals'])->name('transactions.approvals');
-        Route::post('/approvals/bulk', [TransactionController::class, 'bulkApprove'])->name('transactions.approve');
 
         Route::get('/transactions/bulk/import', [TransactionController::class, 'showBulkImport'])->name('transactions.bulk-import');
         Route::post('/transactions/bulk/import', [TransactionController::class, 'bulkImport'])->name('transactions.bulk-import.store');

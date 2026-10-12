@@ -92,11 +92,10 @@
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-    @php($pendingLink = auth()->user()->hasRole(['admin', 'superadmin']) ? route('transactions.approvals') : route('transactions.index', ['status' => 'pending']))
-    <a href="{{ $pendingLink }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+    <a href="{{ route('transactions.index', ['status' => 'pending']) }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
         <div class="flex items-center justify-between">
             <div>
-                <div class="text-sm text-gray-500">Waiting for Approval</div>
+                <div class="text-sm text-gray-500">Still Pending</div>
                 <div class="text-3xl font-bold text-yellow-600 mt-1">{{ number_format($stats['pending_transactions']) }}</div>
             </div>
             <svg class="w-10 h-10 text-yellow-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>

@@ -13,10 +13,10 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * The office gaps found on the UGX 10,000 test transfer: nothing completes without an
- * approval, nothing cancels without a reason, and the figures on screen match the books.
+ * The office gaps found on the UGX 10,000 test transfer: a booking is finished as it is
+ * entered, nothing cancels without a reason, and the figures on screen match the books.
  */
-class TransferApprovalTest extends TestCase
+class TransferFlowTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -54,8 +54,8 @@ class TransferApprovalTest extends TestCase
         $this->actingAs($booker)->get('/transactions/create');
         $this->actingAs($booker)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
-            'sender_name' => 'Approval Sender',
-            'receiver_name' => 'Approval Receiver',
+            'sender_name' => 'Flow Sender',
+            'receiver_name' => 'Flow Receiver',
             'currency' => 'UGX',
             'amount' => $amount,
         ])->assertSessionHasNoErrors();
@@ -63,26 +63,26 @@ class TransferApprovalTest extends TestCase
         return Transaction::latest('id')->firstOrFail();
     }
 
-    public function test_a_transfer_booked_by_an_admin_waits_for_approval_and_moves_no_cash(): void
+    public function test_a_booked_transfer_is_finished_at_once_and_puts_the_money_in_the_till(): void
     {
         $admin = $this->user('admin');
         $transaction = $this->book($admin);
 
-        $this->assertSame('pending', $transaction->status);
-        $this->assertSame('0.00', Account::byCode(Account::UGX_UGANDA)->balance());
-        $this->assertSame(0, AccountEntry::count());
+        $this->assertSame('completed', $transaction->status);
+        // UGX 10,000 handed over plus the UGX 50 charge on the $2.50 it converts to.
+        $this->assertSame('10050.00', Account::byCode(Account::UGX_UGANDA)->balance());
+        $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'money_in')->count());
     }
 
-    public function test_approving_posts_the_principal_and_the_charge_to_the_till(): void
+    public function test_a_transfer_left_over_from_the_old_pending_list_can_still_be_completed(): void
     {
         $admin = $this->user('admin');
         $transaction = $this->book($admin);
+        $transaction->update(['status' => 'pending']);
 
         $this->actingAs($admin)->patch("/transactions/{$transaction->id}/status", ['status' => 'completed'])
             ->assertSessionHasNoErrors();
 
-        // UGX 10,000 handed over plus the UGX 50 charge on the $2.50 it converts to.
-        $this->assertSame('10050.00', Account::byCode(Account::UGX_UGANDA)->balance());
         $this->assertSame('completed', $transaction->fresh()->status);
         $this->assertDatabaseHas('activity_logs', [
             'transaction_id' => $transaction->id,
@@ -120,14 +120,14 @@ class TransferApprovalTest extends TestCase
         $this->actingAs($admin)->patch("/transactions/{$transaction->id}/status", ['status' => 'cancelled'])
             ->assertSessionHasErrors('reason');
 
-        $this->assertSame('pending', $transaction->fresh()->status);
+        $this->assertSame('completed', $transaction->fresh()->status);
+        $this->assertSame('10050.00', Account::byCode(Account::UGX_UGANDA)->balance());
     }
 
     public function test_cancelling_a_completed_transfer_returns_the_money_it_took_in(): void
     {
         $admin = $this->user('admin');
         $transaction = $this->book($admin);
-        $this->actingAs($admin)->patch("/transactions/{$transaction->id}/status", ['status' => 'completed']);
 
         $this->actingAs($admin)->patch("/transactions/{$transaction->id}/status", [
             'status' => 'cancelled',
@@ -138,36 +138,6 @@ class TransferApprovalTest extends TestCase
         $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'reversal')->count());
     }
 
-    public function test_the_approvals_desk_signs_off_several_transfers_at_once(): void
-    {
-        $admin = $this->user('admin');
-        $ids = collect([$this->book($admin), $this->book($admin, '20000'), $this->book($admin, '30000')])->pluck('id');
-
-        $this->actingAs($admin)->get('/approvals')
-            ->assertOk()
-            ->assertSee('Customer Pays');
-
-        $this->actingAs($admin)->post('/approvals/bulk', ['ids' => $ids->all()])
-            ->assertSessionHasNoErrors();
-
-        $this->assertSame(0, Transaction::where('status', 'pending')->count());
-
-        // 10,000 + 20,000 + 30,000 of principal plus 50 + 100 + 150 of charge.
-        $this->assertSame('60300.00', Account::byCode(Account::UGX_UGANDA)->balance());
-        $this->assertSame(3, AccountEntry::where('type', 'money_in')->count());
-    }
-
-    public function test_only_admins_reach_the_approvals_desk(): void
-    {
-        $agent = $this->user('agent');
-        $transaction = $this->book($agent);
-
-        $this->actingAs($agent)->get('/approvals')->assertForbidden();
-        $this->actingAs($agent)->post('/approvals/bulk', ['ids' => [$transaction->id]])->assertForbidden();
-
-        $this->assertSame('pending', $transaction->fresh()->status);
-    }
-
     public function test_the_unpriced_warning_counts_transfers_recorded_with_a_zero_buying_rate(): void
     {
         $admin = $this->user('admin');
@@ -175,10 +145,10 @@ class TransferApprovalTest extends TestCase
         // One booked before the buying rate columns existed, one booked while only the
         // selling rate was set, which saves the buying rate as zero rather than blank.
         $older = $this->book($admin);
-        $older->update(['status' => 'completed', 'rate_buy_ugx' => null]);
+        $older->update(['rate_buy_ugx' => null]);
 
         $newer = $this->book($admin, '20000');
-        $newer->update(['status' => 'completed', 'rate_buy_ugx' => 0, 'fx_profit_ugx' => 0, 'fx_profit_usd' => 0]);
+        $newer->update(['rate_buy_ugx' => 0, 'fx_profit_ugx' => 0, 'fx_profit_usd' => 0]);
 
         $this->actingAs($admin)
             ->get('/reports?type=profit')
@@ -191,11 +161,8 @@ class TransferApprovalTest extends TestCase
     {
         $admin = $this->user('admin');
 
-        $kept = $this->book($admin);
-        $this->actingAs($admin)->patch("/transactions/{$kept->id}/status", ['status' => 'completed']);
-
+        $this->book($admin);
         $dropped = $this->book($admin, '20000');
-        $this->actingAs($admin)->patch("/transactions/{$dropped->id}/status", ['status' => 'completed']);
         $this->actingAs($admin)->patch("/transactions/{$dropped->id}/status", [
             'status' => 'cancelled',
             'reason' => 'Booked by mistake',

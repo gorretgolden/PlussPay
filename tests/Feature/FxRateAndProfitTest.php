@@ -156,12 +156,6 @@ class FxRateAndProfitTest extends TestCase
             'amount' => (string) $amount,
         ])->assertSessionHasNoErrors();
 
-        $transaction = Transaction::latest('id')->firstOrFail();
-
-        // Profit only counts once a transfer clears approval.
-        $this->actingAs($admin)->patch("/transactions/{$transaction->id}/status", ['status' => 'completed'])
-            ->assertSessionHasNoErrors();
-
-        return $transaction->fresh();
+        return Transaction::latest('id')->firstOrFail();
     }
 }

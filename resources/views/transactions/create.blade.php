@@ -269,7 +269,7 @@
                     <button type="submit" id="submitBtn" class="bg-green-800 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium">
                         Book & Generate Receipt
                     </button>
-                    <p class="text-xs text-gray-500 mt-2">Saves as Pending until an admin approves it.</p>
+                    <p class="text-xs text-gray-500 mt-2">The transfer is finished as soon as you book it.</p>
                 </div>
             </div>
         </div>

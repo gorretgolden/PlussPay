@@ -181,8 +181,7 @@ class TransactionController extends Controller
             'fx_profit_ugx' => $fx['ugx'],
             'fx_profit_usd' => $fx['usd'],
             'total_usd_equivalent' => $usdEquivalent,
-            // Nothing is booked as done until an approval signs it off, whoever typed it in.
-            'status' => 'pending',
+            'status' => 'completed',
             'created_by' => auth()->id(),
             'purpose' => $purpose ? trim($purpose) : null,
             'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
@@ -194,12 +193,12 @@ class TransactionController extends Controller
             'transaction_id' => $transaction->id,
             'user_id' => auth()->id(),
             'action' => 'created',
-            'description' => 'Transaction created, waiting for approval',
+            'description' => 'Transaction created',
             'new_value' => $transaction->status,
         ]);
 
         return redirect()->route('receipts.show', $transaction->receipt_number)
-            ->with('success', "{$transaction->receipt_number} booked. It shows as Pending until an admin approves it.");
+            ->with('success', $this->statusFlash($transaction->status, $transaction));
     }
 
     public function show(Request $request, Transaction $transaction)
@@ -279,74 +278,6 @@ class TransactionController extends Controller
             'completed' => "{$transaction->receipt_number} approved. {$collected} posted to the ledger.",
             default => "{$transaction->receipt_number} is now " . ucfirst($status) . '.',
         };
-    }
-
-    /**
-     * The approvals desk: everything booked and not yet approved, oldest first, with the
-     * person and the time beside each so a batch can be signed off without opening them one by one.
-     */
-    public function approvals(Request $request)
-    {
-        $pending = Transaction::with('creator')
-            ->visibleTo($request->user())
-            ->where('status', 'pending')
-            ->orderBy('created_at')
-            ->paginate(25)
-            ->withQueryString();
-
-        return view('transactions.approvals', [
-            'pending' => $pending,
-            'totalPending' => Transaction::visibleTo($request->user())->where('status', 'pending')->count(),
-        ]);
-    }
-
-    /**
-     * Approving posts the till deposit and the agent commission, so each transfer is saved
-     * through the model rather than a bulk query update, which would skip the ledger.
-     */
-    public function bulkApprove(Request $request)
-    {
-        $validated = $request->validate([
-            'ids' => 'required|array|min:1|max:200',
-            'ids.*' => 'integer',
-        ]);
-
-        $approved = DB::transaction(function () use ($validated) {
-            $count = 0;
-
-            $transactions = Transaction::whereIn('id', $validated['ids'])
-                ->where('status', 'pending')
-                ->orderBy('created_at')
-                ->lockForUpdate()
-                ->get();
-
-            foreach ($transactions as $transaction) {
-                $transaction->update(['status' => 'completed']);
-
-                ActivityLog::create([
-                    'transaction_id' => $transaction->id,
-                    'user_id' => auth()->id(),
-                    'action' => 'approved',
-                    'description' => 'Approved from pending',
-                    'old_value' => 'pending',
-                    'new_value' => 'completed',
-                ]);
-
-                $count++;
-            }
-
-            return $count;
-        });
-
-        if ($approved === 0) {
-            return back()->with('warning', 'Those transfers are no longer waiting for approval.');
-        }
-
-        $skipped = count($validated['ids']) - $approved;
-
-        return back()->with('success', $approved === 1
-            ? 'One transfer approved and posted to the ledger.'
-            : "{$approved} transfers approved and posted to the ledger." . ($skipped > 0 ? " {$skipped} had already been actioned." : ''));
     }
 
     private function canView(Request $request, Transaction $transaction): bool
@@ -484,8 +415,6 @@ class TransactionController extends Controller
                             'fx_profit_ugx' => $fx['ugx'],
                             'fx_profit_usd' => $fx['usd'],
                             'total_usd_equivalent' => $usdEquivalent,
-                            // A bulk file is brought in by an admin and stands as its own
-                            // approval; the desk is there so single bookings get checked.
                             'status' => 'completed',
                             'created_by' => auth()->id(),
                             'purpose' => !empty($data['purpose']) ? trim($data['purpose']) : null,
