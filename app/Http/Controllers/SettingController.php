@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class SettingController extends Controller
 {
@@ -44,9 +45,11 @@ class SettingController extends Controller
             'usd_rmb_buying' => 'nullable|numeric|min:0.000001|max:999999.999999',
             'usd_rmb_selling' => 'nullable|numeric|min:0.000001|max:999999.999999',
             'site_mode' => ['nullable', 'in:testing,production'],
+            'timezone' => ['nullable', Rule::in(array_keys(Setting::TIMEZONES))],
         ], [
             'receipt_prefix.regex' => 'The receipt prefix can only contain letters and numbers, e.g. PS.',
             'site_mode.in' => 'Site mode must be Testing or Production.',
+            'timezone.in' => 'Please choose one of the listed time zones.',
             'usd_ugx_buying.numeric' => 'The UGX buying rate must be a number, e.g. 3750.',
             'usd_ugx_selling.numeric' => 'The UGX selling rate must be a number, e.g. 3760.',
             'usd_ugx_buying.min' => 'The UGX buying rate must be at least 0.01.',
@@ -80,7 +83,7 @@ class SettingController extends Controller
         foreach ($validated as $key => $value) {
             $type = in_array($key, ['service_fee_ugx', 'service_fee_usd', 'min_transaction_amount', 'max_transaction_amount']) ? 'float' : 'string';
             $group = match (true) {
-                $key === 'site_mode' => 'display',
+                in_array($key, ['site_mode', 'timezone'], true) => 'display',
                 str_starts_with($key, 'company_') => 'company',
                 default => 'transaction',
             };

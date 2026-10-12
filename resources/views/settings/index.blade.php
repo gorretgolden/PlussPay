@@ -183,6 +183,37 @@
         </div>
     </div>
 
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Date and Time</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Time Zone</label>
+                <select name="timezone"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                    @foreach (\App\Models\Setting::TIMEZONES as $zone => $description)
+                        <option value="{{ $zone }}" @selected(old('timezone', \App\Models\Setting::timezone()) === $zone)>
+                            {{ $description }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="flex items-end">
+                <p class="text-xs text-gray-500">
+                    Right now the system reads <span class="font-medium text-gray-700">{{ now()->format('D d M Y, H:i') }}</span>.
+                    This zone sets every date you see on screen, the date printed on receipts, and
+                    where a Today or date-range report begins and ends. On UTC a report labelled
+                    today kept counting until 3 AM in Kampala; on Kampala it rolls over at midnight here.
+                </p>
+            </div>
+        </div>
+        <p class="text-xs text-gray-500 mt-3">
+            Records already saved keep the stamp they were written under, so a transfer logged while
+            the system ran on UTC reads three hours early once you switch to Kampala. Anything
+            created from the moment you save uses the zone chosen above. The older rows can be
+            shifted to match in a one-off update if you want them aligned.
+        </p>
+    </div>
+
     @if (auth()->user()->hasRole('superadmin'))
     <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-1">Site Mode</h2>
