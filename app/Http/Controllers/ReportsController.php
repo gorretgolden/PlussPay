@@ -61,25 +61,91 @@ class ReportsController extends Controller
                 'usd_equivalent' => $items->sum('total_usd_equivalent'),
             ]);
 
+        // The yuan figures in these two tables have to be read line by line, so they carry the
+        // same rule the profit cards use. See rmbRateExpression().
+        [$rmbRate, $rmbBinding] = $this->rmbRateExpression();
+
         $byAgent = Transaction::with('creator')
             ->visibleTo(auth()->user())
             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
             ->where('status', 'completed')
-            ->select('created_by', DB::raw('count(*) as count'), DB::raw('sum(total_usd_equivalent) as total_usd'), DB::raw('sum(charge_amount) as total_revenue'), DB::raw('sum(charge_ugx) as fee_ugx'), DB::raw('sum(fx_profit_ugx) as fx_ugx'), DB::raw('sum(fx_profit_usd) as fx_usd'))
+            ->selectRaw('created_by, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(charge_amount) as total_revenue, sum(charge_ugx) as fee_ugx, sum(fx_profit_ugx) as fx_ugx, sum(fx_profit_usd) as fx_usd, sum(charge_amount * '.$rmbRate.') as fee_rmb, sum(fx_profit_usd * '.$rmbRate.') as fx_rmb', array_merge($rmbBinding, $rmbBinding))
             ->groupBy('created_by')
             ->get();
 
         $dailySummary = Transaction::visibleTo(auth()->user())
             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
             ->where('status', 'completed')
-            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as count'), DB::raw('sum(total_usd_equivalent) as total_usd'), DB::raw('sum(charge_amount) as revenue'), DB::raw('sum(charge_ugx) as fee_ugx'), DB::raw('sum(fx_profit_ugx) as fx_ugx'), DB::raw('sum(fx_profit_usd) as fx_usd'))
+            ->selectRaw('DATE(created_at) as date, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(charge_amount) as revenue, sum(charge_ugx) as fee_ugx, sum(fx_profit_ugx) as fx_ugx, sum(fx_profit_usd) as fx_usd, sum(charge_amount * '.$rmbRate.') as fee_rmb, sum(fx_profit_usd * '.$rmbRate.') as fx_rmb', array_merge($rmbBinding, $rmbBinding))
             ->groupBy(DB::raw('DATE(created_at)'))
             ->orderBy('date')
             ->get();
 
+        // Customers come from the booking rows rather than the directory, because the directory
+        // only holds a name and a phone and carries no volume. Each line is grouped under the
+        // sender name as it was typed on the transfer, so a misspelling stays its own customer.
+        $byCustomer = Transaction::visibleTo(auth()->user())
+            ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
+            ->where('status', 'completed')
+            ->where('sender_name', '!=', '')
+            ->selectRaw('sender_name, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(rmb_amount) as rmb_delivered, sum(charge_ugx) as fee_ugx, max(created_at) as last_transfer')
+            ->groupBy('sender_name')
+            ->orderByDesc('total_usd')
+            ->get();
+
+        $byRate = $this->rateBookings($dateFrom, $dateTo, auth()->user());
+
         $commission = $this->commissionTotals($dateFrom, $dateTo, auth()->user());
 
-        return view('reports.index', compact('stats', 'profit', 'unpricedCount', 'unpricedReceipts', 'byCurrency', 'byAgent', 'dailySummary', 'dateFrom', 'dateTo', 'transactions', 'reportType', 'commission'));
+        return view('reports.index', compact('stats', 'profit', 'unpricedCount', 'unpricedReceipts', 'byCurrency', 'byAgent', 'dailySummary', 'byCustomer', 'byRate', 'dateFrom', 'dateTo', 'transactions', 'reportType', 'commission'));
+    }
+
+    /**
+     * The money that moved at each dollar-to-yuan rate in the period, next to what those
+     * transfers earned. The rate sheet on its own only records what was set; pairing it with
+     * the bookings made under it shows which price actually brought the business.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    private function rateBookings(string $dateFrom, string $dateTo, User $viewer)
+    {
+        $rows = Transaction::visibleTo($viewer)
+            ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
+            ->where('status', 'completed')
+            ->selectRaw('exchange_rate, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(rmb_amount) as rmb_delivered, sum(charge_ugx) as fee_ugx, sum(fx_profit_ugx) as fx_ugx, min(created_at) as first_booked, max(created_at) as last_booked')
+            ->groupBy('exchange_rate')
+            ->orderByDesc('last_booked')
+            ->get();
+
+        $current = (float) (ExchangeRate::getActiveRate('USD', 'RMB')->rate ?? 0);
+
+        return $rows->map(function ($row) use ($current) {
+            $row->is_current = $current > 0 && abs((float) $row->exchange_rate - $current) < 0.000001;
+
+            return $row;
+        });
+    }
+
+    /**
+     * What one dollar of a line is worth in yuan, read at the rate that transfer was actually
+     * booked at: the yuan it delivered over the dollars it was worth. A row missing either
+     * figure falls back to the USD/RMB rate standing on the sheet today, which is the same
+     * rule the profit cards use, so the cards and these tables cannot disagree.
+     *
+     * The multiply by 1.0 is not decoration. Both columns hold whole numbers whenever a
+     * transfer delivered an exact number of yuan, and sqlite then divides them as integers,
+     * turning a 7.2 rate into 7 and quietly under-pricing every yuan figure.
+     *
+     * @return array{0: string, 1: array<int, float>}
+     */
+    private function rmbRateExpression(): array
+    {
+        $fallback = (float) (ExchangeRate::getActiveRate('USD', 'RMB')->rate ?? 0);
+
+        return [
+            '(CASE WHEN total_usd_equivalent > 0 AND rmb_amount > 0 THEN rmb_amount * 1.0 / total_usd_equivalent ELSE ? END)',
+            [$fallback],
+        ];
     }
 
     /**

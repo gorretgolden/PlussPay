@@ -116,6 +116,14 @@
                         <a href="{{ route('reports.index', ['type' => 'daily']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'daily' ? 'active' : '' }}">
                             Daily Summary
                         </a>
+                        <a href="{{ route('reports.index', ['type' => 'customer']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'customer' ? 'active' : '' }}">
+                            Customer Report
+                        </a>
+                        @role('admin|superadmin')
+                        <a href="{{ route('reports.index', ['type' => 'rates']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'rates' ? 'active' : '' }}">
+                            Rate Report
+                        </a>
+                        @endrole
                     </div>
                 </div>
                 @role('admin|superadmin')

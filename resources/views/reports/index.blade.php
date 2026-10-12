@@ -3,6 +3,11 @@
 @section('title', 'Reports')
 
 @section('content')
+@php
+    // The profit columns belong to the same account that owns the Profit cards, so one flag
+    // decides which columns a viewer gets instead of repeating the role test everywhere.
+    $showProfit = auth()->user()->hasRole(['admin', 'superadmin']);
+@endphp
 <div class="mb-6 flex justify-between items-center">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">
@@ -11,6 +16,8 @@
             @elseif($reportType === 'profit') Profit Report
             @elseif($reportType === 'commission') Commission Report
             @elseif($reportType === 'agent') Agent Report
+            @elseif($reportType === 'customer') Customer Report
+            @elseif($reportType === 'rates') Exchange Rate Report
             @elseif($reportType === 'daily') Daily Summary
             @else Reports Hub
             @endif
@@ -21,6 +28,8 @@
             @elseif($reportType === 'profit') Service fee income plus the margin made on every dollar
             @elseif($reportType === 'commission') What the desk earned on the transfers they booked
             @elseif($reportType === 'agent') Agent performance metrics
+            @elseif($reportType === 'customer') Who the money moved for, and how much each one sent
+            @elseif($reportType === 'rates') What each dollar rate carried and what it earned
             @elseif($reportType === 'daily') Day-by-day transaction summary
             @else Transaction summaries and analytics
             @endif
@@ -79,7 +88,7 @@
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <div>
                 <h3 class="text-lg font-semibold text-gray-900">Profit</h3>
-                <p class="text-sm text-gray-500">Service fee income plus the margin between the dollar buying rate and the selling rate.</p>
+                <p class="text-sm text-gray-500">Service fee income plus the margin between the dollar buying rate and the selling rate. The same profit split by day and by desk is in the Daily Summary and Performance by Agent tables below.</p>
             </div>
             <a href="{{ route('export.profit-report', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700 whitespace-nowrap">Export Excel</a>
         </div>
@@ -119,78 +128,6 @@
             </p>
         </div>
         @endif
-
-        <div class="overflow-x-auto border-t">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Txns</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Fee (UGX)</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin (UGX)</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total (UGX)</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total (USD)</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    @forelse($dailySummary as $day)
-                    <tr>
-                        <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($day->date)->format('M d, Y') }}</td>
-                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $day->count }}</td>
-                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->fee_ugx) }}</td>
-                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->fx_ugx) }}</td>
-                        <td class="px-4 py-3 text-sm text-right font-medium text-gray-900">{{ number_format((float) $day->fee_ugx + (float) $day->fx_ugx) }}</td>
-                        <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->revenue + (float) $day->fx_usd, 2) }}</td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="6" class="px-6 py-8 text-center text-gray-500">No completed transactions in this period.</td>
-                    </tr>
-                    @endforelse
-                </tbody>
-                @if($dailySummary->isNotEmpty())
-                <tfoot class="bg-gray-50">
-                    <tr>
-                        <td class="px-6 py-3 text-sm font-bold text-gray-900">Total</td>
-                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ $dailySummary->sum('count') }}</td>
-                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $dailySummary->sum('fee_ugx')) }}</td>
-                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $dailySummary->sum('fx_ugx')) }}</td>
-                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_ugx']) }}</td>
-                        <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_usd'], 2) }}</td>
-                    </tr>
-                </tfoot>
-                @endif
-            </table>
-        </div>
-
-        <div class="overflow-x-auto border-t">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Txns</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Profit (UGX)</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Profit (USD)</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    @forelse($byAgent as $agent)
-                    <tr>
-                        <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ $agent->creator?->name ?? 'Unknown' }}</td>
-                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $agent->count }}</td>
-                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->total_usd, 2) }}</td>
-                        <td class="px-4 py-3 text-sm text-right font-medium text-gray-900">{{ number_format((float) $agent->fee_ugx + (float) $agent->fx_ugx) }}</td>
-                        <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->total_revenue + (float) $agent->fx_usd, 2) }}</td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-gray-500">No completed transactions in this period.</td>
-                    </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
     </div>
 </div>
 @endrole
@@ -268,7 +205,7 @@
     </div>
 </div>
 
-{{-- Charts Section --}}
+{{-- Charts --}}
 <div id="section-transaction" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
     <div class="bg-white rounded-lg shadow p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Transaction Volume</h3>
@@ -285,7 +222,7 @@
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Transaction Status Distribution</h3>
         <div style="position:relative;height:250px"><canvas id="statusChart"></canvas></div>
     </div>
-    <div id="section-agent" class="bg-white rounded-lg shadow p-6">
+    <div class="bg-white rounded-lg shadow p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Agent Performance Comparison</h3>
         <div style="position:relative;height:250px"><canvas id="agentChart"></canvas></div>
     </div>
@@ -321,62 +258,78 @@
         @endif
     </div>
 
-    {{-- By Agent --}}
+    {{-- Status Breakdown --}}
     <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Performance by Agent</h3>
-        @if($byAgent->isEmpty())
-            <p class="text-gray-500 text-sm">No completed transactions in this period.</p>
-        @else
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="border-b">
-                        <th class="text-left py-2 text-gray-500">Agent</th>
-                        <th class="text-right py-2 text-gray-500">Transactions</th>
-                        <th class="text-right py-2 text-gray-500">USD Sent</th>
-                        <th class="text-right py-2 text-gray-500">Revenue</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($byAgent as $agent)
-                    <tr class="border-b">
-                        <td class="py-2 font-medium">{{ $agent->creator?->name ?? 'Unknown' }}</td>
-                        <td class="py-2 text-right">{{ $agent->count }}</td>
-                        <td class="py-2 text-right">${{ number_format($agent->total_usd, 2) }}</td>
-                        <td class="py-2 text-right">${{ number_format($agent->total_revenue, 2) }}</td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        @endif
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Status Breakdown</h3>
+        <div class="grid grid-cols-3 gap-4">
+            <div class="text-center p-4 rounded-lg bg-green-50">
+                <div class="text-2xl font-bold text-green-800">{{ $stats['completed'] }}</div>
+                <div class="text-sm text-green-700">Completed</div>
+                @if($stats['total_transactions'] > 0)
+                <div class="text-xs text-green-600 mt-1">{{ number_format(($stats['completed'] / $stats['total_transactions']) * 100, 1) }}%</div>
+                @endif
+            </div>
+            <div class="text-center p-4 rounded-lg bg-yellow-50">
+                <div class="text-2xl font-bold text-yellow-700">{{ $stats['pending'] }}</div>
+                <div class="text-sm text-yellow-700">Pending</div>
+                @if($stats['total_transactions'] > 0)
+                <div class="text-xs text-yellow-600 mt-1">{{ number_format(($stats['pending'] / $stats['total_transactions']) * 100, 1) }}%</div>
+                @endif
+            </div>
+            <div class="text-center p-4 rounded-lg bg-red-50">
+                <div class="text-2xl font-bold text-red-700">{{ $stats['cancelled'] }}</div>
+                <div class="text-sm text-red-700">Cancelled</div>
+                @if($stats['total_transactions'] > 0)
+                <div class="text-xs text-red-600 mt-1">{{ number_format(($stats['cancelled'] / $stats['total_transactions']) * 100, 1) }}%</div>
+                @endif
+            </div>
+        </div>
     </div>
 </div>
 
-{{-- Daily Summary --}}
+{{-- One table per day, profit columns for the accounts that own the profit cards --}}
 <div id="section-daily" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">Daily Summary</h3>
+        <p class="text-sm text-gray-500">One row for every day a transfer completed, with the period totals on the bottom row. A day with no completed transfer has no row.</p>
     </div>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Transactions</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Txns</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
+                    @if($showProfit)
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Fee (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total (RMB)</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total (USD)</th>
+                    @else
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue (USD)</th>
+                    @endif
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($dailySummary as $day)
                 <tr>
-                    <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($day->date)->format('M d, Y') }}</td>
-                    <td class="px-6 py-4 text-sm text-right text-gray-900">{{ $day->count }}</td>
-                    <td class="px-6 py-4 text-sm text-right text-gray-900">${{ number_format($day->total_usd, 2) }}</td>
-                    <td class="px-6 py-4 text-sm text-right text-green-700 font-medium">${{ number_format($day->revenue, 2) }}</td>
+                    <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($day->date)->format('M d, Y') }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $day->count }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->total_usd, 2) }}</td>
+                    @if($showProfit)
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->fee_ugx) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->fx_ugx) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-medium text-gray-900">{{ number_format((float) $day->fee_ugx + (float) $day->fx_ugx) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->fee_rmb + (float) $day->fx_rmb, 2) }}</td>
+                    <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->revenue + (float) $day->fx_usd, 2) }}</td>
+                    @else
+                    <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->revenue, 2) }}</td>
+                    @endif
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="4" class="px-6 py-8 text-center text-gray-500">No transactions in this period.</td>
+                    <td colspan="{{ $showProfit ? 8 : 4 }}" class="px-6 py-8 text-center text-gray-500">No completed transactions in this period.</td>
                 </tr>
                 @endforelse
             </tbody>
@@ -384,9 +337,17 @@
             <tfoot class="bg-gray-50">
                 <tr>
                     <td class="px-6 py-3 text-sm font-bold text-gray-900">Total</td>
-                    <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ $dailySummary->sum('count') }}</td>
-                    <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">${{ number_format($dailySummary->sum('total_usd'), 2) }}</td>
-                    <td class="px-6 py-3 text-sm text-right font-bold text-green-700">${{ number_format($dailySummary->sum('revenue'), 2) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ $dailySummary->sum('count') }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $dailySummary->sum('total_usd'), 2) }}</td>
+                    @if($showProfit)
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['fee_ugx']) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['fx_ugx']) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_ugx']) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_rmb'], 2) }}</td>
+                    <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_usd'], 2) }}</td>
+                    @else
+                    <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $dailySummary->sum('revenue'), 2) }}</td>
+                    @endif
                 </tr>
             </tfoot>
             @endif
@@ -394,38 +355,181 @@
     </div>
 </div>
 
-{{-- Status Breakdown --}}
-<div class="bg-white rounded-lg shadow p-6">
-    <h3 class="text-lg font-semibold text-gray-900 mb-4">Status Breakdown</h3>
-    <div class="grid grid-cols-3 gap-4">
-        <div class="text-center p-4 rounded-lg bg-green-50">
-            <div class="text-2xl font-bold text-green-800">{{ $stats['completed'] }}</div>
-            <div class="text-sm text-green-700">Completed</div>
-            @if($stats['total_transactions'] > 0)
-            <div class="text-xs text-green-600 mt-1">{{ number_format(($stats['completed'] / $stats['total_transactions']) * 100, 1) }}%</div>
+{{-- One table per desk --}}
+<div id="section-agent" class="bg-white rounded-lg shadow mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">Performance by Agent</h3>
+        <p class="text-sm text-gray-500">Every desk that booked a completed transfer in the period. Whoever is not an admin sees their own line only.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Txns</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
+                    @if($showProfit)
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Fee (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total (RMB)</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total (USD)</th>
+                    @else
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue (USD)</th>
+                    @endif
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @forelse($byAgent as $agent)
+                <tr>
+                    <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ $agent->creator?->name ?? 'Unknown' }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $agent->count }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->total_usd, 2) }}</td>
+                    @if($showProfit)
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->fee_ugx) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->fx_ugx) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-medium text-gray-900">{{ number_format((float) $agent->fee_ugx + (float) $agent->fx_ugx) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->fee_rmb + (float) $agent->fx_rmb, 2) }}</td>
+                    <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->total_revenue + (float) $agent->fx_usd, 2) }}</td>
+                    @else
+                    <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->total_revenue, 2) }}</td>
+                    @endif
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="{{ $showProfit ? 8 : 4 }}" class="px-6 py-8 text-center text-gray-500">No completed transactions in this period.</td>
+                </tr>
+                @endforelse
+            </tbody>
+            @if($byAgent->isNotEmpty())
+            <tfoot class="bg-gray-50">
+                <tr>
+                    <td class="px-6 py-3 text-sm font-bold text-gray-900">Total</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ $byAgent->sum('count') }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byAgent->sum('total_usd'), 2) }}</td>
+                    @if($showProfit)
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['fee_ugx']) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['fx_ugx']) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_ugx']) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_rmb'], 2) }}</td>
+                    <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_usd'], 2) }}</td>
+                    @else
+                    <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byAgent->sum('total_revenue'), 2) }}</td>
+                    @endif
+                </tr>
+            </tfoot>
             @endif
-        </div>
-        <div class="text-center p-4 rounded-lg bg-yellow-50">
-            <div class="text-2xl font-bold text-yellow-700">{{ $stats['pending'] }}</div>
-            <div class="text-sm text-yellow-700">Pending</div>
-            @if($stats['total_transactions'] > 0)
-            <div class="text-xs text-yellow-600 mt-1">{{ number_format(($stats['pending'] / $stats['total_transactions']) * 100, 1) }}%</div>
-            @endif
-        </div>
-        <div class="text-center p-4 rounded-lg bg-red-50">
-            <div class="text-2xl font-bold text-red-700">{{ $stats['cancelled'] }}</div>
-            <div class="text-sm text-red-700">Cancelled</div>
-            @if($stats['total_transactions'] > 0)
-            <div class="text-xs text-red-600 mt-1">{{ number_format(($stats['cancelled'] / $stats['total_transactions']) * 100, 1) }}%</div>
-            @endif
-        </div>
+        </table>
     </div>
 </div>
+
+{{-- Customer activity, grouped from the name on each booking --}}
+<div id="section-customer" class="bg-white rounded-lg shadow mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">Customer Activity</h3>
+        <p class="text-sm text-gray-500">The sending side of every completed transfer, ranked by the dollars moved. Counted from the name written on the booking, so the same person spelled two ways shows as two customers. Whoever is not an admin sees only their own senders.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Transfers</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">RMB Delivered</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Fee Paid (UGX)</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Last Transfer</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @forelse($byCustomer as $customer)
+                <tr>
+                    <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ $customer->sender_name }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $customer->count }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->total_usd, 2) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->rmb_delivered, 2) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->fee_ugx) }}</td>
+                    <td class="px-6 py-3 text-sm text-right text-gray-900">{{ \Carbon\Carbon::parse($customer->last_transfer)->format('M d, Y') }}</td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">No completed transactions in this period.</td>
+                </tr>
+                @endforelse
+            </tbody>
+            @if($byCustomer->isNotEmpty())
+            <tfoot class="bg-gray-50">
+                <tr>
+                    <td class="px-6 py-3 text-sm font-bold text-gray-900">{{ number_format($byCustomer->count()) }} customer(s)</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ $byCustomer->sum('count') }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('total_usd'), 2) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('rmb_delivered'), 2) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('fee_ugx')) }}</td>
+                    <td class="px-6 py-3 text-sm text-right text-gray-500"></td>
+                </tr>
+            </tfoot>
+            @endif
+        </table>
+    </div>
+</div>
+
+@role('admin|superadmin')
+{{-- What each dollar rate carried, which the rate sheet on its own cannot show --}}
+<div id="section-rates" class="bg-white rounded-lg shadow mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">Rates Booked in This Period</h3>
+        <p class="text-sm text-gray-500">Completed transfers grouped by the dollar to yuan rate they were booked at, so a rate change can be read against the business it brought. Margin reads zero on transfers booked before a dollar buying rate was recorded.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rate (USD to RMB)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Txns</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">RMB Delivered</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Fee (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin (UGX)</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Booked</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @forelse($byRate as $rate)
+                <tr>
+                    <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ rtrim(rtrim(number_format((float) $rate->exchange_rate, 4, '.', ''), '0'), '.') }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $rate->count }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->total_usd, 2) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->rmb_delivered, 2) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->fee_ugx) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->fx_ugx) }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">{{ \Carbon\Carbon::parse($rate->first_booked)->format('M d, Y') }}@if(\Carbon\Carbon::parse($rate->last_booked)->toDateString() !== \Carbon\Carbon::parse($rate->first_booked)->toDateString()) to {{ \Carbon\Carbon::parse($rate->last_booked)->format('M d, Y') }}@endif</td>
+                    <td class="px-6 py-3 text-sm text-gray-900">
+                        @if((float) $rate->exchange_rate <= 0)
+                            <span class="px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700">No rate</span>
+                        @elseif($rate->is_current)
+                            <span class="px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700">Current</span>
+                        @else
+                            <span class="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">Superseded</span>
+                        @endif
+                    </td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="8" class="px-6 py-8 text-center text-gray-500">No completed transactions in this period.</td>
+                </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+@endrole
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
     const dailySummary = @json($dailySummary);
-    const byAgent = @json($byAgent);
+    // Only the three fields the chart draws, so no account details travel in the page source.
+    const byAgent = @json($byAgent->map(fn ($a) => ['name' => $a->creator?->name ?? 'Unknown', 'count' => (int) $a->count, 'revenue' => (float) $a->total_revenue])->values());
     const stats = @json($stats);
 
     if (dailySummary.length > 0) {
@@ -503,9 +607,9 @@
     });
 
     if (byAgent.length > 0) {
-        const agentNames = byAgent.map(a => a.creator?.name || 'Unknown');
+        const agentNames = byAgent.map(a => a.name);
         const agentCounts = byAgent.map(a => a.count);
-        const agentRevenue = byAgent.map(a => a.total_revenue);
+        const agentRevenue = byAgent.map(a => a.revenue);
 
         new Chart(document.getElementById('agentChart'), {
             type: 'bar',
@@ -540,7 +644,7 @@
 </script>
 <script>
     const reportType = @json($reportType);
-    const sectionMap = { transaction: 'section-transaction', revenue: 'section-revenue', profit: 'section-profit', commission: 'section-commission', agent: 'section-agent', daily: 'section-daily' };
+    const sectionMap = { transaction: 'section-transaction', revenue: 'section-revenue', profit: 'section-profit', commission: 'section-commission', agent: 'section-agent', customer: 'section-customer', rates: 'section-rates', daily: 'section-daily' };
     if (sectionMap[reportType]) {
         const el = document.getElementById(sectionMap[reportType]);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
