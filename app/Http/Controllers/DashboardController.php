@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
+use App\Models\AccountEntry;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
@@ -75,7 +76,17 @@ class DashboardController extends Controller
 
         $wallets = Account::walletsFor($user);
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets'));
+        // Commission only ever lands in the UGX wallet, and a cancellation is a negative
+        // line there, so this month's earnings are one signed sum.
+        $commissionMonth = (float) AccountEntry::query()
+            ->where('account_id', $wallets['UGX']->id)
+            ->whereIn('type', ['agent_fee', 'agent_fee_reversal'])
+            ->whereDate('entry_date', '>=', now()->startOfMonth()->toDateString())
+            ->whereDate('entry_date', '<=', now()->toDateString())
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'agent_fee' THEN amount ELSE -amount END), 0) as net")
+            ->value('net');
+
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'commissionMonth'));
     }
 
     private function usdToUgxRate(): ?float

@@ -30,6 +30,9 @@
                 ${{ number_format((float) $account->balance(), 2) }}
             @endif
         </div>
+        @if($currency === 'UGX')
+        <div class="text-xs text-gray-400 mt-1">This month: UGX {{ number_format($commissionMonth) }}</div>
+        @endif
     </a>
     @endforeach
 </div>

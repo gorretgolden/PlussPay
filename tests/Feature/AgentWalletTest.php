@@ -33,8 +33,13 @@ class AgentWalletTest extends TestCase
 
     private function agent(): User
     {
+        return $this->namedAgent('Test Agent');
+    }
+
+    private function namedAgent(string $name): User
+    {
         $user = User::create([
-            'name' => 'Test Agent',
+            'name' => $name,
             'email' => 'agent'.uniqid().'@plussave.test',
             'password' => 'Password123',
             'is_active' => true,
@@ -193,5 +198,97 @@ class AgentWalletTest extends TestCase
 
         $this->assertFalse($company->isWallet());
         $this->assertNull($company->owner_id);
+    }
+
+    private function booking(User $creator, string $receipt, string $fee): Transaction
+    {
+        return Transaction::create([
+            'receipt_number' => $receipt,
+            'sender_name' => 'Sender '.$receipt,
+            'sender_contact' => '0700000009',
+            'receiver_name' => 'Receiver '.$receipt,
+            'receiver_contact' => '8613800000009',
+            'currency' => 'USD',
+            'amount' => 100,
+            'exchange_rate' => 6.75,
+            'rmb_amount' => 675,
+            'charge_rate' => 0.02,
+            'charge_amount' => 2,
+            'charge_ugx' => $fee,
+            'status' => 'completed',
+            'created_by' => $creator->id,
+        ]);
+    }
+
+    public function test_the_commission_report_lists_every_earner_for_an_admin(): void
+    {
+        $agent = $this->namedAgent('Sarah Nalin');
+        $staff = User::create([
+            'name' => 'Desk Staff',
+            'email' => 'desk'.uniqid().'@plussave.test',
+            'password' => 'Password123',
+            'is_active' => true,
+        ]);
+        $staff->assignRole('staff');
+
+        // The wallet page only ever lists the agent role, so a staff booking was invisible
+        // to her. The report reads the ledger instead, so whoever earned shows up.
+        $this->booking($agent, 'COM-001', '7520');
+        $this->booking($staff, 'COM-002', '15040');
+
+        $this->actingAs($this->admin())
+            ->get('/reports?type=commission')
+            ->assertOk()
+            ->assertSee('Commissions Earned')
+            ->assertSee('Given Back (UGX)')
+            ->assertSee('Sarah Nalin')
+            ->assertSee('Desk Staff')
+            ->assertSee('Staff');
+    }
+
+    public function test_an_agent_opening_the_commission_report_sees_only_their_own(): void
+    {
+        $mine = $this->namedAgent('Sarah Nalin');
+        $theirs = $this->namedAgent('Peter Okello');
+
+        $this->booking($mine, 'COM-003', '7520');
+        $this->booking($theirs, 'COM-004', '15040');
+
+        $this->actingAs($mine)
+            ->get('/reports?type=commission')
+            ->assertOk()
+            ->assertSee('My Commission')
+            ->assertSee('UGX 7,520')
+            ->assertDontSee('Peter Okello')
+            ->assertDontSee('15,040');
+    }
+
+    public function test_a_cancelled_transfer_gives_its_commission_back_on_the_report(): void
+    {
+        $agent = $this->agent();
+
+        $this->booking($agent, 'COM-005', '7520');
+        $dropped = $this->booking($agent, 'COM-006', '15040');
+        $dropped->update(['status' => 'cancelled']);
+
+        // Both fees were earned, 15,040 of it handed back when the transfer was dropped.
+        $this->actingAs($agent)
+            ->get('/reports?type=commission')
+            ->assertOk()
+            ->assertSee('UGX 7,520')
+            ->assertSee('UGX 22,560')
+            ->assertSee('UGX 15,040');
+    }
+
+    public function test_the_wallet_card_on_sign_in_states_this_month_commission(): void
+    {
+        $agent = $this->agent();
+
+        $this->booking($agent, 'COM-007', '7520');
+
+        $this->actingAs($agent)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertSee('This month: UGX 7,520');
     }
 }

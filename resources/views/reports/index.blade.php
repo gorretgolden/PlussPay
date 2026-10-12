@@ -9,6 +9,7 @@
             @if($reportType === 'transaction') Transaction Report
             @elseif($reportType === 'revenue') Revenue Report
             @elseif($reportType === 'profit') Profit Report
+            @elseif($reportType === 'commission') Commission Report
             @elseif($reportType === 'agent') Agent Report
             @elseif($reportType === 'daily') Daily Summary
             @else Reports Hub
@@ -18,6 +19,7 @@
             @if($reportType === 'transaction') Detailed transaction breakdown
             @elseif($reportType === 'revenue') Revenue and charge analysis
             @elseif($reportType === 'profit') Service fee income plus the margin made on every dollar
+            @elseif($reportType === 'commission') What the desk earned on the transfers they booked
             @elseif($reportType === 'agent') Agent performance metrics
             @elseif($reportType === 'daily') Day-by-day transaction summary
             @else Transaction summaries and analytics
@@ -192,6 +194,79 @@
     </div>
 </div>
 @endrole
+
+{{-- Commission Section: everyone sees their own, admin sees the whole desk --}}
+<div id="section-commission" class="mb-6">
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">{{ $commission['everyone'] ? 'Commissions Earned' : 'My Commission' }}</h3>
+            <p class="text-sm text-gray-500">{{ $commission['everyone'] ? 'The service fee each person collected on the transfers they booked.' : 'The service fee you collected on the transfers you booked.' }} Read from the wallet ledger, so a cancelled transfer gives its commission back here exactly as it does in the wallet.</p>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
+            <div class="rounded-lg border border-green-200 bg-green-50 p-4">
+                <div class="text-sm text-green-900">Net Commission</div>
+                <div class="text-2xl font-bold text-green-800 mt-1">UGX {{ number_format($commission['net']) }}</div>
+            </div>
+            <div class="rounded-lg border bg-gray-50 p-4">
+                <div class="text-sm text-gray-500">Earned</div>
+                <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($commission['earned']) }}</div>
+            </div>
+            <div class="rounded-lg border bg-gray-50 p-4">
+                <div class="text-sm text-gray-500">Given Back (Cancellations)</div>
+                <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($commission['reversed']) }}</div>
+            </div>
+            <div class="rounded-lg border bg-gray-50 p-4">
+                <div class="text-sm text-gray-500">Transfers</div>
+                <div class="text-xl font-bold text-gray-900 mt-1">{{ number_format($commission['transfers']) }}</div>
+            </div>
+        </div>
+
+        @if($commission['everyone'])
+        <div class="overflow-x-auto border-t">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Person</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Transfers</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Earned (UGX)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Given Back (UGX)</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net (UGX)</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    @forelse($commission['rows'] as $row)
+                    <tr>
+                        <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ $row->name }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ $row->role }}</td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((int) $row->transfers) }}</td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $row->earned) }}</td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $row->reversed) }}</td>
+                        <td class="px-6 py-3 text-sm text-right font-medium text-gray-900">{{ number_format((float) $row->net) }}</td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-gray-500">No commission entries in this period.</td>
+                    </tr>
+                    @endforelse
+                </tbody>
+                @if($commission['rows']->isNotEmpty())
+                <tfoot class="bg-gray-50">
+                    <tr>
+                        <td class="px-6 py-3 text-sm font-bold text-gray-900" colspan="2">Total</td>
+                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($commission['transfers']) }}</td>
+                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($commission['earned']) }}</td>
+                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($commission['reversed']) }}</td>
+                        <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($commission['net']) }}</td>
+                    </tr>
+                </tfoot>
+                @endif
+            </table>
+        </div>
+        @endif
+    </div>
+</div>
 
 {{-- Charts Section --}}
 <div id="section-transaction" class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -465,7 +540,7 @@
 </script>
 <script>
     const reportType = @json($reportType);
-    const sectionMap = { transaction: 'section-transaction', revenue: 'section-revenue', profit: 'section-profit', agent: 'section-agent', daily: 'section-daily' };
+    const sectionMap = { transaction: 'section-transaction', revenue: 'section-revenue', profit: 'section-profit', commission: 'section-commission', agent: 'section-agent', daily: 'section-daily' };
     if (sectionMap[reportType]) {
         const el = document.getElementById(sectionMap[reportType]);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });

@@ -107,6 +107,9 @@
                             Profit Report
                         </a>
                         @endrole
+                        <a href="{{ route('reports.index', ['type' => 'commission']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'commission' ? 'active' : '' }}">
+                            Commission Report
+                        </a>
                         <a href="{{ route('reports.index', ['type' => 'agent']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'agent' ? 'active' : '' }}">
                             Agent Report
                         </a>

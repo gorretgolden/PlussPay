@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountEntry;
 use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
@@ -76,7 +77,61 @@ class ReportsController extends Controller
             ->orderBy('date')
             ->get();
 
-        return view('reports.index', compact('stats', 'profit', 'unpricedCount', 'unpricedReceipts', 'byCurrency', 'byAgent', 'dailySummary', 'dateFrom', 'dateTo', 'transactions', 'reportType'));
+        $commission = $this->commissionTotals($dateFrom, $dateTo, auth()->user());
+
+        return view('reports.index', compact('stats', 'profit', 'unpricedCount', 'unpricedReceipts', 'byCurrency', 'byAgent', 'dailySummary', 'dateFrom', 'dateTo', 'transactions', 'reportType', 'commission'));
+    }
+
+    /**
+     * Commission comes from the ledger rather than the transfer rows, so a cancelled transfer
+     * takes its commission back here exactly as it does in the wallet, and a hand-posted wallet
+     * entry still shows up. Whoever is not an admin sees only their own figures.
+     *
+     * @return array{rows: \Illuminate\Support\Collection, earned: float, reversed: float, net: float, transfers: int, everyone: bool}
+     */
+    private function commissionTotals(string $dateFrom, string $dateTo, User $viewer): array
+    {
+        $everyone = $viewer->hasRole(['admin', 'superadmin']);
+
+        $rows = AccountEntry::query()
+            ->join('accounts', 'account_entries.account_id', '=', 'accounts.id')
+            ->join('users', 'users.id', '=', 'accounts.owner_id')
+            ->whereIn('account_entries.type', ['agent_fee', 'agent_fee_reversal'])
+            // entry_date is a date cast, so it saves as '2026-10-12 00:00:00' and a plain
+            // whereBetween would drop the last day of the period.
+            ->whereDate('account_entries.entry_date', '>=', $dateFrom)
+            ->whereDate('account_entries.entry_date', '<=', $dateTo)
+            ->when(! $everyone, fn ($query) => $query->where('accounts.owner_id', $viewer->id))
+            ->select(
+                'accounts.owner_id',
+                'users.name',
+                DB::raw("SUM(CASE WHEN account_entries.type = 'agent_fee' THEN account_entries.amount ELSE 0 END) as earned"),
+                DB::raw("SUM(CASE WHEN account_entries.type = 'agent_fee_reversal' THEN account_entries.amount ELSE 0 END) as reversed"),
+                DB::raw("COUNT(DISTINCT CASE WHEN account_entries.type = 'agent_fee' THEN account_entries.transaction_id END) as transfers"),
+            )
+            ->groupBy('accounts.owner_id', 'users.name')
+            ->orderByDesc('earned')
+            ->get();
+
+        // The ledger only carries the id, so the role label that tells her an earning is
+        // Staff's rather than an Agent's comes from the accounts themselves.
+        $people = User::whereIn('id', $rows->pluck('owner_id'))->with('roles')->get()->keyBy('id');
+
+        $rows = $rows->map(function ($row) use ($people) {
+            $row->role = RolePermissionController::displayName($people->get($row->owner_id)?->getRoleNames()->first() ?? '');
+            $row->net = (float) $row->earned - (float) $row->reversed;
+
+            return $row;
+        });
+
+        return [
+            'rows' => $rows,
+            'earned' => (float) $rows->sum('earned'),
+            'reversed' => (float) $rows->sum('reversed'),
+            'net' => (float) $rows->sum('net'),
+            'transfers' => (int) $rows->sum('transfers'),
+            'everyone' => $everyone,
+        ];
     }
 
     private function profitTotals($completed, float $usdSent): array
