@@ -183,6 +183,40 @@
         </div>
     </div>
 
+    @if (auth()->user()->hasRole('superadmin'))
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-1">Site Mode</h2>
+        <p class="text-sm text-gray-600 mb-4">Only a Super Admin can change this.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Mode</label>
+                <select name="site_mode"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <option value="testing" @selected(old('site_mode', \App\Models\Setting::get('site_mode', 'testing')) === 'testing')>
+                        Testing
+                    </option>
+                    <option value="production" @selected(old('site_mode', \App\Models\Setting::get('site_mode', 'testing')) === 'production')>
+                        Production
+                    </option>
+                </select>
+            </div>
+            <div class="flex items-end">
+                <p class="text-xs text-gray-500">
+                    Testing shows the four demo account buttons on the sign-in page, so you can fill
+                    an email with one click while you are still trying things out. Production hides
+                    them, so visitors are not handed your real admin email addresses.
+                </p>
+            </div>
+        </div>
+        <p class="text-xs text-gray-500 mt-3">
+            This switch only controls the sign-in page. The server stays configured as production
+            either way, which is what keeps every link on https and keeps the session cookie from
+            travelling over plain http. Switching the real server setting off would loosen both of
+            those, so it is not wired to this box.
+        </p>
+    </div>
+    @endif
+
     <div class="flex justify-end">
         <button type="submit" class="bg-green-800 text-white px-6 py-2 rounded-md hover:bg-green-700">Save Settings</button>
     </div>

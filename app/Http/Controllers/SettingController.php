@@ -43,8 +43,10 @@ class SettingController extends Controller
             'usd_ugx_selling' => 'nullable|numeric|min:0.01|max:999999.99',
             'usd_rmb_buying' => 'nullable|numeric|min:0.000001|max:999999.999999',
             'usd_rmb_selling' => 'nullable|numeric|min:0.000001|max:999999.999999',
+            'site_mode' => ['nullable', 'in:testing,production'],
         ], [
             'receipt_prefix.regex' => 'The receipt prefix can only contain letters and numbers, e.g. PS.',
+            'site_mode.in' => 'Site mode must be Testing or Production.',
             'usd_ugx_buying.numeric' => 'The UGX buying rate must be a number, e.g. 3750.',
             'usd_ugx_selling.numeric' => 'The UGX selling rate must be a number, e.g. 3760.',
             'usd_ugx_buying.min' => 'The UGX buying rate must be at least 0.01.',
@@ -67,11 +69,21 @@ class SettingController extends Controller
             $validated['usd_rmb_selling']
         );
 
+        // Site mode decides whether the sign-in page prints the real admin emails,
+        // so it stays a Super Admin decision even though Admins can edit other settings.
+        if (! $request->user()->hasRole('superadmin')) {
+            unset($validated['site_mode']);
+        }
+
         $changes = [];
 
         foreach ($validated as $key => $value) {
             $type = in_array($key, ['service_fee_ugx', 'service_fee_usd', 'min_transaction_amount', 'max_transaction_amount']) ? 'float' : 'string';
-            $group = str_starts_with($key, 'company_') ? 'company' : 'transaction';
+            $group = match (true) {
+                $key === 'site_mode' => 'display',
+                str_starts_with($key, 'company_') => 'company',
+                default => 'transaction',
+            };
 
             $previous = Setting::get($key);
             if ((string) $previous === (string) $value) {
