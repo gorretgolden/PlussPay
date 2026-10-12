@@ -67,7 +67,7 @@
     <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">Revenue (Charges)</div>
         <div class="text-2xl font-bold text-green-700 mt-1">UGX {{ number_format($profit['fee_ugx']) }}</div>
-        <div class="text-xs text-gray-400 mt-1">USD {{ number_format($profit['fee_usd'], 2) }} | Avg: ${{ number_format($stats['avg_transaction'], 2) }}/tx</div>
+        <div class="text-xs text-gray-400 mt-1">USD {{ number_format($profit['fee_usd'], 2) }} | &yen;{{ number_format($profit['fee_rmb'], 2) }} RMB | Avg: ${{ number_format($stats['avg_transaction'], 2) }}/tx</div>
     </div>
 </div>
 
@@ -87,21 +87,25 @@
                 <div class="text-sm text-green-900">Total Profit</div>
                 <div class="text-2xl font-bold text-green-800 mt-1">UGX {{ number_format($profit['total_ugx']) }}</div>
                 <div class="text-xs text-green-700 mt-1">USD {{ number_format($profit['total_usd'], 2) }}</div>
+                <div class="text-xs text-green-700">&yen;{{ number_format($profit['total_rmb'], 2) }} RMB</div>
             </div>
             <div class="rounded-lg border bg-gray-50 p-4">
                 <div class="text-sm text-gray-500">Service Fee Income</div>
                 <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['fee_ugx']) }}</div>
                 <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['fee_usd'], 2) }}</div>
+                <div class="text-xs text-gray-500">&yen;{{ number_format($profit['fee_rmb'], 2) }} RMB</div>
             </div>
             <div class="rounded-lg border bg-gray-50 p-4">
                 <div class="text-sm text-gray-500">Margin on Dollars</div>
                 <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['fx_ugx']) }}</div>
                 <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['fx_usd'], 2) }}</div>
+                <div class="text-xs text-gray-500">&yen;{{ number_format($profit['fx_rmb'], 2) }} RMB</div>
             </div>
             <div class="rounded-lg border bg-gray-50 p-4">
                 <div class="text-sm text-gray-500">Profit on One Dollar Sent</div>
                 <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['per_dollar_ugx'], 2) }}</div>
                 <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['per_dollar_usd'], 2) }}</div>
+                <div class="text-xs text-gray-500">&yen;{{ number_format($profit['per_dollar_rmb'], 2) }} RMB</div>
             </div>
         </div>
 

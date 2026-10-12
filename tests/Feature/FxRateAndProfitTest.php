@@ -108,6 +108,20 @@ class FxRateAndProfitTest extends TestCase
             ->assertSee('UGX 30.00');
     }
 
+    public function test_the_profit_report_also_states_the_profit_in_rmb(): void
+    {
+        $transaction = $this->storeUgxTransfer(3760000);
+
+        // Those 1,000 dollars were delivered as 7,240 RMB, so each dollar of profit is worth
+        // 7.24 RMB: the UGX 20,000 fee is $5.31 = 38.44, the margin $2.65 = 19.19.
+        $this->actingAs($transaction->creator)
+            ->get('/reports?type=profit')
+            ->assertOk()
+            ->assertSee('&yen;38.44 RMB', false)
+            ->assertSee('&yen;19.19 RMB', false)
+            ->assertSee('&yen;57.63 RMB', false);
+    }
+
     public function test_agents_never_see_the_profit_report(): void
     {
         $this->storeUgxTransfer(3760000);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -87,15 +88,31 @@ class ReportsController extends Controller
         $totalUgx = $feeUgx + $fxUgx;
         $totalUsd = $feeUsd + $fxUsd;
 
+        // Read in yuan at the rate each transfer was actually booked at, which is the RMB
+        // it delivered divided by the dollars it was worth. Rows saved before those two
+        // figures existed fall back to the USD/RMB rate standing on the rate sheet today.
+        $fallback = (float) (ExchangeRate::getActiveRate('USD', 'RMB')->rate ?? 0);
+        $rate = fn (Transaction $t) => (float) $t->total_usd_equivalent > 0 && (float) $t->rmb_amount > 0
+            ? (float) $t->rmb_amount / (float) $t->total_usd_equivalent
+            : $fallback;
+
+        $feeRmb = (float) $completed->sum(fn (Transaction $t) => (float) $t->charge_amount * $rate($t));
+        $fxRmb = (float) $completed->sum(fn (Transaction $t) => (float) $t->fx_profit_usd * $rate($t));
+        $totalRmb = $feeRmb + $fxRmb;
+
         return [
             'fee_ugx' => $feeUgx,
             'fee_usd' => $feeUsd,
+            'fee_rmb' => $feeRmb,
             'fx_ugx' => $fxUgx,
             'fx_usd' => $fxUsd,
+            'fx_rmb' => $fxRmb,
             'total_ugx' => $totalUgx,
             'total_usd' => $totalUsd,
+            'total_rmb' => $totalRmb,
             'per_dollar_ugx' => $usdSent > 0 ? $totalUgx / $usdSent : 0,
             'per_dollar_usd' => $usdSent > 0 ? $totalUsd / $usdSent : 0,
+            'per_dollar_rmb' => $usdSent > 0 ? $totalRmb / $usdSent : 0,
         ];
     }
 
