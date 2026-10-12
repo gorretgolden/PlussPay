@@ -58,7 +58,7 @@ class SystemAccountsTest extends TestCase
         $this->assertSame(['UGX-UG', 'USD-UG', 'USD-CN', 'RMB-CN'], $codes);
     }
 
-    public function test_completing_a_transfer_puts_the_money_in_the_uganda_till_once(): void
+    public function test_an_approved_transfer_puts_the_money_in_the_uganda_till_once(): void
     {
         $admin = $this->admin();
 
@@ -72,6 +72,13 @@ class SystemAccountsTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $transaction = Transaction::latest('id')->firstOrFail();
+
+        // Booking alone moves nothing; the till waits for the approval.
+        $this->assertSame('pending', $transaction->status);
+        $this->assertSame('0.00', $this->ugxCash()->balance());
+
+        $this->actingAs($admin)->patch("/transactions/{$transaction->id}/status", ['status' => 'completed'])
+            ->assertSessionHasNoErrors();
 
         // UGX 3,760,000 handed over plus the UGX 20,000 fee.
         $this->assertSame('3780000.00', $this->ugxCash()->balance());
@@ -96,9 +103,12 @@ class SystemAccountsTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $transaction = Transaction::latest('id')->firstOrFail();
+        $this->actingAs($admin)->patch("/transactions/{$transaction->id}/status", ['status' => 'completed']);
 
-        $this->actingAs($admin)->patch("/transactions/{$transaction->id}/status", ['status' => 'cancelled'])
-            ->assertSessionHasNoErrors();
+        $this->actingAs($admin)->patch("/transactions/{$transaction->id}/status", [
+            'status' => 'cancelled',
+            'reason' => 'Receiver details were wrong',
+        ])->assertSessionHasNoErrors();
 
         $this->assertSame('0.00', $this->ugxCash()->balance());
         $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'reversal')->count());

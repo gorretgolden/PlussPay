@@ -42,9 +42,14 @@ class ReportsController extends Controller
         ];
 
         $profit = $this->profitTotals($transactions->where('status', 'completed'), $stats['total_usd_sent']);
-        $unpricedCount = $transactions->where('status', 'completed')
-            ->whereNull('rate_buy_ugx')
-            ->count();
+
+        // A transfer counts as unpriced whenever the buying rate is missing or zero, since
+        // both leave the margin at zero. Rows written before the column existed are NULL,
+        // but a booking made with only a selling rate configured saves as 0.000000.
+        $unpriced = $transactions->where('status', 'completed')
+            ->filter(fn (Transaction $t) => (float) $t->rate_buy_ugx <= 0);
+        $unpricedCount = $unpriced->count();
+        $unpricedReceipts = $unpriced->pluck('receipt_number')->values();
 
         $byCurrency = $transactions->where('status', 'completed')
             ->groupBy('currency')
@@ -70,7 +75,7 @@ class ReportsController extends Controller
             ->orderBy('date')
             ->get();
 
-        return view('reports.index', compact('stats', 'profit', 'unpricedCount', 'byCurrency', 'byAgent', 'dailySummary', 'dateFrom', 'dateTo', 'transactions', 'reportType'));
+        return view('reports.index', compact('stats', 'profit', 'unpricedCount', 'unpricedReceipts', 'byCurrency', 'byAgent', 'dailySummary', 'dateFrom', 'dateTo', 'transactions', 'reportType'));
     }
 
     private function profitTotals($completed, float $usdSent): array

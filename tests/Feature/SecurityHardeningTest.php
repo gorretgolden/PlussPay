@@ -212,7 +212,13 @@ class SecurityHardeningTest extends TestCase
         $this->assertSame('completed', $completed->refresh()->status);
 
         $this->actingAs($admin)->patch('/transactions/'.$completed->id.'/status', ['status' => 'cancelled'])
-            ->assertSessionHasNoErrors();
+            ->assertSessionHasErrors('reason');
+        $this->assertSame('completed', $completed->refresh()->status);
+
+        $this->actingAs($admin)->patch('/transactions/'.$completed->id.'/status', [
+            'status' => 'cancelled',
+            'reason' => 'Customer never paid',
+        ])->assertSessionHasNoErrors();
         $this->assertSame('cancelled', $completed->refresh()->status);
 
         $pending = $this->makeTransaction($admin, 'pending');

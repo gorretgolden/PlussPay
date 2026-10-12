@@ -40,7 +40,7 @@ class DashboardController extends Controller
             ->visibleTo($user)
             ->whereDate('created_at', today())
             ->selectRaw("
-                COUNT(*) as today_transactions,
+                SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as today_transactions,
                 COALESCE(SUM(CASE WHEN status='completed' THEN total_usd_equivalent ELSE 0 END), 0) as today_usd_sent,
                 COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as today_revenue,
                 {$ugxSent} as today_ugx_sent,
@@ -116,7 +116,7 @@ class DashboardController extends Controller
         $daily = Transaction::query()
             ->visibleTo($user)
             ->where('created_at', '>=', $startDate)
-            ->selectRaw("DATE(created_at) as date, COUNT(*) as transactions, COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as revenue, {$ugxRevenue} as revenue_ugx")
+            ->selectRaw("DATE(created_at) as date, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as transactions, COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as revenue, {$ugxRevenue} as revenue_ugx")
             ->groupBy(DB::raw('DATE(created_at)'))
             ->get()
             ->keyBy('date');

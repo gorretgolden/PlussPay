@@ -235,7 +235,7 @@
 
             <div class="bg-gray-50 rounded-lg p-5 mb-6">
                 <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Transaction Summary</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div>
                         <div class="text-xs text-gray-500">Amount</div>
                         <div class="font-bold text-lg" id="rev_amount">-</div>
@@ -252,17 +252,25 @@
                         <div class="text-xs text-gray-500">Service Charge (UGX)</div>
                         <div class="font-bold text-lg text-green-700" id="rev_charge">-</div>
                     </div>
+                    <div>
+                        <div class="text-xs text-gray-500">Customer Pays</div>
+                        <div class="font-bold text-lg text-green-800" id="rev_total">-</div>
+                        <div class="text-xs text-gray-500 mt-1" id="rev_total_note"></div>
+                    </div>
                 </div>
                 <div class="mt-3 text-sm text-gray-600" id="rev_purpose"></div>
             </div>
 
-            <div class="flex justify-between mt-8">
+            <div class="flex justify-between items-center mt-8">
                 <button type="button" onclick="prevStep(4)" class="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 font-medium">
                     ← Edit Details
                 </button>
-                <button type="submit" id="submitBtn" class="bg-green-800 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium">
-                    Confirm & Generate Receipt
-                </button>
+                <div class="text-right">
+                    <button type="submit" id="submitBtn" class="bg-green-800 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium">
+                        Book & Generate Receipt
+                    </button>
+                    <p class="text-xs text-gray-500 mt-2">Saves as Pending until an admin approves it.</p>
+                </div>
             </div>
         </div>
     </form>
@@ -488,6 +496,15 @@ function populateReview() {
     document.getElementById('rev_usd').textContent = '$' + usdEquivalent.toFixed(2);
     document.getElementById('rev_rmb').textContent = '¥' + rmbAmount.toFixed(2);
     document.getElementById('rev_charge').textContent = 'UGX ' + Math.round(feeUgx).toLocaleString();
+
+    // What leaves the customer's hand and what the till books as collected, so the
+    // figure shown here is the amount the ledger posts once the transfer is approved.
+    const chargeUsd = feeUgx * ugxToUsdRate;
+    const total = currency === 'UGX'
+        ? 'UGX ' + Math.round(amount + feeUgx).toLocaleString()
+        : '$' + (amount + chargeUsd).toFixed(2);
+    document.getElementById('rev_total').textContent = total;
+    document.getElementById('rev_total_note').textContent = currency + ' ' + amount.toLocaleString() + ' + UGX ' + Math.round(feeUgx).toLocaleString() + ' charge';
 
     const chosen = purposeSelect.value;
     const purpose = chosen === 'Other' ? (purposeOther.value.trim() || 'Other') : chosen;

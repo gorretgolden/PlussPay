@@ -93,27 +93,32 @@
         <p>Last updated on {{ $transaction->updated_at->format('M d, Y h:i A') }}@if($transaction->editor) by <span class="font-medium text-gray-900">{{ $transaction->editor->name }}</span>@endif</p>
     </div>
 
-    @if($transaction->status === 'pending' && auth()->user()->hasRole('admin'))
+    @role('admin|superadmin')
+    @if($transaction->status !== 'cancelled')
     <div class="border-t pt-4 mt-4">
         <h3 class="text-sm font-medium text-gray-500 mb-3">Actions</h3>
         <div class="flex gap-3">
+            @if($transaction->status === 'pending')
             <form method="POST" action="{{ route('transactions.update-status', $transaction) }}">
                 @csrf
                 @method('PATCH')
                 <input type="hidden" name="status" value="completed">
-                <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700"
-                    onclick="return confirm('Approve this transaction?')">Approve</button>
+                <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Approve</button>
             </form>
-            <form method="POST" action="{{ route('transactions.update-status', $transaction) }}">
-                @csrf
-                @method('PATCH')
-                <input type="hidden" name="status" value="cancelled">
-                <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700"
-                    onclick="return confirm('Reject this transaction?')">Reject</button>
-            </form>
+            @endif
+            <button type="button" onclick="openCancelModal(this)"
+                data-action="{{ route('transactions.update-status', $transaction) }}"
+                data-receipt="{{ $transaction->receipt_number }} · {{ $transaction->sender_name }} to {{ $transaction->receiver_name }}"
+                data-amount="{{ $transaction->principalLabel() }}"
+                data-fee="{{ $transaction->feeLabel() }}"
+                data-total="{{ $transaction->collectedAmount() }}"
+                class="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700">Cancel transfer</button>
         </div>
     </div>
     @endif
+    @endrole
+
+    @include('transactions.partials.cancel-modal')
 
     @if($transaction->activityLogs->isNotEmpty())
     <div class="border-t pt-4 mt-4">
@@ -124,7 +129,7 @@
                 <div class="mt-1 w-2 h-2 rounded-full flex-shrink-0
                     @if($log->action === 'created') bg-blue-500
                     @elseif($log->action === 'approved') bg-green-500
-                    @elseif($log->action === 'rejected') bg-red-500
+                    @elseif($log->action === 'cancelled') bg-red-500
                     @else bg-gray-500 @endif"></div>
                 <div>
                     <span class="text-gray-900">{{ $log->description }}</span>

@@ -126,20 +126,29 @@
                         <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Print Receipt</a>
 
                         @role('admin|superadmin')
+                        @if($t->status === 'pending')
                         <div class="border-t border-gray-100 my-1"></div>
-                        <p class="px-4 py-1 text-xs uppercase text-gray-400">Set Status</p>
-                        @foreach(['pending', 'completed', 'cancelled'] as $option)
-                        @if($t->status !== $option)
                         <form method="POST" action="{{ route('transactions.update-status', $t) }}">
                             @csrf @method('PATCH')
-                            <input type="hidden" name="status" value="{{ $option }}">
-                            <button type="submit" class="w-full text-left px-4 py-2 text-sm
-                                {{ $option === 'cancelled' ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50' }}">
-                                Mark {{ ucfirst($option) }}
+                            <input type="hidden" name="status" value="completed">
+                            <button type="submit" class="w-full text-left px-4 py-2 text-sm text-green-700 hover:bg-green-50">
+                                Approve
                             </button>
                         </form>
                         @endif
-                        @endforeach
+
+                        @if($t->status !== 'cancelled')
+                        <div class="border-t border-gray-100 my-1"></div>
+                        <button type="button" onclick="openCancelModal(this)"
+                            data-action="{{ route('transactions.update-status', $t) }}"
+                            data-receipt="{{ $t->receipt_number }} · {{ $t->sender_name }} to {{ $t->receiver_name }}"
+                            data-amount="{{ $t->principalLabel() }}"
+                            data-fee="{{ $t->feeLabel() }}"
+                            data-total="{{ $t->collectedAmount() }}"
+                            class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                            Cancel transfer
+                        </button>
+                        @endif
                         @endrole
                     </div>
                 </td>
@@ -156,4 +165,6 @@
 <div class="mt-4">
     {{ $transactions->links() }}
 </div>
+
+@include('transactions.partials.cancel-modal')
 @endsection

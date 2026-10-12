@@ -35,6 +35,20 @@
         </div>
     </div>
 
+    @if($transaction->status !== 'completed')
+    {{-- Every transfer now books as Pending, so a printed receipt has to say out loud that
+         the money is not released yet. --}}
+    <div class="mb-6 rounded-md border px-4 py-3 text-sm font-medium
+        @if($transaction->status === 'pending') bg-yellow-50 border-yellow-300 text-yellow-800
+        @else bg-red-50 border-red-300 text-red-800 @endif">
+        @if($transaction->status === 'pending')
+            Awaiting approval. The money is not released until an admin approves this transfer.
+        @else
+            Cancelled. Do not pay out against this receipt.
+        @endif
+    </div>
+    @endif
+
     {{-- Title --}}
     <div class="text-center mb-6">
         <h3 class="text-lg font-bold text-gray-800 tracking-wide">SEND MONEY TO CHINA</h3>

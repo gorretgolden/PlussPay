@@ -98,6 +98,32 @@ class Transaction extends Model
         return $this->hasMany(ActivityLog::class);
     }
 
+    /**
+     * What the till takes in when this transfer is approved: the principal plus the
+     * service charge, in the currency the transfer was booked in. Cancelling hands the
+     * same figure back, so the same text serves both sides of the books.
+     */
+    public function collectedAmount(): string
+    {
+        return $this->currency === 'USD'
+            ? 'USD ' . number_format((float) $this->amount + (float) $this->charge_amount, 2)
+            : 'UGX ' . number_format((float) $this->amount + (float) $this->charge_ugx, 2);
+    }
+
+    /**
+     * The charge is always quoted in shillings, whichever currency the transfer was
+     * booked in, so it reads the same way on every screen.
+     */
+    public function feeLabel(): string
+    {
+        return 'UGX ' . number_format((float) $this->charge_ugx, 2);
+    }
+
+    public function principalLabel(): string
+    {
+        return $this->currency . ' ' . number_format((float) $this->amount, 2);
+    }
+
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
         if ($user->hasRole(['superadmin', 'admin'])) {

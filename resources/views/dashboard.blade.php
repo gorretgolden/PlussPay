@@ -38,7 +38,7 @@
     <h2 class="text-white text-lg font-semibold mb-4">Today's Summary</h2>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="bg-white/10 rounded-lg p-4">
-            <div class="text-green-200 text-sm">Transactions Today</div>
+            <div class="text-green-200 text-sm">Completed Today</div>
             <div class="text-white text-3xl font-bold mt-1">{{ number_format($stats['today_transactions']) }}</div>
         </div>
         <div class="bg-white/10 rounded-lg p-4">
@@ -92,10 +92,11 @@
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-    <a href="{{ route('transactions.index', ['status' => 'pending']) }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+    @php($pendingLink = auth()->user()->hasRole(['admin', 'superadmin']) ? route('transactions.approvals') : route('transactions.index', ['status' => 'pending']))
+    <a href="{{ $pendingLink }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
         <div class="flex items-center justify-between">
             <div>
-                <div class="text-sm text-gray-500">Pending</div>
+                <div class="text-sm text-gray-500">Waiting for Approval</div>
                 <div class="text-3xl font-bold text-yellow-600 mt-1">{{ number_format($stats['pending_transactions']) }}</div>
             </div>
             <svg class="w-10 h-10 text-yellow-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -155,7 +156,7 @@
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
     <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Transactions (Last 7 Days)</h2>
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Completed Transfers (Last 7 Days)</h2>
         <div style="position:relative; height:250px;">
             <canvas id="transactionsChart"></canvas>
         </div>
@@ -232,7 +233,7 @@
         data: {
             labels: chartData.labels,
             datasets: [{
-                label: 'Transactions',
+                label: 'Completed',
                 data: chartData.transactions,
                 borderColor: 'rgb(22, 163, 74)',
                 backgroundColor: 'rgba(22, 163, 74, 0.1)',

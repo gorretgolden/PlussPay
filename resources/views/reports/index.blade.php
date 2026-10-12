@@ -108,6 +108,9 @@
         @if($unpricedCount > 0)
         <div class="mx-6 mb-4 rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
             {{ number_format($unpricedCount) }} completed transaction(s) in this period have no dollar buying rate recorded, so their margin counts as zero. Enter the buying rate in System Settings before creating transfers.
+            <p class="mt-2 text-xs">
+                Affected: {{ $unpricedReceipts->take(10)->implode(', ') }}@if($unpricedCount > 10) and {{ number_format($unpricedCount - 10) }} more @endif
+            </p>
         </div>
         @endif
 
