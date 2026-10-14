@@ -202,7 +202,9 @@
                     </div>
                     <div class="min-w-0">
                         <p class="text-sm font-medium truncate">{{ auth()->user()->name }}</p>
-                        <p class="text-xs text-green-300">{{ \App\Http\Controllers\RolePermissionController::displayName(auth()->user()->getRoleNames()->first() ?? '') }}</p>
+                        <p class="text-xs text-green-300 truncate">
+                            {{ \App\Http\Controllers\RolePermissionController::displayName(auth()->user()->getRoleNames()->first() ?? '') }}@if(auth()->user()->countryLabel()) · {{ auth()->user()->countryLabel() }}@endif
+                        </p>
                     </div>
                 </div>
                 <form method="POST" action="{{ route('logout') }}" class="mt-3">

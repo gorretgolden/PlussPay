@@ -71,7 +71,7 @@ class ExportController extends Controller
                     $signed($yuanUsd === null ? null : (float) $t->charge_amount + (float) $t->fx_profit_usd + $yuanUsd, 2, 'USD '),
                     $t->purpose ?? '-',
                     ucfirst($t->status),
-                    $t->creator?->name ?? '-',
+                    $this->bookedBy($t),
                 ];
             })
             ->all();
@@ -80,7 +80,7 @@ class ExportController extends Controller
             'Receipt #', 'Date', 'Sender', 'Sender Contact', 'Receiver', 'Receiver Contact',
             'Amount', 'UGX Equivalent', 'RMB', 'Service Fee (UGX)', 'Service Fee (USD)',
             'Dollar Margin (UGX)', 'Yuan Leg (CNY)', 'Yuan Leg (UGX)', 'Yuan Leg (USD)',
-            'Total Profit (UGX)', 'Total Profit (USD)', 'Purpose', 'Status', 'Created By',
+            'Total Profit (UGX)', 'Total Profit (USD)', 'Purpose', 'Status', 'Booked By',
         ], $rows);
     }
 
@@ -98,13 +98,28 @@ class ExportController extends Controller
                 $t->currency . ' ' . number_format((float) $t->amount, 2),
                 '¥' . number_format((float) $t->rmb_amount, 2),
                 'UGX ' . number_format((float) $t->charge_ugx),
-                $t->creator?->name ?? '-',
+                $this->bookedBy($t),
             ])
             ->all();
 
         return $this->download('receipts', [
-            'Receipt #', 'Date', 'Sender', 'Receiver', 'Amount', 'RMB', 'Charge (UGX)', 'Created By',
+            'Receipt #', 'Date', 'Sender', 'Receiver', 'Amount', 'RMB', 'Charge (UGX)', 'Booked By',
         ], $rows);
+    }
+
+    /**
+     * The teller who booked a transfer, with the country of their desk so a China
+     * booking and a Uganda booking read apart once they leave the screen.
+     */
+    private function bookedBy(Transaction $t): string
+    {
+        if (! $t->creator) {
+            return '-';
+        }
+
+        $label = $t->creator->countryLabel();
+
+        return $label ? "{$t->creator->name} ({$label})" : $t->creator->name;
     }
 
     public function users(Request $request)
@@ -117,6 +132,7 @@ class ExportController extends Controller
                 $u->email,
                 $u->phone ?? '-',
                 RolePermissionController::displayName($u->getRoleNames()->first() ?? ''),
+                $u->countryLabel() ?: '-',
                 $u->is_active ? 'Active' : 'Inactive',
                 $u->isLocked() ? 'Locked' : 'Unlocked',
                 $u->loginWindowSummary(),
@@ -127,7 +143,7 @@ class ExportController extends Controller
             ->all();
 
         return $this->download('users', [
-            'Name', 'Email', 'Phone', 'Role', 'Status', 'Lock', 'Login Hours', 'Two-factor', 'Last Login', 'Added',
+            'Name', 'Email', 'Phone', 'Role', 'Country', 'Status', 'Lock', 'Login Hours', 'Two-factor', 'Last Login', 'Added',
         ], $rows);
     }
 

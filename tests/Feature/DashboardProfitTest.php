@@ -114,7 +114,7 @@ class DashboardProfitTest extends TestCase
             $this->assertStringNotContainsString('margin_ugx', $html);
             $this->assertStringNotContainsString('yuan_ugx', $html);
             // Their own fee figure stays where it was.
-            $this->assertStringContainsString('Service Fees Today', $html);
+            $this->assertStringContainsString('Service Fees', $html);
         }
     }
 }

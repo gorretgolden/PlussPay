@@ -93,7 +93,7 @@
 
     <div class="border-t pt-4 mt-4 text-sm text-gray-500 space-y-1">
         @if($transaction->creator)
-        <p>Created by <span class="font-medium text-gray-900">{{ $transaction->creator->name }}</span> on {{ $transaction->created_at->format('M d, Y h:i A') }}</p>
+        <p>Created by <span class="font-medium text-gray-900">{{ $transaction->creator->name }}</span>@if($transaction->creator->countryLabel()) <span class="text-gray-500">({{ $transaction->creator->countryLabel() }})</span>@endif on {{ $transaction->created_at->format('M d, Y h:i A') }}</p>
         @endif
         <p>Last updated on {{ $transaction->updated_at->format('M d, Y h:i A') }}@if($transaction->editor) by <span class="font-medium text-gray-900">{{ $transaction->editor->name }}</span>@endif</p>
     </div>

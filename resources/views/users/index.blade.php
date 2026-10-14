@@ -29,6 +29,15 @@
             </select>
         </div>
         <div>
+            <label class="block text-xs text-gray-500 mb-1">Country</label>
+            <select name="country" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">All Countries</option>
+                @foreach(\App\Models\User::COUNTRIES as $code => $label)
+                <option value="{{ $code }}" {{ request('country') === $code ? 'selected' : '' }}>{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
             <label class="block text-xs text-gray-500 mb-1">Status</label>
             <select name="status" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All</option>
@@ -115,9 +124,14 @@
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-900">{{ $user->email }}</td>
                 <td class="px-4 py-3">
-                    <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-                        {{ \App\Http\Controllers\RolePermissionController::displayName($user->getRoleNames()->first() ?? 'none') }}
-                    </span>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                            {{ \App\Http\Controllers\RolePermissionController::displayName($user->getRoleNames()->first() ?? 'none') }}
+                        </span>
+                        @if($user->countryLabel())
+                        <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">{{ $user->countryLabel() }}</span>
+                        @endif
+                    </div>
                 </td>
                 <td class="px-4 py-3">
                     @if(!$user->is_active)

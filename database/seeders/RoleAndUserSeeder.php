@@ -14,10 +14,11 @@ class RoleAndUserSeeder extends Seeder
      * printed once, so no working credential ever lands in git.
      */
     private const DEMO_ACCOUNTS = [
-        ['email' => 'superadmin@plussave.com', 'name' => 'Super Admin', 'role' => 'superadmin', 'env' => 'SEED_SUPERADMIN_PASSWORD'],
-        ['email' => 'admin@plussave.com', 'name' => 'Admin', 'role' => 'admin', 'env' => 'SEED_ADMIN_PASSWORD'],
-        ['email' => 'agent@plussave.com', 'name' => 'Agent', 'role' => 'agent', 'env' => 'SEED_AGENT_PASSWORD'],
-        ['email' => 'accountant@plussave.com', 'name' => 'Accountant', 'role' => 'accountant', 'env' => 'SEED_ACCOUNTANT_PASSWORD'],
+        ['email' => 'superadmin@plussave.com', 'name' => 'Super Admin', 'role' => 'superadmin', 'env' => 'SEED_SUPERADMIN_PASSWORD', 'country' => 'UG'],
+        ['email' => 'admin@plussave.com', 'name' => 'Admin', 'role' => 'admin', 'env' => 'SEED_ADMIN_PASSWORD', 'country' => 'UG'],
+        ['email' => 'agent@plussave.com', 'name' => 'Agent', 'role' => 'agent', 'env' => 'SEED_AGENT_PASSWORD', 'country' => 'UG'],
+        ['email' => 'china.agent@plussave.com', 'name' => 'China Agent', 'role' => 'agent', 'env' => 'SEED_CHINA_AGENT_PASSWORD', 'country' => 'CN'],
+        ['email' => 'accountant@plussave.com', 'name' => 'Accountant', 'role' => 'accountant', 'env' => 'SEED_ACCOUNTANT_PASSWORD', 'country' => 'UG'],
     ];
 
     public function run(): void
@@ -36,6 +37,8 @@ class RoleAndUserSeeder extends Seeder
 
             $password = env($account['env']) ?: Str::random(20);
 
+            $country = $account['country'] ?? User::DEFAULT_COUNTRY;
+
             $user = User::firstOrCreate(
                 ['email' => $account['email']],
                 [
@@ -43,6 +46,8 @@ class RoleAndUserSeeder extends Seeder
                     'phone' => '',
                     'password' => $password,
                     'is_active' => true,
+                    'country' => $country,
+                    'timezone' => User::timezoneForCountry($country),
                 ]
             );
             $user->assignRole($account['role']);

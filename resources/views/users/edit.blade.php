@@ -62,6 +62,11 @@
             'allowedTo' => old('allowed_to', $user->allowed_to),
         ])
 
+        @include('users.partials.country-fields', [
+            'country' => old('country', $user->country),
+            'timezone' => old('timezone', $user->timezone),
+        ])
+
         <div class="mb-4">
             <label class="flex items-center">
                 <input type="checkbox" name="is_active" value="1" {{ $user->is_active ? 'checked' : '' }}

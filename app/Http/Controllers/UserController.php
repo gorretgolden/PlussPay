@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\TotpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -83,7 +85,7 @@ class UserController extends Controller
             'phone' => $phone,
             'password' => Hash::make($validated['password']),
             'is_active' => true,
-        ]);
+        ] + $this->countryAttributes($validated));
 
         $this->applyLoginWindow($user, $request);
         $user->save();
@@ -161,14 +163,26 @@ class UserController extends Controller
             return back()->withErrors(['days' => 'That would block your own account right now, so it was not saved. Ask another superadmin to set your hours.']);
         }
 
-        $oldData = $user->only(['name', 'email', 'phone', 'is_active', 'allowed_days', 'allowed_from', 'allowed_to']);
+        $oldData = $user->only(['name', 'email', 'phone', 'country', 'timezone', 'is_active', 'allowed_days', 'allowed_from', 'allowed_to']);
 
-        $user->update([
+        $profile = [
             'name' => $validated['name'],
             'email' => $email,
             'phone' => $phone,
             'is_active' => $request->boolean('is_active'),
-        ]);
+        ];
+
+        // Country and clock zone are a superadmin's call; an admin editing the same
+        // account cannot move a desk between the two countries by leaving a field blank.
+        if ($currentUser->hasRole('superadmin') && ($request->filled('country') || $request->filled('timezone'))) {
+            $country = $request->filled('country') ? $validated['country'] : $user->country;
+            $profile['country'] = $country;
+            $profile['timezone'] = $request->filled('timezone')
+                ? $validated['timezone']
+                : User::timezoneForCountry($country);
+        }
+
+        $user->update($profile);
 
         $this->applyLoginWindow($user, $request);
         $user->save();
@@ -202,7 +216,7 @@ class UserController extends Controller
             'action' => 'user_updated',
             'description' => "User {$user->name} updated",
             'old_value' => json_encode($oldData),
-            'new_value' => json_encode($user->only(['name', 'email', 'phone', 'is_active', 'allowed_days', 'allowed_from', 'allowed_to'])),
+            'new_value' => json_encode($user->only(['name', 'email', 'phone', 'country', 'timezone', 'is_active', 'allowed_days', 'allowed_from', 'allowed_to'])),
         ]);
 
         return redirect()->route('users.index')->with('success', 'User updated successfully.');
@@ -415,6 +429,8 @@ class UserController extends Controller
             'phone' => 'nullable|string|max:20',
             'password' => ($user ? 'nullable|' : 'required|') . self::PASSWORD_RULES . ($user ? '' : '|confirmed'),
             'role' => 'required|exists:roles,name',
+            'country' => ['nullable', Rule::in(array_keys(User::COUNTRIES))],
+            'timezone' => ['nullable', Rule::in(array_keys(Setting::TIMEZONES))],
             'days' => 'nullable|array',
             'days.*' => 'integer|min:1|max:7',
             'allowed_from' => 'nullable|date_format:H:i',
@@ -429,6 +445,8 @@ class UserController extends Controller
             'password.required' => 'Password is required.',
             'role.required' => 'Please select a role.',
             'role.exists' => 'Invalid role selected.',
+            'country.in' => 'Choose Uganda or China.',
+            'timezone.in' => 'Please choose one of the listed time zones.',
             'allowed_from.date_format' => 'Use the 24 hour format for the start time, such as 08:00.',
             'allowed_to.date_format' => 'Use the 24 hour format for the end time, such as 18:00.',
         ]);
@@ -476,6 +494,27 @@ class UserController extends Controller
         $user->setAllowedDays($days);
         $user->allowed_from = $request->filled('allowed_from') ? substr($request->input('allowed_from'), 0, 5) : null;
         $user->allowed_to = $request->filled('allowed_to') ? substr($request->input('allowed_to'), 0, 5) : null;
+    }
+
+    /**
+     * A new account starts in Uganda unless a superadmin sets the country; the clock
+     * zone follows the country unless the superadmin overrides it.
+     *
+     * @return array{country: string, timezone: string}
+     */
+    private function countryAttributes(array $validated): array
+    {
+        $canSet = auth()->user()->hasRole('superadmin');
+
+        $country = $canSet && !empty($validated['country'])
+            ? $validated['country']
+            : User::DEFAULT_COUNTRY;
+
+        $timezone = $canSet && !empty($validated['timezone'])
+            ? $validated['timezone']
+            : User::timezoneForCountry($country);
+
+        return ['country' => $country, 'timezone' => $timezone];
     }
 
     private function bulkSkipReason(string $action, User $user, User $actor): ?string

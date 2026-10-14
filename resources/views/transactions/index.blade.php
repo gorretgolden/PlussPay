@@ -104,6 +104,9 @@
                 @endrole
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                @role('admin|superadmin|accountant')
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Booked By</th>
+                @endrole
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
         </thead>
@@ -133,6 +136,11 @@
                     </span>
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('M d, Y h:i A') }}</td>
+                @role('admin|superadmin|accountant')
+                <td class="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                    {{ $t->creator?->name ?? '-' }}@if($t->creator && $t->creator->countryLabel())<span class="text-gray-400"> · {{ $t->creator->countryLabel() }}</span>@endif
+                </td>
+                @endrole
                 <td data-row-menu-host class="px-6 py-4 text-right relative">
                     <button type="button" onclick="toggleMenu({{ $t->id }})" class="p-1 rounded hover:bg-gray-100">
                         <svg class="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>
@@ -178,7 +186,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="{{ auth()->user()->hasRole(['admin', 'superadmin', 'accountant']) ? 12 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
+                <td colspan="{{ auth()->user()->hasRole(['admin', 'superadmin', 'accountant']) ? 13 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
             </tr>
             @endforelse
         </tbody>

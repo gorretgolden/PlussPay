@@ -13,7 +13,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'phone', 'password', 'is_active', 'is_locked', 'failed_login_attempts', 'locked_until', 'last_login_at', 'last_login_ip', 'allowed_days', 'allowed_from', 'allowed_to', 'two_factor_secret', 'two_factor_enabled'])]
+#[Fillable(['name', 'email', 'phone', 'country', 'timezone', 'password', 'is_active', 'is_locked', 'failed_login_attempts', 'locked_until', 'last_login_at', 'last_login_ip', 'allowed_days', 'allowed_from', 'allowed_to', 'two_factor_secret', 'two_factor_enabled'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret'])]
 class User extends Authenticatable
 {
@@ -21,6 +21,16 @@ class User extends Authenticatable
     use HasFactory, Notifiable, HasRoles;
 
     public const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    /**
+     * The two desks this book runs. The country is what tells a China agent and a
+     * Uganda agent apart on screen, and it drives the clock zone they are shown.
+     */
+    public const COUNTRIES = ['UG' => 'Uganda', 'CN' => 'China'];
+
+    public const COUNTRY_TIMEZONES = ['UG' => 'Africa/Kampala', 'CN' => 'Asia/Shanghai'];
+
+    public const DEFAULT_COUNTRY = 'UG';
 
     /**
      * Get the attributes that should be cast.
@@ -45,6 +55,20 @@ class User extends Authenticatable
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class, 'created_by');
+    }
+
+    /**
+     * Plain country name for display. No flag emoji: Windows renders flags as two
+     * bare letter boxes, which reads as a bug rather than a country.
+     */
+    public function countryLabel(): string
+    {
+        return self::COUNTRIES[$this->country] ?? '';
+    }
+
+    public static function timezoneForCountry(?string $country): string
+    {
+        return self::COUNTRY_TIMEZONES[$country] ?? self::COUNTRY_TIMEZONES[self::DEFAULT_COUNTRY];
     }
 
     /**
@@ -115,6 +139,10 @@ class User extends Authenticatable
 
         if ($request->filled('role')) {
             $query->role($request->role);
+        }
+
+        if ($request->filled('country')) {
+            $query->where('country', $request->country);
         }
 
         if ($request->filled('status')) {

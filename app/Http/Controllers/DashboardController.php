@@ -60,6 +60,7 @@ class DashboardController extends Controller
             : 0;
 
         $stats['total_users'] = $user->hasRole(['admin', 'superadmin']) ? User::where('is_active', true)->count() : 0;
+        $stats['total_agents'] = $user->hasRole(['admin', 'superadmin']) ? User::role('agent')->where('is_active', true)->count() : 0;
         $stats['active_rates'] = $user->hasRole(['admin', 'superadmin']) ? ExchangeRate::where('is_active', true)->count() : 0;
 
         $recentTransactions = Transaction::query()
