@@ -64,6 +64,12 @@ class SettingsSeeder extends Seeder
                 'type' => 'number',
                 'description' => 'Duration in minutes for account lockout after max failed attempts',
             ],
+            [
+                'key' => 'log_retention_days',
+                'value' => '180',
+                'type' => 'integer',
+                'description' => 'How many days audit, login and system logs are kept before the daily prune deletes them',
+            ],
         ];
 
         foreach ($settings as $setting) {

@@ -53,11 +53,15 @@ class FailedLoginAuditTest extends TestCase
         $this->assertSame($user->id, $log->user_id);
         $this->assertStringContainsString('wrong password', $log->description);
 
+        // The dedicated login_logs table also carries the outcome, with the account it hit.
+        $row = \App\Models\LoginLog::where('status', 'failed')->where('user_id', $user->id)->first();
+        $this->assertNotNull($row, 'A failed sign-in must land in the login log.');
+
         $this->actingAs($this->user('superadmin', 'Log Viewer'))
             ->get('/admin/login-logs')
             ->assertOk()
-            ->assertSee('Login failed')
-            ->assertSee('wrong password');
+            ->assertSee('Failed')
+            ->assertSee($user->email);
     }
 
     public function test_an_email_that_belongs_to_nobody_is_still_recorded(): void
@@ -133,8 +137,10 @@ class FailedLoginAuditTest extends TestCase
         $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path)->getActiveSheet();
         @unlink($path);
 
-        $this->assertSame('Login failed', $sheet->getCell('D6')->getValue());
-        $this->assertStringContainsString('wrong password', (string) $sheet->getCell('F6')->getValue());
+        $this->assertSame('Login Logs', $sheet->getTitle());
+        $this->assertSame('Status', $sheet->getCell('D5')->getValue());
+        $this->assertSame('Failed', $sheet->getCell('D6')->getValue());
+        $this->assertSame($user->email, $sheet->getCell('C6')->getValue());
     }
 
     public function test_the_failed_attempt_filter_narrows_the_page(): void
@@ -147,7 +153,7 @@ class FailedLoginAuditTest extends TestCase
 
         $viewer = $this->user('superadmin', 'Log Viewer');
 
-        $response = $this->actingAs($viewer)->get('/admin/login-logs?action=login_failed');
+        $response = $this->actingAs($viewer)->get('/admin/login-logs?status=failed');
 
         $response->assertOk();
         $this->assertSame(1, $response->viewData('logs')->total());

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\LoginLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -29,17 +30,21 @@ class AuditLogController extends Controller
         return view('admin.partials._activity-details', ['log' => $activityLog]);
     }
 
+    /**
+     * The dedicated sign-in trail: every outcome, with the machine it came from and a
+     * warning when one address or account is being tried over and over in a short window.
+     */
     public function loginLogs(Request $request)
     {
-        $logs = ActivityLog::with('user')
-            ->whereIn('action', ['login', 'logout', 'login_blocked', 'login_failed'])
+        $logs = LoginLog::with('user')
             ->filtered($request)
             ->latest()
             ->paginate(50)
             ->withQueryString();
 
         $users = User::orderBy('name')->get();
+        $suspicious = LoginLog::suspiciousSince();
 
-        return view('admin.login-logs', compact('logs', 'users'));
+        return view('admin.login-logs', compact('logs', 'users', 'suspicious'));
     }
 }

@@ -10,7 +10,12 @@ class ActivityLog extends Model
 {
     protected $fillable = [
         'transaction_id',
+        'subject_type',
+        'subject_id',
         'user_id',
+        'user_name',
+        'user_role',
+        'user_country',
         'ip_address',
         'request_path',
         'action',
@@ -26,13 +31,53 @@ class ActivityLog extends Model
 
             // A resolved route means this came from a real HTTP request. Console
             // and queue writes have one too, and recording it would be misleading.
-            if (! $request || ! $request->route()) {
-                return;
+            if ($request && $request->route()) {
+                $log->ip_address ??= $request->ip();
+                $log->request_path ??= $request->method().' '.$request->path();
             }
 
-            $log->ip_address ??= $request->ip();
-            $log->request_path ??= $request->method().' '.$request->path();
+            // The doer is snapshotted onto the row at write time, so every existing
+            // ActivityLog::create() call site carries name, role and country without
+            // changing. A user renamed or deleted later cannot rewrite history.
+            static::snapshotUser($log);
         });
+    }
+
+    /**
+     * Fill the who-behind-the-row columns from the acting user, whether the caller
+     * passed a user_id or left it to the session. A console write with nobody signed
+     * in is left blank rather than guessed at.
+     */
+    private static function snapshotUser(self $log): void
+    {
+        if ($log->user_name !== null) {
+            return;
+        }
+
+        $user = $log->user_id
+            ? User::find($log->user_id)
+            : auth()->user();
+
+        if (! $user) {
+            return;
+        }
+
+        $log->user_id ??= $user->id;
+        $log->user_name = $user->name;
+        $log->user_role = $user->getRoleNames()->first();
+        $log->user_country = $user->country;
+    }
+
+    /**
+     * Point a log at the record it is about when that record is not a transfer, so
+     * an audit entry can name its subject without a bespoke column per model.
+     */
+    public static function subjectAttributes(Model $subject): array
+    {
+        return [
+            'subject_type' => $subject->getTable(),
+            'subject_id' => $subject->getKey(),
+        ];
     }
 
     public function transaction()

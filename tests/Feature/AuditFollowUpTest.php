@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ActivityLog;
+use App\Models\LoginLog;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,10 +61,10 @@ class AuditFollowUpTest extends TestCase
     {
         $admin = $this->user('admin');
 
-        ActivityLog::create([
+        LoginLog::create([
             'user_id' => $admin->id,
-            'action' => 'login',
-            'description' => 'User Admin User logged in from 41.210.157.79',
+            'status' => 'success',
+            'ip_address' => '41.210.157.79',
         ]);
 
         $this->actingAs($admin)->get('/admin/login-logs')
@@ -76,10 +77,9 @@ class AuditFollowUpTest extends TestCase
     {
         $admin = $this->user('admin');
 
-        ActivityLog::create([
+        LoginLog::create([
             'user_id' => $admin->id,
-            'action' => 'login',
-            'description' => 'User Admin User logged in',
+            'status' => 'success',
             'ip_address' => '102.85.222.179',
         ]);
 
@@ -92,10 +92,9 @@ class AuditFollowUpTest extends TestCase
     {
         $admin = $this->user('admin');
 
-        ActivityLog::create([
+        LoginLog::create([
             'user_id' => $admin->id,
-            'action' => 'login',
-            'description' => 'User Admin User logged in',
+            'status' => 'success',
             'ip_address' => '102.85.222.179',
         ]);
 

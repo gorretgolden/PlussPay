@@ -79,7 +79,6 @@ Route::middleware(['auth', 'account.active'])->group(function () {
             Route::get('/export/users', [ExportController::class, 'users'])->name('export.users');
             Route::get('/export/activity-logs', [ExportController::class, 'activityLogs'])->name('export.activity-logs');
             Route::get('/export/login-logs', [ExportController::class, 'loginLogs'])->name('export.login-logs');
-            Route::get('/export/system-logs', [ExportController::class, 'systemLogs'])->name('export.system-logs');
             Route::get('/export/exchange-rates', [ExportController::class, 'exchangeRates'])->name('export.exchange-rates');
 
             Route::get('/users', [UserController::class, 'index'])->name('users.index');
@@ -122,7 +121,15 @@ Route::middleware(['auth', 'account.active'])->group(function () {
             Route::get('/admin/activity-logs', [AuditLogController::class, 'activityLogs'])->name('admin.activity-logs');
             Route::get('/admin/activity-logs/{activityLog}/details', [AuditLogController::class, 'details'])->name('admin.activity-logs.details');
             Route::get('/admin/login-logs', [AuditLogController::class, 'loginLogs'])->name('admin.login-logs');
-            Route::get('/admin/system-logs', [SystemLogController::class, 'index'])->name('admin.system-logs');
+
+            // The error log names files, classes and stack traces. That is system
+            // internals, so it stays with the Super Admin alone even though Admins read
+            // the audit and login trails. Read-only apart from marking an error resolved.
+            Route::middleware(['role:superadmin'])->group(function () {
+                Route::get('/admin/system-logs', [SystemLogController::class, 'index'])->name('admin.system-logs');
+                Route::patch('/admin/system-logs/{systemLog}/resolve', [SystemLogController::class, 'resolve'])->name('admin.system-logs.resolve');
+                Route::get('/export/system-logs', [ExportController::class, 'systemLogs'])->name('export.system-logs');
+            });
         });
     });
 });

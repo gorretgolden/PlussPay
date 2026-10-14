@@ -79,6 +79,8 @@ class SettingController extends Controller
         }
 
         $changes = [];
+        $oldValues = [];
+        $newValues = [];
 
         foreach ($validated as $key => $value) {
             $type = in_array($key, ['service_fee_ugx', 'service_fee_usd', 'min_transaction_amount', 'max_transaction_amount']) ? 'float' : 'string';
@@ -95,6 +97,8 @@ class SettingController extends Controller
 
             Setting::set($key, $value, $type, $group);
             $changes[] = "{$key} changed from ".($previous ?? 'unset').' to '.($value ?? 'blank');
+            $oldValues[$key] = $previous;
+            $newValues[$key] = $value;
         }
 
         if ($ugxSell !== null) {
@@ -109,6 +113,12 @@ class SettingController extends Controller
                 ExchangeRate::setPair('USD', 'UGX', $ugxSell, $buy, $ugxSell);
                 $changes[] = 'USD to UGX selling rate changed from '.($before['sell'] ?? 'unset').' to '.$ugxSell
                     .($ugxBuy !== null ? ', buying rate to '.$ugxBuy : '');
+                $oldValues['usd_ugx_selling'] = $before['sell'] ?? null;
+                $newValues['usd_ugx_selling'] = $ugxSell;
+                if ($ugxBuy !== null) {
+                    $oldValues['usd_ugx_buying'] = $before['buy'] ?? null;
+                    $newValues['usd_ugx_buying'] = $ugxBuy;
+                }
             }
         }
 
@@ -120,6 +130,12 @@ class SettingController extends Controller
                 ExchangeRate::setPair('USD', 'RMB', $rmbSell, $buy, $rmbSell);
                 $changes[] = 'USD to RMB selling rate changed from '.($before['sell'] ?? 'unset').' to '.$rmbSell
                     .($rmbBuy !== null ? ', buying rate to '.$rmbBuy : '');
+                $oldValues['usd_rmb_selling'] = $before['sell'] ?? null;
+                $newValues['usd_rmb_selling'] = $rmbSell;
+                if ($rmbBuy !== null) {
+                    $oldValues['usd_rmb_buying'] = $before['buy'] ?? null;
+                    $newValues['usd_rmb_buying'] = $rmbBuy;
+                }
             }
         }
 
@@ -128,7 +144,8 @@ class SettingController extends Controller
                 'user_id' => auth()->id(),
                 'action' => 'settings_updated',
                 'description' => implode('; ', $changes),
-                'new_value' => (string) count($changes),
+                'old_value' => json_encode($oldValues),
+                'new_value' => json_encode($newValues),
             ]);
         }
 

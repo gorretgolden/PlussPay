@@ -165,7 +165,7 @@ class TimestampShiftCommandTest extends TestCase
         $this->assertSame('2026-10-10 09:30:00', $this->oldestTransaction());
         $this->assertSame('2026-10-12 09:40:00', $this->newestTransaction());
         $this->assertSame('2026-10-11 08:00:00', DB::table('customers')->where('name', 'Amina Nakato')->value('created_at'));
-        $this->assertSame('2026-10-11 08:00:00', DB::table('activity_logs')->value('created_at'));
+        $this->assertSame('2026-10-11 08:00:00', DB::table('activity_logs')->where('description', 'Old entry')->value('created_at'));
         $this->assertSame('2026-10-11 08:00:00', DB::table('exchange_rates')->value('created_at'));
 
         $marker = Setting::get('timestamps_shifted');

@@ -2,35 +2,52 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SystemLog;
 use App\Services\SystemLogReader;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 
 class SystemLogController extends Controller
 {
+    /**
+     * The queryable error table is the primary source: it survives log rotation and can be
+     * filtered and marked resolved. The laravel.log reader stays underneath as a secondary
+     * view for raw entries that predate the table or were never caught by the handler.
+     */
     public function index(Request $request)
     {
-        $meta = SystemLogReader::read($request->input('file'), SystemLogReader::window($request));
-        $entries = SystemLogReader::filter($meta['entries'], $request);
+        $logs = SystemLog::with('resolver')
+            ->filtered($request)
+            ->latest()
+            ->paginate(25)
+            ->withQueryString();
 
-        $perPage = 25;
-        $page = max(1, (int) $request->input('page', 1));
+        $counts = [
+            'critical' => SystemLog::where('level', 'critical')->count(),
+            'error' => SystemLog::where('level', 'error')->count(),
+            'warning' => SystemLog::where('level', 'warning')->count(),
+            'unresolved' => SystemLog::where('resolved', false)->count(),
+        ];
 
-        $logs = new LengthAwarePaginator(
-            array_slice($entries, ($page - 1) * $perPage, $perPage),
-            count($entries),
-            $perPage,
-            $page,
-            ['path' => route('admin.system-logs'), 'query' => $request->query()]
-        );
+        // A short tail of the live log file, so nothing that only reached the file is hidden.
+        $meta = SystemLogReader::read(null, 2);
+        $fileEntries = array_slice($meta['entries'], 0, 20);
 
-        return view('admin.system-logs', [
-            'logs' => $logs,
-            'counts' => SystemLogReader::countsByLevel($entries),
-            'allLevels' => SystemLogReader::countsByLevel($meta['entries']),
-            'files' => SystemLogReader::files(),
-            'meta' => $meta,
-            'totalRead' => count($meta['entries']),
+        return view('admin.system-logs', compact('logs', 'counts', 'meta', 'fileEntries'));
+    }
+
+    public function resolve(Request $request, SystemLog $systemLog)
+    {
+        $validated = $request->validate([
+            'note' => 'nullable|string|max:2000',
         ]);
+
+        $systemLog->update([
+            'resolved' => true,
+            'resolved_by' => $request->user()->id,
+            'resolved_at' => now(),
+            'note' => $validated['note'] ?? $systemLog->note,
+        ]);
+
+        return back()->with('success', 'Error marked resolved.');
     }
 }

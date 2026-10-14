@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\SystemLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Spatie\Permission\Models\Role;
@@ -31,173 +33,182 @@ class SystemLogTest extends TestCase
 
     protected function tearDown(): void
     {
+        Carbon::setTestNow();
         File::deleteDirectory($this->dir);
 
         parent::tearDown();
     }
 
-    private function writeLog(string $contents, string $name = 'laravel.log'): void
-    {
-        File::put($this->dir . '/' . $name, $contents);
-    }
-
-    private function sampleLog(): string
-    {
-        return implode("\n", [
-            '[2026-10-06 08:00:00] local.INFO: Booted the scheduler ',
-            '[2026-10-07 09:15:22] local.ERROR: Call to a member function toArray() on null {"userId":3,"exception":"[object] (Error(code: 0): Call to a member function toArray() on null at /home/plussave/pluspay/app/Http/Controllers/WalletController.php:42)\\n#0 {main}"}',
-            '[2026-10-08 10:30:00] local.WARNING: Passing the null string',
-            '[2026-10-08 11:02:41] local.ERROR: SQLSTATE[42S22]: Column not found: 1054 Unknown column ',
-            '  "receipt_status" in "field list" {"userId":9,"exception":"[object] (Illuminate\\\\Database\\\\QueryException(code: 42S22): SQLSTATE[42S22] at /home/plussave/pluspay/vendor/laravel/framework/src/Illuminate/Database/Connection.php:857)',
-            '#1 /home/plussave/pluspay/app/Http/Controllers/ReceiptController.php:88',
-            '#2 {main}"}',
-            '',
-        ]);
-    }
-
-    private function admin(): User
+    private function superAdmin(): User
     {
         $user = User::create([
-            'name' => 'Log Admin',
-            'email' => 'logs' . uniqid() . '@plussave.test',
+            'name' => 'Boss',
+            'email' => 'boss' . uniqid() . '@plussave.test',
             'password' => 'Password123',
             'is_active' => true,
         ]);
 
-        $user->assignRole('admin');
+        $user->assignRole('superadmin');
 
         return $user;
     }
 
-    public function test_the_page_lists_the_newest_entries_first(): void
+    private function role(string $role): User
     {
-        $this->writeLog($this->sampleLog());
+        $user = User::create([
+            'name' => ucfirst($role),
+            'email' => $role . uniqid() . '@plussave.test',
+            'password' => 'Password123',
+            'is_active' => true,
+        ]);
 
-        $logs = $this->actingAs($this->admin())->get('/admin/system-logs')
+        $user->assignRole($role);
+
+        return $user;
+    }
+
+    /**
+     * A saved error with its own timestamp, so the newest-first listing has something
+     * to order. created_at is stamped on insert, so it is moved afterwards.
+     */
+    private function error(string $level, string $message, string $class, string $file, Carbon $when): SystemLog
+    {
+        $log = SystemLog::create([
+            'level' => $level,
+            'message' => $message,
+            'exception_class' => $class,
+            'file' => $file,
+            'line' => 42,
+            'url' => 'http://localhost/dashboard',
+            'method' => 'GET',
+        ]);
+
+        $log->created_at = $when;
+        $log->save();
+
+        return $log;
+    }
+
+    public function test_the_page_lists_saved_errors_newest_first(): void
+    {
+        $this->error('error', 'Column not found', 'Illuminate\\Database\\QueryException', '/app/WalletController.php', Carbon::parse('2026-10-08 11:02:41'));
+        $this->error('warning', 'Passing the null string', 'RuntimeException', '/app/ReportController.php', Carbon::parse('2026-10-07 09:15:22'));
+
+        $logs = $this->actingAs($this->superAdmin())->get('/admin/system-logs')
             ->assertOk()
-            ->assertSee('System Logs')
-            ->assertSee('Column not found')
+            ->assertSee('System Errors')
             ->viewData('logs');
 
-        $times = collect($logs->getCollection())->pluck('time')->all();
-
+        $this->assertSame(2, $logs->total());
         $this->assertSame([
-            '2026-10-08 11:02:41',
-            '2026-10-08 10:30:00',
-            '2026-10-07 09:15:22',
-            '2026-10-06 08:00:00',
-        ], $times);
-        $this->assertSame(4, $logs->total());
-    }
-
-    public function test_the_multi_line_entry_keeps_its_message_and_stack_apart(): void
-    {
-        $this->writeLog($this->sampleLog());
-
-        $entries = \App\Services\SystemLogReader::read(null, 2)['entries'];
-
-        $sql = collect($entries)->first(fn ($e) => str_contains($e['message'], 'SQLSTATE'));
-
-        $this->assertNotNull($sql);
-        $this->assertSame('ERROR', $sql['level']);
-        $this->assertStringNotContainsString('{"userId"', $sql['message']);
-        $this->assertStringContainsString('Connection.php:857', $sql['stack']);
-        $this->assertSame('/home/plussave/pluspay/vendor/laravel/framework/src/Illuminate/Database/Connection.php:857', $sql['where']);
-        $this->assertSame('9', (string) $sql['context']['userId']);
-    }
-
-    public function test_an_entry_with_a_broken_context_block_still_shows_everything_it_said(): void
-    {
-        $this->writeLog('[2026-10-08 12:00:00] local.ERROR: Boom {"userId":5,"exception":"unterminated at /home/plussave/pluspay/app/Http/Controllers/X.php:1' . "\n");
-
-        $entry = \App\Services\SystemLogReader::read(null, 2)['entries'][0];
-
-        $this->assertSame('Boom {"userId":5,"exception":"unterminated at /home/plussave/pluspay/app/Http/Controllers/X.php:1', $entry['message']);
-        $this->assertSame([], $entry['context']);
+            'Column not found',
+            'Passing the null string',
+        ], collect($logs->getCollection())->pluck('message')->all());
     }
 
     public function test_entries_can_be_filtered_by_level(): void
     {
-        $this->writeLog($this->sampleLog());
+        $this->error('critical', 'Dead lock', 'QueryException', '/app/a.php', Carbon::parse('2026-10-08 11:00:00'));
+        $this->error('warning', 'Slow query', 'RuntimeException', '/app/b.php', Carbon::parse('2026-10-08 10:00:00'));
 
-        $logs = $this->actingAs($this->admin())->get('/admin/system-logs?level=error')
+        $logs = $this->actingAs($this->superAdmin())->get('/admin/system-logs?level=critical')
             ->assertOk()
             ->viewData('logs');
 
-        $this->assertSame(2, $logs->total());
-        $this->assertSame(['ERROR', 'ERROR'], collect($logs->getCollection())->pluck('level')->all());
+        $this->assertSame(1, $logs->total());
+        $this->assertSame('critical', $logs->getCollection()->first()->level);
+    }
+
+    public function test_entries_can_be_filtered_by_resolved_state(): void
+    {
+        $open = $this->error('error', 'Still broken', 'RuntimeException', '/app/a.php', Carbon::parse('2026-10-08 11:00:00'));
+        $closed = $this->error('error', 'Already fixed', 'RuntimeException', '/app/b.php', Carbon::parse('2026-10-08 10:00:00'));
+        $closed->update(['resolved' => true]);
+
+        $logs = $this->actingAs($this->superAdmin())->get('/admin/system-logs?resolved=0')->viewData('logs');
+
+        $this->assertSame(1, $logs->total());
+        $this->assertSame($open->id, $logs->getCollection()->first()->id);
     }
 
     public function test_entries_can_be_searched_by_message_and_by_file(): void
     {
-        $this->writeLog($this->sampleLog());
-        $admin = $this->admin();
+        $this->error('error', 'Unknown column receipt_status', 'QueryException', '/app/ReceiptController.php', Carbon::parse('2026-10-08 11:02:41'));
 
-        $byMessage = $this->actingAs($admin)->get('/admin/system-logs?search=Unknown%20column')->viewData('logs');
+        $byMessage = $this->actingAs($this->superAdmin())->get('/admin/system-logs?search=Unknown%20column')->viewData('logs');
         $this->assertSame(1, $byMessage->total());
 
-        // The stack trace is searched too, so a file name finds the entry that threw there.
-        $byFile = $this->actingAs($admin)->get('/admin/system-logs?search=WalletController')->viewData('logs');
+        $byFile = $this->actingAs($this->superAdmin())->get('/admin/system-logs?search=ReceiptController')->viewData('logs');
         $this->assertSame(1, $byFile->total());
-        $this->assertStringContainsString('toArray', $byFile->getCollection()->first()['message']);
     }
 
     public function test_entries_can_be_filtered_by_date(): void
     {
-        $this->writeLog($this->sampleLog());
+        $this->error('error', 'Today only', 'RuntimeException', '/app/a.php', Carbon::parse('2026-10-08 11:02:41'));
+        $this->error('error', 'A week ago', 'RuntimeException', '/app/b.php', Carbon::parse('2026-10-01 09:00:00'));
 
-        $logs = $this->actingAs($this->admin())
-            ->get('/admin/system-logs?date_from=2026-10-07&date_to=2026-10-07')
+        $logs = $this->actingAs($this->superAdmin())
+            ->get('/admin/system-logs?date_from=2026-10-08&date_to=2026-10-08')
             ->viewData('logs');
 
         $this->assertSame(1, $logs->total());
-        $this->assertSame('2026-10-07 09:15:22', $logs->getCollection()->first()['time']);
+        $this->assertSame('Today only', $logs->getCollection()->first()->message);
     }
 
-    public function test_only_log_files_can_be_opened(): void
+    public function test_a_super_admin_can_mark_an_error_resolved_with_a_note(): void
     {
-        $this->writeLog($this->sampleLog());
-        File::put($this->dir . '/secret.log', '[2026-10-08 11:00:00] local.ERROR: should not be reachable');
+        $log = $this->error('error', 'Needs attention', 'RuntimeException', '/app/a.php', Carbon::now());
+        $boss = $this->superAdmin();
 
-        $response = $this->actingAs($this->admin())->get('/admin/system-logs?file=../laravel.log');
+        $this->actingAs($boss)
+            ->patch("/admin/system-logs/{$log->id}/resolve", ['note' => 'Fixed in release 1.4.'])
+            ->assertRedirect()
+            ->assertSessionHas('success');
 
-        $response->assertOk();
-        $meta = $response->viewData('meta');
-
-        // A name that is not a Laravel log file falls back to the newest real one.
-        $this->assertSame('laravel.log', $meta['file']);
-        $this->assertStringNotContainsString('should not be reachable', $response->getContent());
+        $log->refresh();
+        $this->assertTrue($log->resolved);
+        $this->assertSame($boss->id, $log->resolved_by);
+        $this->assertNotNull($log->resolved_at);
+        $this->assertSame('Fixed in release 1.4.', $log->note);
     }
 
-    public function test_the_page_copes_with_an_empty_folder(): void
+    public function test_the_page_still_surfaces_the_raw_log_tail_as_a_secondary_source(): void
     {
-        $this->actingAs($this->admin())
+        File::put($this->dir . '/laravel.log', "[2026-10-08 12:00:00] local.ERROR: Only in the file, never caught\n");
+
+        $this->actingAs($this->superAdmin())
             ->get('/admin/system-logs')
             ->assertOk()
-            ->assertSee('There is no log file in the folder yet');
+            ->assertSee('Only in the file');
     }
 
-    public function test_agents_cannot_open_the_system_logs(): void
+    public function test_an_agent_cannot_open_the_system_logs(): void
     {
-        $this->writeLog($this->sampleLog());
+        $this->error('error', 'Secret stack', 'RuntimeException', '/app/a.php', Carbon::now());
 
-        $agent = User::create([
-            'name' => 'Field Agent',
-            'email' => 'agent' . uniqid() . '@plussave.test',
-            'password' => 'Password123',
-            'is_active' => true,
-        ]);
-        $agent->assignRole('agent');
+        $agent = $this->role('agent');
 
         $this->actingAs($agent)->get('/admin/system-logs')->assertForbidden();
         $this->actingAs($agent)->get('/export/system-logs')->assertForbidden();
     }
 
-    public function test_the_export_matches_the_filters_and_carries_the_pluspay_header(): void
+    public function test_an_admin_cannot_open_the_system_logs_either(): void
     {
-        $this->writeLog($this->sampleLog());
+        $this->error('error', 'Internals only', 'RuntimeException', '/app/a.php', Carbon::now());
 
-        $response = $this->actingAs($this->admin())->get('/export/system-logs?level=error');
+        // Admins read the audit and login trails, but the error log names files and stack
+        // traces, so it is kept to the Super Admin.
+        $admin = $this->role('admin');
+
+        $this->actingAs($admin)->get('/admin/system-logs')->assertForbidden();
+        $this->actingAs($admin)->get('/export/system-logs')->assertForbidden();
+    }
+
+    public function test_the_export_lists_saved_errors_in_the_right_columns(): void
+    {
+        $this->error('critical', 'Connection refused', 'QueryException', '/app/Db.php', Carbon::parse('2026-10-08 11:02:41'));
+
+        $response = $this->actingAs($this->superAdmin())->get('/export/system-logs?level=critical');
         $response->assertOk();
 
         $path = tempnam(sys_get_temp_dir(), 'pluspay-') . '.xlsx';
@@ -208,8 +219,39 @@ class SystemLogTest extends TestCase
         $this->assertSame('PlusPay', $sheet->getCell('A1')->getValue());
         $this->assertSame('System Logs', $sheet->getTitle());
         $this->assertSame('Level', $sheet->getCell('B5')->getValue());
-        $this->assertSame('ERROR', $sheet->getCell('B6')->getValue());
-        $this->assertSame('ERROR', $sheet->getCell('B7')->getValue());
-        $this->assertNull($sheet->getCell('B8')->getValue());
+        $this->assertSame('CRITICAL', $sheet->getCell('B6')->getValue());
+        $this->assertSame('Connection refused', $sheet->getCell('C6')->getValue());
+        $this->assertSame('Open', $sheet->getCell('G6')->getValue());
+        $this->assertNull($sheet->getCell('B7')->getValue());
+    }
+
+    // The file reader still works on its own, independent of the page, so a couple of its
+    // parsing rules stay covered here.
+    public function test_the_multi_line_entry_keeps_its_message_and_stack_apart(): void
+    {
+        File::put($this->dir . '/laravel.log', implode("\n", [
+            '[2026-10-08 11:02:41] local.ERROR: SQLSTATE[42S22]: Column not found: 1054 Unknown column ',
+            '  "receipt_status" in "field list" {"userId":9,"exception":"[object] (Illuminate\\\\Database\\\\QueryException(code: 42S22): SQLSTATE[42S22] at /home/plussave/pluspay/vendor/laravel/framework/src/Illuminate/Database/Connection.php:857)',
+            '#1 /home/plussave/pluspay/app/Http/Controllers/ReceiptController.php:88',
+            '#2 {main}"}',
+            '',
+        ]));
+
+        $entries = \App\Services\SystemLogReader::read(null, 2)['entries'];
+        $sql = collect($entries)->first(fn ($e) => str_contains($e['message'], 'SQLSTATE'));
+
+        $this->assertNotNull($sql);
+        $this->assertSame('ERROR', $sql['level']);
+        $this->assertStringNotContainsString('{"userId"', $sql['message']);
+        $this->assertStringContainsString('Connection.php:857', $sql['stack']);
+    }
+
+    public function test_the_reader_copes_with_a_broken_context_block(): void
+    {
+        File::put($this->dir . '/laravel.log', '[2026-10-08 12:00:00] local.ERROR: Boom {"userId":5,"exception":"unterminated at /app/X.php:1' . "\n");
+
+        $entry = \App\Services\SystemLogReader::read(null, 2)['entries'][0];
+
+        $this->assertStringContainsString('Boom', $entry['message']);
     }
 }

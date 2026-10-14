@@ -12,6 +12,8 @@
         class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
 </div>
 
+@include('admin.partials._logs-tabs')
+
 <div class="bg-white rounded-lg shadow p-4 mb-6">
     <form method="GET" action="{{ route('admin.activity-logs') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div>

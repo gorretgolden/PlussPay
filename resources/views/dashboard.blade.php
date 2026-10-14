@@ -203,6 +203,37 @@
         </div>
     </a>
 </div>
+
+@if(($logAlerts['failed_logins_24h'] ?? 0) > 0 || ($logAlerts['unresolved_errors'] ?? 0) > 0)
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+    @if(($logAlerts['failed_logins_24h'] ?? 0) > 0)
+    <a href="{{ route('admin.login-logs', ['status' => 'failed']) }}" class="bg-amber-50 border border-amber-200 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-amber-700 font-medium">Failed sign-ins (last 24h)</div>
+                <div class="text-3xl font-bold text-amber-700 mt-1">{{ number_format($logAlerts['failed_logins_24h']) }}</div>
+                <div class="text-xs text-amber-600 mt-1">Review the Login Logs for a brute-force pattern.</div>
+            </div>
+            <svg class="w-10 h-10 text-amber-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86l-8.48 14.72A1 1 0 002.66 20h18.68a1 1 0 00.85-1.42L13.71 3.86a1 1 0 00-1.72 0z"/></svg>
+        </div>
+    </a>
+    @endif
+    @role('superadmin')
+    @if(($logAlerts['unresolved_errors'] ?? 0) > 0)
+    <a href="{{ route('admin.system-logs', ['resolved' => '0']) }}" class="bg-red-50 border border-red-200 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="text-sm text-red-700 font-medium">Unresolved system errors</div>
+                <div class="text-3xl font-bold text-red-700 mt-1">{{ number_format($logAlerts['unresolved_errors']) }}</div>
+                <div class="text-xs text-red-600 mt-1">Open System Errors to read and mark them resolved.</div>
+            </div>
+            <svg class="w-10 h-10 text-red-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.36 5.64a9 9 0 11-12.73 0M12 9v4m0 4h.01"/></svg>
+        </div>
+    </a>
+    @endif
+    @endrole
+</div>
+@endif
 @endrole
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

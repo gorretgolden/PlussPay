@@ -7,6 +7,8 @@ use App\Models\AccountEntry;
 use App\Models\ActivityLog;
 use App\Models\Customer;
 use App\Models\ExchangeRate;
+use App\Models\LoginLog;
+use App\Models\SystemLog;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\SystemLogReader;
@@ -193,39 +195,44 @@ class ExportController extends Controller
 
     public function loginLogs(Request $request)
     {
-        $rows = ActivityLog::with('user')
-            ->whereIn('action', ['login', 'logout', 'login_blocked', 'login_failed'])
-            ->filtered($request)
+        $rows = LoginLog::with('user')->filtered($request)
             ->latest()
             ->get()
             ->map(fn($log) => [
                 $log->created_at->format('Y-m-d h:i A'),
-                $log->user?->name ?? ($log->action === 'login_failed' ? 'No such account' : 'System'),
-                $log->user?->email ?? '-',
-                $log->actionLabel(),
-                $log->sourceIp() ?? '-',
-                $log->description ?? '-',
+                $log->user?->name ?? ($log->email_attempted ?: 'No such account'),
+                $log->email_attempted ?? '-',
+                $log->statusLabel(),
+                $log->ip_address ?? '-',
+                $log->device ?? '-',
+                $log->browser ?? '-',
             ])
             ->all();
 
         return $this->download('login-logs', [
-            'Date', 'User', 'Email', 'Event', 'IP Address', 'Details',
+            'Date', 'User', 'Email Attempted', 'Status', 'IP Address', 'Device', 'Browser',
         ], $rows);
     }
 
     public function systemLogs(Request $request)
     {
-        $meta = SystemLogReader::read($request->input('file'), SystemLogReader::window($request));
-        $entries = SystemLogReader::filter($meta['entries'], $request);
+        $rows = SystemLog::filtered($request)
+            ->latest()
+            ->get()
+            ->map(fn($log) => [
+                $log->created_at->format('Y-m-d h:i A'),
+                strtoupper($log->level),
+                mb_substr(preg_replace('/\s+/', ' ', $log->message), 0, 500),
+                $log->exception_class ?? '-',
+                $log->file ? $log->file . ($log->line ? ':' . $log->line : '') : '-',
+                $log->url ?? '-',
+                $log->resolved ? 'Resolved' : 'Open',
+            ])
+            ->all();
 
-        $suffix = str_replace('.log', '', (string) $meta['file']);
-
-        return $this->download(
-            'system-logs',
-            SystemLogReader::exportHeaders(),
-            SystemLogReader::exportRows($entries),
-            $suffix
-        );
+        return $this->download('system-logs', [
+            'Date', 'Level', 'Message', 'Class', 'Where', 'URL', 'Status',
+        ], $rows);
     }
 
     public function agentPerformance(Request $request)

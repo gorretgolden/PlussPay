@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\AccountEntry;
+use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Services\AccountLedger;
 use Illuminate\Http\Request;
@@ -102,6 +103,8 @@ class AccountController extends Controller
         $counterparty = isset($validated['counterparty_id']) ? Account::findOrFail($validated['counterparty_id']) : null;
         $date = $validated['entry_date'] ?? now()->toDateString();
 
+        $before = $account->balance();
+
         try {
             match ($validated['kind']) {
                 'transfer' => AccountLedger::transfer($account, $counterparty, (string) $validated['amount'], $validated['description'], $date, $validated['reference'] ?? null),
@@ -111,6 +114,22 @@ class AccountController extends Controller
         } catch (\InvalidArgumentException $e) {
             return back()->withErrors(['kind' => $e->getMessage()])->withInput();
         }
+
+        // A manual ledger movement changes the cash books, so it is auditable in its own
+        // right: what the account held before, and what it holds now.
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            ...ActivityLog::subjectAttributes($account),
+            'action' => 'wallet_adjusted',
+            'description' => $validated['description'],
+            'old_value' => json_encode(['balance' => $before]),
+            'new_value' => json_encode([
+                'balance' => $account->balance(),
+                'movement' => AccountEntry::labelFor($validated['kind']),
+                'amount' => number_format((float) $validated['amount'], 2),
+                'currency' => $account->currency,
+            ]),
+        ]);
 
         return redirect()->route('accounts.show', $account)->with('success', 'Ledger entry saved.');
     }

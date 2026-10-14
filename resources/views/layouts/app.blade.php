@@ -158,18 +158,36 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.53 5.81L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.93-5.93A6 6 0 1121 9z"/></svg>
                             All Permissions
                         </a>
-                        <a href="{{ route('admin.activity-logs') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.activity-logs') ? 'active' : '' }}">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-                            Activity Logs
+                    </div>
+                </div>
+
+                {{-- Logs Group --}}
+                <div>
+                    <button type="button" onclick="toggleLogsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? 'bg-green-800' : '' }}">
+                        <span class="flex items-center">
+                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                            Logs
+                        </span>
+                        <svg id="logsChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div id="logsGroup" class="{{ request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? '' : 'hidden' }}">
+                        <a href="{{ route('admin.activity-logs') }}" class="sidebar-sublink flex items-center justify-between py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.activity-logs') ? 'active' : '' }}">
+                            <span class="flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>Audit Logs</span>
                         </a>
-                        <a href="{{ route('admin.login-logs') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.login-logs') ? 'active' : '' }}">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
-                            Login Logs
+                        <a href="{{ route('admin.login-logs') }}" class="sidebar-sublink flex items-center justify-between py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.login-logs') ? 'active' : '' }}">
+                            <span class="flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>Login Logs</span>
+                            @if(($sidebarFailedLogins ?? 0) > 0)
+                            <span class="ml-2 bg-amber-500 text-white text-xs rounded-full px-2 py-0.5">{{ $sidebarFailedLogins }}</span>
+                            @endif
                         </a>
-                        <a href="{{ route('admin.system-logs') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.system-logs') ? 'active' : '' }}">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
-                            System Logs
+                        @role('superadmin')
+                        <a href="{{ route('admin.system-logs') }}" class="sidebar-sublink flex items-center justify-between py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.system-logs') ? 'active' : '' }}">
+                            <span class="flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>System Errors</span>
+                            @if(($sidebarUnresolvedErrors ?? 0) > 0)
+                            <span class="ml-2 bg-red-600 text-white text-xs rounded-full px-2 py-0.5">{{ $sidebarUnresolvedErrors }}</span>
+                            @endif
                         </a>
+                        @endrole
                     </div>
                 </div>
 
@@ -265,6 +283,12 @@
         function toggleUserMgmtGroup() {
             const group = document.getElementById('userMgmtGroup');
             const chevron = document.getElementById('userMgmtChevron');
+            group.classList.toggle('hidden');
+            chevron.classList.toggle('rotate-180');
+        }
+        function toggleLogsGroup() {
+            const group = document.getElementById('logsGroup');
+            const chevron = document.getElementById('logsChevron');
             group.classList.toggle('hidden');
             chevron.classList.toggle('rotate-180');
         }

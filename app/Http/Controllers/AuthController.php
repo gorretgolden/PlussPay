@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\LoginLog;
 use App\Models\User;
 use App\Services\TotpService;
 use Illuminate\Http\Request;
@@ -58,7 +59,7 @@ class AuthController extends Controller
             }
 
             RateLimiter::hit($key, 60);
-            $this->logFailed($request, $user, 'account locked');
+            $this->logFailed($request, $user, 'account locked', status: 'locked');
 
             return back()->withErrors(['email' => $message])->onlyInput('email');
         }
@@ -73,7 +74,7 @@ class AuthController extends Controller
 
         if (RateLimiter::tooManyAttempts($key, 5)) {
             $seconds = RateLimiter::availableIn($key);
-            $this->logFailed($request, $user, 'too many attempts from this address');
+            $this->logFailed($request, $user, 'too many attempts from this address', status: 'locked');
 
             return back()->withErrors([
                 'email' => 'Too many login attempts. Try again in ' . $seconds . ' seconds.',
@@ -86,7 +87,7 @@ class AuthController extends Controller
             $this->logFailed($request, $user, 'wrong password');
 
             if ($user->isLocked()) {
-                $this->logDenied($user, $request, 'account locked after too many failed passwords');
+                $this->logDenied($user, $request, 'account locked after too many failed passwords', status: 'locked');
             }
 
             return back()->withErrors(['email' => 'Invalid password.'])->onlyInput('email');
@@ -242,9 +243,10 @@ class AuthController extends Controller
         ]);
     }
 
-    private function logDenied(User $user, Request $request, string $reason): void
+    private function logDenied(User $user, Request $request, string $reason, string $status = 'failed'): void
     {
         ActivityLog::logAuth($user->id, 'login_blocked', "User {$user->name} sign-in blocked from {$request->ip()}: {$reason}");
+        LoginLog::record($request, $status, $user);
     }
 
     /**
@@ -252,7 +254,7 @@ class AuthController extends Controller
      * The user can be null when the email does not belong to any account, which is
      * still worth keeping because that is how a password-stuffing run reads.
      */
-    private function logFailed(Request $request, ?User $user, string $reason, ?string $attemptedEmail = null): void
+    private function logFailed(Request $request, ?User $user, string $reason, ?string $attemptedEmail = null, string $status = 'failed'): void
     {
         $who = $user?->email ?? ($attemptedEmail ?? 'an unknown address');
 
@@ -261,5 +263,7 @@ class AuthController extends Controller
             'action' => 'login_failed',
             'description' => "Failed sign-in for {$who} from {$request->ip()}: {$reason}",
         ]);
+
+        LoginLog::record($request, $status, $user, $attemptedEmail);
     }
 }

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\ExchangeRate;
+use App\Models\LoginLog;
+use App\Models\SystemLog;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -101,7 +103,23 @@ class DashboardController extends Controller
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'agent_fee' THEN amount ELSE -amount END), 0) as net")
             ->value('net');
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'commissionMonth', 'profit'));
+        // Admins manage people, so a spike of failed sign-ins belongs on the page they open
+        // first; only the Super Admin sees the machine errors, matching the Logs tabs.
+        $logAlerts = [];
+        if ($user->hasRole(['admin', 'superadmin'])) {
+            try {
+                $logAlerts['failed_logins_24h'] = LoginLog::where('status', 'failed')
+                    ->where('created_at', '>=', now()->subDay())
+                    ->count();
+                if ($user->hasRole('superadmin')) {
+                    $logAlerts['unresolved_errors'] = SystemLog::where('resolved', false)->count();
+                }
+            } catch (\Throwable) {
+                // login_logs / system_logs not migrated yet; show no badges.
+            }
+        }
+
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'commissionMonth', 'profit', 'logAlerts'));
     }
 
     private function usdToUgxRate(): ?float
