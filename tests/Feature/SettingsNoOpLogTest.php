@@ -96,46 +96,38 @@ class SettingsNoOpLogTest extends TestCase
         $this->assertStringContainsString('company_name changed from unset to PlusPay', $logs->first()->description);
     }
 
-    public function test_the_rates_form_accepts_a_new_buying_price_at_the_same_selling_rate(): void
+    public function test_correcting_only_the_buying_price_on_a_row_is_a_real_edit(): void
     {
         $admin = $this->admin();
 
-        $this->actingAs($admin)->post('/exchange-rates', [
-            'from_currency' => 'USD',
-            'to_currency' => 'UGX',
-            'rate' => '4025',
-            'buy_rate' => '4000',
-        ])->assertSessionHasNoErrors();
+        $row = ExchangeRate::setPair('USD', 'UGX', 4025, 4000, 4025);
 
-        $this->actingAs($admin)->post('/exchange-rates', [
-            'from_currency' => 'USD',
-            'to_currency' => 'UGX',
-            'rate' => '4025',
+        $this->actingAs($admin)->patch('/exchange-rates/'.$row->id, [
+            'rate_id' => $row->id,
+            'sell_rate' => '4025',
             'buy_rate' => '3990',
         ])->assertSessionHasNoErrors();
 
         $active = ExchangeRate::getActiveRate('USD', 'UGX');
 
+        $this->assertSame($row->id, $active->id, 'A correction changes the row, it does not add one.');
         $this->assertEqualsWithDelta(3990, (float) $active->buy_rate, 0.000001);
         $this->assertEqualsWithDelta(4025, (float) $active->sell_rate, 0.000001);
     }
 
-    public function test_the_rates_form_still_refuses_an_identical_pair(): void
+    public function test_the_edit_refuses_figures_that_are_already_on_the_row(): void
     {
         $admin = $this->admin();
 
-        $payload = [
-            'from_currency' => 'USD',
-            'to_currency' => 'UGX',
-            'rate' => '4025',
+        $row = ExchangeRate::setPair('USD', 'UGX', 4025, 4000, 4025);
+
+        $this->actingAs($admin)->patch('/exchange-rates/'.$row->id, [
+            'rate_id' => $row->id,
+            'sell_rate' => '4025',
             'buy_rate' => '4000',
-        ];
-
-        $this->actingAs($admin)->post('/exchange-rates', $payload)->assertSessionHasNoErrors();
-
-        $this->actingAs($admin)->post('/exchange-rates', $payload)
-            ->assertSessionHasErrors('rate');
+        ])->assertSessionHasErrors('sell_rate');
 
         $this->assertSame(1, ExchangeRate::where('from_currency', 'USD')->where('to_currency', 'UGX')->count());
+        $this->assertSame(0, ActivityLog::where('action', 'exchange_rate_edited')->count());
     }
 }

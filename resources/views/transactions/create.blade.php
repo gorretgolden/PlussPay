@@ -149,7 +149,7 @@
                 <div class="flex items-center justify-between mb-3">
                     <h4 class="font-semibold text-green-800">Live Calculation</h4>
                     @if(auth()->user()->hasRole(['admin', 'superadmin']))
-                        <a href="{{ route('exchange-rates.index') }}" class="text-xs text-green-700 underline hover:text-green-900">Manage rates</a>
+                        <a href="{{ route('settings.index') }}" class="text-xs text-green-700 underline hover:text-green-900">Change the prices</a>
                     @endif
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">

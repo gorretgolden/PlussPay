@@ -40,11 +40,9 @@ class ExchangeRateAuthorshipTest extends TestCase
         $gorret = $this->admin('Gorret Admin');
 
         $this->actingAs($gorret)
-            ->post('/exchange-rates', [
-                'from_currency' => 'USD',
-                'to_currency' => 'UGX',
-                'rate' => '3772',
-                'buy_rate' => '3758',
+            ->put('/settings', [
+                'usd_ugx_selling' => '3772',
+                'usd_ugx_buying' => '3758',
             ])
             ->assertSessionHasNoErrors();
 
@@ -142,17 +140,24 @@ class ExchangeRateAuthorshipTest extends TestCase
         $this->assertSame(['UGX'], $byPerson->pluck('to_currency')->all());
     }
 
-    public function test_the_add_rate_form_sits_behind_a_button_instead_of_on_the_page(): void
+    public function test_prices_are_set_in_settings_and_each_row_can_be_corrected_on_this_page(): void
     {
         $admin = $this->admin('Gorret Admin');
+
+        ExchangeRate::create([
+            'from_currency' => 'USD', 'to_currency' => 'UGX', 'rate' => 3772,
+            'sell_rate' => 3772, 'buy_rate' => 3758, 'is_active' => true,
+            'created_by' => $admin->id,
+        ]);
 
         $this->actingAs($admin)
             ->get('/exchange-rates')
             ->assertOk()
-            ->assertSee('Add Exchange Rate')
-            ->assertSee('Yesterday')
-            ->assertSee('id="addRateModal"', false)
-            ->assertDontSee('Add / Update Rate');
+            ->assertDontSee('Add Exchange Rate')
+            ->assertDontSee('addRateModal', false)
+            ->assertSee('Change the prices')
+            ->assertSee('Save changes')
+            ->assertSee('Yesterday');
     }
 
     public function test_the_rates_export_carries_the_person_who_added_each_rate(): void

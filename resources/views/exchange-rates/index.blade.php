@@ -3,14 +3,18 @@
 @section('title', 'Exchange Rates')
 
 @section('content')
-<div class="mb-6 flex justify-between items-center">
+@php
+    $editing = (int) old('rate_id');
+    $trim = fn ($v) => rtrim(rtrim(number_format((float) $v, 6, '.', ','), '0'), '.');
+    $input = fn ($v) => rtrim(rtrim(number_format((float) $v, 6, '.', ''), '0'), '.');
+@endphp
+<div class="mb-6 flex flex-wrap justify-between items-start gap-3">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Exchange Rates</h1>
-        <p class="text-gray-600">Manage currency conversion rates</p>
+        <p class="text-gray-600">The record of every price the business has worked at. A new price is set in System Settings, where only the two pairs that are actually used can be entered. Nothing here is deleted: an old row is the proof of what the price was on those days.</p>
     </div>
     <div class="flex gap-2">
-        <button type="button" id="openAddRate"
-            class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Add Exchange Rate</button>
+        <a href="{{ route('settings.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Change the prices</a>
         <a href="{{ route('export.exchange-rates', request()->query()) }}"
             class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
     </div>
@@ -36,8 +40,8 @@
             <label class="block text-xs text-gray-500 mb-1">Status</label>
             <select name="status" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All</option>
-                <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
-                <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Inactive</option>
+                <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>In use</option>
+                <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Earlier prices</option>
             </select>
         </div>
         <div>
@@ -118,7 +122,6 @@
 @endif
 
 <div class="bg-white rounded-lg shadow overflow-x-auto">
-    @php $trim = fn ($v) => rtrim(rtrim(number_format((float) $v, 6, '.', ','), '0'), '.'); @endphp
     <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
@@ -132,7 +135,7 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Edited By</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Updated</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -147,26 +150,85 @@
                 </td>
                 <td class="px-6 py-4">
                     <span class="px-2 py-1 text-xs rounded-full {{ $rate->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
-                        {{ $rate->is_active ? 'Active' : 'Inactive' }}
+                        {{ $rate->is_active ? 'In use' : 'Earlier' }}
                     </span>
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">{{ $rate->creator?->name ?? 'Not recorded' }}</td>
                 <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $rate->created_at->format('M d, Y h:i A') }}</td>
                 <td class="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">{{ $rate->editor?->name ?? 'Not recorded' }}</td>
                 <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $rate->updated_at->format('M d, Y h:i A') }}</td>
-                <td class="px-6 py-4 text-sm">
-                    <form method="POST" action="{{ route('exchange-rates.toggle', $rate) }}" class="inline">
+                <td class="px-6 py-4 text-sm text-right whitespace-nowrap">
+                    <button type="button" onclick="toggleRateEdit({{ $rate->id }})"
+                        class="text-green-700 hover:text-green-900 underline">Edit</button>
+                    @if(! $rate->is_active)
+                    <form method="POST" action="{{ route('exchange-rates.toggle', $rate) }}" class="inline ml-3">
                         @csrf
                         @method('PATCH')
-                        <button type="submit" class="text-green-600 hover:text-green-800">
-                            {{ $rate->is_active ? 'Deactivate' : 'Activate' }}
-                        </button>
+                        <button type="submit" class="text-gray-600 hover:text-gray-900 underline">Make this the price in use</button>
+                    </form>
+                    @endif
+                </td>
+            </tr>
+            <tr id="rate-edit-{{ $rate->id }}" class="{{ $editing === $rate->id ? '' : 'hidden' }} bg-gray-50">
+                <td colspan="11" class="px-6 py-4">
+                    <form method="POST" action="{{ route('exchange-rates.update', $rate) }}" class="flex flex-wrap gap-4 items-start">
+                        @csrf
+                        @method('PATCH')
+                        <input type="hidden" name="rate_id" value="{{ $rate->id }}">
+                        <div class="w-40">
+                            <p class="text-sm font-medium text-gray-900">{{ $rate->from_currency }} to {{ $rate->to_currency }}</p>
+                            <p class="text-xs text-gray-500">{{ $rate->is_active ? 'The price in use now.' : 'Added '.$rate->created_at->format('M d, Y').'. An earlier price.' }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1" for="sell_rate-{{ $rate->id }}">Selling price *</label>
+                            <input type="number" id="sell_rate-{{ $rate->id }}" name="sell_rate" step="0.000001" min="0.000001"
+                                value="{{ $editing === $rate->id ? old('sell_rate') : $input($rate->sell_rate ?? $rate->rate) }}"
+                                class="w-40 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                            @error('sell_rate')
+                            @if($editing === $rate->id)
+                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                            @endif
+                            @enderror
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1" for="buy_rate-{{ $rate->id }}">Buying price</label>
+                            <input type="number" id="buy_rate-{{ $rate->id }}" name="buy_rate" step="0.000001" min="0.000001"
+                                value="{{ $editing === $rate->id ? old('buy_rate', $rate->buy_rate === null ? '' : $input($rate->buy_rate)) : ($rate->buy_rate === null ? '' : $input($rate->buy_rate)) }}"
+                                class="w-40 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                            @error('buy_rate')
+                            @if($editing === $rate->id)
+                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                            @endif
+                            @enderror
+                        </div>
+                        @if(! $rate->is_active)
+                        <div class="w-64">
+                            <label class="flex items-start gap-2 text-xs text-gray-600">
+                                <input type="checkbox" name="history_ok" value="1" class="mt-0.5 rounded border-gray-300">
+                                <span>I understand this is an earlier price, so correcting it changes how the transfers entered under it read back.</span>
+                            </label>
+                            @error('history_ok')
+                            @if($editing === $rate->id)
+                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                            @endif
+                            @enderror
+                        </div>
+                        @endif
+                        <div class="flex items-center gap-3">
+                            <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Save changes</button>
+                            <button type="button" onclick="toggleRateEdit({{ $rate->id }}, true)"
+                                class="text-gray-600 hover:text-gray-800 text-sm">Cancel</button>
+                        </div>
+                        <p class="basis-full text-xs text-gray-500">Selling is what customers are quoted and it drives every conversion. Buying is what a dollar costs the business and it only measures the margin. Leaving the buying price empty means this row carries one figure, so its margin reads as nil.</p>
                     </form>
                 </td>
             </tr>
             @empty
             <tr>
-                <td colspan="11" class="px-6 py-8 text-center text-gray-500">No exchange rates configured.</td>
+                <td colspan="11" class="px-6 py-8 text-center text-gray-500">
+                    No exchange rates recorded yet.
+                    <a href="{{ route('settings.index') }}" class="text-green-700 underline">Set the first prices in Settings</a>.
+                </td>
             </tr>
             @endforelse
         </tbody>
@@ -178,82 +240,21 @@
     @endif
 </div>
 
-{{-- Add Exchange Rate Modal --}}
-<div id="addRateModal" class="fixed inset-0 z-50 {{ $errors->any() ? '' : 'hidden' }}">
-    <div class="absolute inset-0 bg-black bg-opacity-50 modal-backdrop"></div>
-    <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
-            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-start">
-                <div>
-                    <h3 class="text-lg font-semibold text-gray-900">Add Exchange Rate</h3>
-                    <p class="text-sm text-gray-500">Saving a new rate retires the current one for that pair.</p>
-                </div>
-                <button type="button" class="modal-cancel text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
-            </div>
-            <form method="POST" action="{{ route('exchange-rates.store') }}">
-                @csrf
-                <div class="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">From Currency</label>
-                        <select name="from_currency" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                            @foreach(['USD', 'UGX', 'RMB'] as $currency)
-                            <option value="{{ $currency }}" {{ old('from_currency') === $currency ? 'selected' : '' }}>{{ $currency }}</option>
-                            @endforeach
-                        </select>
-                        @error('from_currency')
-                        <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">To Currency</label>
-                        <select name="to_currency" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                            @foreach(['RMB', 'USD', 'UGX'] as $currency)
-                            <option value="{{ $currency }}" {{ old('to_currency') === $currency ? 'selected' : '' }}>{{ $currency }}</option>
-                            @endforeach
-                        </select>
-                        @error('to_currency')
-                        <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Selling rate</label>
-                        <input type="number" name="rate" step="0.000001" min="0.000001" required value="{{ old('rate') }}"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                        @error('rate')
-                        <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Buying rate</label>
-                        <input type="number" name="buy_rate" step="0.000001" min="0.000001" value="{{ old('buy_rate') }}"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                        @error('buy_rate')
-                        <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                        @enderror
-                    </div>
-                    <p class="sm:col-span-2 text-xs text-gray-500">The selling rate is what customers are quoted and is used for every conversion. The buying rate is what the dollar costs you, and only measures profit.</p>
-                </div>
-                <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-                    <button type="button" class="modal-cancel px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
-                    <button type="submit" class="bg-green-800 text-white px-6 py-2 rounded-md hover:bg-green-700 text-sm font-medium">Save Rate</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<p class="mt-4 text-xs text-gray-500">The rate that is in use for a pair is the newest row for it. Setting a new price in Settings retires the row before it rather than overwriting it, so the day the price changed can still be proved. Transfers and counter deals keep the figures they were entered with; changing a price here never restates money that has already been booked, except for a row that is an earlier price and is being corrected on purpose.</p>
 @endsection
 
 @push('scripts')
 <script>
-    const addRateModal = document.getElementById('addRateModal');
+    function toggleRateEdit(id, forceClose) {
+        const row = document.getElementById('rate-edit-' + id);
+        const open = row.classList.contains('hidden');
 
-    document.getElementById('openAddRate').addEventListener('click', () => {
-        addRateModal.classList.remove('hidden');
-        addRateModal.querySelector('input[name="rate"]').focus();
-    });
+        document.querySelectorAll('tr[id^="rate-edit-"]').forEach((tr) => tr.classList.add('hidden'));
 
-    addRateModal.querySelectorAll('.modal-cancel').forEach(btn => btn.addEventListener('click', () => addRateModal.classList.add('hidden')));
-    addRateModal.querySelector('.modal-backdrop').addEventListener('click', () => addRateModal.classList.add('hidden'));
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') addRateModal.classList.add('hidden'); });
+        if (open && ! forceClose) {
+            row.classList.remove('hidden');
+            row.querySelector('input[name="sell_rate"]').focus();
+        }
+    }
 </script>
 @endpush

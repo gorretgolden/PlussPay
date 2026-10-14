@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -51,12 +52,11 @@ class ExchangeRateEditorTest extends TestCase
     {
         $gorret = $this->admin('Gorret Admin');
 
+        // Prices are set in Settings, where only the two pairs the system reads can be entered.
         $this->actingAs($gorret)
-            ->post('/exchange-rates', [
-                'from_currency' => 'USD',
-                'to_currency' => 'UGX',
-                'rate' => '3772',
-                'buy_rate' => '3758',
+            ->put('/settings', [
+                'usd_ugx_selling' => '3772',
+                'usd_ugx_buying' => '3758',
             ])
             ->assertSessionHasNoErrors();
 
@@ -74,16 +74,132 @@ class ExchangeRateEditorTest extends TestCase
         $old = $this->rate(['created_by' => $gorret->id]);
 
         $this->actingAs($alice)
-            ->post('/exchange-rates', [
-                'from_currency' => 'USD',
-                'to_currency' => 'UGX',
-                'rate' => '3790',
-                'buy_rate' => '3775',
+            ->put('/settings', [
+                'usd_ugx_selling' => '3790',
+                'usd_ugx_buying' => '3775',
             ])
             ->assertSessionHasNoErrors();
 
         $this->assertSame($alice->id, $old->fresh()->updated_by);
         $this->assertFalse($old->fresh()->is_active);
+    }
+
+    public function test_the_rates_page_no_longer_offers_a_free_pair_to_add(): void
+    {
+        $this->rate();
+
+        $this->actingAs($this->admin('Gorret Admin'))
+            ->get('/exchange-rates')
+            ->assertOk()
+            ->assertDontSee('Add Exchange Rate')
+            ->assertSee('Change the prices');
+    }
+
+    public function test_correcting_the_live_price_changes_that_row_and_stamps_who_did_it(): void
+    {
+        $gorret = $this->admin('Gorret Admin');
+        $alice = $this->admin('Alice Editor');
+
+        $rate = $this->rate(['created_by' => $gorret->id]);
+
+        $this->actingAs($alice)
+            ->patch('/exchange-rates/'.$rate->id, [
+                'rate_id' => $rate->id,
+                'sell_rate' => '3760',
+                'buy_rate' => '3750',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', fn (string $message) => str_contains($message, 'USD-UGX corrected to selling 3760, buying 3750'));
+
+        $fresh = $rate->fresh();
+
+        // Corrected in place: no extra row, and the customer facing figure stays the selling one.
+        $this->assertSame(1, ExchangeRate::count());
+        $this->assertTrue($fresh->is_active);
+        $this->assertEqualsWithDelta(3760, (float) $fresh->rate, 0.000001);
+        $this->assertEqualsWithDelta(3760, (float) $fresh->sell_rate, 0.000001);
+        $this->assertEqualsWithDelta(3750, (float) $fresh->buy_rate, 0.000001);
+        $this->assertSame($alice->id, $fresh->updated_by);
+        $this->assertSame($gorret->id, $fresh->created_by);
+
+        $log = ActivityLog::where('action', 'exchange_rate_edited')->firstOrFail();
+        $this->assertStringContainsString('Live price for USD-UGX corrected from selling 3772, buying 3758', $log->description);
+    }
+
+    public function test_an_earlier_price_is_only_corrected_once_the_warning_is_acknowledged(): void
+    {
+        $alice = $this->admin('Alice Editor');
+
+        $this->rate();
+        $earlier = $this->rate(['rate' => 3700, 'sell_rate' => 3700, 'buy_rate' => 3690, 'is_active' => false]);
+
+        $this->actingAs($alice)
+            ->patch('/exchange-rates/'.$earlier->id, [
+                'rate_id' => $earlier->id,
+                'sell_rate' => '3705',
+                'buy_rate' => '3690',
+            ])
+            ->assertSessionHasErrors('history_ok');
+
+        $this->assertEqualsWithDelta(3700, (float) $earlier->fresh()->sell_rate, 0.000001);
+
+        $this->actingAs($alice)
+            ->patch('/exchange-rates/'.$earlier->id, [
+                'rate_id' => $earlier->id,
+                'sell_rate' => '3705',
+                'buy_rate' => '3690',
+                'history_ok' => '1',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertEqualsWithDelta(3705, (float) $earlier->fresh()->sell_rate, 0.000001);
+        $this->assertFalse($earlier->fresh()->is_active, 'Correcting an old row does not bring it back into use.');
+        $this->assertStringContainsString('Price from '.$earlier->fresh()->created_at->format('M d, Y'),
+            ActivityLog::where('action', 'exchange_rate_edited')->firstOrFail()->description);
+    }
+
+    public function test_blank_buying_price_means_the_row_carries_one_figure(): void
+    {
+        $alice = $this->admin('Alice Editor');
+        $rate = $this->rate(['buy_rate' => null]);
+
+        $this->actingAs($alice)
+            ->patch('/exchange-rates/'.$rate->id, [
+                'rate_id' => $rate->id,
+                'sell_rate' => '3760',
+                'buy_rate' => '',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $fresh = $rate->fresh();
+
+        $this->assertEqualsWithDelta(3760, (float) $fresh->buy_rate, 0.000001);
+        $this->assertEqualsWithDelta(3760, (float) $fresh->sell_rate, 0.000001);
+
+        $this->actingAs($alice)
+            ->get('/exchange-rates')
+            ->assertOk()
+            ->assertDontSee('Pending');
+    }
+
+    public function test_a_backwards_price_is_saved_and_the_page_shouts_about_it(): void
+    {
+        $alice = $this->admin('Alice Editor');
+        $rate = $this->rate();
+
+        // The spread warning still shows on the page, so a wrong figure is visible rather than silent.
+        $this->actingAs($alice)
+            ->patch('/exchange-rates/'.$rate->id, [
+                'rate_id' => $rate->id,
+                'sell_rate' => '3700',
+                'buy_rate' => '3800',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($alice)
+            ->get('/exchange-rates')
+            ->assertOk()
+            ->assertSee('Spread warning');
     }
 
     public function test_switching_a_rate_on_records_the_person_who_clicked_it(): void

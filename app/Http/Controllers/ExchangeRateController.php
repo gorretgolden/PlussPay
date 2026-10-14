@@ -120,73 +120,77 @@ class ExchangeRateController extends Controller
         return rtrim(rtrim(number_format($value, 6, '.', ''), '0'), '.');
     }
 
-    public function store(Request $request)
+    /**
+     * Correct the two figures on a price that is already on the record. The pair, who entered it
+     * and the dates stay where they are; only the numbers move. Editing the row that is live now
+     * cannot disturb anything already booked, because every transfer keeps the figures it was
+     * entered with. An older row is a different thing: it is what the books read back for the
+     * transfers entered while it was the price, so that one asks to be confirmed.
+     */
+    public function update(Request $request, ExchangeRate $exchangeRate)
     {
-        $validated = $request->validate([
-            'from_currency' => 'required|string|max:10|in:USD,RMB,UGX',
-            'to_currency' => 'required|string|max:10|in:USD,RMB,UGX|different:from_currency',
-            'rate' => 'required|numeric|min:0.000001|max:999999.999999',
-            'buy_rate' => 'nullable|numeric|min:0.000001|max:999999.999999',
-        ], [
-            'from_currency.required' => 'Source currency is required.',
-            'from_currency.in' => 'Invalid source currency.',
-            'to_currency.required' => 'Target currency is required.',
-            'to_currency.in' => 'Invalid target currency.',
-            'to_currency.different' => 'Source and target currency must be different.',
-            'rate.required' => 'Exchange rate is required.',
-            'rate.min' => 'Exchange rate must be greater than zero.',
-            'rate.max' => 'Exchange rate is too high.',
-            'buy_rate.min' => 'The buying rate must be greater than zero.',
-            'buy_rate.max' => 'The buying rate is too high.',
-        ]);
+        $rules = [
+            'sell_rate' => ['required', 'numeric', 'min:0.000001', 'max:999999.999999'],
+            'buy_rate' => ['nullable', 'numeric', 'min:0.000001', 'max:999999.999999'],
+        ];
 
-        $existing = ExchangeRate::where('from_currency', $validated['from_currency'])
-            ->where('to_currency', $validated['to_currency'])
-            ->where('is_active', true)
-            ->first();
-
-        // Only a genuinely identical pair is refused. Re-saving the same selling rate
-        // with a different buying price is a real edit, so it has to go through.
-        $newBuy = $validated['buy_rate'] ?? $validated['rate'];
-
-        if ($existing
-            && (float) $existing->rate === (float) $validated['rate']
-            && (float) ($existing->buy_rate ?? $existing->rate) === (float) $newBuy) {
-            return back()->withErrors(['rate' => 'This rate and buying price are already active.']);
+        if (! $exchangeRate->is_active) {
+            $rules['history_ok'] = ['accepted'];
         }
 
-        $previous = $existing ? (string) $existing->rate : 'none';
-
-        ExchangeRate::retirePair($validated['from_currency'], $validated['to_currency']);
-
-        // The single rate entered here is always the customer-facing (selling) price.
-        ExchangeRate::create([
-            'from_currency' => strtoupper($validated['from_currency']),
-            'to_currency' => strtoupper($validated['to_currency']),
-            'rate' => $validated['rate'],
-            'buy_rate' => $validated['buy_rate'] ?? $validated['rate'],
-            'sell_rate' => $validated['rate'],
-            'is_active' => true,
-            'created_by' => $request->user()->id,
+        $validated = $request->validate($rules, [
+            'sell_rate.required' => 'Enter the selling price, the figure customers are quoted.',
+            'sell_rate.numeric' => 'The selling price must be a number, e.g. 3760.',
+            'sell_rate.min' => 'The selling price must be greater than zero.',
+            'sell_rate.max' => 'The selling price is too high.',
+            'buy_rate.numeric' => 'The buying price must be a number, e.g. 3750, or left empty.',
+            'buy_rate.min' => 'The buying price must be greater than zero.',
+            'buy_rate.max' => 'The buying price is too high.',
+            'history_ok.accepted' => 'Confirm that this is an earlier price, so correcting it changes how the transfers entered under it read.',
         ]);
 
-        $pair = strtoupper($validated['from_currency']).'-'.strtoupper($validated['to_currency']);
+        $sell = $this->figure($validated['sell_rate']);
+        $buy = filled($validated['buy_rate'] ?? null) ? $this->figure($validated['buy_rate']) : $sell;
+
+        $liveSell = (string) ($exchangeRate->sell_rate ?: $exchangeRate->rate);
+        $liveBuy = $exchangeRate->buy_rate === null ? null : (string) $exchangeRate->buy_rate;
+
+        if (bccomp($sell, $liveSell, 6) === 0 && bccomp($buy, (string) ($liveBuy ?? $liveSell), 6) === 0) {
+            return back()->withErrors(['sell_rate' => 'Those are the figures already on this row, so nothing was changed.']);
+        }
+
+        $pair = $exchangeRate->from_currency.'-'.$exchangeRate->to_currency;
+        $before = 'selling '.$this->trim((float) $liveSell).', buying '.($liveBuy === null ? 'not set' : $this->trim((float) $liveBuy));
+        $after = 'selling '.$this->trim((float) $sell).', buying '.$this->trim((float) $buy);
+
+        $exchangeRate->update(['rate' => $sell, 'sell_rate' => $sell, 'buy_rate' => $buy]);
 
         ActivityLog::create([
             'user_id' => auth()->id(),
-            'action' => 'exchange_rate_set',
-            'description' => "Active rate for {$pair} set to {$validated['rate']} (was {$previous})",
-            'old_value' => $previous,
-            'new_value' => (string) $validated['rate'],
+            'action' => 'exchange_rate_edited',
+            'description' => ($exchangeRate->is_active ? "Live price" : "Price from ".$exchangeRate->created_at->format('M d, Y'))
+                ." for {$pair} corrected from {$before} to {$after}",
+            'old_value' => $before,
+            'new_value' => $after,
         ]);
 
-        return back()->with('success', 'Exchange rate updated successfully.');
+        return back()->with('success', $pair.' corrected to '.$after.'. '
+            .($exchangeRate->is_active
+                ? 'It is the price now live, so every new booking and quote uses it.'
+                : 'It is an earlier price, so it is what the books read back for transfers entered under it.'));
+    }
+
+    private function figure(string $value): string
+    {
+        return number_format((float) $value, 6, '.', '');
     }
 
     public function toggle(Request $request, ExchangeRate $exchangeRate)
     {
+        // A pair with no price at all stops every conversion working, so the live row cannot be
+        // switched off. The way to change a price is to set a new one, or to bring an older one back.
         if ($exchangeRate->is_active) {
-            return back()->withErrors(['rate' => 'Cannot deactivate the only active rate for this pair. Set a new rate first.']);
+            return back()->withErrors(['rate' => 'This is the price in use now. Change the prices in Settings, or bring an older price back by activating that row.']);
         }
 
         $pair = $exchangeRate->from_currency.'-'.$exchangeRate->to_currency;

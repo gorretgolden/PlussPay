@@ -123,7 +123,10 @@ Route::middleware(['auth', 'account.active'])->group(function () {
             Route::delete('/users/{user}/two-factor', [UserController::class, 'twoFactorDisable'])->name('users.two-factor.disable');
             Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
-            Route::post('/exchange-rates', [ExchangeRateController::class, 'store'])->name('exchange-rates.store');
+            // Prices are set in System Settings, where the two pairs the system actually uses are
+            // the only choices. This page is the trail, so it only ever corrects a row already there
+            // or brings an older price back into use.
+            Route::patch('/exchange-rates/{exchangeRate}', [ExchangeRateController::class, 'update'])->name('exchange-rates.update');
             Route::patch('/exchange-rates/{exchangeRate}/toggle', [ExchangeRateController::class, 'toggle'])->name('exchange-rates.toggle');
 
             Route::patch('/transactions/{transaction}/status', [TransactionController::class, 'updateStatus'])->name('transactions.update-status');
