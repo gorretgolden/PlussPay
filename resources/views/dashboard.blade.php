@@ -166,15 +166,15 @@
             <dl class="mt-3 space-y-2 text-sm">
                 <div class="flex justify-between gap-3">
                     <dt class="text-gray-500">Service Fees</dt>
-                    <dd class="{{ $shillingTone($profit[$window]['fees']) }} font-medium">{{ $shilling($profit[$window]['fees']) }}</dd>
+                    <dd class="{{ $shillingTone($profit[$window]['fees']) }} font-medium text-left">{{ $shilling($profit[$window]['fees']) }}</dd>
                 </div>
                 <div class="flex justify-between gap-3">
                     <dt class="text-gray-500">Exchange Profit</dt>
-                    <dd class="{{ $shillingTone($profit[$window]['exchange']) }} font-medium">{{ $shilling($profit[$window]['exchange']) }}</dd>
+                    <dd class="{{ $shillingTone($profit[$window]['exchange']) }} font-medium text-left">{{ $shilling($profit[$window]['exchange']) }}</dd>
                 </div>
                 <div class="flex justify-between gap-3 border-t pt-2">
                     <dt class="text-gray-500">Total Profit</dt>
-                    <dd class="{{ $shillingTone($profit[$window]['total']) }} font-bold">{{ $shilling($profit[$window]['total']) }}</dd>
+                    <dd class="{{ $shillingTone($profit[$window]['total']) }} font-bold text-left">{{ $shilling($profit[$window]['total']) }}</dd>
                 </div>
             </dl>
             @if($profit[$window]['unpriced'] > 0)
