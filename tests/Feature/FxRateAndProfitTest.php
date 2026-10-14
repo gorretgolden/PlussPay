@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
 use App\Models\ExchangeRate;
 use App\Models\Setting;
 use App\Models\Transaction;
@@ -90,6 +91,49 @@ class FxRateAndProfitTest extends TestCase
         $this->assertSame('20000.00', (string) $transaction->charge_ugx);
         $this->assertSame('5.32', (string) $transaction->charge_amount);
         $this->assertSame('30000.000000', (string) $transaction->total_profit_ugx);
+    }
+
+    public function test_an_agent_books_the_transfer_and_types_the_charge_themselves(): void
+    {
+        $agent = User::create([
+            'name' => 'Desk Agent',
+            'email' => 'deskagent' . uniqid() . '@plussave.test',
+            'password' => 'Password123',
+            'is_active' => true,
+        ]);
+        $agent->assignRole('agent');
+
+        $html = $this->actingAs($agent)->get('/transactions/create')->getContent();
+
+        // The charge box is theirs to fill. Settings only ever supplies a starting point.
+        $this->assertStringContainsString('Change it for this customer if that is what was agreed.', $html);
+        $this->assertStringContainsString('name="charge_ugx"', $html);
+        $this->assertStringNotContainsString('name="charge_ugx" readonly', $html);
+        $this->assertStringNotContainsString('name="charge_ugx" disabled', $html);
+
+        // 3,772,500 handed over with 12,500 typed by hand leaves 3,760,000, which is exactly
+        // $1,000.0 at the selling rate. The settings rule would have said 20,000 for $1,000.0.
+        $this->actingAs($agent)->post('/transactions', [
+            'form_id' => session('transaction_form_id'),
+            'sender_name' => 'Agent Sender',
+            'receiver_name' => 'Agent Receiver',
+            'currency' => 'UGX',
+            'amount' => '3772500',
+            'charge_ugx' => '12500',
+        ])->assertSessionHasNoErrors();
+
+        $transaction = Transaction::latest('id')->firstOrFail();
+
+        $this->assertSame($agent->id, $transaction->created_by);
+        $this->assertSame('12500.00', (string) $transaction->charge_ugx);
+        $this->assertSame('3760000.00', (string) $transaction->amount);
+        $this->assertSame('1000.00', (string) $transaction->total_usd_equivalent);
+        $this->assertSame('3.32', (string) $transaction->charge_amount);
+        $this->assertSame('22500.000000', (string) $transaction->total_profit_ugx);
+
+        // The agent's own commission is the figure they typed, not the rule's suggestion.
+        $wallet = Account::walletFor($agent, 'UGX');
+        $this->assertSame('12500.00', $wallet->balance());
     }
 
     public function test_the_booking_form_labels_the_money_differently_for_each_flow(): void
