@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Account;
 use App\Models\AccountEntry;
+use App\Models\CurrencyExchange;
+use App\Models\Expense;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -194,6 +196,155 @@ class AccountLedger
             now()->toDateString(),
             $transaction->receipt_number,
             $transaction->id,
+        );
+    }
+
+    /**
+     * A currency exchange with a walk-in customer moves money across the counter rather than
+     * between our own books, so it posts two single legs: the account that takes their money goes
+     * up and the account that hands ours over comes down. Both lines carry the same reference and
+     * point at each other, which is what lets any screen name the two accounts a deal touched.
+     */
+    public static function postCurrencyExchange(CurrencyExchange $exchange): void
+    {
+        if (AccountEntry::where('reference', $exchange->reference)->exists()) {
+            return;
+        }
+
+        $rate = $exchange->rate ? (string) $exchange->rate : null;
+        $in = $exchange->inAccount;
+        $out = $exchange->outAccount;
+
+        if ($in) {
+            static::record(
+                $in,
+                'money_in',
+                (string) $exchange->in_amount,
+                'Currency exchange '.$exchange->reference.': '.Account::format($in->currency, $exchange->in_amount)
+                    .' taken in from '.$exchange->person_name,
+                $exchange->exchange_date->toDateString(),
+                $exchange->reference,
+                null,
+                $out,
+                $rate,
+            );
+        }
+
+        if ($out) {
+            static::record(
+                $out,
+                'money_out',
+                (string) $exchange->out_amount,
+                'Currency exchange '.$exchange->reference.': '.Account::format($out->currency, $exchange->out_amount)
+                    .' handed to '.$exchange->person_name,
+                $exchange->exchange_date->toDateString(),
+                $exchange->reference,
+                null,
+                $in,
+                $rate,
+            );
+        }
+    }
+
+    /**
+     * Cancelling a deal gives back what changed hands. The shillings we took go back out and the
+     * dollars or yuan we handed over come back in, so the account totals return to where they
+     * were while both the deal and the undo stay on the trail.
+     */
+    public static function reverseCurrencyExchange(CurrencyExchange $exchange, ?string $reason = null): void
+    {
+        $alreadyReversed = AccountEntry::where('reference', $exchange->reference)
+            ->where('type', 'exchange_back_out')
+            ->exists();
+
+        if ($alreadyReversed) {
+            return;
+        }
+
+        $note = $reason ? ' Reason: '.$reason.'.' : '.';
+        $in = $exchange->inAccount;
+        $out = $exchange->outAccount;
+
+        if ($in) {
+            static::record(
+                $in,
+                'exchange_back_out',
+                (string) $exchange->in_amount,
+                'Cancelled currency exchange '.$exchange->reference.': '.Account::format($in->currency, $exchange->in_amount)
+                    .' returned to '.$exchange->person_name.$note,
+                now()->toDateString(),
+                $exchange->reference,
+                null,
+                $out,
+            );
+        }
+
+        if ($out) {
+            static::record(
+                $out,
+                'exchange_back_in',
+                (string) $exchange->out_amount,
+                'Cancelled currency exchange '.$exchange->reference.': '.Account::format($out->currency, $exchange->out_amount)
+                    .' came back from '.$exchange->person_name.$note,
+                now()->toDateString(),
+                $exchange->reference,
+                null,
+                $in,
+            );
+        }
+    }
+
+    /**
+     * Money the business spent on itself leaves the account it was paid from and is gone, which is
+     * why an expense is posted as a payment out rather than kept on a separate sheet.
+     */
+    public static function postExpense(Expense $expense): void
+    {
+        $account = $expense->account;
+
+        if (! $account || AccountEntry::where('reference', $expense->reference)
+            ->where('direction', 'out')->exists()) {
+            return;
+        }
+
+        static::record(
+            $account,
+            'money_out',
+            (string) $expense->amount,
+            $expense->category.': '.$expense->description.' ('.$expense->reference.', paid via '
+                .strtolower((string) ($expense->paid_via ?: 'cash')).')',
+            $expense->expense_date->toDateString(),
+            $expense->reference,
+            null,
+            null,
+            null,
+        );
+    }
+
+    /**
+     * A mistake is called back with the opposite line rather than deleted, so the books show both
+     * the payment and the refund.
+     */
+    public static function reverseExpense(Expense $expense, ?string $reason = null): void
+    {
+        $account = $expense->account;
+
+        if (! $account || AccountEntry::where('reference', $expense->reference)
+            ->where('direction', 'in')->exists()) {
+            return;
+        }
+
+        static::record(
+            $account,
+            'money_in',
+            (string) $expense->amount,
+            'Voided expense '.$expense->reference.': '.$expense->category.', '.$expense->description
+                .' paid back into the account'.($reason ? '. Reason: '.$reason : ''),
+            now()->toDateString(),
+            $expense->reference,
+            null,
+            null,
+            null,
         );
     }
 

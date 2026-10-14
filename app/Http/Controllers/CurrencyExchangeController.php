@@ -1,0 +1,176 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Account;
+use App\Models\CurrencyExchange;
+use App\Models\Customer;
+use App\Services\ExchangeCalculator;
+use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Validation\Rule;
+
+class CurrencyExchangeController extends Controller
+{
+    public function index(Request $request)
+    {
+        $rows = CurrencyExchange::with(['inAccount', 'outAccount', 'customer', 'creator'])
+            ->filtered($request)
+            ->get()
+            ->sortByDesc('id')
+            ->sortByDesc('exchange_date')
+            ->values();
+
+        $live = $rows->where('status', CurrencyExchange::ACTIVE);
+        $page = max(1, (int) $request->input('page', 1));
+
+        // The two sides of a deal sit in different currencies, so only the margin adds up across
+        // rows. A deal the card cannot price is counted rather than folded into the total at zero.
+        $marginTotal = 0.0;
+        $unpriced = 0;
+        foreach ($live as $exchange) {
+            if ($exchange->margin_ugx === null) {
+                $unpriced++;
+            } else {
+                $marginTotal += (float) $exchange->margin_ugx;
+            }
+        }
+
+        return view('exchanges.index', [
+            'exchanges' => new LengthAwarePaginator(
+                $rows->slice(($page - 1) * 20, 20)->values(),
+                $rows->count(),
+                20,
+                $page,
+                ['path' => route('exchanges.index'), 'query' => $request->query()]
+            ),
+            'liveCount' => $live->count(),
+            'voidCount' => $rows->count() - $live->count(),
+            'marginTotal' => $marginTotal,
+            'unpriced' => $unpriced,
+            'card' => ExchangeCalculator::card(),
+        ]);
+    }
+
+    public function create()
+    {
+        return view('exchanges.create', [
+            'accounts' => Account::ordered(),
+            'customers' => Customer::where('is_active', true)->orderBy('name')->get(['id', 'name', 'phone']),
+            'card' => ExchangeCalculator::card(),
+            'currencies' => ExchangeCalculator::CURRENCIES,
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'person_name' => ['nullable', 'string', 'max:120'],
+            'exchange_date' => ['required', 'date'],
+            'in_currency' => ['required', Rule::in(ExchangeCalculator::CURRENCIES)],
+            'in_amount' => ['required', 'numeric', 'min:0.01'],
+            'in_account_id' => ['required', 'integer', 'exists:accounts,id'],
+            'out_currency' => ['required', 'different:in_currency', Rule::in(ExchangeCalculator::CURRENCIES)],
+            'out_amount' => ['required', 'numeric', 'min:0.01'],
+            'out_account_id' => ['required', 'integer', 'different:in_account_id', 'exists:accounts,id'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ], [
+            'out_currency.different' => 'The two sides have to be different currencies. Take one currency in and hand another back.',
+            'in_account_id.required' => 'Choose which account the money came into.',
+            'out_account_id.required' => 'Choose which account the money was handed over from.',
+            'out_account_id.different' => 'The money cannot leave the account it came into.',
+            'in_amount.min' => 'Enter how much they handed over.',
+            'out_amount.min' => 'Enter how much you handed back.',
+        ]);
+
+        $customer = isset($validated['customer_id']) ? Customer::find($validated['customer_id']) : null;
+        $person = $customer?->name ?: trim((string) $validated['person_name']);
+
+        if ($person === '') {
+            return back()->withErrors(['person_name' => 'Say who the money was exchanged with.'])->withInput();
+        }
+
+        $inAccount = Account::findOrFail($validated['in_account_id']);
+        $outAccount = Account::findOrFail($validated['out_account_id']);
+        $inCurrency = strtoupper($validated['in_currency']);
+        $outCurrency = strtoupper($validated['out_currency']);
+
+        if ($inAccount->currency !== $inCurrency || $outAccount->currency !== $outCurrency) {
+            $wrong = $inAccount->currency !== $inCurrency ? 'in_account_id' : 'out_account_id';
+            $account = $wrong === 'in_account_id' ? $inAccount : $outAccount;
+            $wanted = $wrong === 'in_account_id' ? $inCurrency : $outCurrency;
+
+            return back()->withErrors([
+                $wrong => $account->name.' holds '.$account->currency.', not '.$wanted
+                    .'. Pick the account this money actually moved through.',
+            ])->withInput();
+        }
+
+        $inAmount = number_format((float) $validated['in_amount'], 2, '.', '');
+        $outAmount = number_format((float) $validated['out_amount'], 2, '.', '');
+        $card = ExchangeCalculator::card();
+
+        $exchange = CurrencyExchange::record([
+            'exchange_date' => $validated['exchange_date'],
+            'customer_id' => $customer?->id,
+            'person_name' => $person,
+            'in_currency' => $inCurrency,
+            'in_amount' => $inAmount,
+            'in_account_id' => $inAccount->id,
+            'out_currency' => $outCurrency,
+            'out_amount' => $outAmount,
+            'out_account_id' => $outAccount->id,
+            'rate' => $this->unitRate($inAmount, $outAmount),
+            'margin_ugx' => ExchangeCalculator::margin($card, $inCurrency, $inAmount, $outCurrency, $outAmount),
+            'notes' => $validated['notes'] ?? null,
+            'created_by' => auth()->id(),
+        ]);
+
+        return redirect()->route('exchanges.show', $exchange)->with('success', $exchange->reference
+            .' saved: '.Account::format($inCurrency, $inAmount).' taken in and '
+            .Account::format($outCurrency, $outAmount).' handed to '.$person.'.');
+    }
+
+    /**
+     * The deal saved as one number per unit of the other side, whichever way round gives a figure
+     * of at least one. A counter deal of UGX 1,000,000 for $265.96 is kept as 3,759.96 shillings to
+     * the dollar rather than 0.000265 dollars to the shilling, which a six-decimal column would
+     * round away.
+     */
+    private function unitRate(string $inAmount, string $outAmount): string
+    {
+        return bccomp($inAmount, $outAmount, 2) >= 0
+            ? bcdiv($inAmount, $outAmount, 6)
+            : bcdiv($outAmount, $inAmount, 6);
+    }
+
+    public function show(CurrencyExchange $exchange)
+    {
+        $exchange->load(['inAccount', 'outAccount', 'customer', 'creator']);
+
+        return view('exchanges.show', [
+            'exchange' => $exchange,
+            'legs' => $exchange->legs(),
+            'rule' => ExchangeCalculator::rule(ExchangeCalculator::card(), $exchange->in_currency, $exchange->out_currency),
+        ]);
+    }
+
+    public function void(Request $request, CurrencyExchange $exchange)
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:255'],
+        ], [
+            'reason.required' => 'Say why this exchange is being cancelled. The reason goes on the ledger.',
+        ]);
+
+        if ($exchange->isVoid()) {
+            return back()->withErrors(['reason' => $exchange->reference.' has already been cancelled.']);
+        }
+
+        $exchange->void($validated['reason']);
+
+        return redirect()->route('exchanges.show', $exchange)
+            ->with('success', $exchange->reference.' cancelled. Both accounts have been put back where they were.');
+    }
+}

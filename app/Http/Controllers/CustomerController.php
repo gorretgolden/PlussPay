@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CurrencyExchange;
 use App\Models\Customer;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 
 class CustomerController extends Controller
@@ -56,7 +58,34 @@ class CustomerController extends Controller
     public function show(Customer $customer)
     {
         $customer->load('creator');
-        return view('customers.show', compact('customer'));
+
+        // Transfers are filed by the name they were booked under, which is how the directory was
+        // built in the first place. Exchanges carry the customer id directly, so those link exactly.
+        $transfers = Transaction::with('creator')
+            ->where(function ($query) use ($customer) {
+                $name = mb_strtolower($customer->name);
+
+                $query->whereRaw('LOWER(sender_name) = ?', [$name])
+                    ->orWhereRaw('LOWER(receiver_name) = ?', [$name]);
+
+                if ($customer->phone) {
+                    $query->orWhere('sender_contact', $customer->phone)
+                        ->orWhere('receiver_contact', $customer->phone);
+                }
+            })
+            ->latest()
+            ->limit(100)
+            ->get();
+
+        return view('customers.show', [
+            'customer' => $customer,
+            'transfers' => $transfers,
+            'exchanges' => CurrencyExchange::with(['inAccount', 'outAccount', 'creator'])
+                ->where('customer_id', $customer->id)
+                ->orderByDesc('exchange_date')
+                ->orderByDesc('id')
+                ->get(),
+        ]);
     }
 
     public function edit(Customer $customer)

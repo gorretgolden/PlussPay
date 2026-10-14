@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\ActivityLog;
+use App\Models\CurrencyExchange;
 use App\Models\Customer;
+use App\Models\Expense;
 use App\Models\ExchangeRate;
 use App\Models\LoginLog;
 use App\Models\SystemLog;
@@ -284,6 +286,107 @@ class ExportController extends Controller
 
         return $this->download('exchange-rates', [
             'From', 'To', 'Selling Rate', 'Buying Rate', 'Margin', 'Status', 'Added By', 'Added', 'Edited By', 'Updated',
+        ], $rows);
+    }
+
+    /**
+     * The bureau book: every counter deal with both sides written out, in the currencies they
+     * actually changed hands in. Only the margin column adds up across rows because the two sides
+     * of one deal are never the same currency.
+     */
+    public function exchanges(Request $request)
+    {
+        $rows = CurrencyExchange::with(['inAccount', 'outAccount', 'customer', 'creator'])
+            ->filtered($request)
+            ->get()
+            ->sortByDesc('id')
+            ->sortByDesc('exchange_date')
+            ->map(fn (CurrencyExchange $x) => [
+                $x->exchange_date->format('Y-m-d'),
+                $x->reference,
+                $x->person_name,
+                $x->customer?->phone ?? '-',
+                $x->isVoid() ? 'Cancelled' : 'Active',
+                Account::format($x->in_currency, $x->in_amount),
+                Account::format($x->out_currency, $x->out_amount),
+                $x->quotedRate() ?? '-',
+                $x->margin_ugx === null ? 'no rate card' : 'UGX '.number_format((float) $x->margin_ugx, 2),
+                $x->inAccount?->name ?? '-',
+                $x->outAccount?->name ?? '-',
+                $x->notes ?? '-',
+                $x->creator?->name ?? 'System',
+            ])
+            ->values()
+            ->all();
+
+        return $this->download('exchanges', [
+            'Date', 'Reference', 'Person', 'Their Phone', 'Status', 'Taken In', 'Handed Over',
+            'Rate Done At', 'Margin (UGX)', 'Money Went Into', 'Money Came From', 'Notes', 'Entered By',
+        ], $rows);
+    }
+
+    public function expenses(Request $request)
+    {
+        $rows = Expense::with(['account', 'creator'])->filtered($request)
+            ->get()
+            ->sortByDesc('id')
+            ->sortByDesc('expense_date')
+            ->map(fn (Expense $e) => [
+                $e->expense_date->format('Y-m-d'),
+                $e->reference,
+                $e->category,
+                $e->description,
+                Account::format($e->currency, $e->amount),
+                $e->account?->name ?? '-',
+                $e->paid_via ?? '-',
+                $e->isVoid() ? 'Cancelled' : 'Active',
+                $e->notes ?? '-',
+                $e->creator?->name ?? 'System',
+            ])
+            ->values()
+            ->all();
+
+        return $this->download('expenses', [
+            'Date', 'Reference', 'Spent On', 'Details', 'Amount', 'Paid Out Of', 'Paid How',
+            'Status', 'Notes', 'Entered By',
+        ], $rows);
+    }
+
+    /**
+     * All the cash books on one sheet, with the account that went up named on the same line as the
+     * one that came down so a movement can be checked without opening four ledgers.
+     */
+    public function movements(Request $request)
+    {
+        $query = AccountEntry::with(['account', 'counterparty', 'creator', 'transaction'])->filtered($request);
+
+        if ($request->filled('account_id')) {
+            $query->where('account_id', (int) $request->input('account_id'));
+        }
+
+        $rows = $query->orderByDesc('entry_date')->orderByDesc('id')->get()
+            ->map(function (AccountEntry $entry) {
+                $account = $entry->account;
+                $format = fn (?string $currency, $value) => Account::format($currency, $value);
+
+                return [
+                    $entry->entry_date->format('Y-m-d'),
+                    $account?->name ?? 'Deleted account',
+                    AccountEntry::labelFor($entry->type),
+                    $entry->direction === 'in' ? $format($account?->currency, $entry->amount) : '',
+                    $entry->direction === 'out' ? $format($account?->currency, $entry->amount) : '',
+                    $entry->counterparty?->name ?? 'Outside the business',
+                    $entry->transaction?->receipt_number ?? '-',
+                    $entry->reference ?? '-',
+                    $entry->description,
+                    $entry->creator?->name ?? 'System',
+                ];
+            })
+            ->all();
+
+        return $this->download('movements', [
+            'Date', 'Account', 'Movement', 'Goes Up', 'Goes Down', 'Against', 'Transfer',
+            'Reference', 'Description', 'Entered By',
         ], $rows);
     }
 

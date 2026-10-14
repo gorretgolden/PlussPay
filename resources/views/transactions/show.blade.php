@@ -52,6 +52,68 @@
     </div>
 
     @role('admin|superadmin|accountant')
+    <div class="border-t pt-4 mb-6">
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+            <div>
+                <h3 class="text-sm font-medium text-gray-500">Which accounts moved</h3>
+                <p class="text-xs text-gray-500 mt-1">The same transfer written in the cash books, so the account that went up is named next to the one that came down.</p>
+            </div>
+            @if($transaction->status === 'completed' && ! $payoutRecorded && (float) $transaction->rmb_amount > 0)
+            <a href="{{ route('accounts.entries.create', [
+                    'account_id' => $payoutAccount->id,
+                    'kind' => 'money_out',
+                    'amount' => rtrim(rtrim(number_format((float) $transaction->rmb_amount, 2, '.', ''), '0'), '.'),
+                    'reference' => $transaction->receipt_number,
+                    'description' => 'Paid '.$transaction->yuanLabel().' to '.$transaction->receiver_name.' for '.$transaction->receipt_number,
+                ]) }}"
+                class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Record the China payout</a>
+            @endif
+        </div>
+
+        <div class="overflow-x-auto -mx-6">
+            <table class="min-w-full divide-y divide-gray-200 px-6">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Movement</th>
+                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Goes up</th>
+                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Goes down</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    @forelse($legs as $leg)
+                    <tr>
+                        <td class="px-4 py-2 text-sm text-gray-900 whitespace-nowrap">{{ $leg->entry_date->format('M d, Y') }}</td>
+                        <td class="px-4 py-2 text-sm text-gray-900">
+                            <a href="{{ route('accounts.show', $leg->account) }}" class="text-green-800 hover:underline">{{ $leg->account?->name ?? 'Deleted account' }}</a>
+                        </td>
+                        <td class="px-4 py-2 text-sm text-gray-700">{{ \App\Models\AccountEntry::labelFor($leg->type) }}</td>
+                        <td class="px-4 py-2 text-sm text-right text-gray-900 whitespace-nowrap">{{ $leg->direction === 'in' ? \App\Models\Account::format($leg->account?->currency, $leg->amount) : '' }}</td>
+                        <td class="px-4 py-2 text-sm text-right text-gray-900 whitespace-nowrap">{{ $leg->direction === 'out' ? \App\Models\Account::format($leg->account?->currency, $leg->amount) : '' }}</td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="5" class="px-4 py-3 text-sm text-gray-500">
+                            Nothing has reached the cash books for this transfer yet.
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        @if($transaction->status === 'completed' && ! $payoutRecorded && (float) $transaction->rmb_amount > 0)
+        <p class="text-xs text-amber-700 mt-2">
+            The {{ $transaction->collectedAmount() }} collected here is in the Uganda account, but the
+            {{ $transaction->yuanLabel() }} paid out in China is not recorded anywhere yet, so the account that reduces is still missing from the books. Use the button above once the
+            China desk has paid {{ $transaction->receiver_name }}.
+        </p>
+        @endif
+    </div>
+    @endrole
+
+    @role('admin|superadmin|accountant')
     @php
         $trim = fn ($v) => rtrim(rtrim(number_format((float) $v, 4, '.', ''), '0'), '.');
         $profit = $transaction->profitLabels();

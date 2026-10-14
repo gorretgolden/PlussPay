@@ -172,6 +172,38 @@ class Account extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Money the way she reads it: shillings in whole figures, dollars and yuan to the pesewa.
+     * Shillings never carry decimals because the coins are not in circulation, and the figure is
+     * always stated in its own currency rather than converted.
+     */
+    public static function format(?string $currency, float|string|null $value): string
+    {
+        $currency = strtoupper((string) $currency);
+        $figure = number_format((float) $value, $currency === 'UGX' ? 0 : 2);
+
+        return match ($currency) {
+            'UGX' => 'UGX '.$figure,
+            'USD' => '$'.$figure,
+            'RMB' => '¥'.$figure,
+            default => trim($currency.' '.$figure),
+        };
+    }
+
+    /**
+     * The name a currency goes by in a sentence, because a card that reads "Spent in UGX" is
+     * not something she would ever say out loud.
+     */
+    public static function currencyLabel(?string $currency): string
+    {
+        return match (strtoupper((string) $currency)) {
+            'UGX' => 'shillings',
+            'USD' => 'dollars',
+            'RMB' => 'yuan',
+            default => (string) $currency,
+        };
+    }
+
     public function isWallet(): bool
     {
         return $this->owner_id !== null;

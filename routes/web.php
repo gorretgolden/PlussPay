@@ -5,8 +5,10 @@ use App\Http\Controllers\AgentPerformanceController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\CurrencyExchangeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExchangeRateController;
+use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\ReportsController;
@@ -44,6 +46,21 @@ Route::middleware(['auth', 'account.active'])->group(function () {
 
     Route::get('/transactions/{transaction}', [TransactionController::class, 'show'])->name('transactions.show');
 
+    // Changing money over the counter is desk work, so the same roles that book a transfer can
+    // price and record a currency deal. Cancelling one puts money back in the till, so that
+    // stays with the admins.
+    Route::middleware(['role:admin|superadmin|accountant|agent'])->group(function () {
+        Route::get('/exchanges', [CurrencyExchangeController::class, 'index'])->name('exchanges.index');
+        Route::get('/exchanges/create', [CurrencyExchangeController::class, 'create'])->name('exchanges.create');
+        Route::post('/exchanges', [CurrencyExchangeController::class, 'store'])->name('exchanges.store');
+        Route::get('/export/exchanges', [ExportController::class, 'exchanges'])->name('export.exchanges');
+        Route::get('/exchanges/{exchange}', [CurrencyExchangeController::class, 'show'])->name('exchanges.show');
+
+        Route::middleware(['role:admin|superadmin'])->group(function () {
+            Route::post('/exchanges/{exchange}/void', [CurrencyExchangeController::class, 'void'])->name('exchanges.void');
+        });
+    });
+
     Route::get('/receipts', [ReceiptController::class, 'index'])->name('receipts.index');
     Route::get('/receipts/{receiptNumber}', [ReceiptController::class, 'show'])->name('receipts.show');
     Route::get('/receipts/{receiptNumber}/print', [ReceiptController::class, 'print'])->name('receipts.print');
@@ -61,12 +78,22 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::get('/export/account-ledger', [ExportController::class, 'accountLedger'])->name('export.account-ledger');
         Route::get('/export/daily-balances', [ExportController::class, 'dailyBalances'])->name('export.daily-balances');
         Route::get('/export/profit-report', [ExportController::class, 'profitReport'])->name('export.profit-report');
+        Route::get('/export/expenses', [ExportController::class, 'expenses'])->name('export.expenses');
+        Route::get('/export/movements', [ExportController::class, 'movements'])->name('export.movements');
 
         Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
         Route::get('/accounts/daily-balances', [AccountController::class, 'dailyBalances'])->name('accounts.daily-balances');
+        Route::get('/accounts/movements', [AccountController::class, 'movements'])->name('accounts.movements');
         Route::get('/accounts/entries/create', [AccountController::class, 'createEntry'])->name('accounts.entries.create');
         Route::post('/accounts/entries', [AccountController::class, 'storeEntry'])->name('accounts.entries.store');
         Route::get('/accounts/{account}', [AccountController::class, 'show'])->name('accounts.show');
+
+        // What the business spent on itself. Every entry takes money out of the account that paid
+        // for it, so it belongs with the books rather than with the desks.
+        Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
+        Route::get('/expenses/create', [ExpenseController::class, 'create'])->name('expenses.create');
+        Route::post('/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
+        Route::post('/expenses/{expense}/void', [ExpenseController::class, 'void'])->name('expenses.void');
 
         Route::resource('customers', CustomerController::class);
 

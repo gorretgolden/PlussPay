@@ -69,11 +69,32 @@ class AccountController extends Controller
         ]);
     }
 
-    public function createEntry()
+    public function createEntry(Request $request)
     {
         return view('accounts.create-entry', [
             'accounts' => Account::ordered(),
-            'selected' => request('account_id'),
+            'selected' => $request->input('account_id'),
+            'prefill' => $request->only(['kind', 'amount', 'second_amount', 'reference', 'description']),
+        ]);
+    }
+
+    /**
+     * Every line in the cash books on one page, whichever account it belongs to, with the account
+     * that went up named next to the one that came down. Reading one account at a time left the
+     * other half of a deal invisible, which is what this page answers.
+     */
+    public function movements(Request $request)
+    {
+        $query = AccountEntry::with(['account', 'counterparty', 'creator', 'transaction'])
+            ->filtered($request);
+
+        if ($request->filled('account_id')) {
+            $query->where('account_id', (int) $request->input('account_id'));
+        }
+
+        return view('accounts.movements', [
+            'entries' => $query->latest('entry_date')->latest('id')->paginate(50)->withQueryString(),
+            'accounts' => Account::ordered(),
         ]);
     }
 

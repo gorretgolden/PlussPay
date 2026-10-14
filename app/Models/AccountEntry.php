@@ -20,6 +20,8 @@ class AccountEntry extends Model
         'transfer_out' => ['label' => 'Sent to another account', 'direction' => 'out', 'group' => 'transfer'],
         'exchange_in' => ['label' => 'Bought into this account', 'direction' => 'in', 'group' => 'exchange'],
         'exchange_out' => ['label' => 'Sold out of this account', 'direction' => 'out', 'group' => 'exchange'],
+        'exchange_back_in' => ['label' => 'Handed back (deal cancelled)', 'direction' => 'in', 'group' => 'exchange'],
+        'exchange_back_out' => ['label' => 'Taken back (deal cancelled)', 'direction' => 'out', 'group' => 'exchange'],
         'opening_balance' => ['label' => 'Opening balance', 'direction' => 'in', 'group' => 'single'],
         'adjustment_in' => ['label' => 'Correction (adds money)', 'direction' => 'in', 'group' => 'single'],
         'adjustment_out' => ['label' => 'Correction (removes money)', 'direction' => 'out', 'group' => 'single'],

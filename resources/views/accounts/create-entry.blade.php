@@ -13,6 +13,10 @@
         'adjustment_in' => ['Correction (adds money)', 'Only for fixing a mistake or matching the bank balance. Say what was wrong.'],
         'adjustment_out' => ['Correction (removes money)', 'Only for fixing a mistake or matching the bank balance. Say what was wrong.'],
     ];
+    // Money that arrived from a transfer page comes with the fields already filled in, so the
+    // desk only has to check the account and press Save.
+    $prefill ??= [];
+    $prefillValue = fn ($key, $default = null) => old($key, $prefill[$key] ?? $default);
     $selectedAccount = collect($accounts)->firstWhere('id', (int) $selected);
 @endphp
 <div class="max-w-2xl mx-auto">
@@ -36,10 +40,10 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">What happened? *</label>
                 <select name="kind" id="kind" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                     @foreach($kinds as $key => [$label, $hint])
-                        <option value="{{ $key }}" @selected(old('kind') === $key) data-hint="{{ $hint }}">{{ $label }}</option>
+                        <option value="{{ $key }}" @selected($prefillValue('kind') === $key) data-hint="{{ $hint }}">{{ $label }}</option>
                     @endforeach
                 </select>
-                <p class="text-xs text-gray-500 mt-1" id="kind_hint">{{ $kinds[old('kind', 'money_in')][1] }}</p>
+                <p class="text-xs text-gray-500 mt-1" id="kind_hint">{{ $kinds[$prefillValue('kind', 'money_in')][1] }}</p>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -69,13 +73,13 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1" id="amount_label">Amount *</label>
-                    <input type="number" name="amount" id="amount" value="{{ old('amount') }}" step="0.01" min="0.01"
+                    <input type="number" name="amount" id="amount" value="{{ $prefillValue('amount') }}" step="0.01" min="0.01"
                         class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                     <p class="text-xs text-gray-500 mt-1" id="amount_hint">The money leaving the account above.</p>
                 </div>
                 <div id="second_wrap">
                     <label class="block text-sm font-medium text-gray-700 mb-1" id="second_label">Amount received *</label>
-                    <input type="number" name="second_amount" id="second_amount" value="{{ old('second_amount') }}" step="0.01" min="0.01"
+                    <input type="number" name="second_amount" id="second_amount" value="{{ $prefillValue('second_amount') }}" step="0.01" min="0.01"
                         class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                     <p class="text-xs text-gray-500 mt-1" id="rate_hint"></p>
                 </div>
@@ -90,14 +94,14 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Reference</label>
-                    <input type="text" name="reference" value="{{ old('reference') }}" maxlength="60" placeholder="Receipt, bank or MoMo number"
+                    <input type="text" name="reference" value="{{ $prefillValue('reference') }}" maxlength="60" placeholder="Receipt, bank or MoMo number"
                         class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                 </div>
             </div>
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">What was it for? *</label>
-                <input type="text" name="description" value="{{ old('description') }}" maxlength="255" required
+                <input type="text" name="description" value="{{ $prefillValue('description') }}" maxlength="255" required
                     placeholder="e.g. Dollars bought from ABSA for the China account"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
             </div>

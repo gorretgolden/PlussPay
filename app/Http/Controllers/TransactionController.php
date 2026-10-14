@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Account;
+use App\Models\AccountEntry;
 use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
@@ -142,7 +144,22 @@ class TransactionController extends Controller
 
         $transaction->load('activityLogs.user');
 
-        return view('transactions.show', compact('transaction'));
+        // The till side of a transfer posts itself the moment it is completed, but the payout in
+        // China is a separate piece of cash that only the China desk knows has left. Both sides are
+        // listed here so the account that went up is never shown without the one that came down.
+        $legs = AccountEntry::with(['account', 'counterparty'])
+            ->where('reference', $transaction->receipt_number)
+            ->orWhere('transaction_id', $transaction->id)
+            ->orderBy('direction')
+            ->orderBy('account_id')
+            ->get();
+
+        return view('transactions.show', [
+            'transaction' => $transaction,
+            'legs' => $legs,
+            'payoutAccount' => Account::byCode(Account::RMB_CHINA),
+            'payoutRecorded' => $legs->contains('direction', 'out'),
+        ]);
     }
 
     public function updateStatus(Request $request, Transaction $transaction)
