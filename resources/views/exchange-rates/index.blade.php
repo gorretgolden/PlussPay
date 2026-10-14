@@ -80,6 +80,47 @@
     </div>
 </div>
 
+@if(!empty($spreadWarnings))
+<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+    <div class="flex items-start gap-2">
+        <svg class="w-5 h-5 text-red-600 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+        <div>
+            <h2 class="text-sm font-semibold text-red-800">Spread warning</h2>
+            <ul class="mt-1 space-y-1">
+                @foreach($spreadWarnings as $warning)
+                <li class="text-sm text-red-700">{{ $warning }}</li>
+                @endforeach
+            </ul>
+        </div>
+    </div>
+</div>
+@endif
+
+@if($sendExample)
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <h2 class="text-sm font-semibold text-gray-900">Worked example: a USD 1,000 send at the rates now live</h2>
+    <p class="text-xs text-gray-500 mt-1 mb-3">The customer hands over {{ $sendExample['hands_over'] }} and we buy {{ $sendExample['buys'] }} with it. This is what that one transfer makes.</p>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+        <div>
+            <div class="text-xs text-gray-500">Service fee</div>
+            <div class="font-medium text-gray-900">{{ $sendExample['fee'] }}</div>
+        </div>
+        <div>
+            <div class="text-xs text-gray-500">Margin on shillings</div>
+            <div class="font-medium text-gray-900">{{ $sendExample['margin'] }}</div>
+        </div>
+        <div>
+            <div class="text-xs text-gray-500">Yuan leg</div>
+            <div class="font-medium text-gray-900">{{ $sendExample['yuan_leg'] }}</div>
+        </div>
+        <div>
+            <div class="text-xs text-gray-500">Total profit</div>
+            <div class="font-medium text-gray-900">{{ $sendExample['total'] }}</div>
+        </div>
+    </div>
+</div>
+@endif
+
 <div class="bg-white rounded-lg shadow overflow-x-auto">
     @php $trim = fn ($v) => rtrim(rtrim(number_format((float) $v, 6, '.', ','), '0'), '.'); @endphp
     <table class="min-w-full divide-y divide-gray-200">

@@ -122,6 +122,20 @@ class ExchangeRate extends Model
     }
 
     /**
+     * The row that stood for a pair at a moment in the past. Saving a new rate retires the
+     * old one but keeps its timestamp, so the live quote on any date is simply the newest row
+     * created at or before that date. Null when the pair had no rate yet.
+     */
+    public static function rateLiveAt(string $from, string $to, \Carbon\CarbonInterface $at): ?self
+    {
+        return static::where('from_currency', $from)
+            ->where('to_currency', $to)
+            ->where('created_at', '<=', $at)
+            ->latest('created_at')
+            ->first();
+    }
+
+    /**
      * The two prices for a pair: what one unit costs us to obtain (buy) and what we
      * hand over in exchange for it (sell). A pair saved before the split only has one
      * figure, so both sides report that figure and the margin comes out as zero rather

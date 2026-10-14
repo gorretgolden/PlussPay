@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Models\User;
+use App\Services\ProfitCalculator;
 use Illuminate\Http\Request;
 
 class ExchangeRateController extends Controller
@@ -22,7 +23,92 @@ class ExchangeRateController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('exchange-rates.index', compact('rates', 'creators'));
+        return view('exchange-rates.index', compact('rates', 'creators'))
+            ->with('spreadWarnings', $this->spreadWarnings())
+            ->with('sendExample', $this->sendExample());
+    }
+
+    /**
+     * The two legs run in opposite directions, so a pair that looks healthy on one is a
+     * loss on the other. Shillings are bought cheap from the customer and sold dear to us,
+     * so selling must sit above buying. Yuan are the reverse: the receiver is credited at the
+     * selling price but the China side only settles with us at the buying price, so buying has
+     * to sit above selling or every transfer loses money. A pair with no buying price recorded
+     * is left alone here; the table already flags it as pending.
+     *
+     * @return array<int, string>
+     */
+    private function spreadWarnings(): array
+    {
+        $warnings = [];
+
+        $shilling = ExchangeRate::getActiveRate('USD', 'UGX');
+        if ($shilling && $shilling->buy_rate !== null) {
+            $sell = (float) ($shilling->sell_rate ?: $shilling->rate);
+            $buy = (float) $shilling->buy_rate;
+            if ($sell <= $buy) {
+                $warnings[] = sprintf(
+                    'USD to UGX: the selling price (%s) is at or below the buying price (%s). '
+                    . 'Shillings make money only when we sell above what we pay, so this pair earns nothing as it stands.',
+                    $this->trim($sell),
+                    $this->trim($buy),
+                );
+            }
+        }
+
+        $yuan = ExchangeRate::getActiveRate('USD', 'RMB');
+        if ($yuan && $yuan->buy_rate !== null) {
+            $sell = (float) ($yuan->sell_rate ?: $yuan->rate);
+            $buy = (float) $yuan->buy_rate;
+            if ($sell >= $buy) {
+                $warnings[] = sprintf(
+                    'USD to RMB: the selling price (%s) is at or above the buying price (%s). '
+                    . 'We credit the receiver at the selling price but the China side settles at the buying price, so each dollar sent now loses money.',
+                    $this->trim($sell),
+                    $this->trim($buy),
+                );
+            }
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * One real transfer priced through the same calculator a booking uses, so the warning
+     * is not abstract: it shows the fee, the shilling margin and the yuan leg for a concrete
+     * USD 1,000 send. Null when the USD to UGX pair is missing, since then nothing prices.
+     *
+     * @return array<string, string>|null
+     */
+    private function sendExample(): ?array
+    {
+        $ugxToUsd = ExchangeRate::usdToUgx();
+        if (!$ugxToUsd || $ugxToUsd <= 0) {
+            return null;
+        }
+
+        $quote = ProfitCalculator::quote('UGX', '1000.00');
+        if ($quote === null) {
+            return null;
+        }
+
+        return [
+            'hands_over' => 'UGX '.number_format((float) $ugxToUsd * 1000, 2),
+            'buys' => 'USD 1,000.00',
+            'fee' => 'UGX '.number_format((float) $quote['charge_ugx'], 2),
+            'margin' => 'UGX '.number_format((float) $quote['fx_profit_ugx'], 2),
+            'yuan_leg' => $quote['usd_rmb_profit_ugx'] === null
+                ? 'not priced'
+                : 'UGX '.number_format((float) $quote['usd_rmb_profit_ugx'], 2),
+            'total' => $quote['total_profit_ugx'] === null
+                ? 'not priced'
+                : 'UGX '.number_format((float) $quote['total_profit_ugx'], 2),
+        ];
+    }
+
+    private function trim(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 6, '.', ''), '0'), '.');
     }
 
     public function store(Request $request)
