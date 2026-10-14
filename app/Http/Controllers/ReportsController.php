@@ -142,7 +142,7 @@ class ReportsController extends Controller
      */
     private function commissionTotals(string $dateFrom, string $dateTo, User $viewer): array
     {
-        $everyone = $viewer->hasRole(['admin', 'superadmin']);
+        $everyone = $viewer->hasRole(['admin', 'superadmin', 'accountant']);
 
         $rows = AccountEntry::query()
             ->join('accounts', 'account_entries.account_id', '=', 'accounts.id')

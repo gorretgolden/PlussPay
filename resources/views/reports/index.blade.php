@@ -6,7 +6,7 @@
 @php
     // The profit columns belong to the same account that owns the Profit cards, so one flag
     // decides which columns a viewer gets instead of repeating the role test everywhere.
-    $showProfit = auth()->user()->hasRole(['admin', 'superadmin']);
+    $showProfit = auth()->user()->hasRole(['admin', 'superadmin', 'accountant']);
 @endphp
 <div class="mb-6 flex justify-between items-center">
     <div>
@@ -80,7 +80,7 @@
         <div class="text-2xl font-bold text-green-700 mt-1">UGX {{ number_format($profit['fee_ugx']) }}</div>
         <div class="text-xs text-gray-400 mt-1">USD {{ number_format($profit['fee_usd'], 2) }} | &yen;{{ number_format($profit['fee_rmb'], 2) }} RMB | Avg: ${{ number_format($stats['avg_transaction'], 2) }}/tx</div>
     </div>
-    @role('admin|superadmin')
+    @role('admin|superadmin|accountant')
     <div class="bg-white rounded-lg shadow p-5 border-l-4 border-purple-500">
         <div class="text-sm text-gray-500">Profit (RMB)</div>
         <div class="text-2xl font-bold text-purple-700 mt-1">&yen;{{ number_format($profit['total_rmb'], 2) }} RMB</div>
@@ -89,7 +89,7 @@
     @endrole
 </div>
 
-@role('admin|superadmin')
+@role('admin|superadmin|accountant')
 <div id="section-profit" class="mb-6">
     <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -531,7 +531,7 @@
     </div>
 </div>
 
-@role('admin|superadmin')
+@role('admin|superadmin|accountant')
 {{-- What each dollar rate carried, which the rate sheet on its own cannot show --}}
 <div id="section-rates" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">

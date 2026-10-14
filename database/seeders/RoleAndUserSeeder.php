@@ -17,12 +17,12 @@ class RoleAndUserSeeder extends Seeder
         ['email' => 'superadmin@plussave.com', 'name' => 'Super Admin', 'role' => 'superadmin', 'env' => 'SEED_SUPERADMIN_PASSWORD'],
         ['email' => 'admin@plussave.com', 'name' => 'Admin', 'role' => 'admin', 'env' => 'SEED_ADMIN_PASSWORD'],
         ['email' => 'agent@plussave.com', 'name' => 'Agent', 'role' => 'agent', 'env' => 'SEED_AGENT_PASSWORD'],
-        ['email' => 'staff@plussave.com', 'name' => 'Staff', 'role' => 'staff', 'env' => 'SEED_STAFF_PASSWORD'],
+        ['email' => 'accountant@plussave.com', 'name' => 'Accountant', 'role' => 'accountant', 'env' => 'SEED_ACCOUNTANT_PASSWORD'],
     ];
 
     public function run(): void
     {
-        foreach (['superadmin', 'admin', 'agent', 'staff'] as $role) {
+        foreach (['superadmin', 'admin', 'agent', 'accountant'] as $role) {
             Role::firstOrCreate(['name' => $role]);
         }
 

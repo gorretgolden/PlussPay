@@ -75,7 +75,7 @@ class RolePermissionController extends Controller
 
     public function destroy(Request $request, Role $role)
     {
-        if (in_array($role->name, ['superadmin', 'admin', 'agent', 'staff'], true)) {
+        if (in_array($role->name, ['superadmin', 'admin', 'agent', 'accountant'], true)) {
             return back()->withErrors(['error' => 'Built-in roles cannot be deleted.']);
         }
 

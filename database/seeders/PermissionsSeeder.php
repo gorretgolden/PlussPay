@@ -97,14 +97,19 @@ class PermissionsSeeder extends Seeder
             'create-customer',
         ]);
 
-        // Staff: limited view-only
-        $staff = Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
-        $staff->syncPermissions([
+        // Accountant: the books, the ledger and every profit figure, without admin powers
+        $accountant = Role::firstOrCreate(['name' => 'accountant', 'guard_name' => 'web']);
+        $accountant->syncPermissions([
             'view-dashboard',
             'view-transactions',
-            'view-own-transactions',
             'view-receipts',
             'print-receipt',
+            'view-reports',
+            'export-reports',
+            'view-customers',
+            'create-customer',
+            'edit-customer',
+            'view-agent-performance',
         ]);
     }
 }

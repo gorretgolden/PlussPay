@@ -11,7 +11,7 @@ class WalletController extends Controller
     {
         $user = auth()->user();
 
-        if ($user->hasRole(['admin', 'superadmin'])) {
+        if ($user->hasRole(['admin', 'superadmin', 'accountant'])) {
             $agents = User::role('agent')->where('is_active', true)->get();
             $allWallets = [];
 

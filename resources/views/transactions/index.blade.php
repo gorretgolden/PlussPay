@@ -97,7 +97,7 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">RMB</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fee (UGX)</th>
-                @role('admin|superadmin')
+                @role('admin|superadmin|accountant')
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profit UGX to USD</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profit USD to RMB</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Profit</th>
@@ -119,7 +119,7 @@
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $t->currency }} {{ number_format($t->amount, 2) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($t->rmb_amount, 2) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">UGX {{ number_format((float) $t->charge_ugx, 2) }}</td>
-                @role('admin|superadmin')
+                @role('admin|superadmin|accountant')
                 <td class="px-6 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['ugx_leg']['tone']] }}">{{ $profit['ugx_leg']['text'] }}</td>
                 <td class="px-6 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['rmb_leg']['tone']] }}">{{ $profit['rmb_leg']['text'] }}</td>
                 <td class="px-6 py-4 text-sm font-medium whitespace-nowrap {{ $toneClass[$profit['total']['tone']] }}">{{ $profit['total']['text'] }}</td>
@@ -141,7 +141,7 @@
                         <a href="{{ route('receipts.show', $t->receipt_number) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">View Receipt</a>
                         <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Print Receipt</a>
 
-                        @role('admin|superadmin')
+                        @role('admin|superadmin|accountant')
                         <button type="button" onclick="openProfitModal(this)"
                             data-receipt="{{ $t->receipt_number }} · {{ $t->sender_name }} to {{ $t->receiver_name }}"
                             data-steps="{{ json_encode($t->profitBreakdown()) }}"
@@ -178,7 +178,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="{{ auth()->user()->hasRole(['admin', 'superadmin']) ? 12 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
+                <td colspan="{{ auth()->user()->hasRole(['admin', 'superadmin', 'accountant']) ? 12 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
             </tr>
             @endforelse
         </tbody>

@@ -50,7 +50,7 @@
         </div>
     </div>
 
-    @role('admin|superadmin')
+    @role('admin|superadmin|accountant')
     @php
         $trim = fn ($v) => rtrim(rtrim(number_format((float) $v, 4, '.', ''), '0'), '.');
         $marginPerUsd = ($transaction->rate_sell_ugx && $transaction->rate_buy_ugx)

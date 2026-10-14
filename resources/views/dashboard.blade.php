@@ -39,7 +39,7 @@
 
 <div class="bg-green-800 rounded-lg shadow p-6 mb-6">
     <h2 class="text-white text-lg font-semibold mb-4">Today's Summary</h2>
-    <div class="grid grid-cols-1 {{ auth()->user()->hasRole(['admin', 'superadmin']) ? 'md:grid-cols-5' : 'md:grid-cols-3' }} gap-4">
+    <div class="grid grid-cols-1 {{ auth()->user()->hasRole(['admin', 'superadmin', 'accountant']) ? 'md:grid-cols-5' : 'md:grid-cols-3' }} gap-4">
         <div class="bg-white/10 rounded-lg p-4">
             <div class="text-green-200 text-sm">Completed Today</div>
             <div class="text-white text-3xl font-bold mt-1">{{ number_format($stats['today_transactions']) }}</div>
@@ -52,7 +52,7 @@
             <div class="text-green-200 text-sm">Service Fees ({{ $cur }})</div>
             <div class="text-white text-3xl font-bold mt-1">{{ $stored($stats['today_revenue_ugx'], $stats['today_revenue']) }}</div>
         </div>
-        @role('admin|superadmin')
+        @role('admin|superadmin|accountant')
         <div class="bg-white/10 rounded-lg p-4">
             <div class="text-green-200 text-sm">Exchange Profit</div>
             <div class="text-white text-3xl font-bold mt-1 {{ $profit['today']['exchange'] < 0 ? 'text-red-300' : '' }}">UGX {{ number_format($profit['today']['exchange']) }}</div>
@@ -143,7 +143,7 @@
     </a>
 </div>
 
-@role('admin|superadmin')
+@role('admin|superadmin|accountant')
 @php
     $shilling = fn ($value) => $value < 0
         ? 'Loss UGX '.number_format(abs($value), 2)
@@ -219,7 +219,7 @@
     </div>
 </div>
 
-@role('admin|superadmin')
+@role('admin|superadmin|accountant')
 <div class="bg-white rounded-lg shadow p-6 mb-8">
     <h2 class="text-lg font-semibold text-gray-900 mb-1">Profit (Last 7 Days)</h2>
     <p class="text-sm text-gray-500 mb-4">Stacked in shillings. The yuan leg sits below the line on the days it cost money.</p>
@@ -333,7 +333,7 @@
         }
     });
 
-    @role('admin|superadmin')
+    @role('admin|superadmin|accountant')
     if (document.getElementById('profitChart')) {
         new Chart(document.getElementById('profitChart'), {
             type: 'bar',

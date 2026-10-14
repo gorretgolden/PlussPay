@@ -74,13 +74,13 @@ class DashboardController extends Controller
             $chartData['revenue'] = $chartData['revenue_ugx'];
         }
         // The profit chart is always in shillings, so it keeps its own fee series even when
-        // the revenue card above falls back to dollars. The margin series are for the two
+        // the revenue card above falls back to dollars. The margin series are for the
         // roles that own the book, and the chart data is printed into the page, so they are
         // taken out for everyone else.
         $chartData['fees'] = $chartData['revenue_ugx'];
         unset($chartData['revenue_ugx']);
 
-        $seesProfit = $user->hasRole(['admin', 'superadmin']);
+        $seesProfit = $user->hasRole(['admin', 'superadmin', 'accountant']);
 
         if (! $seesProfit) {
             unset($chartData['fees'], $chartData['margin_ugx'], $chartData['yuan_ugx']);

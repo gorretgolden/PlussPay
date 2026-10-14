@@ -35,8 +35,13 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
 
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
-    Route::get('/transactions/create', [TransactionController::class, 'create'])->name('transactions.create');
-    Route::post('/transactions', [TransactionController::class, 'store'])->name('transactions.store');
+
+    // Booking a transfer is desk work, so the create form stays with the desks that run it.
+    Route::middleware(['role:admin|superadmin|agent'])->group(function () {
+        Route::get('/transactions/create', [TransactionController::class, 'create'])->name('transactions.create');
+        Route::post('/transactions', [TransactionController::class, 'store'])->name('transactions.store');
+    });
+
     Route::get('/transactions/{transaction}', [TransactionController::class, 'show'])->name('transactions.show');
 
     Route::get('/receipts', [ReceiptController::class, 'index'])->name('receipts.index');
@@ -49,14 +54,10 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     Route::get('/export/transactions', [ExportController::class, 'transactions'])->name('export.transactions');
     Route::get('/export/receipts', [ExportController::class, 'receipts'])->name('export.receipts');
 
-    Route::middleware(['role:admin|superadmin'])->group(function () {
-        Route::get('/export/users', [ExportController::class, 'users'])->name('export.users');
+    // The books: open to the accountant as well as the admins who own the system.
+    Route::middleware(['role:admin|superadmin|accountant'])->group(function () {
         Route::get('/export/customers', [ExportController::class, 'customers'])->name('export.customers');
-        Route::get('/export/activity-logs', [ExportController::class, 'activityLogs'])->name('export.activity-logs');
-        Route::get('/export/login-logs', [ExportController::class, 'loginLogs'])->name('export.login-logs');
-        Route::get('/export/system-logs', [ExportController::class, 'systemLogs'])->name('export.system-logs');
         Route::get('/export/agent-performance', [ExportController::class, 'agentPerformance'])->name('export.agent-performance');
-        Route::get('/export/exchange-rates', [ExportController::class, 'exchangeRates'])->name('export.exchange-rates');
         Route::get('/export/account-ledger', [ExportController::class, 'accountLedger'])->name('export.account-ledger');
         Route::get('/export/daily-balances', [ExportController::class, 'dailyBalances'])->name('export.daily-balances');
         Route::get('/export/profit-report', [ExportController::class, 'profitReport'])->name('export.profit-report');
@@ -67,51 +68,61 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::post('/accounts/entries', [AccountController::class, 'storeEntry'])->name('accounts.entries.store');
         Route::get('/accounts/{account}', [AccountController::class, 'show'])->name('accounts.show');
 
-        Route::get('/users', [UserController::class, 'index'])->name('users.index');
-        Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
-        Route::post('/users', [UserController::class, 'store'])->name('users.store');
-        Route::post('/users/bulk', [UserController::class, 'bulk'])->name('users.bulk');
-        Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
-        Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
-        Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
-        Route::patch('/users/{user}/toggle-lock', [UserController::class, 'toggleLock'])->name('users.toggle-lock');
-        Route::patch('/users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
-        Route::get('/users/{user}/two-factor', [UserController::class, 'twoFactorForm'])->name('users.two-factor');
-        Route::post('/users/{user}/two-factor', [UserController::class, 'twoFactorEnable'])->name('users.two-factor.enable');
-        Route::post('/users/{user}/two-factor/reset', [UserController::class, 'twoFactorReset'])->name('users.two-factor.reset');
-        Route::delete('/users/{user}/two-factor', [UserController::class, 'twoFactorDisable'])->name('users.two-factor.disable');
-        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
-
-        Route::get('/exchange-rates', [ExchangeRateController::class, 'index'])->name('exchange-rates.index');
-        Route::post('/exchange-rates', [ExchangeRateController::class, 'store'])->name('exchange-rates.store');
-        Route::patch('/exchange-rates/{exchangeRate}/toggle', [ExchangeRateController::class, 'toggle'])->name('exchange-rates.toggle');
-
         Route::resource('customers', CustomerController::class);
 
-        Route::patch('/transactions/{transaction}/status', [TransactionController::class, 'updateStatus'])->name('transactions.update-status');
-
-        Route::get('/transactions/bulk/import', [TransactionController::class, 'showBulkImport'])->name('transactions.bulk-import');
-        Route::post('/transactions/bulk/import', [TransactionController::class, 'bulkImport'])->name('transactions.bulk-import.store');
-
-        Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
-        Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
+        Route::get('/exchange-rates', [ExchangeRateController::class, 'index'])->name('exchange-rates.index');
 
         Route::get('/agents/performance', [AgentPerformanceController::class, 'index'])->name('agents.performance');
 
-        Route::get('/admin/roles', [RolePermissionController::class, 'index'])->name('admin.roles');
-        Route::post('/admin/roles', [RolePermissionController::class, 'store'])->name('admin.roles.store');
-        Route::put('/admin/roles/{role}', [RolePermissionController::class, 'update'])->name('admin.roles.update');
-        Route::delete('/admin/roles/{role}', [RolePermissionController::class, 'destroy'])->name('admin.roles.destroy');
-        Route::get('/admin/permissions', [RolePermissionController::class, 'permissions'])->name('admin.permissions');
-        Route::post('/admin/permissions', [RolePermissionController::class, 'storePermission'])->name('admin.permissions.store');
-        Route::put('/admin/permissions/{permission}', [RolePermissionController::class, 'updatePermission'])->name('admin.permissions.update');
-        Route::delete('/admin/permissions/{permission}', [RolePermissionController::class, 'destroyPermission'])->name('admin.permissions.destroy');
-        Route::post('/admin/permissions/bulk', [RolePermissionController::class, 'bulk'])->name('admin.permissions.bulk');
-        Route::post('/admin/permissions/{permission}/roles/{role}/toggle', [RolePermissionController::class, 'toggleRolePermission'])->name('admin.permissions.toggle-role');
+        // System administration stays with the admins alone.
+        Route::middleware(['role:admin|superadmin'])->group(function () {
+            Route::get('/export/users', [ExportController::class, 'users'])->name('export.users');
+            Route::get('/export/activity-logs', [ExportController::class, 'activityLogs'])->name('export.activity-logs');
+            Route::get('/export/login-logs', [ExportController::class, 'loginLogs'])->name('export.login-logs');
+            Route::get('/export/system-logs', [ExportController::class, 'systemLogs'])->name('export.system-logs');
+            Route::get('/export/exchange-rates', [ExportController::class, 'exchangeRates'])->name('export.exchange-rates');
 
-        Route::get('/admin/activity-logs', [AuditLogController::class, 'activityLogs'])->name('admin.activity-logs');
-        Route::get('/admin/activity-logs/{activityLog}/details', [AuditLogController::class, 'details'])->name('admin.activity-logs.details');
-        Route::get('/admin/login-logs', [AuditLogController::class, 'loginLogs'])->name('admin.login-logs');
-        Route::get('/admin/system-logs', [SystemLogController::class, 'index'])->name('admin.system-logs');
+            Route::get('/users', [UserController::class, 'index'])->name('users.index');
+            Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+            Route::post('/users', [UserController::class, 'store'])->name('users.store');
+            Route::post('/users/bulk', [UserController::class, 'bulk'])->name('users.bulk');
+            Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+            Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
+            Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+            Route::patch('/users/{user}/toggle-lock', [UserController::class, 'toggleLock'])->name('users.toggle-lock');
+            Route::patch('/users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+            Route::get('/users/{user}/two-factor', [UserController::class, 'twoFactorForm'])->name('users.two-factor');
+            Route::post('/users/{user}/two-factor', [UserController::class, 'twoFactorEnable'])->name('users.two-factor.enable');
+            Route::post('/users/{user}/two-factor/reset', [UserController::class, 'twoFactorReset'])->name('users.two-factor.reset');
+            Route::delete('/users/{user}/two-factor', [UserController::class, 'twoFactorDisable'])->name('users.two-factor.disable');
+            Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+
+            Route::post('/exchange-rates', [ExchangeRateController::class, 'store'])->name('exchange-rates.store');
+            Route::patch('/exchange-rates/{exchangeRate}/toggle', [ExchangeRateController::class, 'toggle'])->name('exchange-rates.toggle');
+
+            Route::patch('/transactions/{transaction}/status', [TransactionController::class, 'updateStatus'])->name('transactions.update-status');
+
+            Route::get('/transactions/bulk/import', [TransactionController::class, 'showBulkImport'])->name('transactions.bulk-import');
+            Route::post('/transactions/bulk/import', [TransactionController::class, 'bulkImport'])->name('transactions.bulk-import.store');
+
+            Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
+            Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
+
+            Route::get('/admin/roles', [RolePermissionController::class, 'index'])->name('admin.roles');
+            Route::post('/admin/roles', [RolePermissionController::class, 'store'])->name('admin.roles.store');
+            Route::put('/admin/roles/{role}', [RolePermissionController::class, 'update'])->name('admin.roles.update');
+            Route::delete('/admin/roles/{role}', [RolePermissionController::class, 'destroy'])->name('admin.roles.destroy');
+            Route::get('/admin/permissions', [RolePermissionController::class, 'permissions'])->name('admin.permissions');
+            Route::post('/admin/permissions', [RolePermissionController::class, 'storePermission'])->name('admin.permissions.store');
+            Route::put('/admin/permissions/{permission}', [RolePermissionController::class, 'updatePermission'])->name('admin.permissions.update');
+            Route::delete('/admin/permissions/{permission}', [RolePermissionController::class, 'destroyPermission'])->name('admin.permissions.destroy');
+            Route::post('/admin/permissions/bulk', [RolePermissionController::class, 'bulk'])->name('admin.permissions.bulk');
+            Route::post('/admin/permissions/{permission}/roles/{role}/toggle', [RolePermissionController::class, 'toggleRolePermission'])->name('admin.permissions.toggle-role');
+
+            Route::get('/admin/activity-logs', [AuditLogController::class, 'activityLogs'])->name('admin.activity-logs');
+            Route::get('/admin/activity-logs/{activityLog}/details', [AuditLogController::class, 'details'])->name('admin.activity-logs.details');
+            Route::get('/admin/login-logs', [AuditLogController::class, 'loginLogs'])->name('admin.login-logs');
+            Route::get('/admin/system-logs', [SystemLogController::class, 'index'])->name('admin.system-logs');
+        });
     });
 });

@@ -91,9 +91,9 @@
                     class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
                     Agent
                 </button>
-                <button type="button" onclick="fillEmail('staff@plussave.com')"
+                <button type="button" onclick="fillEmail('accountant@plussave.com')"
                     class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
-                    Staff
+                    Accountant
                 </button>
             </div>
         </div>
