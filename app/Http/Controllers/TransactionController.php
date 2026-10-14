@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\ProfitCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -46,55 +47,6 @@ class TransactionController extends Controller
         session(['transaction_form_id' => $formId]);
 
         return view('transactions.create', compact('usdToRmb', 'ugxToUsdRate', 'serviceFeeUgx', 'serviceFeeUsd', 'formId'));
-    }
-
-    /**
-     * The fee is quoted as a UGX amount for each block of USD sent, so it scales
-     * with the amount. Returns the UGX charge, its USD equivalent for accounting,
-     * and the equivalent flat percentage. Null when it cannot be calculated.
-     */
-    private function serviceFee(string $usdEquivalent): ?array
-    {
-        $feeUgx = (float) \App\Models\Setting::get('service_fee_ugx', 2000);
-        $feeBlockUsd = (float) \App\Models\Setting::get('service_fee_usd', 100);
-        $usdToUgx = (float) (ExchangeRate::usdToUgx() ?? 0);
-
-        if ($usdToUgx <= 0 || $feeBlockUsd <= 0) {
-            return null;
-        }
-
-        $ugxPerUsd = $feeUgx / $feeBlockUsd;
-        $chargeUgx = bcmul($usdEquivalent, (string) $ugxPerUsd, 2);
-
-        return [
-            'ugx' => $chargeUgx,
-            'usd' => bcdiv($chargeUgx, (string) $usdToUgx, 2),
-            'rate' => $ugxPerUsd * 100 / $usdToUgx,
-        ];
-    }
-
-    /**
-     * Margin made on the currency itself: these dollars are priced to the customer at the
-     * selling rate and cost the buying rate to obtain, so the gap times the dollars is what
-     * one transfer earns before any service fee.
-     *
-     * @return array{buy: float|null, sell: float|null, ugx: string, usd: string}
-     */
-    private function fxProfit(string $usdEquivalent): array
-    {
-        $pair = ExchangeRate::usdUgxPair();
-        if (! $pair || $pair['sell'] <= 0) {
-            return ['buy' => null, 'sell' => null, 'ugx' => '0.00', 'usd' => '0.00'];
-        }
-
-        $ugx = bcmul($usdEquivalent, bcsub((string) $pair['sell'], (string) $pair['buy'], 6), 2);
-
-        return [
-            'buy' => $pair['buy'],
-            'sell' => $pair['sell'],
-            'ugx' => $ugx,
-            'usd' => bcdiv($ugx, (string) $pair['sell'], 2),
-        ];
     }
 
     public function store(Request $request)
@@ -151,11 +103,10 @@ class TransactionController extends Controller
         }
 
         $rmbAmount = bcmul($usdEquivalent, (string) $usdToRmbRate->rate, 2);
-        $fee = $this->serviceFee($usdEquivalent);
-        if ($fee === null) {
+        $profit = ProfitCalculator::quote($currency, $usdEquivalent);
+        if ($profit === null) {
             return back()->withErrors(['exchange_rate' => 'UGX rate not set. The service fee cannot be calculated.'])->withInput();
         }
-        $fx = $this->fxProfit($usdEquivalent);
 
         $purpose = $validated['purpose'] ?? null;
         if ($purpose === 'Other') {
@@ -164,7 +115,7 @@ class TransactionController extends Controller
 
         // The booking and the ledger entries it posts save together, so a failure part way
         // through cannot leave a transfer in the books with no money moved for it.
-        $transaction = DB::transaction(fn () => Transaction::createWithReceiptNumber([
+        $transaction = DB::transaction(fn () => Transaction::createWithReceiptNumber(array_merge([
             'sender_name' => trim($validated['sender_name']),
             'sender_contact' => trim($validated['sender_contact'] ?? ''),
             'receiver_name' => trim($validated['receiver_name']),
@@ -172,20 +123,13 @@ class TransactionController extends Controller
             'currency' => $currency,
             'amount' => $amount,
             'exchange_rate' => $usdToRmbRate->rate,
-            'rate_buy_ugx' => $fx['buy'],
-            'rate_sell_ugx' => $fx['sell'],
             'rmb_amount' => $rmbAmount,
-            'charge_rate' => $fee['rate'],
-            'charge_amount' => $fee['usd'],
-            'charge_ugx' => $fee['ugx'],
-            'fx_profit_ugx' => $fx['ugx'],
-            'fx_profit_usd' => $fx['usd'],
             'total_usd_equivalent' => $usdEquivalent,
             'status' => 'completed',
             'created_by' => auth()->id(),
             'purpose' => $purpose ? trim($purpose) : null,
             'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
-        ]));
+        ], $profit)));
 
         session(['transaction_form_id' => (string) Str::uuid()]);
 
@@ -386,19 +330,18 @@ class TransactionController extends Controller
                 }
 
                 $rmbAmount = bcmul($usdEquivalent, (string) $usdToRmbRate->rate, 2);
-                $fee = $this->serviceFee($usdEquivalent);
-                if ($fee === null) {
+                $profit = ProfitCalculator::quote($currency, $usdEquivalent);
+                if ($profit === null) {
                     $errors[] = "Row {$rowNumber}: UGX to USD rate not set";
                     continue;
                 }
-                $fx = $this->fxProfit($usdEquivalent);
 
                 try {
                     // One transaction per row: the booking and the ledger entries it posts are
                     // either all saved or none of them are, so a bad row cannot leave half a
                     // transfer in the books.
-                    DB::transaction(function () use ($data, $sender, $receiver, $currency, $amount, $usdToRmbRate, $rmbAmount, $fee, $fx, $usdEquivalent) {
-                        $transaction = Transaction::createWithReceiptNumber([
+                    DB::transaction(function () use ($data, $sender, $receiver, $currency, $amount, $usdToRmbRate, $rmbAmount, $profit, $usdEquivalent) {
+                        $transaction = Transaction::createWithReceiptNumber(array_merge([
                             'sender_name' => trim($data['sender_name']),
                             'sender_contact' => $sender,
                             'receiver_name' => trim($data['receiver_name']),
@@ -406,20 +349,13 @@ class TransactionController extends Controller
                             'currency' => $currency,
                             'amount' => $amount,
                             'exchange_rate' => $usdToRmbRate->rate,
-                            'rate_buy_ugx' => $fx['buy'],
-                            'rate_sell_ugx' => $fx['sell'],
                             'rmb_amount' => $rmbAmount,
-                            'charge_rate' => $fee['rate'],
-                            'charge_amount' => $fee['usd'],
-                            'charge_ugx' => $fee['ugx'],
-                            'fx_profit_ugx' => $fx['ugx'],
-                            'fx_profit_usd' => $fx['usd'],
                             'total_usd_equivalent' => $usdEquivalent,
                             'status' => 'completed',
                             'created_by' => auth()->id(),
                             'purpose' => !empty($data['purpose']) ? trim($data['purpose']) : null,
                             'notes' => !empty($data['notes']) ? trim($data['notes']) : null,
-                        ]);
+                        ], $profit));
 
                         ActivityLog::create([
                             'transaction_id' => $transaction->id,

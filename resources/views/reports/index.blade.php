@@ -103,7 +103,7 @@
         <div class="px-6 pt-5">
             <div class="text-sm font-semibold text-gray-700">Profit in shillings</div>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 p-6">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 p-6">
             <div class="rounded-lg border border-green-200 bg-green-50 p-4">
                 <div class="text-sm text-green-900">Total Profit</div>
                 <div class="text-2xl font-bold {{ $profit['total_ugx'] < 0 ? 'text-red-700' : 'text-green-800' }} mt-1">{{ $profit['total_ugx'] < 0 ? 'Loss ' : '' }}UGX {{ number_format(abs($profit['total_ugx'])) }}</div>
@@ -135,7 +135,7 @@
             <div class="text-sm font-semibold text-gray-700">Profit in yuan</div>
             <p class="text-xs text-gray-500 mt-1">Each transfer's profit priced at the yuan rate it was actually booked at, so this is the same money as the row above, counted in what we pay out in China.</p>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 px-6 pb-6">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 px-6 pb-6">
             <div class="rounded-lg border border-purple-200 bg-purple-50 p-4">
                 <div class="text-sm text-purple-900">Total Profit</div>
                 <div class="text-2xl font-bold {{ $profit['total_rmb'] < 0 ? 'text-red-700' : 'text-purple-800' }} mt-1">{{ $profit['total_rmb'] < 0 ? 'Loss ' : '' }}&yen;{{ number_format(abs($profit['total_rmb']), 2) }}</div>
