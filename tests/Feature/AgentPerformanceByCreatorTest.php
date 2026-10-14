@@ -157,4 +157,50 @@ class AgentPerformanceByCreatorTest extends TestCase
         $this->assertEqualsWithDelta(975000, (float) $rows[0]['sent_ugx'], 0.01);
         $this->assertEqualsWithDelta(19500, (float) $rows[0]['revenue_ugx'], 0.01);
     }
+
+    public function test_the_created_by_filter_only_offers_names_the_viewer_may_see(): void
+    {
+        $agent = $this->user('agent', 'Quiet Agent');
+        $boss = $this->user('admin', 'Gorret Admin');
+
+        ExchangeRate::setPair('USD', 'UGX', 4000, 3600, 4000);
+        $this->transfer($agent);
+        $this->transfer($boss);
+
+        $asAgent = $this->actingAs($agent)->get('/transactions');
+
+        $this->assertSame(['Quiet Agent'], $asAgent->viewData('creators')->pluck('name')->all());
+        $this->assertStringNotContainsString('Gorret Admin', $asAgent->getContent());
+
+        $all = $this->actingAs($boss)->get('/transactions')->viewData('creators')->pluck('name')->all();
+
+        $this->assertContains('Gorret Admin', $all);
+        $this->assertContains('Quiet Agent', $all);
+    }
+
+    public function test_an_outsider_cannot_name_another_desk_in_the_url_to_reach_their_bookings(): void
+    {
+        $agent = $this->user('agent', 'Quiet Agent');
+        $boss = $this->user('admin', 'Gorret Admin');
+
+        ExchangeRate::setPair('USD', 'UGX', 4000, 3600, 4000);
+        $own = $this->transfer($agent);
+        $elsewhere = $this->transfer($boss);
+
+        // Naming a desk they may not see narrows the list to nothing rather than opening it,
+        // because the row scope and the filter are both applied.
+        $forced = $this->actingAs($agent)
+            ->get(route('transactions.index', ['created_by' => $boss->id]))
+            ->viewData('transactions');
+
+        $this->assertSame([], $forced->pluck('receipt_number')->all());
+        $this->assertStringNotContainsString($elsewhere->receipt_number,
+            $this->actingAs($agent)->get(route('transactions.index', ['created_by' => $boss->id]))->getContent());
+
+        $own_only = $this->actingAs($agent)
+            ->get(route('transactions.index', ['created_by' => $agent->id]))
+            ->viewData('transactions');
+
+        $this->assertSame([$own->receipt_number], $own_only->pluck('receipt_number')->all());
+    }
 }

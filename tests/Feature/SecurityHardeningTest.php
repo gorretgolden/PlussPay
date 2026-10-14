@@ -353,4 +353,26 @@ class SecurityHardeningTest extends TestCase
         $this->assertEqualsWithDelta(1000.0, (float) $transaction->total_usd_equivalent, 0.001);
         $this->assertSame('completed', $transaction->status);
     }
+
+    public function test_a_desk_that_does_not_own_the_profit_cannot_reach_it_by_typing_the_url(): void
+    {
+        $agent = $this->makeUser('agent');
+        $this->makeTransaction($agent);
+
+        // The Reports link is gone from their sidebar, so this checks the screen itself rather
+        // than the menu that hides it.
+        $asAgent = $this->actingAs($agent)->get('/reports')->assertOk();
+        $asAgent->assertDontSee('id="section-profit"');
+        $asAgent->assertDontSee('Total Profit');
+
+        // Their own bookings still show, which is the point of the page for a desk.
+        $asAgent->assertSee('Alice Sender');
+
+        $this->actingAs($this->makeUser('admin'))->get('/reports')
+            ->assertOk()
+            ->assertSee('id="section-profit"', false);
+
+        // The Excel side of the same screen is gated on the route, not the page.
+        $this->actingAs($agent)->get('/export/profit-report')->assertForbidden();
+    }
 }

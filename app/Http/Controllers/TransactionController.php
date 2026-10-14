@@ -24,14 +24,20 @@ class TransactionController extends Controller
 
     public function index(Request $request)
     {
+        $viewer = $request->user();
+
         $transactions = Transaction::with('creator')
-            ->visibleTo($request->user())
+            ->visibleTo($viewer)
             ->filtered($request)
             ->latest()
             ->paginate(20)
             ->withQueryString();
 
-        $creators = User::whereHas('transactions')->orderBy('name')->get();
+        // The dropdown offers the names the list can actually be cut to, so a desk that only
+        // books its own work sees itself and nobody else's.
+        $creators = User::whereHas('transactions', fn ($query) => $query->visibleTo($viewer))
+            ->orderBy('name')
+            ->get();
 
         return view('transactions.index', compact('transactions', 'creators'));
     }
