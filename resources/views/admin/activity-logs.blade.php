@@ -70,7 +70,7 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($logs as $log)
                 <tr>
-                    <td class="px-6 py-4 text-sm text-gray-500">{{ $log->created_at->format('M d, Y h:i A') }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $log->created_at->format('Y-m-d H:i') }}</td>
                     <td class="px-6 py-4 text-sm text-gray-900">{{ $log->user?->name ?? 'System' }}</td>
                     <td class="px-6 py-4">
                         <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">{{ $log->actionLabel() }}</span>
