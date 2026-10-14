@@ -73,30 +73,24 @@ class DashboardController extends Controller
 
         $chartData = $this->buildChartData($user, $usdToUgx);
 
-        if ($usdToUgx) {
-            $chartData['revenue'] = $chartData['revenue_ugx'];
-        }
-        // The profit chart is always in shillings, so it keeps its own fee series even when
-        // the revenue card above falls back to dollars. The margin series are for the
-        // roles that own the book, and the chart data is printed into the page, so they are
-        // taken out for everyone else.
-        $chartData['fees'] = $chartData['revenue_ugx'];
-        unset($chartData['revenue_ugx']);
-
+        // One chart per role. Whoever owns the book gets the charge and the exchange figures
+        // stacked into the overall profit; everyone else only sees the charge they earned. Both
+        // series are always in shillings, which is where the money is kept.
         $seesProfit = $user->hasRole(['admin', 'superadmin', 'accountant']);
 
         if (! $seesProfit) {
-            unset($chartData['fees'], $chartData['margin_ugx'], $chartData['yuan_ugx']);
+            unset($chartData['exchange_ugx']);
         }
 
         $profit = $seesProfit ? $this->profitWindows($user, $usdToUgx) : [];
 
         $wallets = Account::walletsFor($user);
 
-        // Commission only ever lands in the UGX wallet, and a cancellation is a negative
-        // line there, so this month's earnings are one signed sum.
+        // Commission only ever lands in a shilling wallet, whoever booked the transfer, so it is
+        // read from that account directly rather than from the wallets this person is shown.
+        // A desk in China is shown yuan and dollars but still earns its commission in shillings.
         $commissionMonth = (float) AccountEntry::query()
-            ->where('account_id', $wallets['UGX']->id)
+            ->where('account_id', Account::walletFor($user, 'UGX')->id)
             ->whereIn('type', ['agent_fee', 'agent_fee_reversal'])
             ->whereDate('entry_date', '>=', now()->startOfMonth()->toDateString())
             ->whereDate('entry_date', '<=', now()->toDateString())
@@ -161,7 +155,7 @@ class DashboardController extends Controller
         $daily = Transaction::query()
             ->visibleTo($user)
             ->where('created_at', '>=', $startDate)
-            ->selectRaw("DATE(created_at) as date, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as transactions, COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as revenue, {$ugxRevenue} as revenue_ugx, COALESCE(SUM(CASE WHEN status='completed' THEN fx_profit_ugx ELSE 0 END), 0) as margin_ugx, COALESCE(SUM(CASE WHEN status='completed' THEN {$exchange} ELSE 0 END), 0) as yuan_ugx")
+            ->selectRaw("DATE(created_at) as date, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as transactions, COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as revenue, {$ugxRevenue} as revenue_ugx, COALESCE(SUM(CASE WHEN status='completed' THEN {$exchange} ELSE 0 END), 0) as exchange_ugx")
             ->groupBy(DB::raw('DATE(created_at)'))
             ->get()
             ->keyBy('date');
@@ -170,8 +164,7 @@ class DashboardController extends Controller
         $transactions = [];
         $revenue = [];
         $revenueUgx = [];
-        $margin = [];
-        $yuan = [];
+        $exchangeUgx = [];
 
         for ($i = 6; $i >= 0; $i--) {
             $date = now()->subDays($i)->format('Y-m-d');
@@ -179,8 +172,7 @@ class DashboardController extends Controller
             $transactions[] = (int) ($daily[$date]->transactions ?? 0);
             $revenue[] = (float) ($daily[$date]->revenue ?? 0);
             $revenueUgx[] = (float) ($daily[$date]->revenue_ugx ?? 0);
-            $margin[] = (float) ($daily[$date]->margin_ugx ?? 0);
-            $yuan[] = (float) ($daily[$date]->yuan_ugx ?? 0);
+            $exchangeUgx[] = (float) ($daily[$date]->exchange_ugx ?? 0);
         }
 
         return [
@@ -188,8 +180,7 @@ class DashboardController extends Controller
             'transactions' => $transactions,
             'revenue' => $revenue,
             'revenue_ugx' => $revenueUgx,
-            'margin_ugx' => $margin,
-            'yuan_ugx' => $yuan,
+            'exchange_ugx' => $exchangeUgx,
         ];
     }
 
@@ -222,7 +213,7 @@ class DashboardController extends Controller
             $row = (array) $restrict(Transaction::query()->visibleTo($user))
                 ->selectRaw("{$fee} as fees")
                 ->selectRaw("COALESCE(SUM(CASE WHEN status = 'completed' THEN {$exchange} ELSE 0 END), 0) as exchange")
-                ->selectRaw("SUM(CASE WHEN status = 'completed' AND COALESCE(rate_buy_ugx, 0) <= 0 THEN 1 ELSE 0 END) as unpriced")
+                ->selectRaw("SUM(CASE WHEN status = 'completed' AND (COALESCE(rate_buy_ugx, 0) <= 0 OR usd_rmb_profit_cny IS NULL) THEN 1 ELSE 0 END) as unpriced")
                 ->toBase()
                 ->first();
 

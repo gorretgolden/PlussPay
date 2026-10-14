@@ -57,7 +57,7 @@ class UserCountryTest extends TestCase
         $this->assertSame('Asia/Shanghai', $agent->timezone);
     }
 
-    public function test_a_plain_admin_cannot_place_a_new_account_in_china(): void
+    public function test_an_admin_can_place_a_new_account_in_china(): void
     {
         $this->actingAs($this->actor('admin'))
             ->post('/users', $this->payload() + ['country' => 'CN'])
@@ -65,11 +65,11 @@ class UserCountryTest extends TestCase
 
         $agent = User::where('name', 'Wei Chen')->firstOrFail();
 
-        $this->assertSame('UG', $agent->country);
-        $this->assertSame('Africa/Kampala', $agent->timezone);
+        $this->assertSame('CN', $agent->country);
+        $this->assertSame('Asia/Shanghai', $agent->timezone);
     }
 
-    public function test_an_admin_editing_an_account_leaves_the_country_untouched(): void
+    public function test_an_admin_can_move_another_desk_between_countries(): void
     {
         $agent = $this->actor('agent');
         $agent->update(['country' => 'CN', 'timezone' => 'Asia/Shanghai']);
@@ -85,7 +85,27 @@ class UserCountryTest extends TestCase
             ])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('CN', $agent->fresh()->country);
+        $this->assertSame('UG', $agent->fresh()->country);
+        $this->assertSame('Africa/Kampala', $agent->fresh()->timezone);
+    }
+
+    public function test_nobody_moves_their_own_desk(): void
+    {
+        $admin = $this->actor('admin');
+
+        $this->actingAs($admin)
+            ->put("/users/{$admin->id}", [
+                'name' => 'Root User',
+                'email' => $admin->email,
+                'phone' => '',
+                'role' => 'admin',
+                'country' => 'CN',
+                'timezone' => 'Asia/Shanghai',
+                'is_active' => 1,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('UG', $admin->fresh()->country);
     }
 
     public function test_a_superadmin_can_move_an_account_back_to_uganda(): void
@@ -106,6 +126,23 @@ class UserCountryTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame('UG', $agent->fresh()->country);
+    }
+
+    public function test_the_create_form_offers_the_country_box_to_an_admin(): void
+    {
+        $this->actingAs($this->actor('admin'))
+            ->get('/users/create')
+            ->assertSee('Which desk this account works from');
+    }
+
+    public function test_your_own_profile_states_the_desk_without_a_control_to_move_it(): void
+    {
+        $admin = $this->actor('admin');
+
+        $this->actingAs($admin)
+            ->get("/users/{$admin->id}/edit")
+            ->assertSee('Locked on your own account')
+            ->assertDontSee('Which desk this account works from');
     }
 
     public function test_the_sidebar_shows_the_viewers_country(): void

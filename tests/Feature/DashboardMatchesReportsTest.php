@@ -166,7 +166,30 @@ class DashboardMatchesReportsTest extends TestCase
 
         $chart = $this->actingAs($admin)->get('/dashboard')->assertOk()->viewData('chartData');
 
-        $this->assertArrayNotHasKey('revenue_ugx', $chart);
-        $this->assertEqualsWithDelta(10000, (float) array_sum($chart['revenue']), 0.01);
+        // The board plots the charge read at each transfer's own stored rate, and an admin also
+        // gets the exchange series so the two stack into the overall profit.
+        $this->assertEqualsWithDelta(10000, (float) array_sum($chart['revenue_ugx']), 0.01);
+        $this->assertArrayHasKey('exchange_ugx', $chart);
+
+        $cashier = $this->staff();
+        $this->transfer($cashier);
+        $chart = $this->actingAs($cashier)->get('/dashboard')->assertOk()->viewData('chartData');
+
+        $this->assertArrayNotHasKey('exchange_ugx', $chart);
+        $this->assertEqualsWithDelta(10000, (float) array_sum($chart['revenue_ugx']), 0.01);
+    }
+
+    private function staff(): User
+    {
+        $user = User::create([
+            'name' => 'Cashier One',
+            'email' => 'cashier' . uniqid() . '@plussave.test',
+            'password' => 'Password123',
+            'is_active' => true,
+        ]);
+
+        $user->assignRole('staff');
+
+        return $user;
     }
 }

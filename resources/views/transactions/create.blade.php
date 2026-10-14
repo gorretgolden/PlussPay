@@ -129,24 +129,19 @@
                     <p class="text-xs text-gray-500 mt-1">UGX if the customer pays in shillings. USD if they hand you dollars, which skips the shilling conversion.</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Money handed over *</label>
                     <input type="number" name="amount" id="amount" value="{{ old('amount') }}" step="0.01" min="100" required
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    <p class="text-xs text-gray-500 mt-1">Minimum: 100 UGX</p>
+                    <p class="text-xs text-gray-500 mt-1" id="cash_help">The whole amount the customer gave you, charge included.</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Service Fee</label>
-                    <div class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50">
-                        <div class="flex items-center justify-between gap-2">
-                            <span class="text-gray-700 font-medium">UGX {{ $trimMoney($serviceFeeUgx) }} per {{ $trimMoney($serviceFeeUsd) }} USD</span>
-                            <span class="flex items-center gap-1 text-xs text-gray-500">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                                Locked
-                            </span>
-                        </div>
-                        <div class="text-sm font-medium text-green-700 mt-2">This transfer: <span id="fee_live">enter an amount</span></div>
-                        <p class="text-xs text-gray-500 mt-1">UGX {{ $trimMoney($serviceFeeUgx) }} ÷ {{ $trimMoney($serviceFeeUsd) }} USD = UGX {{ $trimMoney($serviceFeeUsd > 0 ? $serviceFeeUgx / $serviceFeeUsd : 0) }} for every dollar sent, set by admin in System Settings.</p>
-                    </div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Charge (UGX) *</label>
+                    <input type="number" name="charge_ugx" id="charge_ugx" value="{{ old('charge_ugx') }}" step="0.01" min="0" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    <p class="text-xs text-gray-500 mt-1">
+                        Start point from System Settings: UGX {{ $trimMoney($serviceFeeUgx) }} per {{ $trimMoney($serviceFeeUsd) }} USD.
+                        Change it for this customer if that is what was agreed.
+                    </p>
                 </div>
             </div>
 
@@ -159,26 +154,26 @@
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
-                        <div class="text-gray-500">USD Equivalent</div>
+                        <div class="text-gray-500">Money That Travels</div>
+                        <div class="font-bold text-lg" id="preview_sent">-</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-500">Dollars Credited</div>
                         <div class="font-bold text-lg" id="preview_usd">-</div>
                     </div>
                     <div>
-                        <div class="text-gray-500">Rate (USD→RMB)</div>
-                        <div class="font-bold text-lg" id="preview_rate">{{ $usdToRmb ? '1 USD = ' . $trimRate($usdToRmb->rate) . ' RMB' : 'N/A' }}</div>
-                        @if($usdToRmb)
-                            <div class="text-xs text-gray-400 mt-1">Active rate, set {{ $usdToRmb->created_at->format('M d, Y') }}</div>
+                        <div class="text-gray-500">Rate (USD to RMB)</div>
+                        <div class="font-bold text-lg" id="preview_rate">{{ $usdRmb && $usdRmb['sell'] > 0 ? '1 USD = ' . $trimRate($usdRmb['sell']) . ' RMB' : 'N/A' }}</div>
+                        @if($usdRmb && $usdRmb['sell'] > 0)
+                            <div class="text-xs text-gray-400 mt-1">What the receiver is credited at</div>
                         @endif
                     </div>
                     <div>
                         <div class="text-gray-500">RMB Receiver Gets</div>
                         <div class="font-bold text-lg text-purple-700" id="preview_rmb">-</div>
                     </div>
-                    <div>
-                        <div class="text-gray-500">Service Charge (UGX)</div>
-                        <div class="font-bold text-lg text-green-700" id="preview_charge">-</div>
-                    </div>
                 </div>
-                <p class="text-xs text-gray-500 mt-4 leading-relaxed" id="preview_formula">Enter an amount to see how the figures are derived.</p>
+                <p class="text-xs text-gray-500 mt-4 leading-relaxed" id="preview_formula">Enter the money handed over to see how the figures are derived.</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -237,25 +232,25 @@
                 <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Transaction Summary</h3>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div>
-                        <div class="text-xs text-gray-500">Amount</div>
+                        <div class="text-xs text-gray-500">Money Handed Over</div>
                         <div class="font-bold text-lg" id="rev_amount">-</div>
                     </div>
                     <div>
-                        <div class="text-xs text-gray-500">USD Equivalent</div>
+                        <div class="text-xs text-gray-500">Charge Taken Out</div>
+                        <div class="font-bold text-lg text-green-700" id="rev_charge">-</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-500">Money That Travels</div>
+                        <div class="font-bold text-lg" id="rev_sent">-</div>
+                        <div class="text-xs text-gray-500 mt-1" id="rev_total_note"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-500">Dollars Credited</div>
                         <div class="font-bold text-lg" id="rev_usd">-</div>
                     </div>
                     <div>
                         <div class="text-xs text-gray-500">RMB to Receiver</div>
                         <div class="font-bold text-lg text-purple-700" id="rev_rmb">-</div>
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-500">Service Charge (UGX)</div>
-                        <div class="font-bold text-lg text-green-700" id="rev_charge">-</div>
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-500">Customer Pays</div>
-                        <div class="font-bold text-lg text-green-800" id="rev_total">-</div>
-                        <div class="text-xs text-gray-500 mt-1" id="rev_total_note"></div>
                     </div>
                 </div>
                 <div class="mt-3 text-sm text-gray-600" id="rev_purpose"></div>
@@ -278,8 +273,8 @@
 
 @push('scripts')
 <script>
-const usdToRmbRate = {{ $usdToRmb ? $usdToRmb->rate : 0 }};
-const ugxToUsdRate = {{ $ugxToUsdRate ?? 0 }};
+const usdSellRate = {{ $usdUgx && $usdUgx['sell'] > 0 ? $usdUgx['sell'] : 0 }};
+const rmbSellRate = {{ $usdRmb && $usdRmb['sell'] > 0 ? $usdRmb['sell'] : 0 }};
 const serviceFeeUgx = {{ $serviceFeeUgx ?? 0 }};
 const serviceFeeUsd = {{ $serviceFeeUsd ?? 0 }};
 const errorFields = @json($errorFields);
@@ -428,42 +423,93 @@ function trimRate(n) {
     return parseFloat(Number(n).toFixed(6)).toString();
 }
 
-function calculate() {
+function ugx(n) {
+    return 'UGX ' + n.toLocaleString(undefined, {maximumFractionDigits: 2});
+}
+
+function dollars(n) {
+    return '$' + n.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1});
+}
+
+function showMoney(currency, n) {
+    return currency === 'UGX' ? ugx(n) : '$' + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+// Everything the pricing depends on, worked the same way the server works it: the charge comes
+// out of the cash handed over, the dollars that travel are credited at one decimal place, and
+// the yuan payout is priced from that rounded figure.
+function figures() {
     const currency = document.getElementById('currency').value;
-    const amount = parseFloat(document.getElementById('amount').value) || 0;
+    const cash = parseFloat(document.getElementById('amount').value) || 0;
+    const charge = parseFloat(document.getElementById('charge_ugx').value) || 0;
+    const paidInUgx = currency === 'UGX';
+    const sent = paidInUgx ? cash - charge : cash;
+    const credited = sent > 0
+        ? Number((paidInUgx && usdSellRate > 0 ? sent / usdSellRate : sent).toFixed(1))
+        : 0;
+    return {
+        currency,
+        cash,
+        charge,
+        paidInUgx,
+        sent: sent > 0 ? sent : 0,
+        credited,
+        payout: rmbSellRate > 0 ? Number((credited * rmbSellRate).toFixed(2)) : 0
+    };
+}
 
-    let usdEquivalent = 0;
-    if (currency === 'UGX') {
-        usdEquivalent = amount * ugxToUsdRate;
-    } else {
-        usdEquivalent = amount;
-    }
+let chargeTouched = document.getElementById('charge_ugx').value.trim() !== '';
 
-    const rmbAmount = usdEquivalent * usdToRmbRate;
-    const feePerUsd = serviceFeeUsd > 0 ? serviceFeeUgx / serviceFeeUsd : 0;
-    const feeUgx = usdEquivalent * feePerUsd;
-    const chargeAmount = feeUgx * ugxToUsdRate;
+function suggestCharge() {
+    if (chargeTouched) return;
+    const input = document.getElementById('charge_ugx');
+    const currency = document.getElementById('currency').value;
+    const cash = parseFloat(document.getElementById('amount').value) || 0;
+    if (!cash || serviceFeeUsd <= 0 || serviceFeeUgx <= 0) return;
+    if (currency === 'UGX' && usdSellRate <= 0) return;
+    const credited = currency === 'UGX' ? cash / usdSellRate : cash;
+    input.value = (Math.round(credited * (serviceFeeUgx / serviceFeeUsd) * 100) / 100).toFixed(2);
+}
 
-    document.getElementById('preview_usd').textContent = '$' + usdEquivalent.toFixed(2);
-    document.getElementById('preview_rmb').textContent = '¥' + rmbAmount.toFixed(2);
-    document.getElementById('preview_charge').textContent = 'UGX ' + Math.round(feeUgx).toLocaleString();
-    document.getElementById('fee_live').textContent = amount ? 'UGX ' + Math.round(feeUgx).toLocaleString() : 'enter an amount';
+function calculate() {
+    suggestCharge();
+    const f = figures();
+
+    document.getElementById('cash_help').textContent = f.paidInUgx
+        ? 'The whole amount the customer gave you, charge included.'
+        : 'The dollars the customer gave you. All of them travel, and the charge is collected on top in shillings.';
+
+    document.getElementById('preview_sent').textContent = f.sent ? showMoney(f.currency, f.sent) : '-';
+    document.getElementById('preview_usd').textContent = f.credited ? dollars(f.credited) : '-';
+    document.getElementById('preview_rmb').textContent = f.payout ? '¥' + f.payout.toLocaleString(undefined, {minimumFractionDigits: 2}) : '-';
 
     const formula = document.getElementById('preview_formula');
-    if (!amount) {
-        formula.textContent = 'Enter an amount to see how the figures are derived.';
+    if (!f.cash) {
+        formula.textContent = 'Enter the money handed over to see how the figures are derived.';
         return;
     }
+    if (!f.sent) {
+        formula.textContent = 'The charge is the whole of the money handed over, so nothing is left to send. It must be less than that.';
+        return;
+    }
+
     const steps = [];
-    if (currency === 'UGX' && ugxToUsdRate) {
-        steps.push('Job 1: ' + amount.toLocaleString() + ' UGX ÷ ' + trimRate(1 / ugxToUsdRate) + ' = $' + usdEquivalent.toFixed(2));
+    if (f.paidInUgx) {
+        steps.push('Step 1: ' + ugx(f.cash) + ' handed over − ' + ugx(f.charge) + ' charge = ' + ugx(f.sent) + ' that travels');
+        if (usdSellRate > 0) {
+            steps.push('Step 2: ' + ugx(f.sent) + ' ÷ ' + trimRate(usdSellRate) + ' = ' + dollars(f.credited) + ' credited');
+        } else {
+            steps.push('Step 2: no dollar rate is set, so the dollars cannot be worked out yet');
+        }
     } else {
-        steps.push('Job 1: paid in dollars, so $' + usdEquivalent.toFixed(2) + ' in with no shilling rate used');
+        steps.push('Step 1: paid in dollars, so ' + dollars(f.credited) + ' travels and no shilling rate is used');
+        steps.push('Step 2: the ' + ugx(f.charge) + ' charge is collected on top in shillings');
     }
-    if (usdToRmbRate) {
-        steps.push('Job 2: $' + usdEquivalent.toFixed(2) + ' × ' + trimRate(usdToRmbRate) + ' = ¥' + rmbAmount.toFixed(2));
+    if (rmbSellRate > 0) {
+        steps.push('Step 3: ' + dollars(f.credited) + ' × ' + trimRate(rmbSellRate) + ' = ¥' + f.payout.toLocaleString(undefined, {minimumFractionDigits: 2}) + ' to the receiver');
+    } else {
+        steps.push('Step 3: no yuan rate is set, so the payout cannot be worked out yet');
     }
-    steps.push('Charge: $' + usdEquivalent.toFixed(2) + ' ÷ ' + serviceFeeUsd.toLocaleString() + ' × UGX ' + serviceFeeUgx.toLocaleString() + ' = UGX ' + feeUgx.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' = $' + chargeAmount.toFixed(2));
     formula.textContent = steps.join('   ·   ');
 }
 
@@ -486,25 +532,17 @@ function populateReview() {
     document.getElementById('rev_receiver_name').textContent = document.querySelector('[name=receiver_name]').value;
     document.getElementById('rev_receiver_contact').textContent = document.getElementById('receiver_contact').value.trim() ? document.getElementById('receiver_full_contact').value : 'Not provided';
 
-    const currency = document.getElementById('currency').value;
-    const amount = parseFloat(document.getElementById('amount').value) || 0;
-    let usdEquivalent = currency === 'UGX' ? amount * ugxToUsdRate : amount;
-    const rmbAmount = usdEquivalent * usdToRmbRate;
-    const feeUgx = usdEquivalent * (serviceFeeUsd > 0 ? serviceFeeUgx / serviceFeeUsd : 0);
+    const f = figures();
 
-    document.getElementById('rev_amount').textContent = currency + ' ' + amount.toLocaleString(undefined, {minimumFractionDigits: 2});
-    document.getElementById('rev_usd').textContent = '$' + usdEquivalent.toFixed(2);
-    document.getElementById('rev_rmb').textContent = '¥' + rmbAmount.toFixed(2);
-    document.getElementById('rev_charge').textContent = 'UGX ' + Math.round(feeUgx).toLocaleString();
+    document.getElementById('rev_amount').textContent = showMoney(f.currency, f.cash);
+    document.getElementById('rev_charge').textContent = ugx(f.charge);
+    document.getElementById('rev_sent').textContent = showMoney(f.currency, f.sent);
+    document.getElementById('rev_usd').textContent = f.credited ? dollars(f.credited) : '-';
+    document.getElementById('rev_rmb').textContent = f.payout ? '¥' + f.payout.toLocaleString(undefined, {minimumFractionDigits: 2}) : '-';
 
-    // What leaves the customer's hand and what the till books as collected, so the
-    // figure shown here is the amount the ledger posts once the transfer is approved.
-    const chargeUsd = feeUgx * ugxToUsdRate;
-    const total = currency === 'UGX'
-        ? 'UGX ' + Math.round(amount + feeUgx).toLocaleString()
-        : '$' + (amount + chargeUsd).toFixed(2);
-    document.getElementById('rev_total').textContent = total;
-    document.getElementById('rev_total_note').textContent = currency + ' ' + amount.toLocaleString() + ' + UGX ' + Math.round(feeUgx).toLocaleString() + ' charge';
+    document.getElementById('rev_total_note').textContent = f.paidInUgx
+        ? showMoney(f.currency, f.cash) + ' − UGX ' + f.charge.toLocaleString(undefined, {maximumFractionDigits: 2}) + ' charge'
+        : 'Dollars travel in full; the charge is collected in shillings';
 
     const chosen = purposeSelect.value;
     const purpose = chosen === 'Other' ? (purposeOther.value.trim() || 'Other') : chosen;
@@ -513,6 +551,10 @@ function populateReview() {
 
 document.getElementById('currency').addEventListener('change', calculate);
 document.getElementById('amount').addEventListener('input', calculate);
+document.getElementById('charge_ugx').addEventListener('input', function () {
+    chargeTouched = true;
+    calculate();
+});
 calculate();
 
 document.getElementById('transactionForm').addEventListener('submit', function(e) {
@@ -535,7 +577,7 @@ const DRAFT_KEY = @json($draftKey);
 const KEEP_KEY = @json($keepKey);
 localStorage.removeItem('pluspay_send_draft');
 localStorage.removeItem('pluspay_keep_draft');
-const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'amount', 'purpose', 'purpose_other', 'notes'];
+const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'amount', 'charge_ugx', 'purpose', 'purpose_other', 'notes'];
 let draftCleared = false;
 
 function collectDraft() {
@@ -600,6 +642,7 @@ function restoreDraft() {
     });
     pickPrefix('sender', data.sender_prefix);
     pickPrefix('receiver', data.receiver_prefix);
+    if (data.charge_ugx && data.charge_ugx.trim() !== '') chargeTouched = true;
     form.querySelectorAll('select').forEach(sel => sel.dispatchEvent(new Event('change', { bubbles: true })));
 
     document.getElementById('draftMessage').textContent =

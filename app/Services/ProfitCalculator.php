@@ -8,86 +8,126 @@ use App\Models\Setting;
 /**
  * The one place that decides what a transfer earns.
  *
- * A transfer makes money in three separate places, and two of them run in opposite
- * directions, which is why the signs here are worth reading twice:
+ * The operator enters the cash handed over and the charge taken out of it. Whatever is left is
+ * the money that travels, and everything else follows from four rates and one question: what did
+ * the yuan we delivered really cost us in shillings.
  *
- *   1. The service fee, quoted as shillings per block of dollars.
- *   2. The shilling leg. The customer's shillings are converted at the selling price while
- *      the dollars they buy cost us the buying price, so selling above buying is a gain.
- *   3. The yuan leg. The China side settles with us at the buying price but the recipient is
- *      credited at the selling price, so selling above buying is a LOSS. This is the only
- *      figure that was never stored anywhere, and therefore the only one nobody could see.
+ *   1. Charge, entered by hand. A customer paying shillings has it taken out of the money handed
+ *      over; a customer paying dollars forwards the dollars whole and pays the charge on top.
+ *   2. Exchange profit, which is cash in minus the cost of the yuan actually delivered. This is
+ *      the figure the till can prove, so it is the one that is reported.
+ *   3. Total profit, which is those two added and always stated in shillings.
  *
- * The fee and the shilling leg keep the two decimal places they have always been stored with,
- * so no figure already in the books moves. The yuan leg is held at six places and rounded
- * only on screen, and the total is the sum of the stored parts so a breakdown always adds up.
+ * The exchange profit is still split into two stored legs so the trail survives. The shilling leg
+ * is the cash collected less those dollars valued at what dollars cost us, and the yuan leg is the
+ * rest, which is the gap between the rate the receiver is credited at and the rate China settles
+ * at. The two add back to the exchange profit exactly, including whatever giving the dollar figure
+ * to one decimal place hands over to the customer.
  */
 class ProfitCalculator
 {
     /**
-     * Price one transfer from the currency the customer paid in and the dollar value of it.
+     * Price one transfer from the cash handed over and the charge taken out of it.
      *
-     * Returns the columns a booking needs, ready to merge into the create array. Null means
-     * the rates or the fee block are missing, which is the same condition the booking form
-     * already refuses to save on.
+     * Returns the columns a booking needs, ready to merge into the create array. Null means a
+     * rate the pricing depends on is missing, or the charge leaves nothing to send, both of
+     * which the booking form refuses to save on.
      *
-     * @return array<string, string|null>|null
+     * @return array<string, string>|null
      */
-    public static function quote(string $currency, string $usdEquivalent): ?array
+    public static function quote(string $currency, string $cashReceived, string $chargeUgx): ?array
     {
-        $feeUgx = (float) Setting::get('service_fee_ugx', 2000);
-        $feeBlockUsd = (float) Setting::get('service_fee_usd', 100);
-        $usdToUgx = (float) (ExchangeRate::usdToUgx() ?? 0);
+        $pair = ExchangeRate::usdUgxPair();
+        $rmb = ExchangeRate::getActiveRate('USD', 'RMB');
 
-        if ($usdToUgx <= 0 || $feeBlockUsd <= 0) {
+        if (! $pair || $pair['sell'] <= 0 || ! $rmb) {
             return null;
         }
 
-        $ugxPerUsd = $feeUgx / $feeBlockUsd;
-        $chargeUgx = bcmul($usdEquivalent, (string) $ugxPerUsd, 2);
+        $usdSell = (string) $pair['sell'];
+        $usdBuy = (string) $pair['buy'];
+        $rmbSell = (string) ($rmb->sell_rate ?: $rmb->rate);
+        $rmbBuy = (string) ($rmb->buy_rate ?: $rmb->rate);
 
-        $pair = ExchangeRate::usdUgxPair();
-        $priced = $pair && (float) $pair['sell'] > 0;
+        if ((float) $rmbSell <= 0 || (float) $rmbBuy <= 0) {
+            return null;
+        }
 
-        // Only shillings handed over by the customer ever go through the till at a spread.
-        // Dollars paid in directly are forwarded as they are, so there is no leg to profit on.
         $paidInUgx = strtoupper($currency) === 'UGX';
-        $ugxProfit = $priced && $paidInUgx
-            ? bcmul($usdEquivalent, bcsub((string) $pair['sell'], (string) $pair['buy'], 6), 2)
-            : '0.00';
+        $charge = self::money($chargeUgx);
+        $sent = $paidInUgx
+            ? bcsub(self::money($cashReceived), $charge, 2)
+            : self::money($cashReceived);
 
-        // The recipient is credited at the rate the conversion itself used, so this can never
-        // disagree with the yuan that were actually paid out.
-        $rmb = ExchangeRate::getActiveRate('USD', 'RMB');
-        $rmbSell = $rmb ? (string) $rmb->rate : null;
-        $rmbBuy = $rmb ? (string) ($rmb->buy_rate ?: $rmb->rate) : null;
+        if ((float) $sent <= 0) {
+            return null;
+        }
 
-        $cnyProfit = $rmbBuy !== null && $rmbSell !== null
-            ? bcmul($usdEquivalent, bcsub($rmbBuy, $rmbSell, 6), 6)
-            : null;
+        // The dollars the customer is credited with are rounded to one decimal place, and the
+        // yuan payout is priced from that rounded figure so the two can never disagree.
+        $dollars = self::dollars($paidInUgx ? bcdiv($sent, $usdSell, 6) : $sent);
+        $payout = self::money(bcmul($dollars, $rmbSell, 8));
 
-        // Yuan lost or gained converts back to shillings at what shillings cost us, not at
-        // what we sell them for, because that is the price the business really pays.
-        $cnyProfitUgx = $cnyProfit !== null && $priced && (float) $rmbBuy > 0
-            ? bcmul(bcdiv($cnyProfit, $rmbBuy, 8), (string) $pair['buy'], 6)
-            : null;
+        // What those dollars would have cost us at our own buying price. The cash collected above
+        // it is the shilling leg, and what the delivered yuan cost below it is the yuan leg.
+        $anchor = self::money(bcmul($dollars, $usdBuy, 8));
+        $cost = self::money(bcmul(bcdiv($payout, $rmbBuy, 8), $usdBuy, 6));
+
+        $shillingLeg = $paidInUgx ? bcsub($sent, $anchor, 2) : '0.00';
+        $yuanLeg = bcsub($anchor, $cost, 2);
 
         return [
-            'charge_ugx' => $chargeUgx,
-            'charge_amount' => bcdiv($chargeUgx, (string) $usdToUgx, 2),
-            'charge_rate' => (string) ($ugxPerUsd * 100 / $usdToUgx),
-            'rate_buy_ugx' => $pair ? (string) $pair['buy'] : null,
-            'rate_sell_ugx' => $pair ? (string) $pair['sell'] : null,
-            'fx_profit_ugx' => $ugxProfit,
-            'fx_profit_usd' => $priced ? bcdiv($ugxProfit, (string) $pair['sell'], 2) : '0.00',
+            'amount' => $sent,
+            'total_usd_equivalent' => $dollars,
+            'exchange_rate' => $rmbSell,
+            'rmb_amount' => $payout,
+            'rate_sell_ugx' => $usdSell,
+            'rate_buy_ugx' => $usdBuy,
             'rmb_buying_rate' => $rmbBuy,
-            'usd_rmb_profit_cny' => $cnyProfit,
-            'usd_rmb_profit_ugx' => $cnyProfitUgx,
-            // An unknown yuan leg makes the total unknown. Calling it zero would turn a
-            // transfer that lost money into one that appears to have broken even.
-            'total_profit_ugx' => $cnyProfitUgx === null
-                ? null
-                : bcadd(bcadd($chargeUgx, $ugxProfit, 6), $cnyProfitUgx, 6),
+            'charge_ugx' => $charge,
+            'charge_amount' => self::money(bcdiv($charge, $usdSell, 6)),
+            'fx_profit_ugx' => $shillingLeg,
+            'fx_profit_usd' => self::money(bcdiv($shillingLeg, $usdSell, 6)),
+            'usd_rmb_profit_cny' => self::money(bcmul(bcdiv($yuanLeg, $usdBuy, 8), $rmbBuy, 8), 6),
+            'usd_rmb_profit_ugx' => $yuanLeg,
+            'total_profit_ugx' => bcadd(bcadd($shillingLeg, $yuanLeg, 2), $charge, 2),
         ];
+    }
+
+    /**
+     * The charge the System Settings rule would suggest for this much cash, so the booking form
+     * can open with a figure the operator is free to override.
+     */
+    public static function suggestedCharge(string $currency, string $cashReceived): ?string
+    {
+        $feeUgx = (float) Setting::get('service_fee_ugx', 2000);
+        $feeBlockUsd = (float) Setting::get('service_fee_usd', 100);
+        $usdSell = (string) (ExchangeRate::usdUgxPair()['sell'] ?? 0);
+
+        if ($feeUgx <= 0 || $feeBlockUsd <= 0 || $usdSell <= 0) {
+            return null;
+        }
+
+        $dollars = self::dollars(
+            strtoupper($currency) === 'UGX'
+                ? bcdiv(self::money($cashReceived), $usdSell, 6)
+                : self::money($cashReceived)
+        );
+
+        return self::money(bcmul($dollars, (string) ($feeUgx / $feeBlockUsd), 4));
+    }
+
+    /**
+     * The dollar figure a booking is priced on. One decimal place, half up, because that is the
+     * precision the customer is credited with before the yuan payout is worked out.
+     */
+    public static function dollars(string $value): string
+    {
+        return number_format((float) $value, 1, '.', '');
+    }
+
+    private static function money(string $value, int $scale = 2): string
+    {
+        return number_format((float) $value, $scale, '.', '');
     }
 }

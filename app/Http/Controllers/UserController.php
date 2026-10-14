@@ -172,9 +172,12 @@ class UserController extends Controller
             'is_active' => $request->boolean('is_active'),
         ];
 
-        // Country and clock zone are a superadmin's call; an admin editing the same
-        // account cannot move a desk between the two countries by leaving a field blank.
-        if ($currentUser->hasRole('superadmin') && ($request->filled('country') || $request->filled('timezone'))) {
+        // Country and clock zone travel together, and an Admin sets them for anyone but
+        // themselves: nobody can move their own desk to the China side to pick up a yuan wallet,
+        // and an admin editing the same account cannot do it by leaving a field blank either.
+        $canSetDesk = $currentUser->hasRole(['admin', 'superadmin']) && $user->id !== $currentUser->id;
+
+        if ($canSetDesk && ($request->filled('country') || $request->filled('timezone'))) {
             $country = $request->filled('country') ? $validated['country'] : $user->country;
             $profile['country'] = $country;
             $profile['timezone'] = $request->filled('timezone')
@@ -497,14 +500,15 @@ class UserController extends Controller
     }
 
     /**
-     * A new account starts in Uganda unless a superadmin sets the country; the clock
-     * zone follows the country unless the superadmin overrides it.
+     * A new account starts in Uganda unless the person creating it picks the desk; the clock
+     * zone follows the country unless they override it. The country decides which wallets that
+     * account is shown, so an Admin sets it the same way they set a role.
      *
      * @return array{country: string, timezone: string}
      */
     private function countryAttributes(array $validated): array
     {
-        $canSet = auth()->user()->hasRole('superadmin');
+        $canSet = auth()->user()->hasRole(['admin', 'superadmin']);
 
         $country = $canSet && !empty($validated['country'])
             ? $validated['country']

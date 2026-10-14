@@ -98,23 +98,19 @@
 
 @if($sendExample)
 <div class="bg-white rounded-lg shadow p-4 mb-6">
-    <h2 class="text-sm font-semibold text-gray-900">Worked example: a USD 1,000 send at the rates now live</h2>
-    <p class="text-xs text-gray-500 mt-1 mb-3">The customer hands over {{ $sendExample['hands_over'] }} and we buy {{ $sendExample['buys'] }} with it. This is what that one transfer makes.</p>
+    <h2 class="text-sm font-semibold text-gray-900">Worked example: {{ $sendExample['hands_over'] }} handed over for a USD 1,000 send at the rates now live</h2>
+    <p class="text-xs text-gray-500 mt-1 mb-3">The charge comes out of that money, so {{ $sendExample['travels'] }} travels and buys {{ $sendExample['dollars'] }}. This is what that one transfer makes.</p>
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
         <div>
-            <div class="text-xs text-gray-500">Service fee</div>
-            <div class="font-medium text-gray-900">{{ $sendExample['fee'] }}</div>
+            <div class="text-xs text-gray-500">Charge</div>
+            <div class="font-medium text-gray-900">{{ $sendExample['charge'] }}</div>
         </div>
         <div>
-            <div class="text-xs text-gray-500">Margin on shillings</div>
-            <div class="font-medium text-gray-900">{{ $sendExample['margin'] }}</div>
+            <div class="text-xs text-gray-500">Foreign exchange profit</div>
+            <div class="font-medium text-gray-900">{{ $sendExample['exchange'] }}</div>
         </div>
         <div>
-            <div class="text-xs text-gray-500">Yuan leg</div>
-            <div class="font-medium text-gray-900">{{ $sendExample['yuan_leg'] }}</div>
-        </div>
-        <div>
-            <div class="text-xs text-gray-500">Total profit</div>
+            <div class="text-xs text-gray-500">Overall profit</div>
             <div class="font-medium text-gray-900">{{ $sendExample['total'] }}</div>
         </div>
     </div>

@@ -68,14 +68,18 @@ class SystemAccountsTest extends TestCase
             'sender_name' => 'Books Sender',
             'receiver_name' => 'Books Receiver',
             'currency' => 'UGX',
-            'amount' => '3760000',
+            'amount' => '3780000',
+            'charge_ugx' => '20000',
         ])->assertSessionHasNoErrors();
 
         $transaction = Transaction::latest('id')->firstOrFail();
 
         $this->assertSame('completed', $transaction->status);
 
-        // UGX 3,760,000 handed over plus the UGX 20,000 fee.
+        // The till takes the whole UGX 3,780,000 handed over; UGX 20,000 of it is the charge and
+        // the remaining UGX 3,760,000 is what travels.
+        $this->assertSame('20000.00', (string) $transaction->charge_ugx);
+        $this->assertSame('3760000.00', (string) $transaction->amount);
         $this->assertSame('3780000.00', $this->ugxCash()->balance());
         $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'money_in')->count());
 
@@ -94,7 +98,8 @@ class SystemAccountsTest extends TestCase
             'sender_name' => 'Books Sender',
             'receiver_name' => 'Books Receiver',
             'currency' => 'UGX',
-            'amount' => '3760000',
+            'amount' => '3780000',
+            'charge_ugx' => '20000',
         ])->assertSessionHasNoErrors();
 
         $transaction = Transaction::latest('id')->firstOrFail();

@@ -94,13 +94,12 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt #</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receiver</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Money Travels</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">RMB</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fee (UGX)</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Charge (UGX)</th>
                 @role('admin|superadmin|accountant')
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profit UGX to USD</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profit USD to RMB</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Profit</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exchange Profit</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Overall Profit</th>
                 @endrole
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
@@ -123,8 +122,7 @@
                 <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($t->rmb_amount, 2) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">UGX {{ number_format((float) $t->charge_ugx, 2) }}</td>
                 @role('admin|superadmin|accountant')
-                <td class="px-6 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['ugx_leg']['tone']] }}">{{ $profit['ugx_leg']['text'] }}</td>
-                <td class="px-6 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['rmb_leg']['tone']] }}">{{ $profit['rmb_leg']['text'] }}</td>
+                <td class="px-6 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['exchange']['tone']] }}">{{ $profit['exchange']['text'] }}</td>
                 <td class="px-6 py-4 text-sm font-medium whitespace-nowrap {{ $toneClass[$profit['total']['tone']] }}">{{ $profit['total']['text'] }}</td>
                 @endrole
                 <td class="px-6 py-4">
@@ -150,13 +148,6 @@
                         <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Print Receipt</a>
 
                         @role('admin|superadmin|accountant')
-                        <button type="button" onclick="openProfitModal(this)"
-                            data-receipt="{{ $t->receipt_number }} · {{ $t->sender_name }} to {{ $t->receiver_name }}"
-                            data-steps="{{ json_encode($t->profitBreakdown()) }}"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                            View profit breakdown
-                        </button>
-
                         @if($t->status === 'pending')
                         <div class="border-t border-gray-100 my-1"></div>
                         <form method="POST" action="{{ route('transactions.update-status', $t) }}">
@@ -186,11 +177,14 @@
             </tr>
             @empty
             <tr>
-                <td colspan="{{ auth()->user()->hasRole(['admin', 'superadmin', 'accountant']) ? 13 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
+                <td colspan="{{ auth()->user()->hasRole(['admin', 'superadmin', 'accountant']) ? 12 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
             </tr>
             @endforelse
         </tbody>
     </table>
+    @role('admin|superadmin|accountant')
+    <p class="px-6 py-3 text-xs text-gray-500 border-t">The exchange profit is what the rates came to on the money that travelled, and the overall profit adds the charge to it. Only a completed transfer counts toward profit, and one booked before its rates were stored shows n/a instead of a zero that would read as break-even.</p>
+    @endrole
 </div>
 
 <div class="mt-4">
@@ -198,5 +192,4 @@
 </div>
 
 @include('transactions.partials.cancel-modal')
-@include('transactions.partials.profit-modal')
 @endsection

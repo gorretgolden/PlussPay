@@ -12,9 +12,10 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * Profit belongs on the booking screen next to the transfer it came from, but only for the
- * two roles that own the book. A cashier needs the fee the customer paid, not the margin the
- * business made on it.
+ * One profit figure per transfer, on the booking screen, for the roles that own the book. The
+ * office stopped wanting the dollar and yuan cards separately: what the rates came to is one
+ * number, the charge is what the customer was billed, and the two added is the profit reported.
+ * A cashier needs the charge the customer paid, not what the business made on it.
  */
 class TransactionProfitTableTest extends TestCase
 {
@@ -24,7 +25,7 @@ class TransactionProfitTableTest extends TestCase
     {
         parent::setUp();
 
-        foreach (['superadmin', 'admin', 'agent', 'staff'] as $role) {
+        foreach (['superadmin', 'admin', 'agent', 'staff', 'accountant'] as $role) {
             Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
 
@@ -48,7 +49,12 @@ class TransactionProfitTableTest extends TestCase
         return $user;
     }
 
-    private function book(string $amount = '3760000'): Transaction
+    /**
+     * UGX 3,780,000 handed over with a UGX 20,000 charge, so UGX 3,760,000 travels and the
+     * customer is credited exactly $1,000. The shillings are sold at 3,760 and cost 3,750, so
+     * the exchange profit is UGX 10,000 and the overall profit UGX 30,000.
+     */
+    private function book(string $cash = '3780000', string $charge = '20000'): Transaction
     {
         $admin = $this->user('admin');
 
@@ -58,48 +64,47 @@ class TransactionProfitTableTest extends TestCase
             'sender_name' => 'Table Sender',
             'receiver_name' => 'Table Receiver',
             'currency' => 'UGX',
-            'amount' => $amount,
+            'amount' => $cash,
+            'charge_ugx' => $charge,
         ])->assertSessionHasNoErrors();
 
         return Transaction::latest('id')->firstOrFail();
     }
 
-    public function test_the_book_shows_each_profit_figure_for_a_completed_transfer(): void
+    public function test_the_book_shows_the_exchange_profit_and_the_overall_profit(): void
     {
-        // $1,000 sent: the fee is UGX 20,000, the shillings cost 3,750 apiece against the
-        // 3,760 sold, and the yuan pair is flat so the yuan leg earns nothing.
         $this->book();
 
         $html = $this->actingAs($this->user('admin'))->get('/transactions')->getContent();
 
-        foreach (['Fee (UGX)', 'Profit UGX to USD', 'Profit USD to RMB', 'Total Profit'] as $header) {
+        foreach (['Money Travels', 'Charge (UGX)', 'Exchange Profit', 'Overall Profit'] as $header) {
             $this->assertStringContainsString($header, $html);
         }
 
+        // The charge the customer was billed, what the rates earned, and the two added.
+        $this->assertStringContainsString('UGX 20,000.00', $html);
         $this->assertStringContainsString('UGX 10,000.00', $html);
-        $this->assertStringContainsString('UGX 0.00', $html);
         $this->assertStringContainsString('UGX 30,000.00', $html);
+
+        // The per-leg cards the client removed have no home on this page any more.
+        foreach (['Profit UGX to USD', 'Profit USD to RMB', 'Yuan Leg', 'Fee (UGX)'] as $gone) {
+            $this->assertStringNotContainsString($gone, $html);
+        }
     }
 
-    public function test_the_breakdown_dialog_is_offered_on_every_row(): void
+    public function test_no_row_offers_a_profit_breakdown(): void
     {
-        $this->book();
+        $transaction = $this->book();
 
-        $response = $this->actingAs($this->user('admin'))->get('/transactions');
+        $this->actingAs($this->user('admin'))->get('/transactions')
+            ->assertDontSee('View profit breakdown');
 
-        $response->assertSee('View profit breakdown');
-
-        $steps = Transaction::latest('id')->firstOrFail()->profitBreakdown();
-        $labels = array_column($steps, 'label');
-
-        $this->assertContains('Service fee', $labels);
-        $this->assertContains('Margin on the shillings', $labels);
-        $this->assertContains('Total profit', $labels);
-        // The dialog has to name the prices the figure was built from, not just the total.
-        $this->assertSame('UGX 3,760.00 per USD = USD 1,000.00', $steps[array_search('Dollars sold to the customer at', $labels)]['value']);
+        // The model no longer has the method the dialog was built from.
+        $this->assertFalse(method_exists($transaction, 'profitBreakdown'));
+        $this->assertSame(['exchange', 'charge', 'total'], array_keys($transaction->profitLabels()));
     }
 
-    public function test_a_transfer_that_lost_yuan_is_shown_as_a_loss(): void
+    public function test_a_transfer_that_lost_yuan_shows_one_loss_not_two_legs(): void
     {
         // Yuan bought from China at 7.00 but handed over at 7.30: every dollar sent loses yuan.
         ExchangeRate::setPair('USD', 'RMB', 7.30, 7.00, 7.30);
@@ -107,28 +112,34 @@ class TransactionProfitTableTest extends TestCase
 
         $transaction = Transaction::latest('id')->firstOrFail();
 
-        // 1,000 dollars x (7.00 - 7.30) = 300 yuan short, worth 160,714 shillings at the
-        // buying rate, which is more than the fee and the shilling margin together.
-        $this->assertLessThan(0, (float) $transaction->usd_rmb_profit_ugx);
-        $this->assertSame('Loss UGX 160,714.29', $transaction->profitLabels()['rmb_leg']['text']);
-        $this->assertSame('loss', $transaction->profitLabels()['rmb_leg']['tone']);
-        $this->assertSame('Loss UGX 130,714.29', $transaction->profitLabels()['total']['text']);
+        // 1,000 dollars x (7.00 - 7.30) = 300 yuan short, worth 160,714.29 shillings at the
+        // buying rate, which is more than the shilling margin and the charge together.
+        $this->assertEqualsWithDelta(-160714.29, (float) $transaction->usd_rmb_profit_ugx, 0.01);
+        $labels = $transaction->profitLabels();
+        $this->assertSame('Loss UGX 150,714.29', $labels['exchange']['text']);
+        $this->assertSame('loss', $labels['exchange']['tone']);
+        $this->assertSame('UGX 20,000.00', $labels['charge']['text']);
+        $this->assertSame('Loss UGX 130,714.29', $labels['total']['text']);
 
         $html = $this->actingAs($this->user('admin'))->get('/transactions')->getContent();
-        $this->assertStringContainsString('Loss UGX 160,714.29', $html);
+        $this->assertStringContainsString('Loss UGX 150,714.29', $html);
+        $this->assertStringContainsString('Loss UGX 130,714.29', $html);
         $this->assertStringContainsString('text-red-600', $html);
+        // The yuan leg on its own is never printed.
+        $this->assertStringNotContainsString('Loss UGX 160,714.29', $html);
     }
 
-    public function test_cashier_and_agent_see_nothing_about_profit(): void
+    public function test_cashier_and_agent_see_the_charge_but_nothing_about_profit(): void
     {
         $this->book();
 
         foreach (['staff', 'agent'] as $role) {
             $html = $this->actingAs($this->user($role))->get('/transactions')->getContent();
 
-            $this->assertStringNotContainsString('Total Profit', $html);
-            $this->assertStringNotContainsString('Profit UGX to USD', $html);
-            $this->assertStringNotContainsString('View profit breakdown', $html);
+            $this->assertStringContainsString('Charge (UGX)', $html);
+            $this->assertStringNotContainsString('Overall Profit', $html);
+            $this->assertStringNotContainsString('Exchange Profit', $html);
+            $this->assertStringNotContainsString('UGX 30,000.00', $html);
         }
     }
 
@@ -148,11 +159,11 @@ class TransactionProfitTableTest extends TestCase
         ])->save();
 
         $labels = $legacy->fresh()->profitLabels();
-        $this->assertSame('n/a', $labels['ugx_leg']['text']);
-        $this->assertSame('n/a', $labels['rmb_leg']['text']);
+        $this->assertSame('n/a', $labels['exchange']['text']);
         $this->assertSame('n/a', $labels['total']['text']);
-        // The fee was always known, so it keeps showing.
-        $this->assertSame('UGX 20,000.00', $labels['fee']['text']);
+        $this->assertSame('muted', $labels['exchange']['tone']);
+        // The charge was always known, so it keeps showing.
+        $this->assertSame('UGX 20,000.00', $labels['charge']['text']);
 
         $html = $this->actingAs($this->user('admin'))->get('/transactions')->getContent();
 
@@ -169,13 +180,14 @@ class TransactionProfitTableTest extends TestCase
 
         $this->assertSame('UGX 0.00', $labels['total']['text']);
         $this->assertSame('muted', $labels['total']['tone']);
+        $this->assertSame('UGX 0.00', $labels['charge']['text']);
 
         $html = $this->actingAs($this->user('admin'))->get('/transactions')->getContent();
         $this->assertStringNotContainsString('UGX 30,000.00', $html);
         $this->assertStringContainsString('Only a completed transfer counts toward profit', $html);
     }
 
-    public function test_the_downloaded_book_carries_every_profit_figure(): void
+    public function test_the_downloaded_book_carries_the_three_profit_figures(): void
     {
         ExchangeRate::setPair('USD', 'RMB', 7.30, 7.00, 7.30);
         $this->book();
@@ -184,19 +196,23 @@ class TransactionProfitTableTest extends TestCase
             ->get('/export/transactions')
             ->streamedContent());
 
-        foreach (['Dollar Margin (UGX)', 'Yuan Leg (CNY)', 'Yuan Leg (UGX)', 'Yuan Leg (USD)', 'Total Profit (UGX)', 'Total Profit (USD)'] as $header) {
+        foreach (['Money Handed Over', 'Charge (UGX)', 'Exchange Profit (UGX)', 'Overall Profit (UGX)', 'Overall Profit (USD)'] as $header) {
             $this->assertContains($header, $rows[5]);
         }
 
-        // $1,000 sent: fee 20,000, margin 10,000, and 300 yuan short, which is 160,714
-        // shillings or 41.10 dollars at the 7.30 those dollars were delivered at.
-        $this->assertSame('UGX 10,000.00', $rows[6][11]);
-        $this->assertSame('Loss CNY 300.0000', $rows[6][12]);
-        $this->assertSame('Loss UGX 160,714.29', $rows[6][13]);
-        $this->assertSame('Loss USD 41.10', $rows[6][14]);
-        $this->assertSame('Loss UGX 130,714.29', $rows[6][15]);
-        $this->assertMatchesRegularExpression('/^Loss USD \d/', $rows[6][16]);
-        $this->assertSame('Completed', $rows[6][18]);
+        // The customer handed over the full UGX 3,780,000 and UGX 3,760,000 of it travelled.
+        $this->assertSame('UGX 3,780,000.00', $rows[6][6]);
+        $this->assertSame('UGX 3,760,000.00', $rows[6][7]);
+        $this->assertSame('UGX 20,000', $rows[6][10]);
+        $this->assertSame('Loss UGX 150,714.29', $rows[6][12]);
+        $this->assertSame('Loss UGX 130,714.29', $rows[6][13]);
+        // The same loss in dollars, at the 7.30 those dollars were delivered at.
+        $this->assertMatchesRegularExpression('/^Loss USD \d/', $rows[6][14]);
+        $this->assertSame('Completed', $rows[6][16]);
+
+        foreach (['Yuan Leg (CNY)', 'Yuan Leg (UGX)', 'Yuan Leg (USD)', 'Dollar Margin (UGX)'] as $gone) {
+            $this->assertNotContains($gone, $rows[5]);
+        }
     }
 
     public function test_a_transfer_without_stored_rates_downloads_as_n_a(): void
@@ -216,10 +232,10 @@ class TransactionProfitTableTest extends TestCase
             ->get('/export/transactions')
             ->streamedContent());
 
-        // The fee the customer paid is still known, so it downloads as a figure. Everything
+        // The charge the customer paid is still known, so it downloads as a figure. Everything
         // built from the missing rates says n/a rather than pretending to be zero.
-        $this->assertSame('UGX 20,000', $rows[6][9]);
-        foreach ([11, 12, 13, 14, 15, 16] as $column) {
+        $this->assertSame('UGX 20,000', $rows[6][10]);
+        foreach ([12, 13, 14] as $column) {
             $this->assertSame('n/a', $rows[6][$column]);
         }
     }
@@ -239,7 +255,7 @@ class TransactionProfitTableTest extends TestCase
 
         $rows = [];
         foreach (range(1, 7) as $row) {
-            foreach (range('A', 'T') as $column) {
+            foreach (range('A', 'R') as $column) {
                 $rows[$row][] = (string) $sheet->getCell($column.$row)->getValue();
             }
         }

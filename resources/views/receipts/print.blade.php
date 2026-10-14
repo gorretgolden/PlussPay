@@ -110,6 +110,12 @@
                     ¥{{ number_format($transaction->rmb_amount, 2) }} RMB
                 </td>
             </tr>
+            <tr>
+                <td>TOTAL HANDED OVER ({{ $transaction->currency }})</td>
+                <td class="amount-cell"></td>
+                <td class="amount-cell"></td>
+                <td class="amount-cell">{{ $transaction->collectedAmount() }}</td>
+            </tr>
         </tbody>
     </table>
 

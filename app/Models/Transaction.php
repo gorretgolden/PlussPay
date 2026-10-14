@@ -107,20 +107,31 @@ class Transaction extends Model
     }
 
     /**
-     * What the till takes in when this transfer is approved: the principal plus the
-     * service charge, in the currency the transfer was booked in. Cancelling hands the
-     * same figure back, so the same text serves both sides of the books.
+     * The cash the customer handed over. A shilling booking has the charge taken out of it, so
+     * the two add back together. A dollar booking forwards the dollars whole, so the charge is
+     * extra money that arrives alongside them rather than part of the figure handed over.
+     */
+    public function cashReceived(): string
+    {
+        return $this->currency === 'USD'
+            ? (string) $this->amount
+            : bcadd((string) $this->amount, (string) $this->charge_ugx, 2);
+    }
+
+    /**
+     * What the till takes in when this transfer is approved, and the same figure hands back when
+     * it is cancelled, so the same text serves both sides of the books.
      */
     public function collectedAmount(): string
     {
         return $this->currency === 'USD'
-            ? 'USD ' . number_format((float) $this->amount + (float) $this->charge_amount, 2)
-            : 'UGX ' . number_format((float) $this->amount + (float) $this->charge_ugx, 2);
+            ? 'USD ' . number_format((float) $this->amount, 2) . ' plus ' . $this->feeLabel()
+            : 'UGX ' . number_format((float) $this->cashReceived(), 2);
     }
 
     /**
-     * The charge is always quoted in shillings, whichever currency the transfer was
-     * booked in, so it reads the same way on every screen.
+     * The charge is always quoted in shillings, whichever currency the transfer was booked in,
+     * so it reads the same way on every screen.
      */
     public function feeLabel(): string
     {
@@ -187,8 +198,10 @@ class Transaction extends Model
     }
 
     /**
-     * The four profit figures for this transfer as display text, each with a tone so the screen
-     * can put a loss in red and a figure that was never priced in gray.
+     * The three profit figures for this transfer as display text: what the exchange came to,
+     * what was charged, and the two added. The legs are stored separately so the trail behind
+     * the exchange figure survives, but the office reports one profit per transfer, so the
+     * screen only ever shows the sum.
      *
      * A transfer that has not finished earned nothing yet, so it reports zeros rather than the
      * money priced at booking time. A finished transfer booked before the rates were stored
@@ -200,135 +213,20 @@ class Transaction extends Model
     {
         if ($this->status !== 'completed') {
             return array_fill_keys(
-                ['fee', 'ugx_leg', 'rmb_leg', 'total'],
+                ['exchange', 'charge', 'total'],
                 ['text' => 'UGX 0.00', 'tone' => 'muted']
             );
         }
 
+        $exchange = $this->fx_profit_ugx === null || $this->usd_rmb_profit_ugx === null
+            ? null
+            : bcadd((string) $this->fx_profit_ugx, (string) $this->usd_rmb_profit_ugx, 6);
+
         return [
-            'fee' => $this->shillingProfitCell($this->charge_ugx),
-            'ugx_leg' => $this->marginCell(),
-            'rmb_leg' => $this->yuanLegCell(),
+            'exchange' => $this->shillingProfitCell($exchange),
+            'charge' => $this->shillingProfitCell($this->charge_ugx),
             'total' => $this->shillingProfitCell($this->total_profit_ugx),
         ];
-    }
-
-    /**
-     * Every step behind those figures, in the order the formulas run, so the breakdown dialog
-     * can show how a number was arrived at instead of only the number.
-     *
-     * @return array<int, array{label: string, value: string, tone: string}>
-     */
-    public function profitBreakdown(): array
-    {
-        if ($this->status !== 'completed') {
-            return [[
-                'label' => 'Status',
-                'value' => ucfirst($this->status).'. Only a completed transfer counts toward profit.',
-                'tone' => 'muted',
-            ]];
-        }
-
-        $dollars = (float) $this->total_usd_equivalent;
-        $feeBlockUsd = (float) Setting::get('service_fee_usd', 100);
-        $feeUgx = (float) Setting::get('service_fee_ugx', 2000);
-        $step = fn (string $label, string $value, string $tone = 'plain') => ['label' => $label, 'value' => $value, 'tone' => $tone];
-
-        $steps = [$step('The customer handed over', $this->principalLabel())];
-
-        if ((float) $this->rate_sell_ugx > 0) {
-            $steps[] = $step(
-                'Dollars sold to the customer at',
-                'UGX '.number_format((float) $this->rate_sell_ugx, 2).' per USD = USD '.number_format($dollars, 2)
-            );
-        }
-
-        if ($this->charge_ugx !== null) {
-            $fee = $this->shillingProfitCell($this->charge_ugx);
-            $steps[] = $step(
-                'Service fee',
-                'UGX '.number_format($feeUgx, 0).' per '.number_format($feeBlockUsd, 0).' USD x '.number_format($dollars, 2).' USD = '.$fee['text'],
-                $fee['tone']
-            );
-        }
-
-        if ($this->currency === 'USD') {
-            $steps[] = $step('Margin on the shillings', 'None. The customer handed over dollars, so no shillings were bought at a spread.', 'muted');
-        } elseif ((float) $this->rate_buy_ugx > 0) {
-            $steps[] = $step('Shillings bought back at', 'UGX '.number_format((float) $this->rate_buy_ugx, 2).' per USD');
-
-            $margin = $this->marginCell();
-            $steps[] = $step(
-                'Margin on the shillings',
-                '('.number_format((float) $this->rate_sell_ugx, 2).' - '.number_format((float) $this->rate_buy_ugx, 2).') x '.number_format($dollars, 2).' USD = '.$margin['text'],
-                $margin['tone']
-            );
-        } else {
-            $steps[] = $step('Margin on the shillings', 'n/a - no buying rate was stored on this transfer', 'muted');
-        }
-
-        if ((float) $this->exchange_rate > 0) {
-            $steps[] = $step(
-                'Yuan priced out to the receiver at',
-                number_format((float) $this->exchange_rate, 4).' per USD = '.$this->yuanLabel()
-            );
-        }
-
-        if ($this->rmb_buying_rate !== null) {
-            $steps[] = $step('Yuan bought from China at', number_format((float) $this->rmb_buying_rate, 4).' per USD');
-        }
-
-        if ($this->usd_rmb_profit_cny !== null) {
-            $yuanLeg = $this->yuanLegCell();
-            $cny = (float) $this->usd_rmb_profit_cny;
-
-            $steps[] = $step(
-                'Yuan leg',
-                '('.number_format((float) $this->rmb_buying_rate, 4).' - '.number_format((float) $this->exchange_rate, 4).') x '
-                    .number_format($dollars, 2).' USD = CNY '.number_format($cny, 4)
-                    .($this->usd_rmb_profit_ugx !== null ? ' = '.$yuanLeg['text'] : ''),
-                $cny < 0 ? 'loss' : $yuanLeg['tone']
-            );
-        } else {
-            $steps[] = $step('Yuan leg', 'n/a - the yuan buying rate was not stored on this transfer', 'muted');
-        }
-
-        $total = $this->shillingProfitCell($this->total_profit_ugx);
-        $steps[] = $step(
-            'Total profit',
-            $total['text'].($this->total_profit_ugx === null ? ' - some rates were not stored on this transfer' : ' = fee + margin + yuan leg'),
-            $total['tone']
-        );
-
-        return $steps;
-    }
-
-    /**
-     * The shilling margin only exists when the transfer was priced against a buying rate. A
-     * dollar payer has one stored and priced at zero, because no shillings went through the
-     * till, so zero is the honest figure there and only a missing rate reads as n/a.
-     *
-     * @return array{text: string, tone: string}
-     */
-    private function marginCell(): array
-    {
-        if ($this->currency === 'USD') {
-            return ['text' => 'UGX 0.00', 'tone' => 'plain'];
-        }
-
-        return (float) $this->rate_buy_ugx > 0
-            ? $this->shillingProfitCell($this->fx_profit_ugx)
-            : ['text' => 'n/a', 'tone' => 'muted'];
-    }
-
-    /**
-     * @return array{text: string, tone: string}
-     */
-    private function yuanLegCell(): array
-    {
-        return $this->usd_rmb_profit_ugx !== null
-            ? $this->shillingProfitCell($this->usd_rmb_profit_ugx)
-            : ['text' => 'n/a', 'tone' => 'muted'];
     }
 
     /**

@@ -5,7 +5,7 @@
 @section('content')
 <div class="mb-6">
     <h1 class="text-2xl font-bold text-gray-900">My Wallet</h1>
-    <p class="text-gray-600">Your commission balances across all currencies.</p>
+    <p class="text-gray-600">The balances your desk holds. Commission is paid in shillings, so it lands in the UGX wallet whatever currency the transfer was booked in.</p>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -43,7 +43,9 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @php
-                    $entries = \App\Models\AccountEntry::whereIn('account_id', array_map(fn($a) => $a->id, $wallets))
+                    // Commission is always paid in shillings, whatever country the desk is in, so
+                    // this reads the shilling wallet rather than the currencies shown above.
+                    $entries = \App\Models\AccountEntry::where('account_id', \App\Models\Account::walletFor(auth()->user(), 'UGX')->id)
                         ->where('type', 'agent_fee')
                         ->latest('entry_date')
                         ->latest('id')

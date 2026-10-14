@@ -10,6 +10,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
+/**
+ * The board reports one profit per transfer: the charge the office kept and what the rates came
+ * to on the money that travelled, added together in shillings. The legs behind the exchange
+ * figure are kept in the books but never printed on their own.
+ */
 class DashboardProfitTest extends TestCase
 {
     use RefreshDatabase;
@@ -18,7 +23,7 @@ class DashboardProfitTest extends TestCase
     {
         parent::setUp();
 
-        foreach (['superadmin', 'admin', 'agent', 'staff'] as $role) {
+        foreach (['superadmin', 'admin', 'agent', 'staff', 'accountant'] as $role) {
             Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
 
@@ -42,7 +47,11 @@ class DashboardProfitTest extends TestCase
         return $user;
     }
 
-    private function book(User $booker, string $amount = '3760000'): Transaction
+    /**
+     * UGX 3,780,000 handed over, UGX 20,000 charge, UGX 3,760,000 travelling as $1,000 at the
+     * 3,760 selling price, which cost the office 3,750 apiece.
+     */
+    private function book(User $booker, string $cash = '3780000', string $charge = '20000'): Transaction
     {
         $this->actingAs($booker)->get('/transactions/create');
         $this->actingAs($booker)->post('/transactions', [
@@ -50,30 +59,32 @@ class DashboardProfitTest extends TestCase
             'sender_name' => 'Board Sender',
             'receiver_name' => 'Board Receiver',
             'currency' => 'UGX',
-            'amount' => $amount,
+            'amount' => $cash,
+            'charge_ugx' => $charge,
         ])->assertSessionHasNoErrors();
 
         return Transaction::latest('id')->firstOrFail();
     }
 
-    public function test_the_board_splits_the_fee_from_the_currency_profit(): void
+    public function test_the_board_shows_the_charge_and_one_overall_profit(): void
     {
-        // $1,000 sent: UGX 20,000 fee, UGX 10,000 on the shillings, flat yuan pair.
         $this->book($this->user('admin'));
 
         $html = $this->actingAs($this->user('admin'))->get('/dashboard')->getContent();
 
-        foreach (['Service Fees', 'Exchange Profit', 'Total Profit', 'Today', 'This Month', 'All Time'] as $needle) {
+        foreach (['Charge', 'Exchange Profit', 'Overall Profit', 'Today', 'This Month', 'All Time'] as $needle) {
             $this->assertStringContainsString($needle, $html);
         }
 
+        // UGX 20,000 kept, UGX 10,000 from the shilling spread, a flat yuan pair, UGX 30,000 overall.
         $this->assertStringContainsString('UGX 20,000.00', $html);
         $this->assertStringContainsString('UGX 10,000.00', $html);
         $this->assertStringContainsString('UGX 30,000.00', $html);
 
-        // The old name promised the whole earning, which it never was.
-        $this->assertStringNotContainsString('Revenue Today', $html);
-        $this->assertStringNotContainsString('Total Revenue', $html);
+        // The names the client removed are not on the page.
+        foreach (['Service Fees', 'Total Profit', 'Yuan Leg', 'Revenue Today', 'Total Revenue'] as $gone) {
+            $this->assertStringNotContainsString($gone, $html);
+        }
     }
 
     public function test_a_yuan_loss_shows_against_the_day_it_happened(): void
@@ -86,8 +97,9 @@ class DashboardProfitTest extends TestCase
 
         $html = $this->actingAs($this->user('admin'))->get('/dashboard')->getContent();
 
-        // 40,000 of fees, 20,000 of shilling margin, and 300 yuan short on the second
-        // transfer, worth 160,714.29 shillings at the buying rate.
+        // 40,000 of charges and 20,000 of shilling spread, against 160,714.29 lost on the yuan
+        // of the second transfer: the exchange figure is 140,714.29 short and the overall 100,714.29.
+        $this->assertStringContainsString('UGX 40,000.00', $html);
         $this->assertStringContainsString('Loss UGX 140,714.29', $html);
         $this->assertStringContainsString('Loss UGX 100,714.29', $html);
     }
@@ -95,11 +107,14 @@ class DashboardProfitTest extends TestCase
     public function test_transfers_without_rates_are_counted_not_silently_zeroed(): void
     {
         $legacy = $this->book($this->user('admin'));
-        $legacy->forceFill(['rate_buy_ugx' => null, 'fx_profit_ugx' => 0, 'total_profit_ugx' => null])->save();
+        $legacy->forceFill(['rate_buy_ugx' => null, 'fx_profit_ugx' => 0, 'usd_rmb_profit_ugx' => null, 'total_profit_ugx' => null])->save();
 
         $html = $this->actingAs($this->user('admin'))->get('/dashboard')->getContent();
 
-        $this->assertStringContainsString('1 completed transfer has no rates stored', $html);
+        // The rule is stated once for the whole block, and each window that holds the transfer
+        // counts it: today sits inside this month, which sits inside all time.
+        $this->assertSame(1, substr_count($html, 'never guessed'));
+        $this->assertSame(3, substr_count($html, '>1 without rates<'));
     }
 
     public function test_the_profit_series_stays_off_the_page_for_a_cashier(): void
@@ -110,11 +125,10 @@ class DashboardProfitTest extends TestCase
             $html = $this->actingAs($this->user($role))->get('/dashboard')->getContent();
 
             $this->assertStringNotContainsString('Exchange Profit', $html);
-            $this->assertStringNotContainsString('Total Profit', $html);
-            $this->assertStringNotContainsString('margin_ugx', $html);
-            $this->assertStringNotContainsString('yuan_ugx', $html);
-            // Their own fee figure stays where it was.
-            $this->assertStringContainsString('Service Fees', $html);
+            $this->assertStringNotContainsString('Overall Profit', $html);
+            $this->assertStringNotContainsString('exchange_ugx', $html);
+            // Their own charge figure stays where it was.
+            $this->assertStringContainsString('Charge', $html);
         }
     }
 }

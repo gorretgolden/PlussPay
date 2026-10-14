@@ -1,10 +1,13 @@
 @php
-    $canSetCountry = auth()->user()->hasRole('superadmin');
+    // An Admin sets the desk for everyone, but never for their own account, so nobody can
+    // move themselves onto the China side to pick up a yuan wallet.
+    $actor = auth()->user();
+    $canSet = $actor->hasRole(['admin', 'superadmin']) && $actor->id !== ($user->id ?? null);
     $currentCountry = old('country', $country ?? \App\Models\User::DEFAULT_COUNTRY);
     $currentTimezone = old('timezone', $timezone ?? \App\Models\User::timezoneForCountry($currentCountry));
 @endphp
 
-@if($canSetCountry)
+@if($canSet)
 <div class="mb-4">
     <label class="block text-sm font-medium text-gray-700 mb-1">Country</label>
     <select name="country"
@@ -13,7 +16,7 @@
             <option value="{{ $code }}" @selected($currentCountry === $code)>{{ $label }}</option>
         @endforeach
     </select>
-    <p class="text-xs text-gray-500 mt-1">Tells the team which desk this account works from, so a China agent can see they are on the China side. Only a Super Admin can set or change it.</p>
+    <p class="text-xs text-gray-500 mt-1">Which desk this account works from. Uganda holds shillings and dollars, China holds yuan and dollars, so this is what decides the wallets they see when they sign in. It also sets their clock.</p>
     @error('country')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
 </div>
 
@@ -27,5 +30,13 @@
     </select>
     <p class="text-xs text-gray-500 mt-1">Defaults to the country's clock. Change it only if this account should see a different time.</p>
     @error('timezone')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+</div>
+@else
+<div class="mb-4">
+    <span class="block text-sm font-medium text-gray-700 mb-1">Country and clock</span>
+    <div class="px-3 py-2 border border-gray-200 bg-gray-50 rounded-md text-sm text-gray-600">
+        {{ \App\Models\User::COUNTRIES[$currentCountry] ?? 'Not set' }} · {{ \App\Models\Setting::TIMEZONES[$currentTimezone] ?? $currentTimezone }}
+    </div>
+    <p class="text-xs text-gray-500 mt-1">Locked on your own account, so a desk cannot be moved between countries by the person sitting at it. Another Admin or a Super Admin changes it.</p>
 </div>
 @endif

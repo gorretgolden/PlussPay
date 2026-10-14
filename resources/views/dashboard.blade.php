@@ -49,7 +49,7 @@
             <div class="text-white text-3xl font-bold mt-1">{{ $stored($stats['today_ugx_sent'], $stats['today_usd_sent']) }}</div>
         </div>
         <div class="bg-white/10 rounded-lg p-4">
-            <div class="text-green-200 text-sm">Service Fees ({{ $cur }})</div>
+            <div class="text-green-200 text-sm">Charge ({{ $cur }})</div>
             <div class="text-white text-3xl font-bold mt-1">{{ $stored($stats['today_revenue_ugx'], $stats['today_revenue']) }}</div>
         </div>
         @role('admin|superadmin|accountant')
@@ -58,7 +58,7 @@
             <div class="text-white text-3xl font-bold mt-1 {{ $profit['today']['exchange'] < 0 ? 'text-red-300' : '' }}">UGX {{ number_format($profit['today']['exchange']) }}</div>
         </div>
         <div class="bg-white/10 rounded-lg p-4">
-            <div class="text-green-200 text-sm">Total Profit</div>
+            <div class="text-green-200 text-sm">Overall Profit</div>
             <div class="text-white text-3xl font-bold mt-1 {{ $profit['today']['total'] < 0 ? 'text-red-300' : '' }}">UGX {{ number_format($profit['today']['total']) }}</div>
         </div>
         @endrole
@@ -96,7 +96,7 @@
     <a href="{{ route('reports.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
         <div class="flex items-center justify-between">
             <div>
-                <div class="text-sm text-gray-500">Service Fees (All Time)</div>
+                <div class="text-sm text-gray-500">Charge (All Time)</div>
                 <div class="text-3xl font-bold text-green-700 mt-1">{{ $stored($stats['total_revenue_ugx'], $stats['total_revenue']) }}</div>
             </div>
             <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
@@ -152,14 +152,14 @@
 @endphp
 <div class="bg-white rounded-lg shadow p-6 mb-8">
     <h2 class="text-lg font-semibold text-gray-900 mb-1">Profit</h2>
-    <p class="text-sm text-gray-500 mb-4">The fee the till keeps, plus what the two currency legs came to on the rates each transfer was booked at.</p>
+    <p class="text-sm text-gray-500 mb-4">The charge kept, plus what the rates came to on the money that travelled, each transfer priced at the rates it was booked at. A transfer booked before its rates were stored has no exchange figure and is counted as nothing, never guessed; each window says how many of them it holds.</p>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         @foreach(['today' => 'Today', 'month' => 'This Month', 'all' => 'All Time'] as $window => $label)
         <div class="border border-gray-200 rounded-lg p-4">
             <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $label }}</div>
             <dl class="mt-3 space-y-2 text-sm">
                 <div class="flex gap-3">
-                    <dt class="text-gray-500 w-32 shrink-0">Service Fees</dt>
+                    <dt class="text-gray-500 w-32 shrink-0">Charge</dt>
                     <dd class="{{ $shillingTone($profit[$window]['fees']) }} font-medium">{{ $shilling($profit[$window]['fees']) }}</dd>
                 </div>
                 <div class="flex gap-3">
@@ -167,13 +167,13 @@
                     <dd class="{{ $shillingTone($profit[$window]['exchange']) }} font-medium">{{ $shilling($profit[$window]['exchange']) }}</dd>
                 </div>
                 <div class="flex gap-3 border-t pt-2">
-                    <dt class="text-gray-500 w-32 shrink-0">Total Profit</dt>
+                    <dt class="text-gray-500 w-32 shrink-0">Overall Profit</dt>
                     <dd class="{{ $shillingTone($profit[$window]['total']) }} font-bold">{{ $shilling($profit[$window]['total']) }}</dd>
                 </div>
             </dl>
             @if($profit[$window]['unpriced'] > 0)
             @php $count = $profit[$window]['unpriced']; @endphp
-            <p class="text-xs text-gray-400 mt-3">{{ number_format($count) }} completed {{ Str::plural('transfer', $count) }} {{ $count === 1 ? 'has' : 'have' }} no rates stored, so {{ $count === 1 ? 'it adds' : 'they add' }} nothing to Exchange Profit.</p>
+            <p class="text-xs text-amber-700 mt-3">{{ number_format($count) }} without rates</p>
             @endif
         </div>
         @endforeach
@@ -244,22 +244,20 @@
         </div>
     </div>
     <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Service Fees (Last 7 Days)</h2>
+        @role('admin|superadmin|accountant')
+        <h2 class="text-lg font-semibold text-gray-900 mb-1">Profit (Last 7 Days)</h2>
+        <p class="text-sm text-gray-500 mb-4">Stacked in shillings: the charge at the bottom and what the rates came to on top, so the top of each bar is the overall profit.</p>
+        <div style="position:relative; height:250px;">
+            <canvas id="profitChart"></canvas>
+        </div>
+        @else
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Charge Collected (Last 7 Days)</h2>
         <div style="position:relative; height:250px;">
             <canvas id="revenueChart"></canvas>
         </div>
+        @endrole
     </div>
 </div>
-
-@role('admin|superadmin|accountant')
-<div class="bg-white rounded-lg shadow p-6 mb-8">
-    <h2 class="text-lg font-semibold text-gray-900 mb-1">Profit (Last 7 Days)</h2>
-    <p class="text-sm text-gray-500 mb-4">Stacked in shillings. The yuan leg sits below the line on the days it cost money.</p>
-    <div style="position:relative; height:280px;">
-        <canvas id="profitChart"></canvas>
-    </div>
-</div>
-@endrole
 
 <div class="bg-white rounded-lg shadow">
     <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
@@ -343,27 +341,29 @@
         }
     });
 
-    new Chart(document.getElementById('revenueChart'), {
-        type: 'bar',
-        data: {
-            labels: chartData.labels,
-            datasets: [{
-                label: 'Service Fees ({{ $cur }})',
-                data: chartData.revenue,
-                backgroundColor: 'rgba(22, 163, 74, 0.8)',
-                borderColor: 'rgb(22, 163, 74)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true }
+    if (document.getElementById('revenueChart')) {
+        new Chart(document.getElementById('revenueChart'), {
+            type: 'bar',
+            data: {
+                labels: chartData.labels,
+                datasets: [{
+                    label: 'Charge (UGX)',
+                    data: chartData.revenue_ugx,
+                    backgroundColor: 'rgba(22, 163, 74, 0.8)',
+                    borderColor: 'rgb(22, 163, 74)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true }
+                }
             }
-        }
-    });
+        });
+    }
 
     @role('admin|superadmin|accountant')
     if (document.getElementById('profitChart')) {
@@ -373,19 +373,14 @@
                 labels: chartData.labels,
                 datasets: [
                     {
-                        label: 'Service Fees',
-                        data: chartData.fees,
+                        label: 'Charge',
+                        data: chartData.revenue_ugx,
                         backgroundColor: 'rgba(22, 163, 74, 0.8)'
                     },
                     {
-                        label: 'UGX to USD',
-                        data: chartData.margin_ugx,
+                        label: 'Foreign exchange profit',
+                        data: chartData.exchange_ugx,
                         backgroundColor: 'rgba(37, 99, 235, 0.8)'
-                    },
-                    {
-                        label: 'USD to RMB',
-                        data: chartData.yuan_ugx,
-                        backgroundColor: 'rgba(217, 119, 6, 0.8)'
                     }
                 ]
             },

@@ -187,21 +187,36 @@ class Account extends Model
             [
                 'code' => 'W-' . strtoupper($currency) . '-' . $user->id,
                 'name' => $user->name . ' (' . strtoupper($currency) . ')',
-                'country' => 'UG',
+                'country' => $user->country ?: User::DEFAULT_COUNTRY,
                 'is_active' => true,
             ]
         );
     }
 
     /**
-     * All three wallet accounts for a user, created on demand.
+     * Which currencies a person holds wallets in is decided by the country they work from.
+     * A desk in Uganda takes shillings and dollars; a desk in China pays out yuan and settles
+     * in dollars. Nobody is handed a wallet in a currency they never touch, which is why a
+     * Uganda agent no longer sees an empty yuan account beside their commission.
+     *
+     * @return array<int, string>
+     */
+    public static function currenciesFor(User $user): array
+    {
+        return ($user->country ?: User::DEFAULT_COUNTRY) === 'CN'
+            ? ['RMB', 'USD']
+            : ['UGX', 'USD'];
+    }
+
+    /**
+     * The wallet accounts this person's country gives them, created on demand.
      *
      * @return array<string, self>
      */
     public static function walletsFor(User $user): array
     {
         $wallets = [];
-        foreach (['UGX', 'USD', 'RMB'] as $currency) {
+        foreach (static::currenciesFor($user) as $currency) {
             $wallets[$currency] = static::walletFor($user, $currency);
         }
 

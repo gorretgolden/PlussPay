@@ -36,13 +36,14 @@ class AgentWalletTest extends TestCase
         return $this->namedAgent('Test Agent');
     }
 
-    private function namedAgent(string $name): User
+    private function namedAgent(string $name, string $country = 'UG'): User
     {
         $user = User::create([
             'name' => $name,
             'email' => 'agent'.uniqid().'@plussave.test',
             'password' => 'Password123',
             'is_active' => true,
+            'country' => $country,
         ]);
 
         $user->assignRole('agent');
@@ -76,16 +77,24 @@ class AgentWalletTest extends TestCase
         $this->assertTrue($wallet->isWallet());
     }
 
-    public function test_wallets_for_creates_all_three_currencies(): void
+    public function test_a_desk_in_uganda_holds_shillings_and_dollars_only(): void
     {
         $agent = $this->agent();
 
         $wallets = Account::walletsFor($agent);
 
-        $this->assertCount(3, $wallets);
-        $this->assertArrayHasKey('UGX', $wallets);
-        $this->assertArrayHasKey('USD', $wallets);
-        $this->assertArrayHasKey('RMB', $wallets);
+        $this->assertSame(['UGX', 'USD'], array_keys($wallets));
+        $this->assertSame('UG', $wallets['UGX']->country);
+    }
+
+    public function test_a_desk_in_china_holds_yuan_and_dollars_and_no_shilling_wallet(): void
+    {
+        $agent = $this->namedAgent('China Agent', 'CN');
+
+        $wallets = Account::walletsFor($agent);
+
+        $this->assertSame(['RMB', 'USD'], array_keys($wallets));
+        $this->assertSame('CN', $wallets['RMB']->country);
     }
 
     public function test_completed_transfer_deposits_fee_into_agent_wallet(): void
@@ -178,6 +187,25 @@ class AgentWalletTest extends TestCase
         $response->assertOk();
         $response->assertSee('Agent Wallets');
         $response->assertSee($agent->name);
+        // The country is on the row so an empty yuan column reads as "not their currency".
+        $response->assertSee('Uganda');
+        $response->assertSee('RMB Balance');
+        // The yuan cell is a dash, not a zero balance, because this desk holds no yuan.
+        $this->assertStringNotContainsString('&yen;', $response->getContent());
+    }
+
+    public function test_a_china_desk_shows_a_yuan_balance_and_no_shillings(): void
+    {
+        $agent = $this->namedAgent('Mei Lin', 'CN');
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)->get(route('wallet.index'));
+
+        $response->assertOk();
+        $response->assertSee('China');
+        // A yuan balance reaches the browser as a symbol, not as the letters that name it.
+        $this->assertStringContainsString('&yen;0.00', $response->getContent());
+        $this->assertStringNotContainsString('&amp;yen;', $response->getContent());
     }
 
     public function test_dashboard_shows_wallet_balances(): void
@@ -189,7 +217,20 @@ class AgentWalletTest extends TestCase
         $response->assertOk();
         $response->assertSee('UGX Wallet');
         $response->assertSee('USD Wallet');
+        // An empty yuan account on a Uganda desk is noise, not a balance to check.
+        $response->assertDontSee('RMB Wallet');
+    }
+
+    public function test_a_china_dashboard_shows_yuan_and_never_shillings(): void
+    {
+        $agent = $this->namedAgent('Mei Lin', 'CN');
+
+        $response = $this->actingAs($agent)->get(route('dashboard'));
+
+        $response->assertOk();
         $response->assertSee('RMB Wallet');
+        $response->assertSee('USD Wallet');
+        $response->assertDontSee('UGX Wallet');
     }
 
     public function test_company_accounts_are_not_wallets(): void

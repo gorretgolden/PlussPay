@@ -49,7 +49,7 @@ class TransferFlowTest extends TestCase
         return $user;
     }
 
-    private function book(User $booker, string $amount = '10000'): Transaction
+    private function book(User $booker, string $amount = '10000', string $charge = '50'): Transaction
     {
         $this->actingAs($booker)->get('/transactions/create');
         $this->actingAs($booker)->post('/transactions', [
@@ -58,6 +58,7 @@ class TransferFlowTest extends TestCase
             'receiver_name' => 'Flow Receiver',
             'currency' => 'UGX',
             'amount' => $amount,
+            'charge_ugx' => $charge,
         ])->assertSessionHasNoErrors();
 
         return Transaction::latest('id')->firstOrFail();
@@ -69,8 +70,10 @@ class TransferFlowTest extends TestCase
         $transaction = $this->book($admin);
 
         $this->assertSame('completed', $transaction->status);
-        // UGX 10,000 handed over plus the UGX 50 charge on the $2.50 it converts to.
-        $this->assertSame('10050.00', Account::byCode(Account::UGX_UGANDA)->balance());
+        // The whole UGX 10,000 handed over reaches the till: UGX 50 of it is the charge and the
+        // remaining UGX 9,950 is the money that travels.
+        $this->assertSame('9950.00', $transaction->amount);
+        $this->assertSame('10000.00', Account::byCode(Account::UGX_UGANDA)->balance());
         $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'money_in')->count());
     }
 
@@ -121,7 +124,7 @@ class TransferFlowTest extends TestCase
             ->assertSessionHasErrors('reason');
 
         $this->assertSame('completed', $transaction->fresh()->status);
-        $this->assertSame('10050.00', Account::byCode(Account::UGX_UGANDA)->balance());
+        $this->assertSame('10000.00', Account::byCode(Account::UGX_UGANDA)->balance());
     }
 
     public function test_cancelling_a_completed_transfer_returns_the_money_it_took_in(): void
@@ -153,7 +156,7 @@ class TransferFlowTest extends TestCase
         $this->actingAs($admin)
             ->get('/reports?type=profit')
             ->assertOk()
-            ->assertSee('2 completed transaction(s)')
+            ->assertSee('2 completed transfers were booked before their buying rates were stored')
             ->assertSee($newer->receipt_number);
     }
 

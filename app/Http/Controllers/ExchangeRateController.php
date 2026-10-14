@@ -75,34 +75,43 @@ class ExchangeRateController extends Controller
 
     /**
      * One real transfer priced through the same calculator a booking uses, so the warning
-     * is not abstract: it shows the fee, the shilling margin and the yuan leg for a concrete
-     * USD 1,000 send. Null when the USD to UGX pair is missing, since then nothing prices.
+     * is not abstract: it shows the charge, the exchange profit and the overall profit for a
+     * concrete hand-over of shillings. Null when the USD to UGX pair is missing, since then
+     * nothing prices.
      *
      * @return array<string, string>|null
      */
     private function sendExample(): ?array
     {
-        $ugxToUsd = ExchangeRate::usdToUgx();
-        if (!$ugxToUsd || $ugxToUsd <= 0) {
+        $pair = ExchangeRate::usdUgxPair();
+        if (! $pair || $pair['sell'] <= 0) {
             return null;
         }
 
-        $quote = ProfitCalculator::quote('UGX', '1000.00');
+        // A send that leaves exactly a thousand dollars behind the counter: the charge the
+        // settings rule gives for those dollars, added to the shillings they are sold at.
+        $charge = ProfitCalculator::suggestedCharge('USD', '1000') ?? '0.00';
+        $cash = bcadd(bcmul('1000', (string) $pair['sell'], 2), $charge, 2);
+        $quote = ProfitCalculator::quote('UGX', $cash, $charge);
         if ($quote === null) {
             return null;
         }
 
+        $shilling = function (string $value): string {
+            $figure = (float) $value;
+
+            return $figure < 0
+                ? 'Loss UGX ' . number_format(abs($figure), 2)
+                : 'UGX ' . number_format($figure, 2);
+        };
+
         return [
-            'hands_over' => 'UGX '.number_format((float) $ugxToUsd * 1000, 2),
-            'buys' => 'USD 1,000.00',
-            'fee' => 'UGX '.number_format((float) $quote['charge_ugx'], 2),
-            'margin' => 'UGX '.number_format((float) $quote['fx_profit_ugx'], 2),
-            'yuan_leg' => $quote['usd_rmb_profit_ugx'] === null
-                ? 'not priced'
-                : 'UGX '.number_format((float) $quote['usd_rmb_profit_ugx'], 2),
-            'total' => $quote['total_profit_ugx'] === null
-                ? 'not priced'
-                : 'UGX '.number_format((float) $quote['total_profit_ugx'], 2),
+            'hands_over' => $shilling($cash),
+            'travels' => $shilling($quote['amount']),
+            'dollars' => 'USD ' . number_format((float) $quote['total_usd_equivalent'], 1),
+            'charge' => $shilling($quote['charge_ugx']),
+            'exchange' => $shilling(bcadd($quote['fx_profit_ugx'], $quote['usd_rmb_profit_ugx'], 2)),
+            'total' => $shilling($quote['total_profit_ugx']),
         ];
     }
 

@@ -40,12 +40,13 @@ class ReportConsolidationTest extends TestCase
         return $user;
     }
 
-    public function test_the_yuan_leg_appears_in_the_tables_and_the_cards(): void
+    public function test_the_exchange_profit_folds_both_legs_into_one_figure_everywhere(): void
     {
         $admin = $this->user('Gorret Admin', 'admin');
 
         // 250 dollars bought in at 7.00 and handed over at 7.40 lose 100 yuan, which cost the
-        // business 100 / 7.00 x 3,600 = 51,428.57 shillings.
+        // business 100 / 7.00 x 3,600 = 51,428.57 shillings. That leg and the margin on the same
+        // transfer are one exchange figure now, so nothing on the page names them apart.
         $this->transfer($admin, [
             'fx_profit_ugx' => 1200,
             'fx_profit_usd' => 1.5,
@@ -64,25 +65,31 @@ class ReportConsolidationTest extends TestCase
         $daily = $response->viewData('dailySummary');
         $byAgent = $response->viewData('byAgent');
 
-        $this->assertEqualsWithDelta(-51428.571429, (float) $profit['yuan_ugx'], 0.01);
-        $this->assertEqualsWithDelta(-100, (float) $profit['yuan_rmb'], 0.01);
-        // The 100 yuan are read back at the 7.00 the transfer itself delivered at.
-        $this->assertEqualsWithDelta(-14.2857, (float) $profit['yuan_usd'], 0.01);
+        // The margin of 1,200 plus 900 against the one yuan leg of 51,429 lost.
+        $this->assertEqualsWithDelta(-49328.571429, (float) $profit['exchange_ugx'], 0.01);
 
-        // The tables have to add up to the same leg the cards show, once per table.
-        $this->assertEqualsWithDelta((float) $profit['yuan_ugx'], (float) $daily->sum('yuan_ugx'), 0.01);
-        $this->assertEqualsWithDelta((float) $profit['yuan_ugx'], (float) $byAgent->sum('yuan_ugx'), 0.01);
+        // The tables have to add up to the same figure the card shows, once per table.
+        $this->assertEqualsWithDelta((float) $profit['exchange_ugx'], (float) $daily->sum('exchange_ugx'), 0.01);
+        $this->assertEqualsWithDelta((float) $profit['exchange_ugx'], (float) $byAgent->sum('exchange_ugx'), 0.01);
 
-        // Once in each table header, and the day line plus the agent line show the loss itself.
-        $this->assertSame(2, substr_count($html, 'Yuan Leg (UGX)'));
-        $this->assertStringContainsString('Loss &yen;100.00', $html);
-        // Both transfers' fees (18,800) and margins (2,100) against the one yuan leg of 51,429
-        // lost leaves the period 30,529 in the red.
+        // The charge is its own column and the overall figure is the two added: charges of
+        // 18,800 and exchange of 49,329 lost leaves the period 30,529 in the red.
+        $this->assertEqualsWithDelta(18800, (float) $profit['fee_ugx'], 0.01);
+        $this->assertEqualsWithDelta(-30528.571429, (float) $profit['total_ugx'], 0.01);
         $this->assertStringContainsString('Loss UGX 30,529', $html);
+        $this->assertStringContainsString('Loss UGX 49,329', $html);
         $this->assertStringContainsString('text-red-600', $html);
 
+        // Both legs stay stored on the row, but no column or card is allowed to name them.
+        $this->assertStringNotContainsString('Yuan Leg', $html);
+        $this->assertStringNotContainsString('Margin', $html);
+        // Once in each table that reports profit in shillings: Daily, Agent and Rate.
+        $this->assertSame(3, substr_count($html, 'Exchange Profit (UGX)'));
+
         // The transfer with no yuan rate is counted, because the totals above are short by it.
-        $this->assertStringContainsString('1 completed transaction(s) carry no yuan buying rate', $html);
+        // Both rate gaps are reported as one notice rather than two paragraphs on the same row.
+        $this->assertStringContainsString('1 completed transfer was booked before its buying rates were stored', $html);
+        $this->assertSame(1, substr_count($html, 'completed transfer was booked before'));
     }
 
     private function transfer(User $by, array $overrides = []): Transaction
@@ -117,7 +124,7 @@ class ReportConsolidationTest extends TestCase
             ->assertOk();
     }
 
-    public function test_the_daily_and_agent_tables_carry_the_same_yuan_as_the_profit_cards(): void
+    public function test_the_daily_and_agent_tables_carry_the_same_yuan_overall_as_the_cards(): void
     {
         $admin = $this->user('Gorret Admin', 'admin');
 
@@ -139,20 +146,24 @@ class ReportConsolidationTest extends TestCase
         $daily = $response->viewData('dailySummary');
         $byAgent = $response->viewData('byAgent');
 
-        // Fee: 2.50 at seven plus 3.00 at 7.4. Margin: 1.50 at seven plus 1.20 at 7.4.
-        $this->assertEqualsWithDelta(39.7, (float) $profit['fee_rmb'], 0.01);
-        $this->assertEqualsWithDelta(19.38, (float) $profit['fx_rmb'], 0.01);
+        // One yuan figure per line now, being the whole overall profit: 2.50 charge plus 1.50 of
+        // exchange at seven, and 3.00 plus 1.20 at 7.4.
+        $this->assertEqualsWithDelta(59.08, (float) $profit['total_rmb'], 0.01);
+        $this->assertEqualsWithDelta((float) $profit['total_rmb'], (float) $daily->sum('total_rmb'), 0.01);
+        $this->assertEqualsWithDelta((float) $profit['total_rmb'], (float) $byAgent->sum('total_rmb'), 0.01);
 
-        $this->assertEqualsWithDelta((float) $profit['fee_rmb'], (float) $daily->sum('fee_rmb'), 0.01);
-        $this->assertEqualsWithDelta((float) $profit['fx_rmb'], (float) $daily->sum('fx_rmb'), 0.01);
-        $this->assertEqualsWithDelta((float) $profit['fee_rmb'], (float) $byAgent->sum('fee_rmb'), 0.01);
-        $this->assertEqualsWithDelta((float) $profit['fx_rmb'], (float) $byAgent->sum('fx_rmb'), 0.01);
+        // The shilling exchange column in both tables adds to the same figure the card shows.
+        $this->assertEqualsWithDelta(2100, (float) $profit['exchange_ugx'], 0.01);
+        $this->assertEqualsWithDelta(2100, (float) $daily->sum('exchange_ugx'), 0.01);
+        $this->assertEqualsWithDelta(2100, (float) $byAgent->sum('exchange_ugx'), 0.01);
 
-        // Once in each table's row and once in each table's total line.
+        // The yuan overall prints once per table line and once per table total, and once on each
+        // of the two cards that state it.
         $this->assertSame(4, substr_count($response->getContent(), '>59.08<'));
+        $this->assertSame(2, substr_count($response->getContent(), '&yen;59.08'));
     }
 
-    public function test_the_yuan_profit_has_its_own_row_of_cards(): void
+    public function test_the_profit_cards_state_shillings_with_the_yuan_beside_the_overall(): void
     {
         $admin = $this->user('Gorret Admin', 'admin');
         $this->transfer($admin, ['fx_profit_ugx' => 1200, 'fx_profit_usd' => 1.5]);
@@ -166,34 +177,60 @@ class ReportConsolidationTest extends TestCase
 
         $html = $this->reports($admin)->getContent();
 
-        foreach (['Profit in shillings', 'Profit in yuan'] as $heading) {
-            $this->assertSame(1, substr_count($html, $heading), "Expected [$heading] exactly once.");
+        // The client asked for the whole profit on a transfer at once, so there is no second row
+        // of yuan cards any more. The yuan he still reads sits on the overall card itself.
+        $this->assertSame(1, substr_count($html, 'Profit in shillings'));
+        $this->assertStringNotContainsString('Profit in yuan', $html);
+
+        foreach (['Overall Profit', 'Foreign Exchange Profit', 'Profit on One Dollar Sent'] as $heading) {
+            $this->assertStringContainsString('>'.$heading.'<', $html);
         }
 
-        // Total, fee, and margin in yuan, each read at the rate its own transfer booked at.
-        foreach (['>&yen;59.08<', '>&yen;39.70<', '>&yen;19.38<'] as $figure) {
+        // Overall 20,900 shillings, which is 59.08 yuan, made of 18,800 of charge and 2,100 of
+        // exchange, and 41.80 shillings for each of the 500 dollars sent.
+        foreach (['UGX 20,900', '&yen;59.08', 'UGX 18,800', 'UGX 2,100', 'UGX 41.80'] as $figure) {
             $this->assertStringContainsString($figure, $html);
         }
-
-        // The yuan cards replace the small sub-lines the old profit cards carried. The hub
-        // card still says "RMB" in its label, so we only check the profit section is clean.
-        $profitSection = substr($html, strpos($html, 'id="section-profit"'), strpos($html, 'id="section-commission"') - strpos($html, 'id="section-profit"'));
-        $this->assertStringNotContainsString(' RMB</div>', $profitSection);
     }
 
-    public function test_a_transfer_page_shows_what_that_one_transfer_earned_in_yuan(): void
+    public function test_a_transfer_page_shows_the_charge_the_exchange_profit_and_the_overall(): void
     {
         $admin = $this->user('Gorret Admin', 'admin');
-        $transaction = $this->transfer($admin, ['fx_profit_ugx' => 1200, 'fx_profit_usd' => 1.5]);
 
-        // Fee 2.50 plus margin 1.50 is 4.00 dollars, and this transfer delivered 1,750 yuan
-        // on 250 dollars, so seven each: 4.00 x 7 = 28.00.
+        // Both legs recorded, so this one transfer has a priced exchange profit: 1,200 of margin
+        // less a yuan leg of 51,428.57 is 50,228.57 lost, and the 9,400 charge brings the overall
+        // to 40,828.57 lost. All three are shillings, because that is where the money is kept.
+        $priced = $this->transfer($admin, [
+            'fx_profit_ugx' => 1200,
+            'fx_profit_usd' => 1.5,
+            'usd_rmb_profit_ugx' => -51428.571429,
+            'usd_rmb_profit_cny' => -100,
+            'total_profit_ugx' => -40828.571429,
+        ]);
+
         $html = $this->actingAs($admin)
-            ->get('/transactions/'.$transaction->id)
+            ->get('/transactions/'.$priced->id)
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('&yen;28.00', $html);
+        foreach (['Foreign exchange profit:', 'Charge:', 'Overall profit:'] as $label) {
+            $this->assertStringContainsString($label, $html);
+        }
+        foreach (['Loss UGX 50,228.57', 'UGX 9,400.00', 'Loss UGX 40,828.57'] as $figure) {
+            $this->assertStringContainsString($figure, $html);
+        }
+
+        // A transfer booked before the yuan rate was snapshotted leaves the exchange figure as
+        // n/a instead of showing only the margin, which would read as a priced result.
+        $unpriced = $this->transfer($admin);
+
+        $html = $this->actingAs($admin)
+            ->get('/transactions/'.$unpriced->id)
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('n/a', $html);
+        $this->assertStringContainsString('No buying rate was recorded on this transfer', $html);
     }
 
     public function test_the_page_holds_one_daily_table_and_one_agent_table(): void
@@ -220,8 +257,11 @@ class ReportConsolidationTest extends TestCase
 
         $html = $this->reports($agent)->getContent();
 
-        $this->assertStringContainsString('Revenue (USD)', $html);
-        $this->assertStringNotContainsString('Margin (UGX)', $html);
+        // The desk keeps its own earnings in shillings and nothing else: no exchange figure, no
+        // overall, and no view of the rate sheet the office books at.
+        $this->assertStringContainsString('Charge (UGX)', $html);
+        $this->assertStringNotContainsString('Foreign Exchange Profit', $html);
+        $this->assertStringNotContainsString('Profit on One Dollar Sent', $html);
         $this->assertStringNotContainsString('Rates Booked in This Period', $html);
         $this->assertStringContainsString('My Commission', $html);
     }

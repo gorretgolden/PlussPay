@@ -266,7 +266,7 @@ class SecurityHardeningTest extends TestCase
             'receiver_contact' => '+86 138 0000 0000',
             'currency' => 'USD',
             'amount' => 200,
-            'charge_rate' => 5,
+            'charge_ugx' => 2000,
             'notes' => 'Sending money to China',
         ];
 
@@ -316,7 +316,7 @@ class SecurityHardeningTest extends TestCase
         );
     }
 
-    public function test_client_cannot_for_its_own_rate_or_charge(): void
+    public function test_client_cannot_for_its_own_rate_or_the_figures_built_from_it(): void
     {
         Setting::set('service_fee_ugx', '2000', 'float', 'transaction');
         Setting::set('service_fee_usd', '100', 'float', 'transaction');
@@ -334,6 +334,7 @@ class SecurityHardeningTest extends TestCase
             'receiver_contact' => '+86 138 0000 0000',
             'currency' => 'USD',
             'amount' => 1000,
+            'charge_ugx' => 20000,
             'charge_rate' => 0,
             'exchange_rate' => 1,
             'total_usd_equivalent' => 1,
@@ -343,12 +344,13 @@ class SecurityHardeningTest extends TestCase
 
         $transaction = Transaction::first();
 
-        // The client sent charge_rate 0, exchange_rate 1 and status cancelled; all three are decided server-side.
-        // UGX 2,000 per 100 USD means $1,000 is charged UGX 20,000, which is $5.40 at USD/UGX 3700.
+        // The charge is the one figure the operator enters, so it is kept as typed. Everything
+        // else the client forged (rate, dollars, yuan, status) is decided server-side.
         $this->assertSame('20000.00', (string) $transaction->charge_ugx);
-        $this->assertSame('5.40', (string) $transaction->charge_amount);
+        $this->assertSame('5.41', (string) $transaction->charge_amount);
         $this->assertSame('7.240000', (string) $transaction->exchange_rate);
         $this->assertSame('7240.00', (string) $transaction->rmb_amount);
+        $this->assertEqualsWithDelta(1000.0, (float) $transaction->total_usd_equivalent, 0.001);
         $this->assertSame('completed', $transaction->status);
     }
 }

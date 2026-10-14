@@ -36,9 +36,8 @@ class TransactionController extends Controller
 
     public function create()
     {
-        $usdToRmb = ExchangeRate::getActiveRate('USD', 'RMB');
-        $usdToUgx = ExchangeRate::usdToUgx();
-        $ugxToUsdRate = $usdToUgx ? 1 / $usdToUgx : null;
+        $usdUgx = ExchangeRate::usdUgxPair();
+        $usdRmb = ExchangeRate::pair('USD', 'RMB');
         $serviceFeeUgx = (float) \App\Models\Setting::get('service_fee_ugx', 2000);
         $serviceFeeUsd = (float) \App\Models\Setting::get('service_fee_usd', 100);
 
@@ -46,7 +45,7 @@ class TransactionController extends Controller
         $formId = (string) Str::uuid();
         session(['transaction_form_id' => $formId]);
 
-        return view('transactions.create', compact('usdToRmb', 'ugxToUsdRate', 'serviceFeeUgx', 'serviceFeeUsd', 'formId'));
+        return view('transactions.create', compact('usdUgx', 'usdRmb', 'serviceFeeUgx', 'serviceFeeUsd', 'formId'));
     }
 
     public function store(Request $request)
@@ -62,6 +61,7 @@ class TransactionController extends Controller
             'receiver_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
             'currency' => 'required|in:UGX,USD',
             'amount' => "required|numeric|min:{$minAmount}|max:{$maxAmount}|decimal:0,2",
+            'charge_ugx' => "required|numeric|min:0|max:{$maxAmount}|decimal:0,2",
             'purpose' => 'nullable|string|max:100',
             'purpose_other' => 'required_if:purpose,Other|nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
@@ -70,6 +70,9 @@ class TransactionController extends Controller
             'amount.min' => "Minimum amount is {$minAmount}.",
             'amount.max' => "Maximum amount is ".number_format($maxAmount).".",
             'amount.decimal' => 'Amount cannot have more than 2 decimal places.',
+            'charge_ugx.required' => 'Enter the charge taken out of the money handed over.',
+            'charge_ugx.numeric' => 'The charge must be a number of shillings.',
+            'charge_ugx.min' => 'The charge cannot be negative.',
             'purpose_other.required_if' => 'Please say what the other reason is.',
             'sender_name.required' => 'Sender name is required.',
             'sender_name.min' => 'Sender name must be at least 2 characters.',
@@ -84,28 +87,20 @@ class TransactionController extends Controller
             return back()->withErrors(['form_id' => 'This transaction was already submitted. Start a new form to send another.']);
         }
 
-        $usdToRmbRate = ExchangeRate::getActiveRate('USD', 'RMB');
-        if (!$usdToRmbRate) {
+        if (! ExchangeRate::getActiveRate('USD', 'RMB')) {
             return back()->withErrors(['exchange_rate' => 'USD to RMB rate not set. Please contact admin.']);
         }
 
-        $amount = (float) $validated['amount'];
-        $currency = $validated['currency'];
-
-        if ($currency === 'UGX') {
-            $usdToUgx = ExchangeRate::usdToUgx();
-            if (!$usdToUgx) {
-                return back()->withErrors(['exchange_rate' => 'UGX to USD rate not set. Please contact admin.']);
-            }
-            $usdEquivalent = bcdiv((string) $amount, (string) $usdToUgx, 2);
-        } else {
-            $usdEquivalent = (string) $amount;
+        if (! ExchangeRate::usdUgxPair()) {
+            return back()->withErrors(['exchange_rate' => 'UGX to USD rate not set. Please contact admin.']);
         }
 
-        $rmbAmount = bcmul($usdEquivalent, (string) $usdToRmbRate->rate, 2);
-        $profit = ProfitCalculator::quote($currency, $usdEquivalent);
-        if ($profit === null) {
-            return back()->withErrors(['exchange_rate' => 'UGX rate not set. The service fee cannot be calculated.'])->withInput();
+        // The browser only ever shows a preview. Every figure that lands in the books, including
+        // the money that travels and the yuan handed to the receiver, is priced here instead.
+        $quote = ProfitCalculator::quote($validated['currency'], (string) $validated['amount'], (string) $validated['charge_ugx']);
+
+        if ($quote === null) {
+            return back()->withErrors(['charge_ugx' => 'The charge leaves nothing to send. It must be less than the money handed over.'])->withInput();
         }
 
         $purpose = $validated['purpose'] ?? null;
@@ -120,16 +115,12 @@ class TransactionController extends Controller
             'sender_contact' => trim($validated['sender_contact'] ?? ''),
             'receiver_name' => trim($validated['receiver_name']),
             'receiver_contact' => trim($validated['receiver_contact'] ?? ''),
-            'currency' => $currency,
-            'amount' => $amount,
-            'exchange_rate' => $usdToRmbRate->rate,
-            'rmb_amount' => $rmbAmount,
-            'total_usd_equivalent' => $usdEquivalent,
+            'currency' => $validated['currency'],
             'status' => 'completed',
             'created_by' => auth()->id(),
             'purpose' => $purpose ? trim($purpose) : null,
             'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
-        ], $profit)));
+        ], $quote)));
 
         session(['transaction_form_id' => (string) Str::uuid()]);
 
@@ -266,8 +257,8 @@ class TransactionController extends Controller
 
             $minAmount = (float) \App\Models\Setting::get('min_transaction_amount', 100);
             $maxAmount = (float) \App\Models\Setting::get('max_transaction_amount', 100000000);
-            if (! ExchangeRate::usdToUgx()) {
-                return back()->withErrors(['file' => 'UGX rate not set. The service fee cannot be calculated.']);
+            if (! ExchangeRate::usdUgxPair()) {
+                return back()->withErrors(['file' => 'UGX rate not set. The transfer cannot be priced.']);
             }
             $imported = 0;
             $errors = [];
@@ -276,8 +267,8 @@ class TransactionController extends Controller
             // row that repeats the file or the last week of bookings is rejected.
             $seenInFile = [];
             $bookedRecently = Transaction::where('created_at', '>=', now()->subDays(7))
-                ->get(['receipt_number', 'sender_contact', 'receiver_contact', 'currency', 'amount', 'created_at'])
-                ->keyBy(fn ($t) => $this->importMatchKey($t->sender_contact, $t->receiver_contact, $t->currency, $t->amount));
+                ->get(['receipt_number', 'sender_contact', 'receiver_contact', 'currency', 'amount', 'charge_ugx', 'created_at'])
+                ->keyBy(fn ($t) => $this->importMatchKey($t->sender_contact, $t->receiver_contact, $t->currency, $t->cashReceived()));
 
             foreach ($rows as $index => $row) {
                 $rowNumber = $index + 2;
@@ -289,6 +280,7 @@ class TransactionController extends Controller
                     'receiver_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
                     'currency' => 'required|in:UGX,USD',
                     'amount' => "required|numeric|min:{$minAmount}|max:{$maxAmount}",
+                    'charge_ugx' => 'nullable|numeric|min:0|max:'.$maxAmount,
                     'purpose' => 'nullable|string|max:100',
                     'notes' => 'nullable|string|max:500',
                 ]);
@@ -300,11 +292,17 @@ class TransactionController extends Controller
 
                 $data = $checked->validated();
                 $currency = strtoupper(trim($data['currency']));
-                $amount = (float) $data['amount'];
+                $cashReceived = (string) $data['amount'];
+
+                // A file with no charge column, or a blank cell, gets the charge the System
+                // Settings rule suggests. The operator can put the real figure in the file.
+                $charge = isset($data['charge_ugx']) && $data['charge_ugx'] !== ''
+                    ? (string) $data['charge_ugx']
+                    : (ProfitCalculator::suggestedCharge($currency, $cashReceived) ?? '0.00');
 
                 $sender = trim($data['sender_contact'] ?? '');
                 $receiver = trim($data['receiver_contact'] ?? '');
-                $matchKey = $this->importMatchKey($sender, $receiver, $currency, $amount);
+                $matchKey = $this->importMatchKey($sender, $receiver, $currency, $cashReceived);
 
                 if (isset($seenInFile[$matchKey])) {
                     $errors[] = "Row {$rowNumber}: repeats row {$seenInFile[$matchKey]} in this file. If both are real transfers, book the second one on its own form.";
@@ -318,21 +316,9 @@ class TransactionController extends Controller
                     continue;
                 }
 
-                if ($currency === 'UGX') {
-                    $usdToUgx = ExchangeRate::usdToUgx();
-                    if (!$usdToUgx) {
-                        $errors[] = "Row {$rowNumber}: UGX to USD rate not set";
-                        continue;
-                    }
-                    $usdEquivalent = bcdiv((string) $amount, (string) $usdToUgx, 2);
-                } else {
-                    $usdEquivalent = (string) $amount;
-                }
-
-                $rmbAmount = bcmul($usdEquivalent, (string) $usdToRmbRate->rate, 2);
-                $profit = ProfitCalculator::quote($currency, $usdEquivalent);
-                if ($profit === null) {
-                    $errors[] = "Row {$rowNumber}: UGX to USD rate not set";
+                $quote = ProfitCalculator::quote($currency, $cashReceived, $charge);
+                if ($quote === null) {
+                    $errors[] = "Row {$rowNumber}: the charge of {$charge} leaves nothing to send out of {$cashReceived}.";
                     continue;
                 }
 
@@ -340,22 +326,18 @@ class TransactionController extends Controller
                     // One transaction per row: the booking and the ledger entries it posts are
                     // either all saved or none of them are, so a bad row cannot leave half a
                     // transfer in the books.
-                    DB::transaction(function () use ($data, $sender, $receiver, $currency, $amount, $usdToRmbRate, $rmbAmount, $profit, $usdEquivalent) {
+                    DB::transaction(function () use ($data, $sender, $receiver, $currency, $quote) {
                         $transaction = Transaction::createWithReceiptNumber(array_merge([
                             'sender_name' => trim($data['sender_name']),
                             'sender_contact' => $sender,
                             'receiver_name' => trim($data['receiver_name']),
                             'receiver_contact' => $receiver,
                             'currency' => $currency,
-                            'amount' => $amount,
-                            'exchange_rate' => $usdToRmbRate->rate,
-                            'rmb_amount' => $rmbAmount,
-                            'total_usd_equivalent' => $usdEquivalent,
                             'status' => 'completed',
                             'created_by' => auth()->id(),
                             'purpose' => !empty($data['purpose']) ? trim($data['purpose']) : null,
                             'notes' => !empty($data['notes']) ? trim($data['notes']) : null,
-                        ], $profit));
+                        ], $quote));
 
                         ActivityLog::create([
                             'transaction_id' => $transaction->id,
