@@ -240,26 +240,6 @@
 
 {{-- Charts --}}
 <div id="section-transaction" class="mb-6">
-    @role('admin|superadmin')
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
-            <div class="text-xs text-gray-500">Total Profit (RMB)</div>
-            <div class="text-xl font-bold text-purple-700 mt-1">&yen;{{ number_format($profit['total_rmb'], 2) }}</div>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="text-xs text-gray-500">Fee Income (RMB)</div>
-            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['fee_rmb'], 2) }}</div>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="text-xs text-gray-500">FX Margin (RMB)</div>
-            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['fx_rmb'], 2) }}</div>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="text-xs text-gray-500">Per Dollar (RMB)</div>
-            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['per_dollar_rmb'], 4) }}</div>
-        </div>
-    </div>
-    @endrole
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white rounded-lg shadow p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Transaction Volume</h3>
@@ -273,26 +253,6 @@
 </div>
 
 <div id="section-revenue" class="mb-6">
-    @role('admin|superadmin')
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
-            <div class="text-xs text-gray-500">Total Profit (RMB)</div>
-            <div class="text-xl font-bold text-purple-700 mt-1">&yen;{{ number_format($profit['total_rmb'], 2) }}</div>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="text-xs text-gray-500">Fee Income (RMB)</div>
-            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['fee_rmb'], 2) }}</div>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="text-xs text-gray-500">FX Margin (RMB)</div>
-            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['fx_rmb'], 2) }}</div>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="text-xs text-gray-500">Per Dollar (RMB)</div>
-            <div class="text-xl font-bold text-gray-900 mt-1">&yen;{{ number_format($profit['per_dollar_rmb'], 4) }}</div>
-        </div>
-    </div>
-    @endrole
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white rounded-lg shadow p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Transaction Status Distribution</h3>
