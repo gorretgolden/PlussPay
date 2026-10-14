@@ -29,7 +29,7 @@ class RoleAndUserSeeder extends Seeder
 
         foreach (self::DEMO_ACCOUNTS as $account) {
             if (app()->environment('production') && $account['role'] !== 'superadmin') {
-                $this->warn("Skipped {$account['email']} - demo accounts are not created on production.");
+                $this->say("Skipped {$account['email']} - demo accounts are not created on production.");
                 continue;
             }
 
@@ -53,9 +53,19 @@ class RoleAndUserSeeder extends Seeder
             $user->assignRole($account['role']);
 
             if (!$existed) {
-                $this->info("Created {$account['email']} with password: {$password}");
-                $this->info('Store that password somewhere safe. It is not saved in the repository.');
+                $this->say("Created {$account['email']} with password: {$password}");
+                $this->say('Store that password somewhere safe. It is not saved in the repository.');
             }
         }
+    }
+
+    /**
+     * This framework build removed the Seeder console helpers, so write through the
+     * command when there is one and stay silent otherwise. Seeding still has to run
+     * headless in tests, where no command is attached.
+     */
+    private function say(string $message): void
+    {
+        $this->command?->getOutput()->writeln($message);
     }
 }
