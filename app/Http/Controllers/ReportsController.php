@@ -53,6 +53,13 @@ class ReportsController extends Controller
         $unpricedCount = $unpriced->count();
         $unpricedReceipts = $unpriced->pluck('receipt_number')->values();
 
+        // The yuan leg is missing on a wider set than the margin: any transfer booked before the
+        // yuan buying rate was snapshotted has no figure at all, including the ones with good
+        // dollar rates. Those rows add nothing to the yuan total, so the count is shown beside it.
+        $yuanUnpricedCount = $transactions->where('status', 'completed')
+            ->filter(fn (Transaction $t) => $t->usd_rmb_profit_cny === null)
+            ->count();
+
         $byCurrency = $transactions->where('status', 'completed')
             ->groupBy('currency')
             ->map(fn ($items) => [
@@ -69,14 +76,14 @@ class ReportsController extends Controller
             ->visibleTo(auth()->user())
             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
             ->where('status', 'completed')
-            ->selectRaw('created_by, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(charge_amount) as total_revenue, sum(charge_ugx) as fee_ugx, sum(fx_profit_ugx) as fx_ugx, sum(fx_profit_usd) as fx_usd, sum(charge_amount * '.$rmbRate.') as fee_rmb, sum(fx_profit_usd * '.$rmbRate.') as fx_rmb', array_merge($rmbBinding, $rmbBinding))
+            ->selectRaw('created_by, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(charge_amount) as total_revenue, sum(charge_ugx) as fee_ugx, sum(fx_profit_ugx) as fx_ugx, sum(fx_profit_usd) as fx_usd, sum(coalesce(usd_rmb_profit_ugx, 0)) as yuan_ugx, sum(coalesce(usd_rmb_profit_cny, 0)) as yuan_rmb, sum(coalesce(usd_rmb_profit_cny, 0) / nullif('.$rmbRate.', 0)) as yuan_usd, sum(charge_amount * '.$rmbRate.') as fee_rmb, sum(fx_profit_usd * '.$rmbRate.') as fx_rmb', array_merge($rmbBinding, $rmbBinding, $rmbBinding))
             ->groupBy('created_by')
             ->get();
 
         $dailySummary = Transaction::visibleTo(auth()->user())
             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
             ->where('status', 'completed')
-            ->selectRaw('DATE(created_at) as date, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(charge_amount) as revenue, sum(charge_ugx) as fee_ugx, sum(fx_profit_ugx) as fx_ugx, sum(fx_profit_usd) as fx_usd, sum(charge_amount * '.$rmbRate.') as fee_rmb, sum(fx_profit_usd * '.$rmbRate.') as fx_rmb', array_merge($rmbBinding, $rmbBinding))
+            ->selectRaw('DATE(created_at) as date, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(charge_amount) as revenue, sum(charge_ugx) as fee_ugx, sum(fx_profit_ugx) as fx_ugx, sum(fx_profit_usd) as fx_usd, sum(coalesce(usd_rmb_profit_ugx, 0)) as yuan_ugx, sum(coalesce(usd_rmb_profit_cny, 0)) as yuan_rmb, sum(coalesce(usd_rmb_profit_cny, 0) / nullif('.$rmbRate.', 0)) as yuan_usd, sum(charge_amount * '.$rmbRate.') as fee_rmb, sum(fx_profit_usd * '.$rmbRate.') as fx_rmb', array_merge($rmbBinding, $rmbBinding, $rmbBinding))
             ->groupBy(DB::raw('DATE(created_at)'))
             ->orderBy('date')
             ->get();
@@ -97,7 +104,7 @@ class ReportsController extends Controller
 
         $commission = $this->commissionTotals($dateFrom, $dateTo, auth()->user());
 
-        return view('reports.index', compact('stats', 'profit', 'unpricedCount', 'unpricedReceipts', 'byCurrency', 'byAgent', 'dailySummary', 'byCustomer', 'byRate', 'dateFrom', 'dateTo', 'transactions', 'reportType', 'commission'));
+        return view('reports.index', compact('stats', 'profit', 'unpricedCount', 'unpricedReceipts', 'yuanUnpricedCount', 'byCurrency', 'byAgent', 'dailySummary', 'byCustomer', 'byRate', 'dateFrom', 'dateTo', 'transactions', 'reportType', 'commission'));
     }
 
     /**
@@ -184,8 +191,6 @@ class ReportsController extends Controller
         $feeUsd = (float) $completed->sum('charge_amount');
         $fxUgx = (float) $completed->sum('fx_profit_ugx');
         $fxUsd = (float) $completed->sum('fx_profit_usd');
-        $totalUgx = $feeUgx + $fxUgx;
-        $totalUsd = $feeUsd + $fxUsd;
 
         // Read in yuan at the rate each transfer was actually booked at, which is the RMB
         // it delivered divided by the dollars it was worth. Rows saved before those two
@@ -197,7 +202,17 @@ class ReportsController extends Controller
 
         $feeRmb = (float) $completed->sum(fn (Transaction $t) => (float) $t->charge_amount * $rate($t));
         $fxRmb = (float) $completed->sum(fn (Transaction $t) => (float) $t->fx_profit_usd * $rate($t));
-        $totalRmb = $feeRmb + $fxRmb;
+
+        // The third leg is what it cost to turn the dollars into the yuan that went out. It is
+        // already a yuan figure, so it needs no rate of its own, and it is a loss whenever the
+        // yuan were sold to the receiver dearer than China sold them to us.
+        $yuanUgx = (float) $completed->sum(fn (Transaction $t) => (float) $t->usd_rmb_profit_ugx);
+        $yuanUsd = (float) $completed->sum(fn (Transaction $t) => $t->usd_rmb_profit_cny === null ? 0.0 : (float) $t->usd_rmb_profit_cny / $rate($t));
+        $yuanRmb = (float) $completed->sum('usd_rmb_profit_cny');
+
+        $totalUgx = $feeUgx + $fxUgx + $yuanUgx;
+        $totalUsd = $feeUsd + $fxUsd + $yuanUsd;
+        $totalRmb = $feeRmb + $fxRmb + $yuanRmb;
 
         return [
             'fee_ugx' => $feeUgx,
@@ -206,6 +221,9 @@ class ReportsController extends Controller
             'fx_ugx' => $fxUgx,
             'fx_usd' => $fxUsd,
             'fx_rmb' => $fxRmb,
+            'yuan_ugx' => $yuanUgx,
+            'yuan_usd' => $yuanUsd,
+            'yuan_rmb' => $yuanRmb,
             'total_ugx' => $totalUgx,
             'total_usd' => $totalUsd,
             'total_rmb' => $totalRmb,
@@ -264,13 +282,21 @@ class ReportsController extends Controller
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ];
 
-        $headers = ['Receipt #', 'Date', 'Sender Name', 'Sender Contact', 'Receiver Name', 'Receiver Contact', 'Currency', 'Amount', 'USD Equivalent', 'Exchange Rate', 'RMB Amount', 'Charge (UGX)', 'Charge (USD)', 'Status', 'Agent', 'Dollar Margin (UGX)', 'Total Profit (UGX)', 'Total Profit (USD)'];
+        $headers = ['Receipt #', 'Date', 'Sender Name', 'Sender Contact', 'Receiver Name', 'Receiver Contact', 'Currency', 'Amount', 'USD Equivalent', 'Exchange Rate', 'RMB Amount', 'Charge (UGX)', 'Charge (USD)', 'Status', 'Agent', 'Dollar Margin (UGX)', 'Yuan Leg (CNY)', 'Yuan Leg (UGX)', 'Yuan Leg (USD)', 'Total Profit (UGX)', 'Total Profit (USD)'];
         $col = 'A';
         foreach ($headers as $header) {
             $sheet->setCellValue($col . '1', $header);
             $col++;
         }
-        $sheet->getStyle('A1:R1')->applyFromArray($headerStyle);
+        $sheet->getStyle('A1:U1')->applyFromArray($headerStyle);
+
+        // Profit is only real once the transfer has finished, and a transfer booked before the
+        // rates were snapshotted has no yuan leg to add. Those two cases are told apart here:
+        // a live transfer that has not finished earns nothing, so it reads 0, while an old row
+        // whose prices were never stored reads n/a so nobody mistakes it for break-even.
+        $priced = fn (Transaction $t): bool => $t->status === 'completed'
+            && $t->usd_rmb_profit_cny !== null
+            && (float) ($t->rate_buy_ugx ?? 0) > 0;
 
         $row = 2;
         foreach ($transactions as $t) {
@@ -291,9 +317,25 @@ class ReportsController extends Controller
             $sheet->setCellValue('M' . $row, (float) $t->charge_amount);
             $this->putText($sheet, 'N' . $row, ucfirst((string) $t->status));
             $this->putText($sheet, 'O' . $row, (string) ($t->creator?->name ?? '-'));
-            $sheet->setCellValue('P' . $row, (float) $t->fx_profit_ugx);
-            $sheet->setCellValue('Q' . $row, (float) $t->charge_ugx + (float) $t->fx_profit_ugx);
-            $sheet->setCellValue('R' . $row, (float) $t->charge_amount + (float) $t->fx_profit_usd);
+
+            if ($t->status !== 'completed') {
+                foreach (['P', 'Q', 'R', 'S', 'T', 'U'] as $column) {
+                    $sheet->setCellValue($column . $row, 0);
+                }
+            } elseif (! $priced($t)) {
+                $sheet->setCellValue('P' . $row, (float) $t->fx_profit_ugx);
+                foreach (['Q', 'R', 'S', 'T', 'U'] as $column) {
+                    $this->putText($sheet, $column . $row, 'n/a');
+                }
+            } else {
+                $yuanUsd = (float) $t->yuanLegUsd();
+                $sheet->setCellValue('P' . $row, (float) $t->fx_profit_ugx);
+                $sheet->setCellValue('Q' . $row, (float) $t->usd_rmb_profit_cny);
+                $sheet->setCellValue('R' . $row, (float) $t->usd_rmb_profit_ugx);
+                $sheet->setCellValue('S' . $row, $yuanUsd);
+                $sheet->setCellValue('T' . $row, (float) $t->charge_ugx + (float) $t->fx_profit_ugx + (float) $t->usd_rmb_profit_ugx);
+                $sheet->setCellValue('U' . $row, (float) $t->charge_amount + (float) $t->fx_profit_usd + $yuanUsd);
+            }
             $row++;
         }
 
@@ -302,15 +344,18 @@ class ReportsController extends Controller
         $sheet->getStyle('K2:K' . ($row - 1))->getNumberFormat()->setFormatCode('¥#,##0.00');
         $sheet->getStyle('M2:M' . ($row - 1))->getNumberFormat()->setFormatCode('$#,##0.00');
         $sheet->getStyle('L2:L' . ($row - 1))->getNumberFormat()->setFormatCode('#,##0');
-        $sheet->getStyle('P2:Q' . ($row - 1))->getNumberFormat()->setFormatCode('#,##0');
-        $sheet->getStyle('R2:R' . ($row - 1))->getNumberFormat()->setFormatCode('$#,##0.00');
+        $sheet->getStyle('P2:R' . ($row - 1))->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle('Q2:Q' . ($row - 1))->getNumberFormat()->setFormatCode('¥#,##0.00');
+        $sheet->getStyle('S2:S' . ($row - 1))->getNumberFormat()->setFormatCode('$#,##0.00');
+        $sheet->getStyle('T2:T' . ($row - 1))->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle('U2:U' . ($row - 1))->getNumberFormat()->setFormatCode('$#,##0.00');
 
-        $sheet->getStyle('A2:R' . ($row - 1))->applyFromArray([
+        $sheet->getStyle('A2:U' . ($row - 1))->applyFromArray([
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
             'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
         ]);
 
-        foreach (range('A', 'R') as $colLetter) {
+        foreach (range('A', 'U') as $colLetter) {
             $sheet->getColumnDimension($colLetter)->setAutoSize(true);
         }
 

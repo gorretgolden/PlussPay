@@ -40,6 +40,51 @@ class ReportConsolidationTest extends TestCase
         return $user;
     }
 
+    public function test_the_yuan_leg_appears_in_the_tables_and_the_cards(): void
+    {
+        $admin = $this->user('Gorret Admin', 'admin');
+
+        // 250 dollars bought in at 7.00 and handed over at 7.40 lose 100 yuan, which cost the
+        // business 100 / 7.00 x 3,600 = 51,428.57 shillings.
+        $this->transfer($admin, [
+            'fx_profit_ugx' => 1200,
+            'fx_profit_usd' => 1.5,
+            'rmb_buying_rate' => 7,
+            'usd_rmb_profit_cny' => -100,
+            'usd_rmb_profit_ugx' => -51428.571429,
+            'total_profit_ugx' => -40828.571429,
+        ]);
+        // A second transfer booked before the yuan rate was snapshotted has no leg at all.
+        $this->transfer($admin, ['fx_profit_ugx' => 900, 'fx_profit_usd' => 1.2]);
+
+        $response = $this->reports($admin);
+        $html = $response->getContent();
+
+        $profit = $response->viewData('profit');
+        $daily = $response->viewData('dailySummary');
+        $byAgent = $response->viewData('byAgent');
+
+        $this->assertEqualsWithDelta(-51428.571429, (float) $profit['yuan_ugx'], 0.01);
+        $this->assertEqualsWithDelta(-100, (float) $profit['yuan_rmb'], 0.01);
+        // The 100 yuan are read back at the 7.00 the transfer itself delivered at.
+        $this->assertEqualsWithDelta(-14.2857, (float) $profit['yuan_usd'], 0.01);
+
+        // The tables have to add up to the same leg the cards show, once per table.
+        $this->assertEqualsWithDelta((float) $profit['yuan_ugx'], (float) $daily->sum('yuan_ugx'), 0.01);
+        $this->assertEqualsWithDelta((float) $profit['yuan_ugx'], (float) $byAgent->sum('yuan_ugx'), 0.01);
+
+        // Once in each table header, and the day line plus the agent line show the loss itself.
+        $this->assertSame(2, substr_count($html, 'Yuan Leg (UGX)'));
+        $this->assertStringContainsString('Loss &yen;100.00', $html);
+        // Both transfers' fees (18,800) and margins (2,100) against the one yuan leg of 51,429
+        // lost leaves the period 30,529 in the red.
+        $this->assertStringContainsString('Loss UGX 30,529', $html);
+        $this->assertStringContainsString('text-red-600', $html);
+
+        // The transfer with no yuan rate is counted, because the totals above are short by it.
+        $this->assertStringContainsString('1 completed transaction(s) carry no yuan buying rate', $html);
+    }
+
     private function transfer(User $by, array $overrides = []): Transaction
     {
         return Transaction::create(array_merge([

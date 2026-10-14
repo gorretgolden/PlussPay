@@ -27,31 +27,60 @@ class ExportController extends Controller
         $rows = $this->transactionQuery($request)
             ->latest()
             ->get()
-            ->map(fn($t) => [
-                $t->receipt_number,
-                $t->created_at->format('Y-m-d h:i A'),
-                $t->sender_name,
-                $t->sender_contact,
-                $t->receiver_name,
-                $t->receiver_contact,
-                $t->currency . ' ' . number_format((float) $t->amount, 2),
-                $this->ugx((float) $t->total_usd_equivalent),
-                '¥' . number_format((float) $t->rmb_amount, 2),
-                'UGX ' . number_format((float) $t->charge_ugx),
-                'USD ' . number_format((float) $t->charge_amount, 2),
-                'UGX ' . number_format((float) $t->fx_profit_ugx),
-                'UGX ' . number_format((float) $t->charge_ugx + (float) $t->fx_profit_ugx),
-                'USD ' . number_format((float) $t->charge_amount + (float) $t->fx_profit_usd, 2),
-                $t->purpose ?? '-',
-                ucfirst($t->status),
-                $t->creator?->name ?? '-',
-            ])
+            ->map(function ($t) {
+                // One transfer's profit, in the three currencies the book is kept in. The yuan
+                // leg is what the dollars cost to turn into yuan, so it is a loss whenever the
+                // yuan are priced out to the receiver dearer than they are bought in.
+                //
+                // A transfer that has not finished earned nothing yet, and one booked before
+                // the rates were snapshotted has no yuan leg to add. Those two states are kept
+                // apart here exactly as on the screen: 0.00 for the first, n/a for the second.
+                $labels = $t->profitLabels();
+                $counts = $t->status === 'completed';
+                $yuanUsd = $counts ? $t->yuanLegUsd() : 0.0;
+
+                $signed = function (?float $value, int $decimals, string $prefix) use ($counts) {
+                    if (! $counts) {
+                        return $prefix . number_format(0, $decimals);
+                    }
+
+                    if ($value === null) {
+                        return 'n/a';
+                    }
+
+                    return ($value < 0 ? 'Loss ' : '') . $prefix . number_format(abs($value), $decimals);
+                };
+
+                return [
+                    $t->receipt_number,
+                    $t->created_at->format('Y-m-d h:i A'),
+                    $t->sender_name,
+                    $t->sender_contact,
+                    $t->receiver_name,
+                    $t->receiver_contact,
+                    $t->currency . ' ' . number_format((float) $t->amount, 2),
+                    $this->ugx((float) $t->total_usd_equivalent),
+                    '¥' . number_format((float) $t->rmb_amount, 2),
+                    'UGX ' . number_format((float) $t->charge_ugx),
+                    'USD ' . number_format((float) $t->charge_amount, 2),
+                    $labels['ugx_leg']['text'],
+                    $signed($t->usd_rmb_profit_cny === null ? null : (float) $t->usd_rmb_profit_cny, 4, 'CNY '),
+                    $labels['rmb_leg']['text'],
+                    $signed($yuanUsd, 2, 'USD '),
+                    $labels['total']['text'],
+                    $signed($yuanUsd === null ? null : (float) $t->charge_amount + (float) $t->fx_profit_usd + $yuanUsd, 2, 'USD '),
+                    $t->purpose ?? '-',
+                    ucfirst($t->status),
+                    $t->creator?->name ?? '-',
+                ];
+            })
             ->all();
 
         return $this->download('transactions', [
             'Receipt #', 'Date', 'Sender', 'Sender Contact', 'Receiver', 'Receiver Contact',
             'Amount', 'UGX Equivalent', 'RMB', 'Service Fee (UGX)', 'Service Fee (USD)',
-            'Dollar Margin (UGX)', 'Total Profit (UGX)', 'Total Profit (USD)', 'Purpose', 'Status', 'Created By',
+            'Dollar Margin (UGX)', 'Yuan Leg (CNY)', 'Yuan Leg (UGX)', 'Yuan Leg (USD)',
+            'Total Profit (UGX)', 'Total Profit (USD)', 'Purpose', 'Status', 'Created By',
         ], $rows);
     }
 
@@ -317,49 +346,92 @@ class ExportController extends Controller
         // at, the same rule the profit cards and the reports tables use.
         [$rate, $binding] = Transaction::yuanRateSql();
 
+        // A transfer booked before its rates were stored has no yuan leg at all, so its parts add
+        // up to less than the transfer really earned. Those rows are counted here so a day line
+        // can be read as incomplete instead of being taken for the true figure.
         $days = Transaction::visibleTo($request->user())
             ->where('status', 'completed')
             ->whereBetween('created_at', [$from, $to . ' 23:59:59'])
-            ->selectRaw('DATE(created_at) as day, count(*) as count, sum(total_usd_equivalent) as usd_sent, sum(charge_ugx) as fee_ugx, sum(charge_amount) as fee_usd, sum(fx_profit_ugx) as fx_ugx, sum(fx_profit_usd) as fx_usd, sum(charge_amount * '.$rate.') as fee_rmb, sum(fx_profit_usd * '.$rate.') as fx_rmb', array_merge($binding, $binding))
+            ->selectRaw(implode(', ', [
+                'DATE(created_at) as day',
+                'count(*) as count',
+                'sum(total_usd_equivalent) as usd_sent',
+                'sum(charge_ugx) as fee_ugx',
+                'sum(charge_amount) as fee_usd',
+                'sum(fx_profit_ugx) as fx_ugx',
+                'sum(fx_profit_usd) as fx_usd',
+                'sum(coalesce(usd_rmb_profit_ugx, 0)) as yuan_ugx',
+                'sum(coalesce(usd_rmb_profit_cny, 0)) as yuan_rmb',
+                'sum(charge_amount * ' . $rate . ') as fee_rmb',
+                'sum(fx_profit_usd * ' . $rate . ') as fx_rmb',
+                'sum(coalesce(usd_rmb_profit_cny, 0) / nullif(' . $rate . ', 0)) as yuan_usd',
+                'sum(case when usd_rmb_profit_cny is null or coalesce(rate_buy_ugx, 0) <= 0 then 1 else 0 end) as unpriced',
+            ]), array_merge($binding, $binding, $binding))
             ->groupBy(DB::raw('DATE(created_at)'))
             ->orderBy('day')
             ->get();
 
-        $rows = $days->map(fn ($d) => [
-            $d->day,
-            (string) $d->count,
-            number_format((float) $d->usd_sent, 2),
-            number_format((float) $d->fee_ugx),
-            number_format((float) $d->fee_usd, 2),
-            number_format((float) $d->fee_rmb, 2),
-            number_format((float) $d->fx_ugx),
-            number_format((float) $d->fx_usd, 2),
-            number_format((float) $d->fx_rmb, 2),
-            number_format((float) $d->fee_ugx + (float) $d->fx_ugx),
-            number_format((float) $d->fee_usd + (float) $d->fx_usd, 2),
-            number_format((float) $d->fee_rmb + (float) $d->fx_rmb, 2),
-        ])->all();
+        $rows = $days->map(fn ($d) => array_merge(
+            [$d->day, (string) $d->count, number_format((float) $d->usd_sent, 2)],
+            $this->money($d->fee_ugx, $d->fee_usd, $d->fee_rmb),
+            $this->money($d->fx_ugx, $d->fx_usd, $d->fx_rmb),
+            $this->money($d->yuan_ugx, $d->yuan_usd, $d->yuan_rmb),
+            $this->money(
+                $d->fee_ugx + $d->fx_ugx + $d->yuan_ugx,
+                $d->fee_usd + $d->fx_usd + $d->yuan_usd,
+                $d->fee_rmb + $d->fx_rmb + $d->yuan_rmb,
+            ),
+            [(string) $d->unpriced]
+        ))->all();
 
-        $rows[] = [
-            'TOTAL',
-            (string) $days->sum('count'),
-            number_format((float) $days->sum('usd_sent'), 2),
-            number_format((float) $days->sum('fee_ugx')),
-            number_format((float) $days->sum('fee_usd'), 2),
-            number_format((float) $days->sum('fee_rmb'), 2),
-            number_format((float) $days->sum('fx_ugx')),
-            number_format((float) $days->sum('fx_usd'), 2),
-            number_format((float) $days->sum('fx_rmb'), 2),
-            number_format((float) $days->sum('fee_ugx') + (float) $days->sum('fx_ugx')),
-            number_format((float) $days->sum('fee_usd') + (float) $days->sum('fx_usd'), 2),
-            number_format((float) $days->sum('fee_rmb') + (float) $days->sum('fx_rmb'), 2),
+        $totals = [
+            'count' => $days->sum('count'),
+            'usd_sent' => $days->sum('usd_sent'),
+            'fee_ugx' => $days->sum('fee_ugx'),
+            'fee_usd' => $days->sum('fee_usd'),
+            'fee_rmb' => $days->sum('fee_rmb'),
+            'fx_ugx' => $days->sum('fx_ugx'),
+            'fx_usd' => $days->sum('fx_usd'),
+            'fx_rmb' => $days->sum('fx_rmb'),
+            'yuan_ugx' => $days->sum('yuan_ugx'),
+            'yuan_usd' => $days->sum('yuan_usd'),
+            'yuan_rmb' => $days->sum('yuan_rmb'),
+            'unpriced' => $days->sum('unpriced'),
         ];
+
+        $rows[] = array_merge(
+            ['TOTAL', (string) $totals['count'], number_format((float) $totals['usd_sent'], 2)],
+            $this->money($totals['fee_ugx'], $totals['fee_usd'], $totals['fee_rmb']),
+            $this->money($totals['fx_ugx'], $totals['fx_usd'], $totals['fx_rmb']),
+            $this->money($totals['yuan_ugx'], $totals['yuan_usd'], $totals['yuan_rmb']),
+            $this->money(
+                $totals['fee_ugx'] + $totals['fx_ugx'] + $totals['yuan_ugx'],
+                $totals['fee_usd'] + $totals['fx_usd'] + $totals['yuan_usd'],
+                $totals['fee_rmb'] + $totals['fx_rmb'] + $totals['yuan_rmb'],
+            ),
+            [(string) $totals['unpriced']]
+        );
 
         return $this->download('profit-report', [
             'Date', 'Transactions', 'USD Sent', 'Fee Income (UGX)', 'Fee Income (USD)', 'Fee Income (RMB)',
             'Dollar Margin (UGX)', 'Dollar Margin (USD)', 'Dollar Margin (RMB)',
+            'Yuan Leg (UGX)', 'Yuan Leg (USD)', 'Yuan Leg (RMB)',
             'Total Profit (UGX)', 'Total Profit (USD)', 'Total Profit (RMB)',
+            'Transfers With No Rates',
         ], $rows, $from . '-' . $to);
+    }
+
+    /**
+     * One profit group written in the three currencies the book is kept in, shillings first.
+     * A negative figure is the minus sign's job, so the cells stay plain numbers to sum.
+     */
+    private function money($ugx, $usd, $rmb): array
+    {
+        return [
+            number_format((float) $ugx),
+            number_format((float) $usd, 2),
+            number_format((float) $rmb, 2),
+        ];
     }
 
     private function transactionQuery(Request $request)

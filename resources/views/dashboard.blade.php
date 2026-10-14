@@ -49,7 +49,7 @@
             <div class="text-white text-3xl font-bold mt-1">{{ $stored($stats['today_ugx_sent'], $stats['today_usd_sent']) }}</div>
         </div>
         <div class="bg-white/10 rounded-lg p-4">
-            <div class="text-green-200 text-sm">Revenue Today</div>
+            <div class="text-green-200 text-sm">Service Fees Today</div>
             <div class="text-white text-3xl font-bold mt-1">{{ $stored($stats['today_revenue_ugx'], $stats['today_revenue']) }}</div>
         </div>
     </div>
@@ -86,7 +86,7 @@
     <a href="{{ route('reports.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
         <div class="flex items-center justify-between">
             <div>
-                <div class="text-sm text-gray-500">Total Revenue</div>
+                <div class="text-sm text-gray-500">Service Fees (All Time)</div>
                 <div class="text-3xl font-bold text-green-700 mt-1">{{ $stored($stats['total_revenue_ugx'], $stats['total_revenue']) }}</div>
             </div>
             <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
@@ -134,6 +134,44 @@
 </div>
 
 @role('admin|superadmin')
+@php
+    $shilling = fn ($value) => $value < 0
+        ? 'Loss UGX '.number_format(abs($value), 2)
+        : 'UGX '.number_format($value, 2);
+    $shillingTone = fn ($value) => $value < 0 ? 'text-red-600' : 'text-gray-900';
+@endphp
+<div class="bg-white rounded-lg shadow p-6 mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 mb-1">Profit</h2>
+    <p class="text-sm text-gray-500 mb-4">The fee the till keeps, plus what the two currency legs came to on the rates each transfer was booked at.</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        @foreach(['today' => 'Today', 'month' => 'This Month', 'all' => 'All Time'] as $window => $label)
+        <div class="border border-gray-200 rounded-lg p-4">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $label }}</div>
+            <dl class="mt-3 space-y-2 text-sm">
+                <div class="flex justify-between gap-3">
+                    <dt class="text-gray-500">Service Fees</dt>
+                    <dd class="{{ $shillingTone($profit[$window]['fees']) }} font-medium">{{ $shilling($profit[$window]['fees']) }}</dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                    <dt class="text-gray-500">Exchange Profit</dt>
+                    <dd class="{{ $shillingTone($profit[$window]['exchange']) }} font-medium">{{ $shilling($profit[$window]['exchange']) }}</dd>
+                </div>
+                <div class="flex justify-between gap-3 border-t pt-2">
+                    <dt class="text-gray-500">Total Profit</dt>
+                    <dd class="{{ $shillingTone($profit[$window]['total']) }} font-bold">{{ $shilling($profit[$window]['total']) }}</dd>
+                </div>
+            </dl>
+            @if($profit[$window]['unpriced'] > 0)
+            @php $count = $profit[$window]['unpriced']; @endphp
+            <p class="text-xs text-gray-400 mt-3">{{ number_format($count) }} completed {{ Str::plural('transfer', $count) }} {{ $count === 1 ? 'has' : 'have' }} no rates stored, so {{ $count === 1 ? 'it adds' : 'they add' }} nothing to Exchange Profit.</p>
+            @endif
+        </div>
+        @endforeach
+    </div>
+</div>
+@endrole
+
+@role('admin|superadmin')
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
     <a href="{{ route('users.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
         <div class="flex items-center justify-between">
@@ -164,12 +202,22 @@
         </div>
     </div>
     <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Revenue (Last 7 Days)</h2>
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Service Fees (Last 7 Days)</h2>
         <div style="position:relative; height:250px;">
             <canvas id="revenueChart"></canvas>
         </div>
     </div>
 </div>
+
+@role('admin|superadmin')
+<div class="bg-white rounded-lg shadow p-6 mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 mb-1">Profit (Last 7 Days)</h2>
+    <p class="text-sm text-gray-500 mb-4">Stacked in shillings. The yuan leg sits below the line on the days it cost money.</p>
+    <div style="position:relative; height:280px;">
+        <canvas id="profitChart"></canvas>
+    </div>
+</div>
+@endrole
 
 <div class="bg-white rounded-lg shadow">
     <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
@@ -258,7 +306,7 @@
         data: {
             labels: chartData.labels,
             datasets: [{
-                label: 'Revenue ({{ $cur }})',
+                label: 'Service Fees ({{ $cur }})',
                 data: chartData.revenue,
                 backgroundColor: 'rgba(22, 163, 74, 0.8)',
                 borderColor: 'rgb(22, 163, 74)',
@@ -274,6 +322,52 @@
             }
         }
     });
+
+    @role('admin|superadmin')
+    if (document.getElementById('profitChart')) {
+        new Chart(document.getElementById('profitChart'), {
+            type: 'bar',
+            data: {
+                labels: chartData.labels,
+                datasets: [
+                    {
+                        label: 'Service Fees',
+                        data: chartData.fees,
+                        backgroundColor: 'rgba(22, 163, 74, 0.8)'
+                    },
+                    {
+                        label: 'UGX to USD',
+                        data: chartData.margin_ugx,
+                        backgroundColor: 'rgba(37, 99, 235, 0.8)'
+                    },
+                    {
+                        label: 'USD to RMB',
+                        data: chartData.yuan_ugx,
+                        backgroundColor: 'rgba(217, 119, 6, 0.8)'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: function (item) {
+                                return item.dataset.label + ': UGX ' + item.parsed.y.toLocaleString('en', {maximumFractionDigits: 2});
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true }
+                }
+            }
+        });
+    }
+    @endrole
 
     function updateClock() {
         const now = new Date();

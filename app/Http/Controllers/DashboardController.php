@@ -7,6 +7,7 @@ use App\Models\AccountEntry;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -72,7 +73,20 @@ class DashboardController extends Controller
         if ($usdToUgx) {
             $chartData['revenue'] = $chartData['revenue_ugx'];
         }
+        // The profit chart is always in shillings, so it keeps its own fee series even when
+        // the revenue card above falls back to dollars. The margin series are for the two
+        // roles that own the book, and the chart data is printed into the page, so they are
+        // taken out for everyone else.
+        $chartData['fees'] = $chartData['revenue_ugx'];
         unset($chartData['revenue_ugx']);
+
+        $seesProfit = $user->hasRole(['admin', 'superadmin']);
+
+        if (! $seesProfit) {
+            unset($chartData['fees'], $chartData['margin_ugx'], $chartData['yuan_ugx']);
+        }
+
+        $profit = $seesProfit ? $this->profitWindows($user, $usdToUgx) : [];
 
         $wallets = Account::walletsFor($user);
 
@@ -86,7 +100,7 @@ class DashboardController extends Controller
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'agent_fee' THEN amount ELSE -amount END), 0) as net")
             ->value('net');
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'commissionMonth'));
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'commissionMonth', 'profit'));
     }
 
     private function usdToUgxRate(): ?float
@@ -123,11 +137,12 @@ class DashboardController extends Controller
     {
         $startDate = now()->subDays(6)->startOfDay();
         $ugxRevenue = $this->ugxTotals($usdToUgx)['fee'];
+        $exchange = $this->exchangeProfitSql();
 
         $daily = Transaction::query()
             ->visibleTo($user)
             ->where('created_at', '>=', $startDate)
-            ->selectRaw("DATE(created_at) as date, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as transactions, COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as revenue, {$ugxRevenue} as revenue_ugx")
+            ->selectRaw("DATE(created_at) as date, SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as transactions, COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as revenue, {$ugxRevenue} as revenue_ugx, COALESCE(SUM(CASE WHEN status='completed' THEN fx_profit_ugx ELSE 0 END), 0) as margin_ugx, COALESCE(SUM(CASE WHEN status='completed' THEN {$exchange} ELSE 0 END), 0) as yuan_ugx")
             ->groupBy(DB::raw('DATE(created_at)'))
             ->get()
             ->keyBy('date');
@@ -136,6 +151,8 @@ class DashboardController extends Controller
         $transactions = [];
         $revenue = [];
         $revenueUgx = [];
+        $margin = [];
+        $yuan = [];
 
         for ($i = 6; $i >= 0; $i--) {
             $date = now()->subDays($i)->format('Y-m-d');
@@ -143,8 +160,71 @@ class DashboardController extends Controller
             $transactions[] = (int) ($daily[$date]->transactions ?? 0);
             $revenue[] = (float) ($daily[$date]->revenue ?? 0);
             $revenueUgx[] = (float) ($daily[$date]->revenue_ugx ?? 0);
+            $margin[] = (float) ($daily[$date]->margin_ugx ?? 0);
+            $yuan[] = (float) ($daily[$date]->yuan_ugx ?? 0);
         }
 
-        return ['labels' => $labels, 'transactions' => $transactions, 'revenue' => $revenue, 'revenue_ugx' => $revenueUgx];
+        return [
+            'labels' => $labels,
+            'transactions' => $transactions,
+            'revenue' => $revenue,
+            'revenue_ugx' => $revenueUgx,
+            'margin_ugx' => $margin,
+            'yuan_ugx' => $yuan,
+        ];
+    }
+
+    /**
+     * What the three profit figures come to over a stretch of time, in shillings as each
+     * transfer was priced rather than re-converted at today's rate, so the dashboard cannot
+     * drift from Reports when the rate moves.
+     *
+     * The yuan leg is missing on transfers booked before the rates were snapshotted, so those
+     * are counted and reported as unpriced instead of being quietly added as zero.
+     *
+     * @return array<string, array{fees: float, exchange: float, total: float, unpriced: int}>
+     */
+    private function profitWindows(User $user, ?float $usdToUgx): array
+    {
+        $fee = $this->ugxTotals($usdToUgx)['fee'];
+        $exchange = $this->exchangeProfitSql();
+
+        $windows = [
+            'today' => fn (Builder $q) => $q->whereDate('created_at', today()),
+            'month' => fn (Builder $q) => $q->whereBetween('created_at', [now()->startOfMonth(), now()]),
+            'all' => fn (Builder $q) => $q,
+        ];
+
+        $sums = [];
+
+        foreach ($windows as $window => $restrict) {
+            // ugxTotals() hands back a finished aggregate, while the exchange expression is
+            // per row and has to be summed here.
+            $row = (array) $restrict(Transaction::query()->visibleTo($user))
+                ->selectRaw("{$fee} as fees")
+                ->selectRaw("COALESCE(SUM(CASE WHEN status = 'completed' THEN {$exchange} ELSE 0 END), 0) as exchange")
+                ->selectRaw("SUM(CASE WHEN status = 'completed' AND COALESCE(rate_buy_ugx, 0) <= 0 THEN 1 ELSE 0 END) as unpriced")
+                ->toBase()
+                ->first();
+
+            $sums[$window] = [
+                'fees' => (float) ($row['fees'] ?? 0),
+                'exchange' => (float) ($row['exchange'] ?? 0),
+                'total' => (float) ($row['fees'] ?? 0) + (float) ($row['exchange'] ?? 0),
+                'unpriced' => (int) ($row['unpriced'] ?? 0),
+            ];
+        }
+
+        return $sums;
+    }
+
+    /**
+     * Both currency legs together: the spread taken on the shillings and the spread paid or
+     * earned turning the dollars into yuan. A transfer that was never priced contributes
+     * nothing here, which is why the unpriced count travels alongside it.
+     */
+    private function exchangeProfitSql(): string
+    {
+        return "COALESCE(fx_profit_ugx, 0) + COALESCE(usd_rmb_profit_ugx, 0)";
     }
 }

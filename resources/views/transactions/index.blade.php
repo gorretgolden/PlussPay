@@ -83,6 +83,11 @@
 </div>
 
 <div class="bg-white rounded-lg shadow overflow-x-auto">
+    @php
+        // A figure that was never priced reads as n/a in gray, and a negative one is a loss
+        // in red. The model tags each figure with the tone it should carry.
+        $toneClass = ['plain' => 'text-gray-900', 'loss' => 'text-red-600', 'muted' => 'text-gray-400'];
+    @endphp
     <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
@@ -91,7 +96,12 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receiver</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">RMB</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Charge</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fee (UGX)</th>
+                @role('admin|superadmin')
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profit UGX to USD</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profit USD to RMB</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Profit</th>
+                @endrole
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -99,6 +109,7 @@
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
             @forelse($transactions as $t)
+            @php $profit = $t->profitLabels(); @endphp
             <tr>
                 <td class="px-6 py-4 text-sm font-medium text-green-800">
                     <a href="{{ route('receipts.show', $t->receipt_number) }}">{{ $t->receipt_number }}</a>
@@ -107,7 +118,12 @@
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $t->currency }} {{ number_format($t->amount, 2) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($t->rmb_amount, 2) }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">UGX {{ number_format((float) $t->charge_ugx) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">UGX {{ number_format((float) $t->charge_ugx, 2) }}</td>
+                @role('admin|superadmin')
+                <td class="px-6 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['ugx_leg']['tone']] }}">{{ $profit['ugx_leg']['text'] }}</td>
+                <td class="px-6 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['rmb_leg']['tone']] }}">{{ $profit['rmb_leg']['text'] }}</td>
+                <td class="px-6 py-4 text-sm font-medium whitespace-nowrap {{ $toneClass[$profit['total']['tone']] }}">{{ $profit['total']['text'] }}</td>
+                @endrole
                 <td class="px-6 py-4">
                     <span class="px-2 py-1 text-xs rounded-full
                         @if($t->status === 'completed') bg-green-100 text-green-800
@@ -126,6 +142,13 @@
                         <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Print Receipt</a>
 
                         @role('admin|superadmin')
+                        <button type="button" onclick="openProfitModal(this)"
+                            data-receipt="{{ $t->receipt_number }} · {{ $t->sender_name }} to {{ $t->receiver_name }}"
+                            data-steps="{{ json_encode($t->profitBreakdown()) }}"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            View profit breakdown
+                        </button>
+
                         @if($t->status === 'pending')
                         <div class="border-t border-gray-100 my-1"></div>
                         <form method="POST" action="{{ route('transactions.update-status', $t) }}">
@@ -155,7 +178,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="9" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
+                <td colspan="{{ auth()->user()->hasRole(['admin', 'superadmin']) ? 12 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
             </tr>
             @endforelse
         </tbody>
@@ -167,4 +190,5 @@
 </div>
 
 @include('transactions.partials.cancel-modal')
+@include('transactions.partials.profit-modal')
 @endsection
