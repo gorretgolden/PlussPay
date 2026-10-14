@@ -11,7 +11,10 @@ class RoleAndUserSeeder extends Seeder
 {
     /**
      * Demo accounts. Passwords come from the environment, or are generated and
-     * printed once, so no working credential ever lands in git.
+     * printed once, so no working credential ever lands in git. They are created on
+     * every environment, including production, because the login page's demo buttons
+     * need them whenever Site Mode is Testing. Set the SEED_*_PASSWORD values in .env
+     * to choose the passwords, or read the generated one from the seed output.
      */
     private const DEMO_ACCOUNTS = [
         ['email' => 'superadmin@plussave.com', 'name' => 'Super Admin', 'role' => 'superadmin', 'env' => 'SEED_SUPERADMIN_PASSWORD', 'country' => 'UG'],
@@ -28,11 +31,6 @@ class RoleAndUserSeeder extends Seeder
         }
 
         foreach (self::DEMO_ACCOUNTS as $account) {
-            if (app()->environment('production') && $account['role'] !== 'superadmin') {
-                $this->say("Skipped {$account['email']} - demo accounts are not created on production.");
-                continue;
-            }
-
             $existed = User::where('email', $account['email'])->exists();
 
             $password = env($account['env']) ?: Str::random(20);
