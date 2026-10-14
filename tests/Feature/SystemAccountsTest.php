@@ -88,6 +88,53 @@ class SystemAccountsTest extends TestCase
         $this->assertSame(1, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'money_in')->count());
     }
 
+    public function test_a_dollar_funded_transfer_lands_in_dollars_and_its_charge_in_shillings(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->get('/transactions/create');
+        $this->actingAs($admin)->post('/transactions', [
+            'form_id' => session('transaction_form_id'),
+            'sender_name' => 'Dollar Sender',
+            'receiver_name' => 'Books Receiver',
+            'currency' => 'USD',
+            'amount' => '1000',
+            'charge_ugx' => '20000',
+        ])->assertSessionHasNoErrors();
+
+        $transaction = Transaction::latest('id')->firstOrFail();
+
+        // The dollars travel whole, so the dollar till gains exactly the 1,000 handed over. The
+        // charge was collected in shillings on top, so it is the shilling till that gains it.
+        $this->assertSame('1000.00', (string) $transaction->amount);
+        $this->assertSame('1000.00', Account::byCode(Account::USD_UGANDA)->balance());
+        $this->assertSame('20000.00', $this->ugxCash()->balance());
+
+        $deposits = AccountEntry::where('transaction_id', $transaction->id)->where('type', 'money_in')->get();
+        $this->assertSame(2, $deposits->count());
+        $this->assertSame(['USD', 'UGX'], $deposits->map(fn ($e) => Account::find($e->account_id)->currency)->values()->all());
+
+        // Re-running the posting must not double count either leg.
+        AccountLedger::postCompletedTransfer($transaction);
+        $this->assertSame(2, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'money_in')->count());
+
+        $transaction->update(['status' => 'cancelled']);
+        AccountLedger::reverseCompletedTransfer($transaction);
+
+        // Cancelling gives back both sides, in the currency each was taken in.
+        $this->assertSame('0.00', Account::byCode(Account::USD_UGANDA)->balance());
+        $this->assertSame('0.00', $this->ugxCash()->balance());
+        $this->assertSame(2, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'reversal')->count());
+
+        AccountLedger::reverseCompletedTransfer($transaction);
+        $this->assertSame(2, AccountEntry::where('transaction_id', $transaction->id)->where('type', 'reversal')->count());
+
+        $this->actingAs($admin)->get('/accounts/movements')
+            ->assertOk()
+            ->assertSee('collected in dollars')
+            ->assertSee('charge collected in shillings');
+    }
+
     public function test_cancelling_a_completed_transfer_takes_the_money_back_out(): void
     {
         $admin = $this->admin();

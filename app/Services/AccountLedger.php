@@ -90,8 +90,12 @@ class AccountLedger
     }
 
     /**
-     * A completed transfer means the cash is in the Uganda till, fee included, so the
-     * matching account gains it on the day the transfer was made.
+     * A completed transfer means the cash is in the till, so the matching account gains it on the
+     * day the transfer was made.
+     *
+     * A customer who pays shillings hands over one sum that already contains the charge. A customer
+     * who hands over dollars forwards the dollars whole and adds the charge in shillings on top, so
+     * that deal lands in two tills at once and each account only gains money it actually holds.
      */
     public static function postCompletedTransfer(Transaction $transaction): void
     {
@@ -103,21 +107,42 @@ class AccountLedger
             return;
         }
 
-        $account = $transaction->currency === 'USD'
-            ? Account::byCode(Account::USD_UGANDA)
-            : Account::byCode(Account::UGX_UGANDA);
+        $date = $transaction->created_at?->toDateString();
+        $fee = (string) $transaction->charge_ugx;
 
-        $currency = $account->currency;
-        $fee = $currency === 'USD' ? (string) $transaction->charge_amount : (string) $transaction->charge_ugx;
-        $collected = bcadd((string) $transaction->amount, $fee, 2);
+        if ($transaction->currency === 'USD') {
+            static::record(
+                Account::byCode(Account::USD_UGANDA),
+                'money_in',
+                (string) $transaction->amount,
+                "Transfer {$transaction->receipt_number} collected in dollars from {$transaction->sender_name}",
+                $date,
+                $transaction->receipt_number,
+                $transaction->id,
+            );
+
+            if (bccomp($fee, '0', 2) > 0) {
+                static::record(
+                    Account::byCode(Account::UGX_UGANDA),
+                    'money_in',
+                    $fee,
+                    "Transfer {$transaction->receipt_number} charge collected in shillings from {$transaction->sender_name}",
+                    $date,
+                    $transaction->receipt_number,
+                    $transaction->id,
+                );
+            }
+
+            return;
+        }
 
         static::record(
-            $account,
+            Account::byCode(Account::UGX_UGANDA),
             'money_in',
-            $collected,
+            bcadd((string) $transaction->amount, $fee, 2),
             "Transfer {$transaction->receipt_number} collected from {$transaction->sender_name}"
-                .(bccomp($fee, '0', 2) > 0 ? ' (includes '.$currency.' '.number_format((float) $fee, 2).' fee)' : ''),
-            $transaction->created_at?->toDateString(),
+                .(bccomp($fee, '0', 2) > 0 ? ' (includes UGX '.number_format((float) $fee, 2).' fee)' : ''),
+            $date,
             $transaction->receipt_number,
             $transaction->id,
         );
@@ -349,16 +374,17 @@ class AccountLedger
     }
 
     /**
-     * A cancelled transfer gives the money back, so the deposit is taken out again rather
-     * than deleted. The books keep both movements and still balance with the bank.
+     * A cancelled transfer gives the money back, so every deposit is taken out again rather than
+     * deleted. A dollar-funded deal deposited twice, so it is given back twice, in each currency.
+     * The books keep both movements and still balance with the till.
      */
     public static function reverseCompletedTransfer(Transaction $transaction): void
     {
-        $deposit = AccountEntry::where('transaction_id', $transaction->id)
+        $deposits = AccountEntry::where('transaction_id', $transaction->id)
             ->where('type', 'money_in')
-            ->first();
+            ->get();
 
-        if (! $deposit) {
+        if ($deposits->isEmpty()) {
             return;
         }
 
@@ -370,17 +396,19 @@ class AccountLedger
             return;
         }
 
-        $account = Account::find($deposit->account_id);
-        $currency = $account?->currency ?? $transaction->currency;
+        foreach ($deposits as $deposit) {
+            $account = Account::find($deposit->account_id);
+            $currency = $account?->currency ?? $transaction->currency;
 
-        static::record(
-            $account ?? Account::byCode(Account::UGX_UGANDA),
-            'reversal',
-            (string) $deposit->amount,
-            "Cancelled transfer {$transaction->receipt_number} returned to {$transaction->sender_name} ({$currency} ".number_format((float) $deposit->amount, 2).')',
-            now()->toDateString(),
-            $transaction->receipt_number,
-            $transaction->id,
-        );
+            static::record(
+                $account ?? Account::byCode(Account::UGX_UGANDA),
+                'reversal',
+                (string) $deposit->amount,
+                "Cancelled transfer {$transaction->receipt_number} returned to {$transaction->sender_name} ({$currency} ".number_format((float) $deposit->amount, 2).')',
+                now()->toDateString(),
+                $transaction->receipt_number,
+                $transaction->id,
+            );
+        }
     }
 }
