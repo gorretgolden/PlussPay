@@ -71,7 +71,7 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($logs as $log)
                 <tr>
-                    <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ \Carbon\Carbon::parse($log->created_at)->format('Y-m-d H:i') }}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ \Carbon\Carbon::parse($log->created_at)->format('Y-m-d h:i A') }}</td>
                     <td class="px-6 py-4 text-sm text-gray-900">{{ $log->user?->name ?? ($log->action === 'login_failed' ? 'No such account' : 'System') }}</td>
                     <td class="px-6 py-4 text-sm text-gray-600">{{ $log->user?->email ?? '-' }}</td>
                     <td class="px-6 py-4">

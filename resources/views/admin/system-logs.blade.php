@@ -128,7 +128,7 @@
                 @forelse($logs as $entry)
                 @php $rowId = ($logs->firstItem() ?? 1) + $loop->index; @endphp
                 <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap align-top">{{ $entry['moment']->format('Y-m-d H:i') }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap align-top">{{ $entry['moment']->format('Y-m-d h:i A') }}</td>
                     <td class="px-4 py-3 align-top">
                         <span class="px-2 py-1 text-xs rounded-full {{ $badge[$entry['level']] ?? 'bg-gray-100 text-gray-700' }}">{{ $entry['level'] }}</span>
                     </td>
