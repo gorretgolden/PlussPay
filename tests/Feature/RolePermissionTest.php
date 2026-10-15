@@ -128,15 +128,101 @@ class RolePermissionTest extends TestCase
             ->assertSee('value="Supervisor"', false);
     }
 
-    public function test_roles_can_be_searched_by_name_from_the_top_of_the_page(): void
+    public function test_roles_switch_through_a_dropdown_and_only_get_a_search_once_there_are_many(): void
     {
-        $this->actingAs($this->superadmin())->post('/admin/roles', ['name' => 'Supervisor']);
+        $this->actingAs($this->superadmin())->get('/admin/roles')
+            ->assertOk()
+            ->assertSee('id="roleSelect"', false)
+            ->assertDontSee('Search roles by name', false);
+
+        for ($desk = 1; $desk <= 6; $desk++) {
+            $this->actingAs($this->superadmin())->post('/admin/roles', ['name' => 'Desk '.$desk]);
+        }
 
         $this->actingAs($this->superadmin())->get('/admin/roles')
             ->assertOk()
             ->assertSee('Search roles by name', false)
-            ->assertSee('data-role-name="superadmin super admin"', false)
-            ->assertSee('data-role-name="supervisor supervisor"', false);
+            ->assertSee('id="roleSelect"', false);
+    }
+
+    public function test_a_role_can_be_renamed_and_the_people_on_it_keep_their_access(): void
+    {
+        $admin = $this->superadmin();
+        $this->actingAs($admin)->post('/admin/roles', ['name' => 'Supervisor', 'permissions' => ['view-transactions']]);
+        $role = Role::where('name', 'supervisor')->firstOrFail();
+        $person = User::create([
+            'name' => 'Desk Lead',
+            'email' => 'lead'.uniqid().'@plussave.test',
+            'password' => 'Password123',
+            'is_active' => true,
+        ]);
+        $person->assignRole($role);
+
+        $this->actingAs($admin)->patch("/admin/roles/{$role->id}/rename", ['name' => 'Desk Lead'])
+            ->assertSessionHasNoErrors();
+
+        $renamed = Role::where('name', 'desklead')->firstOrFail();
+        $this->assertSame($role->id, $renamed->id);
+        $this->assertTrue($person->fresh()->hasRole('desklead'));
+        $this->assertEquals(['view-transactions'], $renamed->permissions->pluck('name')->all());
+        $this->assertDatabaseHas('activity_logs', ['action' => 'role_renamed', 'new_value' => json_encode(['desklead'])]);
+    }
+
+    public function test_a_rename_that_collides_with_another_role_is_rejected(): void
+    {
+        $admin = $this->superadmin();
+        $this->actingAs($admin)->post('/admin/roles', ['name' => 'Supervisor']);
+        $this->actingAs($admin)->post('/admin/roles', ['name' => 'Auditor']);
+        $role = Role::where('name', 'supervisor')->firstOrFail();
+
+        $this->actingAs($admin)->patch("/admin/roles/{$role->id}/rename", ['name' => 'Auditor'])
+            ->assertSessionHasErrors('name');
+
+        $this->assertDatabaseHas('roles', ['id' => $role->id, 'name' => 'supervisor']);
+    }
+
+    public function test_built_in_roles_keep_their_names(): void
+    {
+        $role = Role::where('name', 'admin')->firstOrFail();
+
+        $this->actingAs($this->superadmin())->patch("/admin/roles/{$role->id}/rename", ['name' => 'Operations'])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('roles', ['id' => $role->id, 'name' => 'admin']);
+    }
+
+    public function test_nobody_can_strip_the_roles_page_off_their_own_role(): void
+    {
+        $role = Role::where('name', 'admin')->firstOrFail();
+        $role->syncPermissions(['view-roles', 'edit-role', 'assign-permissions', 'view-transactions']);
+        $admin = User::create([
+            'name' => 'Office Admin',
+            'email' => 'office'.uniqid().'@plussave.test',
+            'password' => 'Password123',
+            'is_active' => true,
+        ]);
+        $admin->assignRole($role);
+
+        $this->actingAs($admin)->put("/admin/roles/{$role->id}", [
+            'permissions' => ['view-transactions'],
+        ])->assertSessionHasErrors('permissions');
+
+        $this->assertEqualsCanonicalizing(
+            ['view-roles', 'edit-role', 'assign-permissions', 'view-transactions'],
+            $role->fresh()->permissions->pluck('name')->all()
+        );
+
+        // The same trap through the bulk tool, and on another role, is still allowed.
+        $other = Role::where('name', 'staff')->firstOrFail();
+        $other->syncPermissions(['view-roles', 'edit-role', 'assign-permissions']);
+
+        $this->actingAs($admin)->post('/admin/permissions/bulk', [
+            'action' => 'remove',
+            'role_id' => $other->id,
+            'permission_ids' => [Permission::where('name', 'view-roles')->value('id')],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertEqualsCanonicalizing(['edit-role', 'assign-permissions'], $other->fresh()->permissions->pluck('name')->all());
     }
 
     public function test_bulk_add_assigns_every_selected_permission_to_the_role(): void

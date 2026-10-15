@@ -20,8 +20,17 @@
 @endif
 <div class="grid grid-cols-1 lg:grid-cols-[17rem_minmax(0,1fr)] gap-6 items-start">
     <aside class="bg-white border border-gray-200 rounded-xl p-4">
-        <label class="block text-sm font-semibold text-gray-700 mb-3">Find a role<input id="roleSearch" type="search" placeholder="Search roles by name" class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal"></label>
-        <nav aria-label="Roles" class="space-y-2">
+        @if($roles->count() > 8)
+        <label class="hidden lg:block text-sm font-semibold text-gray-700 mb-3">Find a role<input id="roleSearch" type="search" placeholder="Search roles by name" class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal"></label>
+        @endif
+        <label class="lg:hidden block text-sm font-semibold text-gray-700 mb-3">Role
+            <select id="roleSelect" class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal">
+                @foreach($roles as $role)
+                <option value="{{ route('admin.roles', ['role' => $role->id]) }}" @selected($selectedRole?->id === $role->id)>{{ \App\Http\Controllers\RolePermissionController::displayName($role->name) }}</option>
+                @endforeach
+            </select>
+        </label>
+        <nav aria-label="Roles" class="hidden lg:block space-y-2">
             @foreach($roles as $role)
             <div data-role-name="{{ strtolower($role->name.' '.\App\Http\Controllers\RolePermissionController::displayName($role->name)) }}" class="rounded-lg border {{ $selectedRole?->id === $role->id ? 'border-green-700 bg-green-50' : 'border-transparent hover:bg-gray-50' }} p-3">
                 <a href="{{ route('admin.roles', ['role' => $role->id]) }}" @if($selectedRole?->id === $role->id) aria-current="page" @endif class="role-switch block text-sm font-semibold text-gray-900">{{ \App\Http\Controllers\RolePermissionController::displayName($role->name) }}</a>
@@ -44,6 +53,14 @@
                 <div class="absolute right-0 top-full mt-2 w-72 max-w-[80vw] bg-white border shadow-lg rounded-lg p-4 z-20 text-sm space-y-4">
                     @can('create-role')
                     <form method="POST" action="{{ route('admin.roles.duplicate', $selectedRole) }}" class="space-y-2">@csrf<label class="block">Copy name<input name="name" required maxlength="50" value="{{ $selectedRole->name }} copy" class="w-full border rounded px-2 py-2 mt-1"></label><button class="text-green-800 font-semibold min-h-[44px]">Duplicate role</button></form>
+                    @endcan
+                    @can('edit-role')
+                    @if(!array_key_exists($selectedRole->name, \App\Support\PermissionCatalog::DESCRIPTIONS))
+                    <form method="POST" action="{{ route('admin.roles.rename', $selectedRole) }}" class="border-t pt-3 space-y-2" data-confirm-title="Rename this role?" data-confirm="The {{ $selectedRole->users_count }} {{ Str::plural('user', $selectedRole->users_count) }} on this role keep their access, only the name changes." data-confirm-ok="Rename role">@csrf @method('PATCH')
+                        <label class="block">New name<input name="name" required maxlength="50" value="{{ \App\Http\Controllers\RolePermissionController::displayName($selectedRole->name) }}" class="w-full border rounded px-2 py-2 mt-1"></label>
+                        <button class="min-h-[44px] text-green-800 font-semibold">Rename role</button>
+                    </form>
+                    @endif
                     @endcan
                     @can('delete-role')
                     @if(!array_key_exists($selectedRole->name, \App\Support\PermissionCatalog::DESCRIPTIONS))
@@ -103,7 +120,7 @@
             else if (!e.shiftKey && document.activeElement === nodes.at(-1)) { e.preventDefault(); nodes[0].focus(); }
         }
     });
-    document.getElementById('roleSearch').addEventListener('input', e => {
+    document.getElementById('roleSearch')?.addEventListener('input', e => {
         const cards = [...document.querySelectorAll('[data-role-name]')];
         cards.forEach(c => c.classList.toggle('hidden', !c.dataset.roleName.includes(e.target.value.trim().toLowerCase())));
         document.getElementById('roleNoMatch').classList.toggle('hidden', cards.some(c => !c.classList.contains('hidden')));
@@ -166,6 +183,17 @@
         if (!unsaved) return; e.preventDefault();
         if (await confirmAction({title: 'Discard changes?', message: 'Your unsaved role changes will be lost.', confirmText: 'Discard', danger: true})) { unsaved = false; window.location.href = link.href; }
     }));
+    const roleSelect = document.getElementById('roleSelect');
+    const openedRole = roleSelect?.value;
+    roleSelect?.addEventListener('change', async e => {
+        const url = e.target.value;
+        if (unsaved && !(await confirmAction({title: 'Discard changes?', message: 'Your unsaved role changes will be lost.', confirmText: 'Discard', danger: true}))) {
+            e.target.value = openedRole;
+            return;
+        }
+        unsaved = false;
+        window.location.href = url;
+    });
     window.addEventListener('beforeunload', e => { if (unsaved) { e.preventDefault(); e.returnValue = ''; } });
 })();
 </script>
