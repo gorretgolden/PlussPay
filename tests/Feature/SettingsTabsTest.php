@@ -61,6 +61,17 @@ class SettingsTabsTest extends TestCase
         $this->assertStringContainsString('js/settings.js', $html);
     }
 
+    public function test_each_rate_field_puts_its_unit_in_the_label_and_states_its_own_spread_rule(): void
+    {
+        $html = $this->get('/settings')->assertOk()->getContent();
+        $this->assertStringContainsString('Buying rate <span class="text-gray-500">(UGX/USD)</span>', $html);
+        $this->assertStringContainsString('Selling rate <span class="text-gray-500">(RMB/USD)</span>', $html);
+        $this->assertStringNotContainsString('id="unit-usd_ugx_buying"', $html);
+        $this->assertStringNotContainsString('aria-describedby="unit-', $html);
+        $this->assertStringContainsString('A positive margin means buying shillings cheap', $html);
+        $this->assertStringContainsString('A positive margin means crediting the receiver at the selling price', $html);
+    }
+
     public function test_company_save_cannot_overwrite_other_tabs_even_with_extra_payload_fields(): void
     {
         $rows = ExchangeRate::count();

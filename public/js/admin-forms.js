@@ -81,12 +81,14 @@
         if (!banner) {
             banner = document.createElement('div');
             banner.dataset.errorSummary = '';
-            banner.className = 'mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800';
+            banner.className = 'mb-4 min-h-[45px] rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800';
             banner.setAttribute('role', 'alert');
             form.prepend(banner);
         }
         banner.textContent = active.length ? `Please fix ${active.length} ${active.length === 1 ? 'error' : 'errors'} below.` : '';
-        banner.hidden = active.length === 0;
+        // The slot keeps its height when empty so a message cannot push the fields out from under a click.
+        banner.hidden = false;
+        banner.style.visibility = active.length ? 'visible' : 'hidden';
         return active.length;
     }
     function setError(field, message) {

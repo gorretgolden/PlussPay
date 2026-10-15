@@ -11,8 +11,8 @@
     if (!isset($tabs[$activeTab])) $activeTab = 'rates';
     $trimRate = fn ($value) => $value === null ? '' : rtrim(rtrim(number_format((float) $value, 6, '.', ''), '0'), '.');
     $pairs = [
-        'ugx' => ['unit' => 'UGX', 'pair' => $usdUgxPair, 'min' => '0.01', 'max' => '999999.99', 'helper' => 'Convert shillings into dollars.'],
-        'rmb' => ['unit' => 'RMB', 'pair' => $usdRmbPair, 'min' => '0.000001', 'max' => '999999.999999', 'helper' => 'Price RMB payouts to China.'],
+        'ugx' => ['unit' => 'UGX', 'pair' => $usdUgxPair, 'min' => '0.01', 'max' => '999999.99', 'helper' => 'Convert shillings into dollars.', 'rule' => 'buying shillings cheap and selling them dear, so the selling price must be the higher one'],
+        'rmb' => ['unit' => 'RMB', 'pair' => $usdRmbPair, 'min' => '0.000001', 'max' => '999999.999999', 'helper' => 'Price RMB payouts to China.', 'rule' => 'crediting the receiver at the selling price and settling with the China side at the buying price, so the buying price must be the higher one'],
     ];
     $fields = [
         'transactions' => [
@@ -70,7 +70,7 @@
                     </div>
 
                     @if ($tab === 'rates')
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
                             @foreach ($pairs as $currency => $rate)
                                 @php
                                     $pair = $rate['pair'];
@@ -79,23 +79,23 @@
                                 <fieldset class="min-w-0 rounded-lg border border-gray-200 p-4" data-rate-pair="{{ $currency }}">
                                     <legend class="px-1 text-base font-semibold text-gray-900">USD → {{ $rate['unit'] }}</legend>
                                     <p class="mb-4 text-xs text-gray-500">{{ $rate['helper'] }}</p>
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         @foreach (['buying' => 'Buying rate', 'selling' => 'Selling rate'] as $side => $rateLabel)
                                             @php
                                                 $key = 'usd_'.$currency.'_'.$side;
                                                 $saved = $trimRate($pair[$side === 'buying' ? 'buy' : 'sell'] ?? null);
                                             @endphp
-                                            <div>
-                                                <label for="{{ $key }}" class="block text-sm font-medium text-gray-700 mb-1">{{ $rateLabel }}</label>
+                                            <div class="min-w-0">
+                                                <label for="{{ $key }}" class="block text-sm font-medium text-gray-700 mb-1">{{ $rateLabel }} <span class="text-gray-500">({{ $rate['unit'] }}/USD)</span></label>
                                                 <div class="flex items-center rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-green-600">
-                                                    <input id="{{ $key }}" name="{{ $key }}" type="text" inputmode="decimal" pattern="(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?" data-money data-min="{{ $rate['min'] }}" data-max="{{ $rate['max'] }}" data-original="{{ $saved }}" data-label="{{ $rate['unit'] }} {{ strtolower($rateLabel) }}" value="{{ old($key, $saved) }}" aria-describedby="unit-{{ $key }} error-{{ $key }}" @if ($errors->has($key)) aria-invalid="true" @endif class="min-w-0 w-full bg-transparent px-3 py-2 outline-none tabular-nums">
-                                                    <span id="unit-{{ $key }}" class="pr-3 text-xs text-gray-500 shrink-0">{{ $rate['unit'] }}/USD</span>
+                                                    <input id="{{ $key }}" name="{{ $key }}" type="text" inputmode="decimal" pattern="(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?" data-money data-min="{{ $rate['min'] }}" data-max="{{ $rate['max'] }}" data-original="{{ $saved }}" data-label="{{ $rate['unit'] }} {{ strtolower($rateLabel) }}" value="{{ old($key, $saved) }}" aria-describedby="error-{{ $key }}" @if ($errors->has($key)) aria-invalid="true" @endif class="min-w-0 w-full bg-transparent px-3 py-2 outline-none tabular-nums">
                                                 </div>
                                                 <p id="error-{{ $key }}" data-field-error="{{ $key }}" class="mt-1 text-xs text-red-700">@error($key){{ $message }}@enderror</p>
                                             </div>
                                         @endforeach
                                     </div>
                                     <p data-margin class="mt-4 rounded-md bg-gray-50 px-3 py-2 text-sm font-medium tabular-nums {{ $margin !== null && $margin < 0 ? 'text-red-700' : 'text-green-800' }}" aria-live="polite">Margin: {{ $margin === null ? 'Not set' : ($margin > 0 ? '+' : '').$trimRate($margin).' '.$rate['unit'].'/USD' }}</p>
+                                    <p class="mt-1 text-xs text-gray-500">A positive margin means {{ $rate['rule'] }}.</p>
                                 </fieldset>
                             @endforeach
                         </div>

@@ -49,7 +49,7 @@
         <div class="p-5 sm:p-6 border-b flex justify-between items-start gap-3">
             <div><h2 class="text-xl font-semibold text-gray-900">{{ \App\Http\Controllers\RolePermissionController::displayName($selectedRole->name) }}</h2><p class="text-sm text-gray-500 mt-1">{{ $selectedRole->description ?: 'Define what this team can see and do.' }}</p></div>
             @if(!$super && !in_array($selectedRole->name, ['public', 'customer']))
-            <details class="relative shrink-0"><summary aria-label="Role actions" class="cursor-pointer px-3 py-2 text-xl rounded-lg border">⋮</summary>
+            <details class="relative shrink-0"><summary aria-label="Role actions" class="cursor-pointer list-none px-3 py-2 text-xl rounded-lg border [&::-webkit-details-marker]:hidden">⋮</summary>
                 <div class="absolute right-0 top-full mt-2 w-72 max-w-[80vw] bg-white border shadow-lg rounded-lg p-4 z-20 text-sm space-y-4">
                     @can('create-role')
                     <form method="POST" action="{{ route('admin.roles.duplicate', $selectedRole) }}" class="space-y-2">@csrf<label class="block">Copy name<input name="name" required maxlength="50" value="{{ $selectedRole->name }} copy" class="w-full border rounded px-2 py-2 mt-1"></label><button class="text-green-800 font-semibold min-h-[44px]">Duplicate role</button></form>

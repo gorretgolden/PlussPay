@@ -35,10 +35,11 @@
                 summary = document.createElement('p');
                 summary.dataset.validationSummary = '';
                 summary.setAttribute('role', 'alert');
+                summary.className = 'user-summary';
                 form.prepend(summary);
             }
             const count = all('[data-field-error]', form).filter(el => el.textContent.trim()).length;
-            summary.hidden = !count;
+            // The slot keeps its height whether or not there is a message, so the fields never move under a click.
             summary.textContent = count ? `Please correct ${count} ${count === 1 ? 'field' : 'fields'} below.` : '';
         },
         initialize(form) { form.noValidate = true; }
