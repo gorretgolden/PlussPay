@@ -49,6 +49,15 @@ class RolePermissionController extends Controller
         return $this->createRole($request, $role);
     }
 
+    /**
+     * Role names are stored lowercase and hyphenated so "Desk Lead" and "desk-lead" are the
+     * same role, and so the label can be read back out of the name later.
+     */
+    public static function slug(string $name): string
+    {
+        return strtolower(trim(preg_replace('/[\s-]+/', '-', $name), '-'));
+    }
+
     private function createRole(Request $request, ?Role $source = null)
     {
         $validated = $request->validate([
@@ -56,7 +65,7 @@ class RolePermissionController extends Controller
             'description' => ['nullable', 'string', 'max:500'],
             ...$this->permissionRules(),
         ]);
-        $name = strtolower(str_replace(' ', '', $validated['name']));
+        $name = self::slug($validated['name']);
         abort_if(in_array($name, ['superadmin', 'public', 'customer'], true), 403, 'This role name is protected.');
         if (Role::where('name', $name)->where('guard_name', 'web')->exists()) {
             throw ValidationException::withMessages(['name' => 'A role with this name already exists.']);
@@ -114,7 +123,7 @@ class RolePermissionController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:50', 'regex:/^[a-zA-Z][a-zA-Z0-9 -]*$/'],
         ]);
-        $name = strtolower(str_replace(' ', '', $validated['name']));
+        $name = self::slug($validated['name']);
         abort_if(in_array($name, ['superadmin', 'public', 'customer'], true), 403, 'This role name is protected.');
         if (Role::where('name', $name)->where('guard_name', 'web')->exists()) {
             throw ValidationException::withMessages(['name' => 'A role with this name already exists.']);

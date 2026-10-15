@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\RolePermissionController;
 use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -85,7 +86,7 @@ class RolePermissionTest extends TestCase
         ]);
 
         $response->assertSessionHasErrors('name');
-        $this->assertEquals(1, Role::where('name', 'teamlead')->count());
+        $this->assertEquals(1, Role::where('name', 'team-lead')->count());
     }
 
     public function test_duplicate_role_name_keeps_the_ticked_permissions(): void
@@ -161,11 +162,12 @@ class RolePermissionTest extends TestCase
         $this->actingAs($admin)->patch("/admin/roles/{$role->id}/rename", ['name' => 'Desk Lead'])
             ->assertSessionHasNoErrors();
 
-        $renamed = Role::where('name', 'desklead')->firstOrFail();
+        $renamed = Role::where('name', 'desk-lead')->firstOrFail();
         $this->assertSame($role->id, $renamed->id);
-        $this->assertTrue($person->fresh()->hasRole('desklead'));
+        $this->assertTrue($person->fresh()->hasRole('desk-lead'));
         $this->assertEquals(['view-transactions'], $renamed->permissions->pluck('name')->all());
-        $this->assertDatabaseHas('activity_logs', ['action' => 'role_renamed', 'new_value' => json_encode(['desklead'])]);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'role_renamed', 'new_value' => json_encode(['desk-lead'])]);
+        $this->assertSame('Desk Lead', RolePermissionController::displayName($renamed->name));
     }
 
     public function test_a_rename_that_collides_with_another_role_is_rejected(): void
