@@ -6,13 +6,13 @@
 <div class="mb-6 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-900">Transactions</h1>
     <div class="flex gap-2">
-        @role('admin|superadmin')
+        @can('bulk-import-transactions')
         <a href="{{ route('transactions.bulk-import') }}" class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Bulk Import</a>
-        @endrole
+        @endcan
         <a href="{{ route('export.transactions', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
-        @role('admin|agent')
+        @can('create-transaction')
         <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Transaction</a>
-        @endrole
+        @endcan
     </div>
 </div>
 
@@ -97,15 +97,15 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Money Travels</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">RMB</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Charge (UGX)</th>
-                @role('admin|superadmin|accountant')
+                @can('view-profit')
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exchange Profit</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Overall Profit</th>
-                @endrole
+                @endcan
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                @role('admin|superadmin|accountant')
+                @can('view-profit')
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Booked By</th>
-                @endrole
+                @endcan
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
         </thead>
@@ -121,10 +121,10 @@
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $t->currency }} {{ number_format($t->amount, 2) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($t->rmb_amount, 2) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">UGX {{ number_format((float) $t->charge_ugx, 2) }}</td>
-                @role('admin|superadmin|accountant')
+                @can('view-profit')
                 <td class="px-6 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['exchange']['tone']] }}">{{ $profit['exchange']['text'] }}</td>
                 <td class="px-6 py-4 text-sm font-medium whitespace-nowrap {{ $toneClass[$profit['total']['tone']] }}">{{ $profit['total']['text'] }}</td>
-                @endrole
+                @endcan
                 <td class="px-6 py-4">
                     <span class="px-2 py-1 text-xs rounded-full
                         @if($t->status === 'completed') bg-green-100 text-green-800
@@ -134,11 +134,11 @@
                     </span>
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('M d, Y h:i A') }}</td>
-                @role('admin|superadmin|accountant')
+                @can('view-profit')
                 <td class="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
                     {{ $t->creator?->name ?? '-' }}@if($t->creator && $t->creator->countryLabel())<span class="text-gray-400"> · {{ $t->creator->countryLabel() }}</span>@endif
                 </td>
-                @endrole
+                @endcan
                 <td data-row-menu-host class="px-6 py-4 text-right relative">
                     <button type="button" onclick="toggleMenu({{ $t->id }})" class="p-1 rounded hover:bg-gray-100">
                         <svg class="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>
@@ -147,7 +147,7 @@
                         <a href="{{ route('receipts.show', $t->receipt_number) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">View Receipt</a>
                         <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Print Receipt</a>
 
-                        @role('admin|superadmin|accountant')
+                        @can('view-profit')
                         @if($t->status === 'pending')
                         <div class="border-t border-gray-100 my-1"></div>
                         <form method="POST" action="{{ route('transactions.update-status', $t) }}">
@@ -171,20 +171,20 @@
                             Cancel transfer
                         </button>
                         @endif
-                        @endrole
+                        @endcan
                     </div>
                 </td>
             </tr>
             @empty
             <tr>
-                <td colspan="{{ auth()->user()->hasRole(['admin', 'superadmin', 'accountant']) ? 12 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
+                <td colspan="{{ auth()->user()->can('view-profit') ? 12 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
             </tr>
             @endforelse
         </tbody>
     </table>
-    @role('admin|superadmin|accountant')
+    @can('view-profit')
     <p class="px-6 py-3 text-xs text-gray-500 border-t">The exchange profit is what the rates came to on the money that travelled, and the overall profit adds the charge to it. Only a completed transfer counts toward profit, and one booked before its rates were stored shows n/a instead of a zero that would read as break-even.</p>
-    @endrole
+    @endcan
 </div>
 
 <div class="mt-4">

@@ -62,6 +62,8 @@ class CustomerController extends Controller
         // Transfers are filed by the name they were booked under, which is how the directory was
         // built in the first place. Exchanges carry the customer id directly, so those link exactly.
         $transfers = Transaction::with('creator')
+            ->visibleTo(auth()->user())
+            ->when(!auth()->user()->can('view-transactions'), fn ($q) => $q->whereRaw('1 = 0'))
             ->where(function ($query) use ($customer) {
                 $name = mb_strtolower($customer->name);
 
@@ -81,6 +83,8 @@ class CustomerController extends Controller
             'customer' => $customer,
             'transfers' => $transfers,
             'exchanges' => CurrencyExchange::with(['inAccount', 'outAccount', 'creator'])
+                ->visibleTo(auth()->user())
+                ->when(!auth()->user()->can('view-exchanges'), fn ($q) => $q->whereRaw('1 = 0'))
                 ->where('customer_id', $customer->id)
                 ->orderByDesc('exchange_date')
                 ->orderByDesc('id')

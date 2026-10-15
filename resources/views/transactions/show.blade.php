@@ -51,7 +51,7 @@
         </div>
     </div>
 
-    @role('admin|superadmin|accountant')
+    @can('view-profit')
     <div class="border-t pt-4 mb-6">
         <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
             <div>
@@ -111,9 +111,9 @@
         </p>
         @endif
     </div>
-    @endrole
+    @endcan
 
-    @role('admin|superadmin|accountant')
+    @can('view-profit')
     @php
         $trim = fn ($v) => rtrim(rtrim(number_format((float) $v, 4, '.', ''), '0'), '.');
         $profit = $transaction->profitLabels();
@@ -139,7 +139,7 @@
             <p class="text-xs text-amber-700 mt-2">No buying rate was recorded on this transfer, so only the charge counts as profit. The exchange figure is left unpriced rather than guessed.</p>
         @endif
     </div>
-    @endrole
+    @endcan
 
     @if($transaction->notes)
     <div class="border-t pt-4">
@@ -155,7 +155,7 @@
         <p>Last updated on {{ $transaction->updated_at->format('M d, Y h:i A') }}@if($transaction->editor) by <span class="font-medium text-gray-900">{{ $transaction->editor->name }}</span>@endif</p>
     </div>
 
-    @role('admin|superadmin')
+    @can('approve-transaction')
     @if($transaction->status !== 'cancelled')
     <div class="border-t pt-4 mt-4">
         <h3 class="text-sm font-medium text-gray-500 mb-3">Actions</h3>
@@ -178,7 +178,7 @@
         </div>
     </div>
     @endif
-    @endrole
+    @endcan
 
     @include('transactions.partials.cancel-modal')
 

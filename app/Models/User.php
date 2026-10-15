@@ -13,7 +13,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'phone', 'country', 'timezone', 'password', 'is_active', 'is_locked', 'failed_login_attempts', 'locked_until', 'last_login_at', 'last_login_ip', 'allowed_days', 'allowed_from', 'allowed_to', 'two_factor_secret', 'two_factor_enabled'])]
+#[Fillable(['name', 'email', 'phone', 'country', 'timezone', 'password', 'is_active', 'is_locked', 'failed_login_attempts', 'locked_until', 'last_login_at', 'last_login_ip', 'allowed_days', 'allowed_from', 'allowed_to', 'two_factor_secret', 'two_factor_enabled', 'must_change_password'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret'])]
 class User extends Authenticatable
 {
@@ -48,6 +48,7 @@ class User extends Authenticatable
             'last_login_at' => 'datetime',
             'failed_login_attempts' => 'integer',
             'two_factor_enabled' => 'boolean',
+            'must_change_password' => 'boolean',
             'two_factor_secret' => 'encrypted',
         ];
     }
@@ -150,7 +151,13 @@ class User extends Authenticatable
         }
 
         if ($request->filled('lock')) {
-            $query->where('is_locked', $request->lock === 'locked');
+            $query->where(function ($q) use ($request) {
+                if ($request->lock === 'locked') {
+                    $q->where('is_locked', true)->orWhere('locked_until', '>', now());
+                } else {
+                    $q->where('is_locked', false)->where(fn ($locks) => $locks->whereNull('locked_until')->orWhere('locked_until', '<=', now()));
+                }
+            });
         }
 
         if ($request->filled('two_factor')) {
@@ -246,7 +253,7 @@ class User extends Authenticatable
      */
     public function loginWindowBlockReason(?Carbon $at = null): ?string
     {
-        $at ??= now();
+        $at = ($at ?? now())->copy()->setTimezone($this->timezone ?: self::timezoneForCountry($this->country));
 
         if (!$this->hasLoginWindow()) {
             return null;

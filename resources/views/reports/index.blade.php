@@ -6,7 +6,7 @@
 @php
     // The profit columns belong to the same account that owns the Profit cards, so one flag
     // decides which columns a viewer gets instead of repeating the role test everywhere.
-    $showProfit = auth()->user()->hasRole(['admin', 'superadmin', 'accountant']);
+    $showProfit = auth()->user()->can('view-profit');
 @endphp
 <div class="mb-6 flex justify-between items-center">
     <div>
@@ -80,16 +80,16 @@
         <div class="text-2xl font-bold text-green-700 mt-1">UGX {{ number_format($profit['fee_ugx']) }}</div>
         <div class="text-xs text-gray-400 mt-1">USD {{ number_format($profit['fee_usd'], 2) }} | Avg: ${{ number_format($stats['avg_transaction'], 2) }}/tx</div>
     </div>
-    @role('admin|superadmin|accountant')
+    @can('view-profit')
     <div class="bg-white rounded-lg shadow p-5 border-l-4 border-purple-500">
         <div class="text-sm text-gray-500">Overall Profit</div>
         <div class="text-2xl font-bold {{ $profit['total_ugx'] < 0 ? 'text-red-700' : 'text-purple-700' }} mt-1">{{ $profit['total_ugx'] < 0 ? 'Loss ' : '' }}UGX {{ number_format(abs($profit['total_ugx'])) }}</div>
         <div class="text-xs text-gray-400 mt-1">&yen;{{ number_format($profit['total_rmb'], 2) }} RMB | USD {{ number_format($profit['total_usd'], 2) }}</div>
     </div>
-    @endrole
+    @endcan
 </div>
 
-@role('admin|superadmin|accountant')
+@can('view-profit')
 <div id="section-profit" class="mb-6">
     <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -137,7 +137,7 @@
         @endif
     </div>
 </div>
-@endrole
+@endcan
 
 {{-- Commission Section: everyone sees their own, admin sees the whole desk --}}
 <div id="section-commission" class="mb-6">
@@ -480,7 +480,7 @@
     </div>
 </div>
 
-@role('admin|superadmin|accountant')
+@can('view-profit')
 {{-- What each dollar rate carried, which the rate sheet on its own cannot show --}}
 <div id="section-rates" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">
@@ -533,11 +533,12 @@
         </table>
     </div>
 </div>
-@endrole
+@endcan
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-    const dailySummary = @json($dailySummary);
+    @php($dailyChart = $dailySummary->map(fn ($day) => ['date' => $day->date, 'count' => $day->count, 'total_usd' => $day->total_usd, 'fee_ugx' => $day->fee_ugx]))
+    const dailySummary = @json($dailyChart);
     // Only the three fields the chart draws, so no account details travel in the page source.
     const byAgent = @json($byAgent->map(fn ($a) => ['name' => $a->creator?->name ?? 'Unknown', 'count' => (int) $a->count, 'charge' => (float) $a->fee_ugx])->values());
     const stats = @json($stats);

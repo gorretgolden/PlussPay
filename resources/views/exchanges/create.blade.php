@@ -242,6 +242,7 @@
 
         document.getElementById('quote_rule').textContent = rule(inCur, outCur);
 
+        if (!@json(auth()->user()->can('view-profit'))) return;
         const received = worthInShillings(inCur, amount);
         const paid = costInShillings(outCur, handed);
         const work = document.getElementById('quote_work');

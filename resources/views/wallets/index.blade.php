@@ -8,7 +8,7 @@
     <p class="text-gray-600">Commission balances for every agent. A desk in Uganda holds shillings and dollars and a desk in China holds yuan and dollars, so a dash means that currency is not one this person keeps.</p>
 </div>
 
-@role('admin|superadmin')
+@can('adjust-wallets')
 <div class="bg-white rounded-lg shadow p-5 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-4">Adjust an Agent's Wallet</h2>
     <form method="POST" action="{{ route('wallets.adjust') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
@@ -50,7 +50,7 @@
         </div>
     </form>
 </div>
-@endrole
+@endcan
 
 @if(empty($allWallets))
 <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">No active agents found.</div>

@@ -3,295 +3,220 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Support\PermissionCatalog;
+use Database\Seeders\PermissionsSeeder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class RolePermissionController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $roles = Role::with('permissions')->withCount('users')->latest()->get();
-        $permissions = Permission::latest()->get()->groupBy(function ($p) {
-            return Str::before($p->name, '-');
-        });
+        $roles = Role::where('guard_name', 'web')->with('permissions')->withCount('users')->orderBy('name')->get();
+        $permissions = $this->groups();
+        $selectedRole = $roles->firstWhere('id', (int) $request->query('role')) ?? $roles->firstWhere('name', 'admin') ?? $roles->first();
 
-        return view('admin.roles', compact('roles', 'permissions'));
+        return view('admin.roles', compact('roles', 'permissions', 'selectedRole'));
     }
 
-    public function store(Request $request)
+    private function groups()
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:50',
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,name',
-        ]);
-
-        $name = strtolower(str_replace(' ', '', $validated['name']));
-
-        if (Role::where('name', $name)->exists()) {
-            return back()->withInput()->withErrors(['name' => 'A role with this name already exists.']);
-        }
-
-        $role = Role::create(['name' => $name, 'guard_name' => 'web']);
-        $role->syncPermissions($validated['permissions'] ?? []);
-
-        ActivityLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'role_created',
-            'description' => "Role {$role->name} created with " . count($validated['permissions'] ?? []) . ' permission(s)',
-            'new_value' => json_encode($role->fresh()->permissions->pluck('name')->all()),
-        ]);
-
-        return redirect()->route('admin.roles')->with('success', "Role \"{$validated['name']}\" created.");
-    }
-
-    public function update(Request $request, Role $role)
-    {
-        if ($role->name === 'superadmin' && !auth()->user()->hasRole('superadmin')) {
-            abort(403, 'Only superadmins can change the Super Admin role permissions.');
-        }
-
-        $request->validate([
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,name',
-        ]);
-
-        $before = $role->permissions->pluck('name')->sort()->values()->all();
-        $role->syncPermissions($request->permissions ?? []);
-        $after = $role->refresh()->permissions->pluck('name')->sort()->values()->all();
-
-        ActivityLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'role_permissions_changed',
-            'description' => 'Permissions updated for role ' . $role->name,
-            'old_value' => json_encode($before),
-            'new_value' => json_encode($after),
-        ]);
-
-        return redirect()->route('admin.roles')->with('success', "Permissions updated for {$this->displayName($role->name)}.");
-    }
-
-    public function destroy(Request $request, Role $role)
-    {
-        if (in_array($role->name, ['superadmin', 'admin', 'agent', 'accountant'], true)) {
-            return back()->withErrors(['error' => 'Built-in roles cannot be deleted.']);
-        }
-
-        if ($role->users()->count() > 0) {
-            return back()->withErrors(['error' => "Cannot delete {$this->displayName($role->name)}: {$role->users()->count()} user(s) still assigned to this role."]);
-        }
-
-        ActivityLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'role_deleted',
-            'description' => "Role {$role->name} deleted",
-            'old_value' => $role->name,
-        ]);
-
-        $role->delete();
-
-        return redirect()->route('admin.roles')->with('success', 'Role deleted successfully.');
+        return Permission::where('guard_name', 'web')->orderBy('name')->get()
+            ->groupBy(fn ($p) => PermissionCatalog::module($p->name));
     }
 
     public function permissions(Request $request)
     {
-        $query = Permission::latest();
+        $permissions = $this->groups();
+        return view('admin.permissions', compact('permissions'));
+    }
 
-        if ($search = $request->input('search')) {
-            $query->where('name', 'like', "%{$search}%");
+    public function store(Request $request)
+    {
+        return $this->createRole($request);
+    }
+
+    public function duplicate(Request $request, Role $role)
+    {
+        $this->editable($role);
+        return $this->createRole($request, $role);
+    }
+
+    private function createRole(Request $request, ?Role $source = null)
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:50', 'regex:/^[a-zA-Z][a-zA-Z0-9 -]*$/'],
+            'description' => ['nullable', 'string', 'max:500'],
+            ...$this->permissionRules(),
+        ]);
+        $name = strtolower(str_replace(' ', '', $validated['name']));
+        abort_if(in_array($name, ['superadmin', 'public', 'customer'], true), 403, 'This role name is protected.');
+        if (Role::where('name', $name)->where('guard_name', 'web')->exists()) {
+            throw ValidationException::withMessages(['name' => 'A role with this name already exists.']);
         }
+        $names = $source ? $source->permissions->pluck('name')->all() : ($validated['permissions'] ?? []);
+        if ($names) {
+            Gate::authorize('assign-permissions');
+            $this->delegable($names);
+        }
+        $role = DB::transaction(function () use ($name, $names, $validated, $source) {
+            $role = Role::create(['name' => $name, 'guard_name' => 'web']);
+            $role->forceFill(['description' => $validated['description'] ?? $source?->description, 'permissions_initialized_at' => now()])->save();
+            $role->syncPermissions($names);
+            $this->audit($source ? 'role_duplicated' : 'role_created', $role, [], $names, $source ? 'Copied from '.$source->name : 'Created role');
+            return $role;
+        });
+        return redirect()->route('admin.roles', ['role' => $role->id])->with('success', 'Role created.');
+    }
 
-        $permissions = $query->paginate(25)->withQueryString();
-        $roles = Role::with('permissions')->latest()->get();
-        $totalPermissions = Permission::count();
+    public function update(Request $request, Role $role)
+    {
+        $this->editable($role);
+        $validated = $request->validate([
+            'description' => ['nullable', 'string', 'max:500'],
+            ...$this->permissionRules(),
+        ]);
+        Gate::authorize('assign-permissions');
+        $names = $validated['permissions'] ?? [];
+        $this->delegable($names);
+        DB::transaction(function () use ($role, $names, $validated) {
+            $role = Role::whereKey($role->id)->lockForUpdate()->firstOrFail();
+            $this->editable($role);
+            $before = $role->permissions->pluck('name')->sort()->values()->all();
+            $description = $role->description;
+            $role->syncPermissions($names);
+            $role->forceFill(['description' => $validated['description'] ?? $description])->save();
+            $after = $role->fresh()->permissions->pluck('name')->sort()->values()->all();
+            if ($before !== $after || $description !== $role->description) {
+                $this->audit('role_permissions_changed', $role, $before, $after,
+                    'Updated role; description: '.($description ?? '').' → '.($role->description ?? ''));
+            }
+        });
+        return redirect()->route('admin.roles', ['role' => $role->id])->with('success', 'Role permissions saved.');
+    }
 
-        return view('admin.permissions', compact('permissions', 'roles', 'totalPermissions'));
+    public function destroy(Request $request, Role $role)
+    {
+        $this->editable($role);
+        abort_if(array_key_exists($role->name, PermissionCatalog::DESCRIPTIONS), 403, 'Built-in roles cannot be deleted.');
+        $request->validate(['confirm_name' => ['required', 'string', Rule::in([$role->name])]]);
+        DB::transaction(function () use ($role) {
+            $role = Role::whereKey($role->id)->lockForUpdate()->firstOrFail();
+            $this->editable($role);
+            if ($role->users()->exists()) {
+                throw ValidationException::withMessages(['confirm_name' => 'Reassign every user before deleting this role.']);
+            }
+            $this->audit('role_deleted', $role, $role->permissions->pluck('name')->all(), [], 'Deleted role');
+            $role->delete();
+        });
+        return redirect()->route('admin.roles')->with('success', 'Role deleted.');
     }
 
     public function toggleRolePermission(Request $request, Permission $permission, Role $role)
     {
-        if ($role->name === 'superadmin' && !auth()->user()->hasRole('superadmin')) {
-            return response()->json(['error' => 'Only superadmins can change Super Admin permissions.'], 403);
-        }
-
-        $before = $role->hasPermissionTo($permission);
-
-        if ($before) {
-            $role->revokePermissionTo($permission);
-        } else {
-            $role->givePermissionTo($permission);
-        }
-
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-
-        ActivityLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'role_permission_toggled',
-            'description' => ($before ? 'Revoked' : 'Granted') . " {$permission->name} " . ($before ? 'from' : 'to') . " role {$role->name}",
-            'old_value' => $before ? 'granted' : 'revoked',
-            'new_value' => $before ? 'revoked' : 'granted',
-        ]);
-
-        return response()->json(['granted' => !$before]);
-    }
-
-    public function storePermission(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:100',
-        ]);
-
-        $name = strtolower(str_replace(' ', '-', $validated['name']));
-
-        if (Permission::where('name', $name)->exists()) {
-            return back()->withInput()->withErrors(['name' => 'A permission with this name already exists.']);
-        }
-
-        $permission = Permission::create(['name' => $name, 'guard_name' => 'web']);
-
-        ActivityLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'permission_created',
-            'description' => "Permission {$permission->name} created",
-            'new_value' => $permission->name,
-        ]);
-
-        return redirect()->route('admin.permissions')->with('success', "Permission \"{$permission->name}\" created.");
-    }
-
-    public function updatePermission(Request $request, Permission $permission)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:100',
-        ]);
-
-        $oldName = $permission->name;
-        $newName = strtolower(str_replace(' ', '-', $validated['name']));
-
-        if ($newName !== $oldName && Permission::where('name', $newName)->exists()) {
-            return back()->withErrors(['error' => "A permission named \"{$newName}\" already exists."]);
-        }
-
-        $permission->update(['name' => $newName]);
-
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-
-        ActivityLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'permission_updated',
-            'description' => "Permission renamed from {$oldName} to {$newName}",
-            'old_value' => $oldName,
-            'new_value' => $newName,
-        ]);
-
-        return redirect()->route('admin.permissions')->with('success', "Permission renamed to \"{$newName}\".");
-    }
-
-    public function destroyPermission(Permission $permission)
-    {
-        $roleCount = $permission->roles()->count();
-        $userCount = \DB::table('model_has_permissions')
-            ->where('permission_id', $permission->id)
-            ->count();
-
-        if ($roleCount > 0 || $userCount > 0) {
-            return back()->withErrors(['error' => "Cannot delete \"{$permission->name}\": assigned to {$roleCount} role(s) and {$userCount} user(s). Remove it from all roles and users first."]);
-        }
-
-        ActivityLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'permission_deleted',
-            'description' => "Permission {$permission->name} deleted",
-            'old_value' => $permission->name,
-        ]);
-
-        $permission->delete();
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-
-        return redirect()->route('admin.permissions')->with('success', 'Permission deleted successfully.');
+        $this->editable($role);
+        abort_unless($permission->guard_name === 'web', 422);
+        $granted = DB::transaction(function () use ($permission, $role) {
+            $role = Role::whereKey($role->id)->lockForUpdate()->firstOrFail();
+            $this->editable($role);
+            $before = $role->permissions->pluck('name')->all();
+            $has = in_array($permission->name, $before, true);
+            if (!$has) {
+                $this->delegable([$permission->name]);
+                $role->givePermissionTo($permission);
+            } else {
+                $role->revokePermissionTo($permission);
+            }
+            $this->audit('role_permission_toggled', $role, $before, $role->fresh()->permissions->pluck('name')->all(), 'Toggled '.$permission->name);
+            return !$has;
+        });
+        return response()->json(['granted' => $granted]);
     }
 
     public function bulk(Request $request)
     {
         $validated = $request->validate([
-            'action' => 'required|in:assign,remove,delete',
-            'permission_ids' => 'required|array|min:1',
-            'permission_ids.*' => 'integer|exists:permissions,id',
-            'role_id' => 'required_if:action,assign,remove|integer|exists:roles,id',
+            'action' => ['required', 'in:assign,remove,delete'],
+            'permission_ids' => ['required', 'array', 'min:1'],
+            'permission_ids.*' => ['integer', Rule::exists('permissions', 'id')->where('guard_name', 'web')],
+            'role_id' => ['required_unless:action,delete', 'integer', Rule::exists('roles', 'id')->where('guard_name', 'web')],
         ]);
-
-        $ids = collect($validated['permission_ids'])->unique()->values();
-        $permissions = Permission::whereIn('id', $ids)->get();
-        $action = $validated['action'];
-
-        if ($action === 'delete') {
-            $deletable = $permissions->filter(function ($permission) {
-                return $permission->roles()->count() === 0
-                    && \DB::table('model_has_permissions')->where('permission_id', $permission->id)->count() === 0;
-            });
-
-            $skipped = $permissions->count() - $deletable->count();
-
-            foreach ($deletable as $permission) {
-                ActivityLog::create([
-                    'user_id' => auth()->id(),
-                    'action' => 'permission_deleted',
-                    'description' => "Permission {$permission->name} deleted (bulk)",
-                    'old_value' => $permission->name,
-                ]);
-                $permission->delete();
-            }
-
-            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-
-            $message = $deletable->count() . ' permission(s) deleted.';
-            if ($skipped > 0) {
-                return back()->with('success', $message)->withErrors(['error' => "{$skipped} permission(s) were skipped because they are still assigned to a role or user."]);
-            }
-
-            return back()->with('success', $message);
-        }
-
+        abort_if($validated['action'] === 'delete', 403, 'Permission definitions are maintained in the application catalog.');
         $role = Role::findOrFail($validated['role_id']);
-
-        if ($role->name === 'superadmin' && !auth()->user()->hasRole('superadmin')) {
-            return back()->withErrors(['error' => 'Only superadmins can change Super Admin permissions.']);
+        $this->editable($role);
+        $names = Permission::whereIn('id', $validated['permission_ids'])->pluck('name')->all();
+        if ($validated['action'] === 'assign') {
+            $this->delegable($names);
         }
+        DB::transaction(function () use ($role, $names, $validated) {
+            $role = Role::whereKey($role->id)->lockForUpdate()->firstOrFail();
+            $this->editable($role);
+            $before = $role->permissions->pluck('name')->all();
+            $after = $validated['action'] === 'assign' ? array_unique(array_merge($before, $names)) : array_diff($before, $names);
+            $role->syncPermissions(array_values($after));
+            $this->audit('role_permissions_bulk_changed', $role, $before, array_values($after), 'Bulk '.$validated['action']);
+        });
+        return back()->with('success', 'Role permissions updated.');
+    }
 
-        $changed = 0;
+    public function seed()
+    {
+        Gate::authorize('seed-permissions');
+        DB::transaction(function () {
+            $before = Permission::where('guard_name', 'web')->count();
+            (new PermissionsSeeder)->run();
+            ActivityLog::create([
+                'user_id' => auth()->id(), 'action' => 'permissions_seeded',
+                'description' => 'Incrementally seeded the default permission catalog; preserved existing role customizations.',
+                'old_value' => (string) $before, 'new_value' => (string) Permission::where('guard_name', 'web')->count(),
+            ]);
+        });
+        return back()->with('success', 'Default catalog seeded. Existing role customizations were preserved.');
+    }
 
-        foreach ($permissions as $permission) {
-            $hasIt = $role->hasPermissionTo($permission);
+    // These URLs remain stable, but abilities wired into code are not cosmetic CRUD data.
+    public function storePermission(Request $request) { abort(403, 'Permission definitions are maintained in the application catalog.'); }
+    public function updatePermission(Request $request, Permission $permission) { abort(403, 'Permission slugs cannot be renamed.'); }
+    public function destroyPermission(Permission $permission) { abort(403, 'Permission definitions cannot be deleted.'); }
 
-            if ($action === 'assign' && !$hasIt) {
-                $role->givePermissionTo($permission);
-                $changed++;
-            } elseif ($action === 'remove' && $hasIt) {
-                $role->revokePermissionTo($permission);
-                $changed++;
-            }
+    private function permissionRules(): array
+    {
+        return ['permissions' => ['sometimes', 'array'], 'permissions.*' => ['string', 'distinct', Rule::exists('permissions', 'name')->where('guard_name', 'web')]];
+    }
+
+    private function editable(Role $role): void
+    {
+        abort_unless($role->guard_name === 'web', 404);
+        abort_if(in_array($role->name, ['superadmin', 'public', 'customer'], true), 403, 'This role is protected and cannot be changed.');
+        // A permissions manager cannot modify or copy a role more privileged than themselves.
+        $this->delegable($role->permissions->pluck('name')->all());
+    }
+
+    private function delegable(array $names): void
+    {
+        foreach ($names as $name) {
+            abort_unless(PermissionCatalog::mayDelegate(auth()->user(), $name), 403, 'You cannot grant or manage permissions you do not hold.');
         }
+    }
 
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
-
+    private function audit(string $action, Role $role, array $before, array $after, string $detail): void
+    {
         ActivityLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'role_permissions_bulk_changed',
-            'description' => ucfirst($action) . " {$changed} permission(s) " . ($action === 'assign' ? 'to' : 'from') . " role {$role->name}",
-            'new_value' => json_encode($permissions->pluck('name')->all()),
+            'user_id' => auth()->id(), 'action' => $action,
+            'description' => $detail.' for '.$role->name.'; '.$role->users()->count().' user(s) affected.',
+            'old_value' => json_encode($before), 'new_value' => json_encode($after),
         ]);
-
-        return back()->with('success', "{$changed} permission(s) " . ($action === 'assign' ? "added to" : "removed from") . " {$this->displayName($role->name)}.");
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     public static function displayName(string $slug): string
     {
-        $map = [
-            'superadmin' => 'Super Admin',
-        ];
-
-        return $map[$slug] ?? ucwords(str_replace('-', ' ', $slug));
+        return $slug === 'superadmin' ? 'Super Admin' : ucwords(str_replace('-', ' ', $slug));
     }
 }

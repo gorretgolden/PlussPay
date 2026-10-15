@@ -7,9 +7,9 @@
     <h1 class="text-2xl font-bold text-gray-900">Receipts</h1>
     <div class="flex gap-2">
         <a href="{{ route('export.receipts', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
-        @role('admin|agent')
+        @can('create-transaction')
         <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Transaction</a>
-        @endrole
+        @endcan
     </div>
 </div>
 

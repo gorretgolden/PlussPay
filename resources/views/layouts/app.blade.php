@@ -20,6 +20,12 @@
         .sidebar-nav { scrollbar-width: thin; scrollbar-color: #166534 transparent; }
         .sidebar-nav::-webkit-scrollbar { width: 6px; }
         .sidebar-nav::-webkit-scrollbar-thumb { background: #166534; border-radius: 3px; }
+        :where(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid #15803d; outline-offset: 3px; }
+        .admin-confirm::backdrop { background: rgb(0 0 0 / 50%); }
+        .admin-confirm { max-width: min(28rem, calc(100vw - 2rem)); }
+        .field-invalid { border-color: #b91c1c !important; }
+        .field-error:not([hidden]):not(:empty)::before { content: '!'; display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: 1rem; border: 1px solid currentColor; border-radius: 50%; font-size: .7rem; margin-right: .35rem; }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; } }
     </style>
     @stack('styles')
 </head>
@@ -27,50 +33,59 @@
     @auth
     <div class="flex">
         {{-- Sidebar --}}
-        <aside class="w-64 bg-green-900 text-white flex flex-col no-print fixed h-full">
+        <aside id="appSidebar" class="w-64 bg-green-900 text-white flex flex-col no-print fixed h-full z-40 -translate-x-full md:translate-x-0 transition-transform duration-200">
+            <button type="button" onclick="toggleSidebar(false)" class="md:hidden absolute right-2 top-2 p-2 rounded bg-green-800" aria-label="Close the menu">&times;</button>
             <div class="p-4 border-b border-green-800">
                 <a href="{{ route('dashboard') }}" class="block">
                     <img src="{{ asset('logo.webp') }}" alt="PlusPay" width="640" height="232" class="w-full h-auto">
                 </a>
             </div>
             <nav class="sidebar-nav flex-1 py-4 overflow-y-auto">
+                @can('view-dashboard')
                 <a href="{{ route('dashboard') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4"/></svg>
                     Dashboard
                 </a>
+                @endcan
+                @can('view-wallets')
                 <a href="{{ route('wallet.index') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('wallet.*') ? 'active' : '' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
                     My Wallet
                 </a>
-                @role('admin|superadmin|agent')
+                @endcan
+                @can('create-transaction')
                 <a href="{{ route('transactions.create') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('transactions.create') ? 'active' : '' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                     Send Money
                 </a>
-                @endrole
+                @endcan
+                @can('view-transactions')
                 <a href="{{ route('transactions.index') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('transactions.index') ? 'active' : '' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                     Transactions
                 </a>
+                @endcan
+                @can('view-receipts')
                 <a href="{{ route('receipts.index') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('receipts.*') ? 'active' : '' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     Receipts
                 </a>
-                @role('admin|superadmin|accountant|agent')
+                @endcan
+                @can('view-exchanges')
                 <a href="{{ route('exchanges.index') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('exchanges.*') ? 'active' : '' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                     Currency Exchange
                 </a>
-                @endrole
-                @role('admin|superadmin|accountant')
+                @endcan
+                @can('view-customers')
                 <a href="{{ route('customers.index') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('customers.*') ? 'active' : '' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                     Customers
                 </a>
-                @endrole
+                @endcan
 
                 {{-- Accounts Group --}}
-                @role('admin|superadmin|accountant')
+                @can('view-accounts')
                 <div>
                     <button type="button" onclick="toggleAccountsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.*') || request()->routeIs('expenses.*') ? 'bg-green-800' : '' }}">
                         <span class="flex items-center">
@@ -86,18 +101,23 @@
                         <a href="{{ route('accounts.movements') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.movements') ? 'active' : '' }}">
                             Money Movements
                         </a>
+                        @can('create-account-entry')
                         <a href="{{ route('accounts.entries.create') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.entries.create') ? 'active' : '' }}">
                             Add Ledger Entry
                         </a>
+                        @endcan
                         <a href="{{ route('accounts.daily-balances') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.daily-balances') ? 'active' : '' }}">
                             Daily Balances
                         </a>
+                        @can('view-expenses')
                         <a href="{{ route('expenses.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('expenses.*') ? 'active' : '' }}">
                             Expenses
                         </a>
+                        @endcan
                     </div>
                 </div>
-                @endrole
+                @endcan
+                @can('view-reports')
                 <div>
                     <button type="button" onclick="toggleReportsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('reports.*') ? 'bg-green-800' : '' }}">
                         <span class="flex items-center">
@@ -116,11 +136,11 @@
                         <a href="{{ route('reports.index', ['type' => 'revenue']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'revenue' ? 'active' : '' }}">
                             Revenue Report
                         </a>
-                        @role('admin|superadmin|accountant')
+                        @can('view-profit')
                         <a href="{{ route('reports.index', ['type' => 'profit']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'profit' ? 'active' : '' }}">
                             Profit Report
                         </a>
-                        @endrole
+                        @endcan
                         <a href="{{ route('reports.index', ['type' => 'commission']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'commission' ? 'active' : '' }}">
                             Commission Report
                         </a>
@@ -133,22 +153,23 @@
                         <a href="{{ route('reports.index', ['type' => 'customer']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'customer' ? 'active' : '' }}">
                             Customer Report
                         </a>
-                        @role('admin|superadmin|accountant')
+                        @can('view-exchange-rates')
                         <a href="{{ route('reports.index', ['type' => 'rates']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'rates' ? 'active' : '' }}">
                             Rate Report
                         </a>
-                        @endrole
+                        @endcan
                     </div>
                 </div>
-                @role('admin|superadmin|accountant')
+                @endcan
+                @can('view-agent-performance')
                 <a href="{{ route('agents.performance') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('agents.*') ? 'active' : '' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                     Agent Performance
                 </a>
-                @endrole
+                @endcan
 
-                @role('admin|superadmin')
                 {{-- User Management Group --}}
+                @canany(['view-users', 'view-roles'])
                 <div>
                     <button type="button" onclick="toggleUserMgmtGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('users.*') || request()->routeIs('admin.roles') || request()->routeIs('admin.permissions') || request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? 'bg-green-800' : '' }}">
                         <span class="flex items-center">
@@ -158,10 +179,13 @@
                         <svg id="userMgmtChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('users.*') || request()->routeIs('admin.roles') || request()->routeIs('admin.permissions') || request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
                     <div id="userMgmtGroup" class="{{ request()->routeIs('users.*') || request()->routeIs('admin.roles') || request()->routeIs('admin.permissions') || request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? '' : 'hidden' }}">
+                        @can('view-users')
                         <a href="{{ route('users.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('users.*') ? 'active' : '' }}">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                             Users
                         </a>
+                        @endcan
+                        @can('view-roles')
                         <a href="{{ route('admin.roles') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.roles') ? 'active' : '' }}">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                             Roles & Permissions
@@ -170,10 +194,13 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.53 5.81L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.93-5.93A6 6 0 1121 9z"/></svg>
                             All Permissions
                         </a>
+                        @endcan
                     </div>
                 </div>
+                @endcanany
 
                 {{-- Logs Group --}}
+                @canany(['view-activity-logs', 'view-login-logs', 'view-system-logs'])
                 <div>
                     <button type="button" onclick="toggleLogsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? 'bg-green-800' : '' }}">
                         <span class="flex items-center">
@@ -183,27 +210,33 @@
                         <svg id="logsChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
                     <div id="logsGroup" class="{{ request()->routeIs('admin.activity-logs') || request()->routeIs('admin.login-logs') || request()->routeIs('admin.system-logs') ? '' : 'hidden' }}">
+                        @can('view-activity-logs')
                         <a href="{{ route('admin.activity-logs') }}" class="sidebar-sublink flex items-center justify-between py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.activity-logs') ? 'active' : '' }}">
                             <span class="flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>Audit Logs</span>
                         </a>
+                        @endcan
+                        @can('view-login-logs')
                         <a href="{{ route('admin.login-logs') }}" class="sidebar-sublink flex items-center justify-between py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.login-logs') ? 'active' : '' }}">
                             <span class="flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>Login Logs</span>
                             @if(($sidebarFailedLogins ?? 0) > 0)
                             <span class="ml-2 bg-amber-500 text-white text-xs rounded-full px-2 py-0.5">{{ $sidebarFailedLogins }}</span>
                             @endif
                         </a>
-                        @role('superadmin')
+                        @endcan
+                        @can('view-system-logs')
                         <a href="{{ route('admin.system-logs') }}" class="sidebar-sublink flex items-center justify-between py-2 text-sm hover:bg-green-800 {{ request()->routeIs('admin.system-logs') ? 'active' : '' }}">
                             <span class="flex items-center"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>System Errors</span>
                             @if(($sidebarUnresolvedErrors ?? 0) > 0)
                             <span class="ml-2 bg-red-600 text-white text-xs rounded-full px-2 py-0.5">{{ $sidebarUnresolvedErrors }}</span>
                             @endif
                         </a>
-                        @endrole
+                        @endcan
                     </div>
                 </div>
+                @endcanany
 
                 {{-- Settings Group --}}
+                @canany(['view-settings', 'view-exchange-rates'])
                 <div>
                     <button type="button" onclick="toggleSettingsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('settings.*') || request()->routeIs('exchange-rates.*') ? 'bg-green-800' : '' }}">
                         <span class="flex items-center">
@@ -213,17 +246,21 @@
                         <svg id="settingsChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('settings.*') || request()->routeIs('exchange-rates.*') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
                     <div id="settingsGroup" class="{{ request()->routeIs('settings.*') || request()->routeIs('exchange-rates.*') ? '' : 'hidden' }}">
+                        @can('view-settings')
                         <a href="{{ route('settings.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('settings.*') ? 'active' : '' }}">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
                             System Settings
                         </a>
+                        @endcan
+                        @can('view-exchange-rates')
                         <a href="{{ route('exchange-rates.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('exchange-rates.*') ? 'active' : '' }}">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                             Exchange Rates
                         </a>
+                        @endcan
                     </div>
                 </div>
-                @endrole
+                @endcanany
             </nav>
             <div class="p-4 border-t border-green-800">
                 <div class="flex items-center gap-3">
@@ -249,8 +286,16 @@
         </aside>
 
         {{-- Main content --}}
-        <div class="ml-64 w-[calc(100%-16rem)]">
-            <main class="p-6">
+        <div id="sidebarOverlay" class="hidden fixed inset-0 bg-black/50 z-30 md:hidden no-print" onclick="toggleSidebar(false)"></div>
+        <div class="ml-0 md:ml-64 w-full md:w-[calc(100%-16rem)] min-w-0">
+            <div class="md:hidden flex items-center gap-3 bg-green-900 text-white px-4 py-3 no-print sticky top-0 z-20">
+                <button type="button" onclick="toggleSidebar()" aria-label="Open the menu" aria-controls="appSidebar" aria-expanded="false"
+                    class="p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
+                <span class="text-sm font-semibold">PlusPay</span>
+            </div>
+            <main class="p-4 md:p-6 min-w-0">
                 @if(session('success'))
                     <div id="flash-toast" class="fixed top-4 right-4 z-50 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 transition-opacity duration-500 no-print">
                         <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -258,10 +303,10 @@
                     </div>
                 @endif
 
-                @if($errors->any())
+                @if($errors->any() && (!View::hasSection('inline-validation') || $errors->has('error')))
                     <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded no-print">
                         <ul class="list-disc list-inside">
-                            @foreach($errors->all() as $error)
+                            @foreach(View::hasSection('inline-validation') ? $errors->get('error') : $errors->all() as $error)
                                 <li>{{ $error }}</li>
                             @endforeach
                         </ul>
@@ -278,6 +323,7 @@
     @yield('content')
     @endguest
 
+    <script src="{{ asset('js/admin-forms.js') }}"></script>
     @stack('scripts')
     <script>
         function toggleReportsGroup() {
@@ -311,6 +357,42 @@
             chevron.classList.toggle('rotate-180');
         }
 
+        function toggleSidebar(force) {
+            const bar = document.getElementById('appSidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const button = document.querySelector('[aria-controls="appSidebar"]');
+            const open = force === undefined ? bar.classList.contains('-translate-x-full') : force;
+
+            bar.classList.toggle('-translate-x-full', !open);
+            overlay.classList.toggle('hidden', !open);
+            bar.inert = !open && !window.matchMedia('(min-width: 768px)').matches;
+            if (button) button.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) bar.querySelector('button').focus();
+            else button?.focus();
+        }
+
+        const sidebar = document.getElementById('appSidebar');
+        const desktopNav = window.matchMedia('(min-width: 768px)');
+        if (sidebar) {
+            sidebar.inert = !desktopNav.matches;
+            desktopNav.addEventListener('change', () => {
+                sidebar.inert = !desktopNav.matches;
+                sidebar.classList.add('-translate-x-full');
+                document.getElementById('sidebarOverlay').classList.add('hidden');
+                document.querySelector('[aria-controls="appSidebar"]').setAttribute('aria-expanded', 'false');
+            });
+            sidebar.addEventListener('keydown', (event) => {
+                if (desktopNav.matches) return;
+                if (event.key === 'Escape') { toggleSidebar(false); return; }
+                if (event.key !== 'Tab') return;
+                const focusable = Array.from(sidebar.querySelectorAll('a,button,input,select')).filter(el => el.offsetParent !== null && !el.disabled);
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+                if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+            });
+        }
+
         function toggleMenu(key) {
             const target = document.getElementById('menu-' + key);
             document.querySelectorAll('[data-row-menu]').forEach(function(menu) {
@@ -332,6 +414,7 @@
         (function() {
             const CARET = '<svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>';
 
+            let selectIndex = 0;
             function enhance(sel) {
                 if (sel.multiple || sel.dataset.noSearch !== undefined || sel.dataset.searchable) return;
                 if (sel.options.length < 2) return;
@@ -346,6 +429,13 @@
                 trigger.className = (sel.className ? sel.className + ' ' : '')
                     + 'flex items-center justify-between gap-2 text-left outline-none';
                 trigger.innerHTML = '<span class="truncate ss-label"></span>' + CARET;
+                const listId = 'select-options-' + (++selectIndex);
+                trigger.setAttribute('role', 'combobox');
+                trigger.setAttribute('aria-haspopup', 'listbox');
+                trigger.setAttribute('aria-expanded', 'false');
+                trigger.setAttribute('aria-controls', listId);
+                const fieldLabel = sel.id ? document.querySelector('label[for="' + CSS.escape(sel.id) + '"]') : null;
+                trigger.setAttribute('aria-label', sel.getAttribute('aria-label') || fieldLabel?.textContent.trim() || sel.name.replaceAll('_', ' '));
 
                 const panel = document.createElement('div');
                 panel.className = 'absolute left-0 top-full z-40 mt-1 w-full min-w-[14rem] bg-white rounded-lg shadow-xl border border-gray-200 hidden text-left';
@@ -358,6 +448,9 @@
 
                 const list = document.createElement('ul');
                 list.className = 'max-h-56 overflow-y-auto py-1';
+                list.id = listId;
+                list.setAttribute('role', 'listbox');
+                search.setAttribute('aria-label', 'Search ' + trigger.getAttribute('aria-label'));
 
                 sel.parentNode.insertBefore(wrap, sel);
                 wrap.appendChild(trigger);
@@ -372,6 +465,7 @@
                     overflow: 'hidden', opacity: '0', pointerEvents: 'none',
                 });
                 sel.tabIndex = -1;
+                sel.setAttribute('aria-hidden', 'true');
 
                 const labelSpan = trigger.querySelector('.ss-label');
                 const items = Array.from(sel.options).map(function(opt) {
@@ -379,6 +473,9 @@
                     li.className = 'px-3 py-2 text-sm hover:bg-green-50 cursor-pointer truncate';
                     li.textContent = opt.textContent.trim();
                     li.dataset.index = opt.index;
+                    li.id = listId + '-' + opt.index;
+                    li.setAttribute('role', 'option');
+                    li.setAttribute('aria-disabled', opt.disabled ? 'true' : 'false');
                     li.dataset.search = (opt.textContent + ' ' + opt.value).toLowerCase();
                     if (opt.disabled) li.classList.add('opacity-40', 'cursor-not-allowed');
                     list.appendChild(li);
@@ -389,9 +486,10 @@
                     const opt = sel.options[sel.selectedIndex];
                     const text = opt ? opt.textContent.trim() : '';
                     labelSpan.textContent = text;
-                    labelSpan.classList.toggle('text-gray-400', !opt || opt.value === '');
+                    labelSpan.classList.toggle('text-gray-600', !opt || opt.value === '');
                     items.forEach(function(li) {
                         li.classList.toggle('bg-green-50', Number(li.dataset.index) === sel.selectedIndex);
+                        li.setAttribute('aria-selected', Number(li.dataset.index) === sel.selectedIndex ? 'true' : 'false');
                     });
                 }
 
@@ -410,12 +508,14 @@
                     active = i;
                     if (vis[i]) {
                         vis[i].classList.add('bg-gray-100');
+                        trigger.setAttribute('aria-activedescendant', vis[i].id);
                         vis[i].scrollIntoView({ block: 'nearest' });
-                    }
+                    } else trigger.removeAttribute('aria-activedescendant');
                 }
 
                 function open() {
                     panel.classList.remove('hidden');
+                    trigger.setAttribute('aria-expanded', 'true');
                     search.value = '';
                     filter();
                     highlight(-1);
@@ -424,6 +524,8 @@
 
                 function close() {
                     panel.classList.add('hidden');
+                    trigger.setAttribute('aria-expanded', 'false');
+                    trigger.removeAttribute('aria-activedescendant');
                 }
 
                 function pick(index) {
@@ -437,6 +539,19 @@
                 }
 
                 trigger.addEventListener('click', () => isOpen() ? close() : open());
+                trigger.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') { close(); return; }
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        if (!isOpen()) open();
+                        highlight(Math.max(0, Math.min(visible().length - 1, active + (event.key === 'ArrowDown' ? 1 : -1))));
+                    } else if (isOpen() && event.key === 'Enter') {
+                        event.preventDefault();
+                        const option = visible()[active] || visible()[0];
+                        if (option) pick(Number(option.dataset.index));
+                    }
+                });
+                wrap.addEventListener('focusout', () => queueMicrotask(() => { if (!wrap.contains(document.activeElement)) close(); }));
                 search.addEventListener('input', () => { filter(); highlight(0); });
                 search.addEventListener('keydown', function(e) {
                     const vis = visible();
@@ -455,12 +570,18 @@
                 sel.addEventListener('change', render);
                 sel.addEventListener('focus', function() { trigger.focus(); });
 
-                // Mirror the wizard's invalid-field flash onto the visible control.
-                new MutationObserver(function() {
-                    ['ring-2', 'ring-red-400'].forEach(function(cls) {
+                function mirrorValidation() {
+                    ['ring-2', 'ring-red-400', 'field-invalid'].forEach(function(cls) {
                         trigger.classList.toggle(cls, sel.classList.contains(cls));
                     });
-                }).observe(sel, { attributes: true, attributeFilter: ['class'] });
+                    ['aria-invalid', 'aria-describedby'].forEach(attribute => {
+                        if (sel.hasAttribute(attribute)) trigger.setAttribute(attribute, sel.getAttribute(attribute));
+                        else trigger.removeAttribute(attribute);
+                    });
+                    trigger.disabled = sel.disabled;
+                }
+                new MutationObserver(mirrorValidation).observe(sel, { attributes: true, attributeFilter: ['class', 'aria-invalid', 'aria-describedby', 'disabled'] });
+                mirrorValidation();
 
                 if (sel.id) {
                     const label = document.querySelector('label[for="' + sel.id + '"]');

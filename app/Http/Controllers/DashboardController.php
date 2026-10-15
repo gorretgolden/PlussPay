@@ -61,9 +61,9 @@ class DashboardController extends Controller
             ? $stats['total_ugx_sent'] / $stats['completed_transactions']
             : 0;
 
-        $stats['total_users'] = $user->hasRole(['admin', 'superadmin']) ? User::where('is_active', true)->count() : 0;
-        $stats['total_agents'] = $user->hasRole(['admin', 'superadmin']) ? User::role('agent')->where('is_active', true)->count() : 0;
-        $stats['active_rates'] = $user->hasRole(['admin', 'superadmin']) ? ExchangeRate::where('is_active', true)->count() : 0;
+        $stats['total_users'] = $user->can('view-users') ? User::where('is_active', true)->count() : 0;
+        $stats['total_agents'] = $user->can('view-users') ? User::role('agent')->where('is_active', true)->count() : 0;
+        $stats['active_rates'] = $user->can('view-exchange-rates') ? ExchangeRate::where('is_active', true)->count() : 0;
 
         $recentTransactions = Transaction::query()
             ->visibleTo($user)
@@ -76,7 +76,7 @@ class DashboardController extends Controller
         // One chart per role. Whoever owns the book gets the charge and the exchange figures
         // stacked into the overall profit; everyone else only sees the charge they earned. Both
         // series are always in shillings, which is where the money is kept.
-        $seesProfit = $user->hasRole(['admin', 'superadmin', 'accountant']);
+        $seesProfit = $user->can('view-profit');
 
         if (! $seesProfit) {
             unset($chartData['exchange_ugx']);
@@ -100,12 +100,12 @@ class DashboardController extends Controller
         // Admins manage people, so a spike of failed sign-ins belongs on the page they open
         // first; only the Super Admin sees the machine errors, matching the Logs tabs.
         $logAlerts = [];
-        if ($user->hasRole(['admin', 'superadmin'])) {
+        if ($user->can('view-login-logs')) {
             try {
                 $logAlerts['failed_logins_24h'] = LoginLog::where('status', 'failed')
                     ->where('created_at', '>=', now()->subDay())
                     ->count();
-                if ($user->hasRole('superadmin')) {
+                if ($user->can('view-system-logs')) {
                     $logAlerts['unresolved_errors'] = SystemLog::where('resolved', false)->count();
                 }
             } catch (\Throwable) {

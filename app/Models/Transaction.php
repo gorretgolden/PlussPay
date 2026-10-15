@@ -190,7 +190,7 @@ class Transaction extends Model
 
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
-        if ($user->hasRole(['superadmin', 'admin', 'accountant'])) {
+        if ($user->can('view-all-transactions')) {
             return $query;
         }
 

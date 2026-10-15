@@ -144,7 +144,7 @@ class ReportsController extends Controller
      */
     private function commissionTotals(string $dateFrom, string $dateTo, User $viewer): array
     {
-        $everyone = $viewer->hasRole(['admin', 'superadmin', 'accountant']);
+        $everyone = $viewer->can('view-all-wallets');
 
         $rows = AccountEntry::query()
             ->join('accounts', 'account_entries.account_id', '=', 'accounts.id')
@@ -238,6 +238,7 @@ class ReportsController extends Controller
 
     public function exportExcel(Request $request)
     {
+        abort_if($request->input('type') === 'profit' && !$request->user()->can('view-profit'), 403);
         $dateFrom = $request->input('date_from', now()->startOfMonth()->toDateString());
         $dateTo = $request->input('date_to', now()->toDateString());
 
@@ -355,15 +356,15 @@ class ReportsController extends Controller
             $sheet->getColumnDimension($colLetter)->setAutoSize(true);
         }
 
+        if (!$request->user()->can('view-profit')) {
+            $sheet->removeColumn('P', 3);
+        }
         $filename = 'PlusPay_Report_' . $dateFrom . '_to_' . $dateTo . '.xlsx';
-
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Cache-Control: max-age=0');
-
-        $writer = new Xlsx($spreadsheet);
-        $writer->save('php://output');
-        exit;
+        return response()->streamDownload(
+            fn () => (new Xlsx($spreadsheet))->save('php://output'),
+            $filename,
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+        );
     }
 
     private function putText($sheet, string $cell, string $value): void

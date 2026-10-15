@@ -17,8 +17,8 @@
         <p class="text-gray-600 text-sm">Deals done across the counter: money taken in and another currency handed back, priced at the saved rates.</p>
     </div>
     <div class="flex gap-2">
-        <a href="{{ route('exchanges.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Exchange</a>
-        <a href="{{ route('export.exchanges', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
+        @can('create-exchange')<a href="{{ route('exchanges.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Exchange</a>@endcan
+        @can('export-exchanges')<a href="{{ route('export.exchanges', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>@endcan
     </div>
 </div>
 
@@ -27,6 +27,7 @@
         <p class="text-xs uppercase tracking-wide text-gray-500">Deals</p>
         <p class="text-xl font-semibold text-gray-900">{{ number_format($liveCount) }}@if($voidCount > 0) <span class="text-sm font-normal text-gray-500">(+{{ number_format($voidCount) }} cancelled)</span>@endif</p>
     </div>
+    @can('view-profit')
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs uppercase tracking-wide text-gray-500">Margin on {{ $filtered ? 'this filter' : 'all deals' }}</p>
         <p class="text-xl font-semibold {{ $marginTotal < 0 ? 'text-red-700' : 'text-gray-900' }}">UGX {{ number_format($marginTotal, 2) }}</p>
@@ -46,9 +47,10 @@
             @endif
         </p>
     </div>
+    @endcan
 </div>
 
-@if($unpriced > 0)
+@if($unpriced > 0 && auth()->user()->can('view-profit'))
 <div class="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 mb-6">
     {{ number_format($unpriced) }} {{ $unpriced === 1 ? 'deal is' : 'deals are' }} priced without a complete rate card, so {{ $unpriced === 1 ? 'it adds' : 'they add' }} nothing to the margin above. That figure is short by whatever those deals really earned, and nothing here is guessed to cover it.
 </div>
@@ -100,7 +102,7 @@
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Person</th>
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Taken In</th>
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Handed Over</th>
-                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin (UGX)</th>
+                @can('view-profit')<th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin (UGX)</th>@endcan
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Accounts Moved</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entered By</th>
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -125,6 +127,7 @@
                 </td>
                 <td class="px-4 py-3 text-sm text-right text-gray-900 whitespace-nowrap">{{ $fmt($exchange, 'in') }}</td>
                 <td class="px-4 py-3 text-sm text-right text-gray-900 whitespace-nowrap">{{ $fmt($exchange, 'out') }}</td>
+                @can('view-profit')
                 <td class="px-4 py-3 text-sm text-right whitespace-nowrap">
                     @if($exchange->margin_ugx === null)
                         <span class="text-amber-700">No rate card</span>
@@ -134,6 +137,7 @@
                         </span>
                     @endif
                 </td>
+                @endcan
                 <td class="px-4 py-3 text-sm text-gray-700">
                     {{ $exchange->inAccount?->name ?? '-' }} up, {{ $exchange->outAccount?->name ?? '-' }} down
                 </td>
@@ -144,7 +148,7 @@
                     <div id="menu-ex{{ $exchange->id }}" data-row-menu class="hidden absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg text-left z-20">
                         <a href="{{ route('exchanges.show', $exchange) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Open deal</a>
                         <a href="{{ route('exchanges.index', ['search' => $exchange->reference]) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Find this reference</a>
-                        @if(! $exchange->isVoid())
+                        @if(! $exchange->isVoid() && auth()->user()->can('void-exchange'))
                         <button type="button" onclick="openVoidModal(this)"
                             data-action="{{ route('exchanges.void', $exchange) }}"
                             data-deal="{{ $exchange->reference }} &middot; {{ $exchange->person_name }}"

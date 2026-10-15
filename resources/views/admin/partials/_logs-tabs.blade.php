@@ -12,10 +12,10 @@
         <a href="{{ route('admin.login-logs') }}" class="pb-2 border-b-2 {{ $tabActive('admin.login-logs') }}">
             Login Logs
         </a>
-        @role('superadmin')
+        @can('view-system-logs')
         <a href="{{ route('admin.system-logs') }}" class="pb-2 border-b-2 {{ $tabActive('admin.system-logs') }}">
             System Errors
         </a>
-        @endrole
+        @endcan
     </nav>
 </div>

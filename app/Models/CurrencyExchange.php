@@ -112,6 +112,11 @@ class CurrencyExchange extends Model
         return rtrim(rtrim(number_format($figure, 6, '.', ''), '0'), '.').' '.$label;
     }
 
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return $user->can('view-all-exchanges') ? $query : $query->where('created_by', $user->id);
+    }
+
     public function scopeFiltered(Builder $query, Request $request): Builder
     {
         if ($request->filled('search')) {

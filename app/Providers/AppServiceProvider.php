@@ -19,11 +19,24 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // Register a single ordered permission callback so reserved abilities cannot
+        // be short-circuited by Spatie's generic permission callback.
+        config(['permission.register_permission_check_method' => false]);
     }
 
     public function boot(): void
     {
+        \Illuminate\Support\Facades\Gate::before(function ($user, string $ability) {
+            if ($user->hasRole('superadmin')) {
+                return true;
+            }
+            if ($user->hasAnyRole(['public', 'customer']) || in_array($ability, \App\Support\PermissionCatalog::RESERVED, true)) {
+                return false;
+            }
+            return $user->checkPermissionTo($ability, 'web') ? true : null;
+        });
+        \Illuminate\Support\Facades\Gate::define('assign-role', fn ($user, $role) => \App\Support\PermissionCatalog::canAssignRole($user, $role));
+
         $this->applyTimezone();
 
         Transaction::observe(TransactionObserver::class);
@@ -77,16 +90,18 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.app', function ($view) {
             $user = auth()->user();
 
-            if (!$user || !$user->hasAnyRole(['admin', 'superadmin'])) {
+            if (!$user) {
                 return;
             }
 
             try {
-                $view->with('sidebarFailedLogins', LoginLog::where('status', 'failed')
-                    ->where('created_at', '>=', now()->subMinutes(15))
-                    ->count());
+                if ($user->can('view-login-logs')) {
+                    $view->with('sidebarFailedLogins', LoginLog::where('status', 'failed')
+                        ->where('created_at', '>=', now()->subMinutes(15))
+                        ->count());
+                }
 
-                if ($user->hasRole('superadmin')) {
+                if ($user->can('view-system-logs')) {
                     $view->with('sidebarUnresolvedErrors', SystemLog::where('resolved', false)->count());
                 }
             } catch (\Throwable) {

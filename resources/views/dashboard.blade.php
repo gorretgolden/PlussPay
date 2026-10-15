@@ -39,7 +39,7 @@
 
 <div class="bg-green-800 rounded-lg shadow p-6 mb-6">
     <h2 class="text-white text-lg font-semibold mb-4">Today's Summary</h2>
-    <div class="grid grid-cols-1 {{ auth()->user()->hasRole(['admin', 'superadmin', 'accountant']) ? 'md:grid-cols-5' : 'md:grid-cols-3' }} gap-4">
+    <div class="grid grid-cols-1 {{ auth()->user()->can('view-profit') ? 'md:grid-cols-5' : 'md:grid-cols-3' }} gap-4">
         <div class="bg-white/10 rounded-lg p-4">
             <div class="text-green-200 text-sm">Completed Today</div>
             <div class="text-white text-3xl font-bold mt-1">{{ number_format($stats['today_transactions']) }}</div>
@@ -52,7 +52,7 @@
             <div class="text-green-200 text-sm">Charge ({{ $cur }})</div>
             <div class="text-white text-3xl font-bold mt-1">{{ $stored($stats['today_revenue_ugx'], $stats['today_revenue']) }}</div>
         </div>
-        @role('admin|superadmin|accountant')
+        @can('view-profit')
         <div class="bg-white/10 rounded-lg p-4">
             <div class="text-green-200 text-sm">Exchange Profit</div>
             <div class="text-white text-3xl font-bold mt-1 {{ $profit['today']['exchange'] < 0 ? 'text-red-300' : '' }}">UGX {{ number_format($profit['today']['exchange']) }}</div>
@@ -61,7 +61,7 @@
             <div class="text-green-200 text-sm">Overall Profit</div>
             <div class="text-white text-3xl font-bold mt-1 {{ $profit['today']['total'] < 0 ? 'text-red-300' : '' }}">UGX {{ number_format($profit['today']['total']) }}</div>
         </div>
-        @endrole
+        @endcan
     </div>
 </div>
 
@@ -143,7 +143,7 @@
     </a>
 </div>
 
-@role('admin|superadmin|accountant')
+@can('view-profit')
 @php
     $shilling = fn ($value) => $value < 0
         ? 'Loss UGX '.number_format(abs($value), 2)
@@ -179,9 +179,9 @@
         @endforeach
     </div>
 </div>
-@endrole
+@endcan
 
-@role('admin|superadmin')
+@can('view-users')
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
     <a href="{{ route('users.index') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
         <div class="flex items-center justify-between">
@@ -218,7 +218,7 @@
         </div>
     </a>
     @endif
-    @role('superadmin')
+    @can('view-system-logs')
     @if(($logAlerts['unresolved_errors'] ?? 0) > 0)
     <a href="{{ route('admin.system-logs', ['resolved' => '0']) }}" class="bg-red-50 border border-red-200 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
         <div class="flex items-center justify-between">
@@ -231,10 +231,10 @@
         </div>
     </a>
     @endif
-    @endrole
+    @endcan
 </div>
 @endif
-@endrole
+@endcan
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
     <div class="bg-white rounded-lg shadow p-6">
@@ -244,7 +244,7 @@
         </div>
     </div>
     <div class="bg-white rounded-lg shadow p-6">
-        @role('admin|superadmin|accountant')
+        @can('view-profit')
         <h2 class="text-lg font-semibold text-gray-900 mb-1">Profit (Last 7 Days)</h2>
         <p class="text-sm text-gray-500 mb-4">Stacked in shillings: the charge at the bottom and what the rates came to on top, so the top of each bar is the overall profit.</p>
         <div style="position:relative; height:250px;">
@@ -255,16 +255,16 @@
         <div style="position:relative; height:250px;">
             <canvas id="revenueChart"></canvas>
         </div>
-        @endrole
+        @endcan
     </div>
 </div>
 
 <div class="bg-white rounded-lg shadow">
     <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
         <h2 class="text-lg font-semibold text-gray-900">Recent Transactions</h2>
-        @role('admin|agent')
+        @can('create-transaction')
         <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">New Transaction</a>
-        @endrole
+        @endcan
     </div>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
@@ -365,7 +365,7 @@
         });
     }
 
-    @role('admin|superadmin|accountant')
+    @can('view-profit')
     if (document.getElementById('profitChart')) {
         new Chart(document.getElementById('profitChart'), {
             type: 'bar',
@@ -404,7 +404,7 @@
             }
         });
     }
-    @endrole
+    @endcan
 
     function updateClock() {
         const now = new Date();

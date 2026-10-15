@@ -2,114 +2,42 @@
 
 namespace Database\Seeders;
 
+use App\Support\PermissionCatalog;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class PermissionsSeeder extends Seeder
 {
+    /** Deployment: php artisan db:seed --class=PermissionsSeeder --force */
     public function run(): void
     {
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $permissions = [
-            // Dashboard
-            'view-dashboard',
+        DB::transaction(function () {
+            $unseeded = !Permission::where('guard_name', 'web')->exists();
+            foreach (PermissionCatalog::names() as $name) {
+                Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+            }
 
-            // Transactions
-            'create-transaction',
-            'view-transactions',
-            'view-own-transactions',
-            'edit-transaction',
-            'delete-transaction',
-            'approve-transaction',
-            'bulk-import-transactions',
+            foreach (PermissionCatalog::defaults() as $name => $defaults) {
+                $role = Role::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+                // Never sync existing grants. Even an intentionally emptied role stays empty.
+                // The durable marker also prevents deleting the catalog from resetting roles.
+                if ($role->permissions_initialized_at === null) {
+                    if ($role->wasRecentlyCreated || $unseeded) {
+                        $role->givePermissionTo($defaults);
+                    }
+                    $role->forceFill([
+                        'permissions_initialized_at' => now(),
+                        'description' => $role->description ?? PermissionCatalog::DESCRIPTIONS[$name],
+                    ])->save();
+                }
+            }
+        });
 
-            // Receipts
-            'view-receipts',
-            'print-receipt',
-
-            // Reports
-            'view-reports',
-            'export-reports',
-
-            // Customers
-            'view-customers',
-            'create-customer',
-            'edit-customer',
-            'delete-customer',
-
-            // Users
-            'view-users',
-            'create-user',
-            'edit-user',
-            'delete-user',
-            'toggle-user-status',
-            'reset-user-password',
-            'lock-user',
-
-            // Roles & Permissions
-            'view-roles',
-            'create-role',
-            'edit-role',
-            'delete-role',
-            'assign-permissions',
-
-            // Exchange Rates
-            'view-exchange-rates',
-            'manage-exchange-rates',
-
-            // Settings
-            'view-settings',
-            'manage-settings',
-
-            // Agent Performance
-            'view-agent-performance',
-
-            // Audit Logs
-            'view-activity-logs',
-            'view-login-logs',
-        ];
-
-        foreach ($permissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
-        }
-
-        // Super Admin: all permissions
-        $superadmin = Role::firstOrCreate(['name' => 'superadmin', 'guard_name' => 'web']);
-        $superadmin->syncPermissions(Permission::all());
-
-        // Admin: all except deleting superadmin-level things
-        $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
-        $admin->syncPermissions($permissions);
-
-        // Agent: day-to-day operations
-        $agent = Role::firstOrCreate(['name' => 'agent', 'guard_name' => 'web']);
-        $agent->syncPermissions([
-            'view-dashboard',
-            'create-transaction',
-            'view-transactions',
-            'view-own-transactions',
-            'view-receipts',
-            'print-receipt',
-            'view-reports',
-            'view-customers',
-            'create-customer',
-        ]);
-
-        // Accountant: the books, the ledger and every profit figure, without admin powers
-        $accountant = Role::firstOrCreate(['name' => 'accountant', 'guard_name' => 'web']);
-        $accountant->syncPermissions([
-            'view-dashboard',
-            'view-transactions',
-            'view-receipts',
-            'print-receipt',
-            'view-reports',
-            'export-reports',
-            'view-customers',
-            'create-customer',
-            'edit-customer',
-            'view-agent-performance',
-        ]);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

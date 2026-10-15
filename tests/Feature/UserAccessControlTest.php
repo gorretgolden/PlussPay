@@ -174,7 +174,9 @@ class UserAccessControlTest extends TestCase
         ]);
 
         $response->assertSessionHasErrors('email');
-        $this->assertStringContainsString('already used by', $this->flashedError('email'));
+        $this->assertSame('This email is already registered.', $this->flashedError('email'));
+        $this->assertNull(session('_old_input.password'));
+        $this->assertNull(session('_old_input.password_confirmation'));
     }
 
     public function test_a_phone_written_in_a_different_shape_still_counts_as_a_duplicate(): void
@@ -192,7 +194,9 @@ class UserAccessControlTest extends TestCase
         ]);
 
         $response->assertSessionHasErrors('phone');
-        $this->assertStringContainsString('taken@plussave.test', $this->flashedError('phone'));
+        $this->assertSame('This phone is already registered.', $this->flashedError('phone'));
+        $this->assertNull(session('_old_input.password'));
+        $this->assertNull(session('_old_input.password_confirmation'));
         $this->assertSame(0, User::where('email', 'other@plussave.test')->count());
     }
 
@@ -310,7 +314,7 @@ class UserAccessControlTest extends TestCase
 
         $this->actingAs($actor);
 
-        $this->post(route('users.bulk'), ['action' => 'window_weekdays', 'user_ids' => [$user->id]]);
+        $this->post(route('users.bulk'), ['action' => 'window_set', 'user_ids' => [$user->id], 'days' => [1, 2, 3, 4, 5], 'allowed_from' => '08:00', 'allowed_to' => '18:00']);
 
         $user = $user->fresh();
         $this->assertSame('Monday to Friday 08:00 to 18:00', $user->loginWindowSummary());
@@ -358,7 +362,7 @@ class UserAccessControlTest extends TestCase
         $this->actingAs($actor);
 
         $restricted = $this->get(route('users.index', ['access' => 'restricted']))
-            ->viewData('users')
+            ->assertOk()->viewData('users')
             ->getCollection();
 
         $this->assertSame(['Held Clerk'], $restricted->pluck('name')->all());

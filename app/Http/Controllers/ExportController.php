@@ -82,12 +82,17 @@ class ExportController extends Controller
             })
             ->all();
 
-        return $this->download('transactions', [
+        $headers = [
             'Receipt #', 'Date', 'Sender', 'Sender Contact', 'Receiver', 'Receiver Contact',
             'Money Handed Over', 'Amount Sent', 'UGX Equivalent', 'RMB', 'Charge (UGX)', 'Charge (USD)',
             'Exchange Profit (UGX)', 'Overall Profit (UGX)', 'Overall Profit (USD)',
             'Purpose', 'Status', 'Booked By',
-        ], $rows);
+        ];
+        if (!$request->user()->can('view-profit')) {
+            array_splice($headers, 12, 3);
+            $rows = array_map(function ($row) { array_splice($row, 12, 3); return $row; }, $rows);
+        }
+        return $this->download('transactions', $headers, $rows);
     }
 
     public function receipts(Request $request)
@@ -297,6 +302,7 @@ class ExportController extends Controller
     public function exchanges(Request $request)
     {
         $rows = CurrencyExchange::with(['inAccount', 'outAccount', 'customer', 'creator'])
+            ->visibleTo($request->user())
             ->filtered($request)
             ->get()
             ->sortByDesc('id')
@@ -319,10 +325,15 @@ class ExportController extends Controller
             ->values()
             ->all();
 
-        return $this->download('exchanges', [
+        $headers = [
             'Date', 'Reference', 'Person', 'Their Phone', 'Status', 'Taken In', 'Handed Over',
             'Rate Done At', 'Margin (UGX)', 'Money Went Into', 'Money Came From', 'Notes', 'Entered By',
-        ], $rows);
+        ];
+        if (!$request->user()->can('view-profit')) {
+            array_splice($headers, 8, 1);
+            $rows = array_map(function ($row) { array_splice($row, 8, 1); return $row; }, $rows);
+        }
+        return $this->download('exchanges', $headers, $rows);
     }
 
     public function expenses(Request $request)

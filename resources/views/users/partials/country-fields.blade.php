@@ -1,42 +1,39 @@
 @php
-    // An Admin sets the desk for everyone, but never for their own account, so nobody can
-    // move themselves onto the China side to pick up a yuan wallet.
     $actor = auth()->user();
     $canSet = $actor->hasRole(['admin', 'superadmin']) && $actor->id !== ($user->id ?? null);
     $currentCountry = old('country', $country ?? \App\Models\User::DEFAULT_COUNTRY);
     $currentTimezone = old('timezone', $timezone ?? \App\Models\User::timezoneForCountry($currentCountry));
 @endphp
-
 @if($canSet)
-<div class="mb-4">
-    <label class="block text-sm font-medium text-gray-700 mb-1">Country</label>
-    <select name="country"
-        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition">
-        @foreach(\App\Models\User::COUNTRIES as $code => $label)
-            <option value="{{ $code }}" @selected($currentCountry === $code)>{{ $label }}</option>
-        @endforeach
+<div class="user-field">
+    <div class="flex items-center gap-2">
+        <label for="country">Country</label>
+        <span class="user-tooltip"><button type="button" aria-label="About country" aria-describedby="country-tip">?</button><span role="tooltip" id="country-tip">Which desk this account works from. Uganda uses shilling and dollar wallets; China uses yuan and dollar wallets.</span></span>
+    </div>
+    <select id="country" name="country" data-country-zones='@json(\App\Models\User::COUNTRY_TIMEZONES)' aria-describedby="error-country">
+        @foreach(\App\Models\User::COUNTRIES as $code => $label)<option value="{{ $code }}" @selected($currentCountry === $code)>{{ $label }}</option>@endforeach
     </select>
-    <p class="text-xs text-gray-500 mt-1">Which desk this account works from. Uganda holds shillings and dollars, China holds yuan and dollars, so this is what decides the wallets they see when they sign in. It also sets their clock.</p>
-    @error('country')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+    <p class="user-help">Sets the desk’s wallets and default clock.</p>
+    <p id="error-country" data-field-error="country" class="user-error">@error('country'){{ $message }}@enderror</p>
 </div>
-
-<div class="mb-4">
-    <label class="block text-sm font-medium text-gray-700 mb-1">Time zone</label>
-    <select name="timezone"
-        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition">
-        @foreach(\App\Models\Setting::TIMEZONES as $zone => $label)
-            <option value="{{ $zone }}" @selected($currentTimezone === $zone)>{{ $label }}</option>
-        @endforeach
-    </select>
-    <p class="text-xs text-gray-500 mt-1">Defaults to the country's clock. Change it only if this account should see a different time.</p>
-    @error('timezone')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
+<div class="user-field">
+    <div class="flex items-center gap-2">
+        <label for="timezone">Time zone</label>
+        <span class="user-tooltip"><button type="button" aria-label="About time zone" aria-describedby="timezone-tip">?</button><span role="tooltip" id="timezone-tip">Sign-in hours use this account’s local time zone. Country selects the default; Change allows an override.</span></span>
+    </div>
+    <div class="flex items-center justify-between gap-2 mb-2"><span id="timezone-label" class="text-sm text-gray-600">{{ $currentTimezone }}</span><button type="button" id="change-timezone" aria-controls="timezone-control" aria-expanded="false" class="text-sm text-green-800 underline">Change</button></div>
+    <div id="timezone-control" hidden>
+        <select id="timezone" name="timezone" aria-describedby="error-timezone">
+            @foreach(\App\Models\Setting::TIMEZONES as $zone => $label)<option value="{{ $zone }}" @selected($currentTimezone === $zone)>{{ $label }}</option>@endforeach
+        </select>
+    </div>
+    <p class="user-help">Country sets the default time zone.</p>
+    <p id="error-timezone" data-field-error="timezone" class="user-error">@error('timezone'){{ $message }}@enderror</p>
 </div>
 @else
-<div class="mb-4">
-    <span class="block text-sm font-medium text-gray-700 mb-1">Country and clock</span>
-    <div class="px-3 py-2 border border-gray-200 bg-gray-50 rounded-md text-sm text-gray-600">
-        {{ \App\Models\User::COUNTRIES[$currentCountry] ?? 'Not set' }} · {{ \App\Models\Setting::TIMEZONES[$currentTimezone] ?? $currentTimezone }}
-    </div>
-    <p class="text-xs text-gray-500 mt-1">Locked on your own account, so a desk cannot be moved between countries by the person sitting at it. Another Admin or a Super Admin changes it.</p>
+<div class="user-field user-span">
+    <span class="block font-medium text-sm">Country and clock</span>
+    <p class="text-sm text-gray-600 mt-2">{{ \App\Models\User::COUNTRIES[$currentCountry] ?? 'Not set' }} · {{ $currentTimezone }}</p>
+    <p class="user-help">Locked on your own account. Ask another admin.</p>
 </div>
 @endif

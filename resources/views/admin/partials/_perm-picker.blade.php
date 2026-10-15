@@ -1,36 +1,43 @@
 @php
     $checkedSet = $checked ?? [];
-    $total = $groups->flatten()->count();
+    $locked = $locked ?? false;
 @endphp
-
-<div class="perm-picker flex flex-col min-h-0">
-    <div class="px-6 pt-4">
-        <input type="text" class="perm-filter w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-            placeholder="Search permissions... e.g. view-transactions">
-    </div>
-    <div class="px-6 pt-3 flex items-center justify-between gap-4">
-        <span class="text-xs text-gray-500"><span class="perm-selected">0</span> of {{ $total }} selected</span>
-        <div class="flex gap-4 text-sm">
-            <button type="button" data-check="true" class="text-green-800 hover:underline font-medium">Select all</button>
-            <button type="button" data-check="false" class="text-red-600 hover:underline font-medium">Remove all</button>
+<div class="perm-picker space-y-4">
+    <label class="block text-sm font-medium text-gray-700">Search permissions
+        <input type="search" class="perm-filter mt-1 w-full border-gray-300 rounded-lg px-3 py-2 border" placeholder="Search permissions by label or module">
+    </label>
+    <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <span class="text-gray-500"><span class="perm-selected">{{ count($checkedSet) }}</span> of {{ $groups->flatten()->count() }} permissions selected</span>
+        @unless($locked)
+        <div class="flex gap-3">
+            <button type="button" data-check="true" class="min-h-[44px] text-green-800 font-medium">Select all available</button>
+            <button type="button" data-check="false" class="min-h-[44px] text-gray-600">Clear selection</button>
         </div>
+        @endunless
     </div>
-    <div class="p-6 space-y-4 {{ $listClass ?? 'max-h-96 overflow-y-auto' }}">
-        @foreach($groups as $group => $perms)
-        <div class="perm-group">
-            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{{ ucwords(str_replace('-', ' ', $group)) }}</h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-1">
-                @foreach($perms as $permission)
-                <label class="perm-item flex items-center gap-2 text-sm py-1" data-name="{{ $permission->name }}">
-                    <input type="checkbox" name="permissions[]" value="{{ $permission->name }}"
-                        @checked(in_array($permission->name, $checkedSet, true))
-                        class="rounded border-gray-300 text-green-700 focus:ring-green-600">
-                    <span class="text-gray-700">{{ $permission->name }}</span>
-                </label>
-                @endforeach
-            </div>
+    @foreach($groups as $group => $perms)
+    <details class="perm-group border border-gray-200 rounded-lg" open>
+        <summary class="cursor-pointer px-4 py-3 font-semibold text-sm text-gray-800">{{ $group }} <span class="text-gray-500 font-normal">({{ $perms->count() }})</span></summary>
+        @unless($locked)
+        <label class="flex items-center gap-2 text-sm px-4 py-2 text-green-800 min-h-[44px]">
+            <input type="checkbox" class="perm-group-check rounded border-gray-300"> Select this module
+        </label>
+        @endunless
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 px-4 pb-3">
+            @foreach($perms as $permission)
+            @php
+                $available = !$locked && \App\Support\PermissionCatalog::mayDelegate(auth()->user(), $permission->name);
+                $label = \App\Support\PermissionCatalog::label($permission->name);
+            @endphp
+            <label class="perm-item flex items-center gap-2 text-sm min-h-[44px] {{ $available ? 'text-gray-700' : 'text-gray-400' }}" data-name="{{ $group.' '.$label.' '.$permission->name }}" title="{{ $permission->name }}{{ $available ? '' : ' — protected or not delegable' }}">
+                <input type="checkbox" name="permissions[]" value="{{ $permission->name }}" data-label="{{ $label }}" data-sensitive="{{ \App\Support\PermissionCatalog::sensitive($permission->name) ? '1' : '0' }}"
+                    @checked(in_array($permission->name, $checkedSet, true)) @disabled(!$available)
+                    class="rounded border-gray-300 text-green-700 focus:ring-green-600">
+                <span>{{ $label }}@if(in_array($permission->name, \App\Support\PermissionCatalog::RESERVED, true)) <span class="text-xs">(Super Admin only)</span>@endif</span>
+            </label>
+            @endforeach
         </div>
-        @endforeach
-        <p class="perm-no-match hidden text-sm text-gray-500 py-2">No permission matches that search.</p>
-    </div>
+    </details>
+    @endforeach
+    <p class="perm-no-match hidden text-sm text-gray-500">No matching permissions. Try another label or module.</p>
 </div>

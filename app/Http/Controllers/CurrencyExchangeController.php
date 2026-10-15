@@ -15,6 +15,7 @@ class CurrencyExchangeController extends Controller
     public function index(Request $request)
     {
         $rows = CurrencyExchange::with(['inAccount', 'outAccount', 'customer', 'creator'])
+            ->visibleTo($request->user())
             ->filtered($request)
             ->get()
             ->sortByDesc('id')
@@ -56,7 +57,7 @@ class CurrencyExchangeController extends Controller
     {
         return view('exchanges.create', [
             'accounts' => Account::ordered(),
-            'customers' => Customer::where('is_active', true)->orderBy('name')->get(['id', 'name', 'phone']),
+            'customers' => auth()->user()->can('view-customers') ? Customer::where('is_active', true)->orderBy('name')->get(['id', 'name', 'phone']) : collect(),
             'card' => ExchangeCalculator::card(),
             'currencies' => ExchangeCalculator::CURRENCIES,
         ]);
@@ -84,6 +85,7 @@ class CurrencyExchangeController extends Controller
             'out_amount.min' => 'Enter how much you handed back.',
         ]);
 
+        abort_if(!empty($validated['customer_id']) && !$request->user()->can('view-customers'), 403);
         $customer = isset($validated['customer_id']) ? Customer::find($validated['customer_id']) : null;
         $person = $customer?->name ?: trim((string) $validated['person_name']);
 
@@ -147,6 +149,7 @@ class CurrencyExchangeController extends Controller
 
     public function show(CurrencyExchange $exchange)
     {
+        abort_unless(CurrencyExchange::visibleTo(auth()->user())->whereKey($exchange->id)->exists(), 404);
         $exchange->load(['inAccount', 'outAccount', 'customer', 'creator']);
 
         return view('exchanges.show', [
@@ -158,6 +161,7 @@ class CurrencyExchangeController extends Controller
 
     public function void(Request $request, CurrencyExchange $exchange)
     {
+        abort_unless(CurrencyExchange::visibleTo($request->user())->whereKey($exchange->id)->exists(), 404);
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:255'],
         ], [

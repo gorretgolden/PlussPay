@@ -18,7 +18,7 @@
                     class="w-full rounded-lg bg-green-800 hover:bg-green-700 text-white font-semibold py-2.5 transition">
                     Back to Dashboard
                 </a>
-                @role('admin|superadmin')
+                @can('view-settings')
                     <a href="{{ route('admin.activity-logs') }}"
                         class="w-full rounded-lg border border-green-700/30 text-green-800 font-medium py-2.5 hover:bg-green-50 transition">
                         View Activity Logs
@@ -27,7 +27,7 @@
                         class="w-full rounded-lg border border-green-700/30 text-green-800 font-medium py-2.5 hover:bg-green-50 transition">
                         View Login Logs
                     </a>
-                @endrole
+                @endcan
             @else
                 <a href="{{ route('login') }}"
                     class="w-full rounded-lg bg-green-800 hover:bg-green-700 text-white font-semibold py-2.5 transition">

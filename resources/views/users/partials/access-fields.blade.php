@@ -1,72 +1,27 @@
 @php
     $selectedDays = $selectedDays ?? [];
-    $allowedFrom = $allowedFrom ?? null;
-    $allowedTo = $allowedTo ?? null;
+    $allowedFrom = $allowedFrom ?? '';
+    $allowedTo = $allowedTo ?? '';
+    $restricted = (bool) old('restrict_hours', count($selectedDays) || $allowedFrom || $allowedTo);
 @endphp
-
-<div class="mb-4">
-    <div class="flex items-center justify-between mb-2">
-        <label class="block text-sm font-medium text-gray-700">Login hours</label>
-        <span class="text-xs text-gray-500">Restrict when this account may sign in</span>
-    </div>
-
-    <div class="border border-gray-200 rounded-md p-4 bg-gray-50">
-        <div class="flex flex-wrap items-center gap-2 mb-3">
+<fieldset class="user-section">
+    <legend class="font-semibold text-sm">Sign-in hours</legend>
+    <input type="hidden" name="restrict_hours" value="0">
+    <label class="user-check" for="restrict_hours"><input id="restrict_hours" name="restrict_hours" type="checkbox" value="1" @checked($restricted) aria-controls="login-window" aria-expanded="{{ $restricted ? 'true' : 'false' }}">Restrict sign-in hours</label>
+    <div id="login-window" class="mt-4" @if(!$restricted) hidden @endif>
+        <fieldset aria-describedby="error-days">
+            <legend class="text-sm mb-2">Allowed days</legend>
+            <div class="flex flex-wrap gap-2">
             @foreach(\App\Models\User::DAY_NAMES as $index => $label)
-            <label class="flex items-center gap-1.5 px-2 py-1 bg-white border border-gray-300 rounded text-sm cursor-pointer">
-                <input type="checkbox" name="days[]" value="{{ $index + 1 }}" class="login-day rounded border-gray-300 text-green-700"
-                    {{ in_array($index + 1, $selectedDays) ? 'checked' : '' }}>
-                {{ substr($label, 0, 3) }}
-            </label>
+                <label class="user-day" for="day-{{ $index + 1 }}"><input id="day-{{ $index + 1 }}" type="checkbox" name="days[]" value="{{ $index + 1 }}" @checked(in_array($index + 1, $selectedDays))><span>{{ substr($label, 0, 3) }}</span></label>
             @endforeach
-            <button type="button" onclick="setLoginDays([1,2,3,4,5])" class="text-xs text-green-800 hover:underline">Mon to Fri</button>
-            <button type="button" onclick="setLoginDays([])" class="text-xs text-gray-600 hover:underline">Any day</button>
-        </div>
-
-        <div class="flex flex-wrap gap-4">
-            <div>
-                <label class="block text-xs text-gray-500 mb-1">From</label>
-                <input type="time" name="allowed_from" value="{{ $allowedFrom }}"
-                    class="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none">
             </div>
-            <div>
-                <label class="block text-xs text-gray-500 mb-1">To</label>
-                <input type="time" name="allowed_to" value="{{ $allowedTo }}"
-                    class="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none">
-            </div>
+            <p id="error-days" data-field-error="days" class="user-error">@error('days'){{ $message }}@enderror</p>
+        </fieldset>
+        <div class="user-grid mt-4">
+            <div class="user-field"><label for="allowed_from">From</label><input id="allowed_from" name="allowed_from" type="time" value="{{ $allowedFrom }}" aria-describedby="error-allowed_from"><p id="error-allowed_from" data-field-error="allowed_from" class="user-error">@error('allowed_from'){{ $message }}@enderror</p></div>
+            <div class="user-field"><label for="allowed_to">To</label><input id="allowed_to" name="allowed_to" type="time" value="{{ $allowedTo }}" aria-describedby="error-allowed_to"><p id="error-allowed_to" data-field-error="allowed_to" class="user-error">@error('allowed_to'){{ $message }}@enderror</p></div>
         </div>
-
-        <p class="text-xs text-gray-500 mt-3">
-            Leave the days unchecked and the times blank to allow signing in at any time. Times are 24 hour clock.
-        </p>
+        <p class="user-help">Account’s local time. Overnight windows are supported.</p>
     </div>
-
-    @error('days')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
-    @error('allowed_from')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
-    @error('allowed_to')<p class="text-red-500 text-sm mt-1">{{ $message }}</p>@enderror
-</div>
-
-<script>
-function setLoginDays(days) {
-    document.querySelectorAll('.login-day').forEach(box => {
-        box.checked = days.includes(Number(box.value));
-    });
-}
-
-(function () {
-    const nameField = document.querySelector('input[name="name"]');
-
-    if (!nameField) {
-        return;
-    }
-
-    nameField.addEventListener('blur', () => {
-        nameField.value = nameField.value
-            .trim()
-            .replace(/\s+/g, ' ')
-            .split(' ')
-            .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-            .join(' ');
-    });
-})();
-</script>
+</fieldset>

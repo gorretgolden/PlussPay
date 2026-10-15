@@ -8,6 +8,9 @@ use App\Models\User;
 use App\Services\TotpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
 
@@ -35,7 +38,7 @@ class UserController extends Controller
         'deactivate' => 'Deactivated',
         'lock' => 'Locked',
         'unlock' => 'Unlocked',
-        'window_weekdays' => 'Applied weekday login hours to',
+        'window_set' => 'Applied login hours to',
         'window_clear' => 'Removed login hour limits from',
         'two_factor_off' => 'Turned off two-factor sign-in for',
     ];
@@ -50,6 +53,10 @@ class UserController extends Controller
 
         $roles = Role::pluck('name');
 
+        if ($request->header('X-Users-Partial') === '1') {
+            return response()->view('users.partials.table', compact('users', 'roles'))->header('Cache-Control', 'no-store');
+        }
+
         return view('users.index', compact('users', 'roles'));
     }
 
@@ -61,6 +68,11 @@ class UserController extends Controller
     }
 
     public function store(Request $request)
+    {
+        return $this->withAccessLock(fn () => $this->storeAccount($request));
+    }
+
+    private function storeAccount(Request $request)
     {
         $validated = $this->validateUser($request);
 
@@ -83,7 +95,8 @@ class UserController extends Controller
             'name' => $validated['name'],
             'email' => $email,
             'phone' => $phone,
-            'password' => Hash::make($validated['password']),
+            'password' => Hash::make($request->boolean('send_password_link') ? Str::random(64) : $validated['password']),
+            'must_change_password' => $request->boolean('send_password_link') || $request->boolean('must_change_password'),
             'is_active' => true,
         ] + $this->countryAttributes($validated));
 
@@ -99,7 +112,12 @@ class UserController extends Controller
             'new_value' => $validated['role'],
         ]);
 
-        return redirect()->route('users.index')->with('success', 'User created successfully.');
+        if ($request->boolean('send_password_link') && ($error = UserPasswordController::sendLink($user))) {
+            return redirect()->route('users.edit', $user)->with('success', 'User created successfully.')->withErrors(['delivery' => $error]);
+        }
+
+        return redirect()->route('users.index')->with('success', $request->boolean('send_password_link')
+            ? 'User created. A set-password link was emailed.' : 'User created successfully.');
     }
 
     public function edit(User $user)
@@ -119,6 +137,11 @@ class UserController extends Controller
     }
 
     public function update(Request $request, User $user)
+    {
+        return $this->withAccessLock(fn () => $this->updateAccount($request, $user->fresh()));
+    }
+
+    private function updateAccount(Request $request, User $user)
     {
         $currentUser = auth()->user();
 
@@ -156,8 +179,27 @@ class UserController extends Controller
             return $this->duplicateBack($request, 'phone', $clash);
         }
 
+        if (!$request->boolean('is_active') && $user->id === $currentUser->id) {
+            return back()->withErrors(['is_active' => 'You cannot deactivate your own account.']);
+        }
+        if (!$request->boolean('is_active') && $this->isLastSuperadmin($user)) {
+            return back()->withErrors(['is_active' => 'The last available superadmin cannot be deactivated.']);
+        }
+
         $trial = clone $user;
+        if ($currentUser->hasRole(['admin', 'superadmin']) && $user->id !== $currentUser->id) {
+            if ($request->filled('country')) {
+                $trial->country = $validated['country'];
+                $trial->timezone = $validated['timezone'] ?? User::timezoneForCountry($trial->country);
+            } elseif ($request->filled('timezone')) {
+                $trial->timezone = $validated['timezone'];
+            }
+        }
         $this->applyLoginWindow($trial, $request);
+
+        if ($trial->hasLoginWindow() && $this->isLastSuperadmin($user)) {
+            return back()->withErrors(['days' => 'Keep unrestricted access for the last available superadmin.']);
+        }
 
         if ($trial->outsideLoginWindow() && $user->id === $currentUser->id) {
             return back()->withErrors(['days' => 'That would block your own account right now, so it was not saved. Ask another superadmin to set your hours.']);
@@ -185,7 +227,16 @@ class UserController extends Controller
                 : User::timezoneForCountry($country);
         }
 
+        $wasActive = $user->is_active;
+        $profile['must_change_password'] = $user->must_change_password || $request->boolean('must_change_password');
         $user->update($profile);
+        if ($wasActive !== $user->is_active) {
+            ActivityLog::create(ActivityLog::subjectAttributes($user) + [
+                'user_id' => $currentUser->id,
+                'action' => $user->is_active ? 'user_activated' : 'user_deactivated',
+                'description' => 'Account sign-in status changed.',
+            ]);
+        }
 
         $this->applyLoginWindow($user, $request);
         $user->save();
@@ -222,7 +273,12 @@ class UserController extends Controller
             'new_value' => json_encode($user->only(['name', 'email', 'phone', 'country', 'timezone', 'is_active', 'allowed_days', 'allowed_from', 'allowed_to'])),
         ]);
 
-        return redirect()->route('users.index')->with('success', 'User updated successfully.');
+        if ($request->boolean('send_password_link') && ($error = UserPasswordController::sendLink($user))) {
+            return back()->with('success', 'User updated successfully.')->withErrors(['delivery' => $error]);
+        }
+
+        return redirect()->route('users.index')->with('success', $request->boolean('send_password_link')
+            ? 'User updated. A set-password link was emailed.' : 'User updated successfully.');
     }
 
     public function resetPassword(Request $request, User $user)
@@ -231,6 +287,11 @@ class UserController extends Controller
 
         if ($user->hasRole('superadmin') && !$currentUser->hasRole('superadmin')) {
             return back()->withErrors(['error' => 'Only superadmins can reset superadmin passwords.']);
+        }
+
+        if ($request->boolean('send_password_link')) {
+            $error = UserPasswordController::sendLink($user);
+            return $error ? back()->withErrors(['delivery' => $error]) : back()->with('success', 'A set-password link was emailed.');
         }
 
         $validated = $request->validate([
@@ -254,6 +315,11 @@ class UserController extends Controller
 
     public function toggleLock(Request $request, User $user)
     {
+        return $this->withAccessLock(fn () => $this->toggleAccountLock($request, $user->fresh()));
+    }
+
+    private function toggleAccountLock(Request $request, User $user)
+    {
         $currentUser = auth()->user();
 
         if ($user->hasRole('superadmin') && !$currentUser->hasRole('superadmin')) {
@@ -268,7 +334,8 @@ class UserController extends Controller
             return back()->withErrors(['error' => 'This is the only superadmin account, so it cannot be locked.']);
         }
 
-        if ($user->isLocked()) {
+        $wasLocked = $user->isLocked();
+        if ($wasLocked) {
             $user->unlock();
             $action = 'unlocked';
             $description = "Account unlocked for user {$user->name}";
@@ -282,7 +349,7 @@ class UserController extends Controller
             'user_id' => $currentUser->id,
             'action' => $action,
             'description' => $description,
-            'old_value' => $user->is_locked ? 'locked' : 'unlocked',
+            'old_value' => $wasLocked ? 'locked' : 'unlocked',
             'new_value' => $user->is_locked ? 'locked' : 'unlocked',
         ]);
 
@@ -291,6 +358,11 @@ class UserController extends Controller
     }
 
     public function toggleActive(Request $request, User $user)
+    {
+        return $this->withAccessLock(fn () => $this->toggleAccountActive($request, $user->fresh()));
+    }
+
+    private function toggleAccountActive(Request $request, User $user)
     {
         $currentUser = auth()->user();
 
@@ -320,10 +392,19 @@ class UserController extends Controller
 
     public function bulk(Request $request)
     {
+        return $this->withAccessLock(fn () => $this->bulkAccounts($request));
+    }
+
+    private function bulkAccounts(Request $request)
+    {
         $validated = $request->validate([
             'action' => 'required|string|in:' . implode(',', array_keys(self::BULK_ACTIONS)),
-            'user_ids' => 'required|array|min:1',
-            'user_ids.*' => 'integer',
+            'user_ids' => 'required|array|min:1|max:200',
+            'user_ids.*' => 'integer|distinct|exists:users,id',
+            'days' => 'required_if:action,window_set|array|min:1|max:7',
+            'days.*' => 'integer|min:1|max:7|distinct',
+            'allowed_from' => 'required_if:action,window_set|nullable|date_format:H:i',
+            'allowed_to' => 'required_if:action,window_set|nullable|date_format:H:i|different:allowed_from',
         ], [
             'action.required' => 'Choose a bulk action first.',
             'user_ids.required' => 'Tick at least one user to run a bulk action.',
@@ -418,26 +499,38 @@ class UserController extends Controller
             return false;
         }
 
-        return User::where('is_active', true)
+        return !User::where('is_active', true)
             ->whereHas('roles', fn($q) => $q->where('name', 'superadmin'))
             ->where('id', '!=', $user->id)
-            ->doesntExist();
+            ->get()
+            ->contains(fn (User $other) => !$other->isLocked() && !$other->outsideLoginWindow());
     }
 
     private function validateUser(Request $request, ?User $user = null): array
     {
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => strtolower(trim($request->input('email')))]);
+        }
+        if (is_string($request->input('phone'))) {
+            $request->merge(['phone' => User::normalizePhone($request->input('phone'))]);
+        }
+
         return $request->validate([
             'name' => ['required', 'string', 'min:3', 'max:100', 'regex:' . self::NAME_PATTERN],
             'email' => 'required|email|max:100',
-            'phone' => 'nullable|string|max:20',
-            'password' => ($user ? 'nullable|' : 'required|') . self::PASSWORD_RULES . ($user ? '' : '|confirmed'),
+            'phone' => ['nullable', 'string', 'regex:/^\+[0-9]{8,15}$/'],
+            'send_password_link' => 'sometimes|boolean',
+            'must_change_password' => 'sometimes|boolean',
+            'is_active' => 'sometimes|boolean',
+            'restrict_hours' => 'sometimes|boolean',
+            'password' => 'exclude_if:send_password_link,1|' . ($user ? 'nullable|' : 'required|') . self::PASSWORD_RULES . '|confirmed',
             'role' => 'required|exists:roles,name',
             'country' => ['nullable', Rule::in(array_keys(User::COUNTRIES))],
             'timezone' => ['nullable', Rule::in(array_keys(Setting::TIMEZONES))],
-            'days' => 'nullable|array',
-            'days.*' => 'integer|min:1|max:7',
-            'allowed_from' => 'nullable|date_format:H:i',
-            'allowed_to' => 'nullable|date_format:H:i',
+            'days' => 'required_if:restrict_hours,1|nullable|array|min:1|max:7',
+            'days.*' => 'integer|min:1|max:7|distinct',
+            'allowed_from' => 'required_if:restrict_hours,1|nullable|date_format:H:i',
+            'allowed_to' => 'required_if:restrict_hours,1|nullable|date_format:H:i|different:allowed_from',
         ], self::PASSWORD_MESSAGES + [
             'name.required' => 'Full name is required.',
             'name.min' => 'Name must be at least 3 characters.',
@@ -474,15 +567,17 @@ class UserController extends Controller
 
     private function duplicateBack(Request $request, string $field, User $holder)
     {
-        $label = $field === 'email' ? 'email address' : 'phone number';
-
-        return back()->withInput()->withErrors([
-            $field => "That {$label} is already used by {$holder->name} ({$holder->email}). Each account needs its own.",
+        return back()->withInput($request->except(['password', 'password_confirmation', 'current_password']))->withErrors([
+            $field => $field === 'email' ? 'This email is already registered.' : 'This phone is already registered.',
         ]);
     }
 
     private function applyLoginWindow(User $user, Request $request): void
     {
+        if ($request->has('restrict_hours') && !$request->boolean('restrict_hours')) {
+            $user->allowed_days = $user->allowed_from = $user->allowed_to = null;
+            return;
+        }
         $days = $request->input('days', []);
 
         if (!is_array($days)) {
@@ -534,11 +629,9 @@ class UserController extends Controller
                 return 'your own account';
             }
 
-            if ($action === 'window_weekdays') {
+            if ($action === 'window_set') {
                 $trial = clone $user;
-                $trial->allowed_days = '1,2,3,4,5';
-                $trial->allowed_from = '08:00';
-                $trial->allowed_to = '18:00';
+                $this->applyLoginWindow($trial, request());
 
                 if ($trial->outsideLoginWindow()) {
                     return 'your own account, because those hours would block you now';
@@ -546,7 +639,7 @@ class UserController extends Controller
             }
         }
 
-        if ($changesAccess && $this->isLastSuperadmin($user)) {
+        if (($changesAccess || $action === 'window_set') && $this->isLastSuperadmin($user)) {
             return 'the only active superadmin account';
         }
 
@@ -560,7 +653,7 @@ class UserController extends Controller
             'deactivate' => ['is_active' => false],
             'lock' => ['is_locked' => true],
             'unlock' => ['is_locked' => false, 'failed_login_attempts' => 0, 'locked_until' => null],
-            'window_weekdays' => ['allowed_days' => '1,2,3,4,5', 'allowed_from' => '08:00', 'allowed_to' => '18:00'],
+            'window_set' => ['allowed_days' => count(request('days')) === 7 ? null : implode(',', request('days')), 'allowed_from' => request('allowed_from'), 'allowed_to' => request('allowed_to')],
             'window_clear' => ['allowed_days' => null, 'allowed_from' => null, 'allowed_to' => null],
             'two_factor_off' => ['two_factor_enabled' => false, 'two_factor_secret' => null],
         };
@@ -570,7 +663,7 @@ class UserController extends Controller
             'deactivate' => 'user_deactivated',
             'lock' => 'locked',
             'unlock' => 'unlocked',
-            'window_weekdays' => 'login_window_set',
+            'window_set' => 'login_window_set',
             'window_clear' => 'login_window_cleared',
             'two_factor_off' => 'two_factor_disabled',
         };
@@ -693,6 +786,53 @@ class UserController extends Controller
     {
         $user->password = Hash::make($plain);
         $user->remember_token = null;
+        $user->must_change_password = $user->must_change_password || request()->boolean('must_change_password', true);
         $user->save();
+        \Illuminate\Support\Facades\Password::deleteToken($user);
+    }
+
+    private function withAccessLock(callable $change)
+    {
+        return DB::transaction(function () use ($change) {
+            // A common lock order prevents concurrent admin removals passing the same guard.
+            User::orderBy('id')->lockForUpdate()->get(['id']);
+            return $change();
+        });
+    }
+
+    public function availability(Request $request)
+    {
+        $actor = $request->user();
+        abort_unless($actor && ($actor->can('create-user') || $actor->can('edit-user')), 403);
+
+        $validator = Validator::make($request->all(), [
+            'field' => ['required', Rule::in(['email', 'phone'])],
+            'email' => 'nullable|string|max:100',
+            'phone' => 'nullable|string|max:40',
+            'ignore_id' => 'nullable|integer|min:1',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422)->header('Cache-Control', 'no-store');
+        }
+
+        $ignore = null;
+        if ($request->filled('ignore_id')) {
+            abort_unless($actor->can('edit-user'), 403);
+            $ignore = User::find($request->integer('ignore_id'));
+            abort_unless($ignore && (!$ignore->hasRole('superadmin') || $actor->hasRole('superadmin')), 403);
+        }
+
+        $field = $request->input('field');
+        $value = $field === 'email'
+            ? strtolower(trim((string) $request->input('email')))
+            : User::normalizePhone($request->input('phone'));
+        $rules = $field === 'email' ? ['required', 'email', 'max:100'] : ['nullable', 'regex:/^\+[0-9]{8,15}$/'];
+        $validator = Validator::make([$field => $value], [$field => $rules]);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422)->header('Cache-Control', 'no-store');
+        }
+
+        return response()->json(['available' => !$value || !$this->holder($field, $value, $ignore)])
+            ->header('Cache-Control', 'no-store');
     }
 }

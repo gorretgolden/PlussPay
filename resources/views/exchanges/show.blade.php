@@ -28,14 +28,14 @@
             @endif
         </p>
     </div>
-    @unless($exchange->isVoid())
+    @if(!$exchange->isVoid() && auth()->user()->can('void-exchange'))
     <button type="button" onclick="openVoidModal(this)"
         data-action="{{ route('exchanges.void', $exchange) }}"
         data-deal="{{ $exchange->reference }} &middot; {{ $exchange->person_name }}"
         data-first="{{ $in }}"
         data-second="{{ $out }}"
         class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Cancel deal</button>
-    @endunless
+    @endif
 </div>
 
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -51,6 +51,7 @@
         <p class="text-xs uppercase tracking-wide text-gray-500">Rate done at</p>
         <p class="text-sm font-medium text-gray-900 mt-1">{{ $exchange->quotedRate() ?? 'Not recorded' }}</p>
     </div>
+    @can('view-profit')
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs uppercase tracking-wide text-gray-500">Margin on this deal</p>
         <p class="text-xl font-semibold {{ $margin === null ? 'text-amber-700' : ($margin < 0 ? 'text-red-700' : 'text-gray-900') }}">
@@ -61,8 +62,10 @@
             @endif
         </p>
     </div>
+    @endcan
 </div>
 
+@can('view-profit')
 <div class="bg-white rounded-lg shadow p-6 max-w-3xl mb-6">
     <h2 class="text-sm font-semibold text-gray-900 mb-2">How the margin was got</h2>
     <p class="text-sm text-gray-700">
@@ -77,6 +80,7 @@
         <p class="text-xs text-amber-700 mt-2">No buying and selling rates were saved for these currencies, so the margin is left blank rather than guessed.</p>
     @endif
 </div>
+@endcan
 
 <div class="bg-white rounded-lg shadow overflow-x-auto mb-6">
     <div class="px-6 py-4 border-b">

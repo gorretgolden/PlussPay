@@ -90,11 +90,14 @@ class TimezoneSettingTest extends TestCase
         $html = $this->actingAs($this->user('admin'))
             ->get('/settings')
             ->assertOk()
-            ->assertSee('Date and Time')
+            ->assertSee('Date & Time')
             ->getContent();
 
-        $this->assertStringContainsString('value="Africa/Lagos" selected>', $html);
-        $this->assertStringNotContainsString('value="Africa/Kampala" selected', $html);
+        $dom = new \DOMDocument;
+        @$dom->loadHTML($html);
+        $xpath = new \DOMXPath($dom);
+        $this->assertCount(1, $xpath->query('//select[@name="timezone"]/option[@value="Africa/Lagos" and @selected]'));
+        $this->assertCount(0, $xpath->query('//select[@name="timezone"]/option[@value="Africa/Kampala" and @selected]'));
 
         foreach (array_keys(Setting::TIMEZONES) as $zone) {
             $this->assertStringContainsString('value="' . $zone . '"', $html);

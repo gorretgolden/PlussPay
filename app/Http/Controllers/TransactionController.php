@@ -241,7 +241,7 @@ class TransactionController extends Controller
     private function canView(Request $request, Transaction $transaction): bool
     {
         return $transaction->created_by === $request->user()->id
-            || $request->user()->hasRole(['superadmin', 'admin', 'accountant']);
+            || $request->user()->can('view-all-transactions');
     }
 
     public function showBulkImport()

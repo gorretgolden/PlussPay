@@ -148,7 +148,7 @@
             <div class="bg-green-50 rounded-lg p-5 mt-6">
                 <div class="flex items-center justify-between mb-3">
                     <h4 class="font-semibold text-green-800">Live Calculation</h4>
-                    @if(auth()->user()->hasRole(['admin', 'superadmin']))
+                    @if(auth()->user()->can('manage-exchange-rates'))
                         <a href="{{ route('settings.index') }}" class="text-xs text-green-700 underline hover:text-green-900">Change the prices</a>
                     @endif
                 </div>

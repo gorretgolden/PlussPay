@@ -142,6 +142,9 @@ class RolePermissionTest extends TestCase
     public function test_bulk_add_assigns_every_selected_permission_to_the_role(): void
     {
         $role = Role::where('name', 'staff')->firstOrFail();
+        // The staff role now carries a real grant from the catalog, so start this case from
+        // empty the way the bulk remove test does, and assert only what this request added.
+        $role->syncPermissions([]);
         $ids = Permission::whereIn('name', ['view-transactions', 'edit-customer'])->pluck('id')->all();
 
         $this->actingAs($this->superadmin())->post('/admin/permissions/bulk', [
@@ -170,7 +173,7 @@ class RolePermissionTest extends TestCase
         $this->assertEquals(['create-transaction'], $role->fresh()->permissions->pluck('name')->all());
     }
 
-    public function test_bulk_delete_removes_free_permissions_and_skips_assigned_ones(): void
+    public function test_bulk_delete_cannot_destroy_application_permission_definitions(): void
     {
         $role = Role::where('name', 'staff')->firstOrFail();
         $role->syncPermissions(['view-transactions']);
@@ -181,11 +184,11 @@ class RolePermissionTest extends TestCase
         $this->actingAs($this->superadmin())->post('/admin/permissions/bulk', [
             'action' => 'delete',
             'permission_ids' => array_merge([$assigned], $free),
-        ])->assertSessionHasErrors('error');
+        ])->assertForbidden();
 
         $this->assertDatabaseHas('permissions', ['id' => $assigned]);
-        $this->assertDatabaseMissing('permissions', ['id' => $free[0]]);
-        $this->assertDatabaseMissing('permissions', ['id' => $free[1]]);
+        $this->assertDatabaseHas('permissions', ['id' => $free[0]]);
+        $this->assertDatabaseHas('permissions', ['id' => $free[1]]);
     }
 
     public function test_admin_cannot_bulk_change_superadmin_permissions(): void
@@ -205,7 +208,7 @@ class RolePermissionTest extends TestCase
             'action' => 'remove',
             'role_id' => $superadmin->id,
             'permission_ids' => [Permission::where('name', 'view-transactions')->value('id')],
-        ])->assertSessionHasErrors('error');
+        ])->assertForbidden();
 
         $this->assertTrue($superadmin->hasPermissionTo('view-transactions'));
     }

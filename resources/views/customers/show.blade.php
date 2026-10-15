@@ -98,9 +98,9 @@
             <h2 class="text-sm font-semibold text-gray-900">Money changed for this customer</h2>
             <p class="text-xs text-gray-500 mt-1">Every deal booked against their name, newest first.</p>
         </div>
-        @role('admin|superadmin|accountant|agent')
+        @can('view-exchanges')
         <a href="{{ route('exchanges.index', ['customer_id' => $customer->id]) }}" class="text-green-800 text-sm hover:underline">Open the exchange book</a>
-        @endrole
+        @endcan
     </div>
     <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
