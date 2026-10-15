@@ -36,6 +36,10 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
 
+    Route::middleware(['role:admin|superadmin'])->group(function () {
+        Route::post('/wallets/adjust', [WalletController::class, 'storeAdjustment'])->name('wallets.adjust');
+    });
+
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
 
     // Booking a transfer is desk work, so the create form stays with the desks that run it.

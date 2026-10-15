@@ -8,6 +8,50 @@
     <p class="text-gray-600">Commission balances for every agent. A desk in Uganda holds shillings and dollars and a desk in China holds yuan and dollars, so a dash means that currency is not one this person keeps.</p>
 </div>
 
+@role('admin|superadmin')
+<div class="bg-white rounded-lg shadow p-5 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Adjust an Agent's Wallet</h2>
+    <form method="POST" action="{{ route('wallets.adjust') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+        @csrf
+        <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Agent</label>
+            <select name="agent_id" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                <option value="">Choose an agent</option>
+                @foreach($allWallets as $agentId => $data)
+                    <option value="{{ $agentId }}">{{ $data['user']->name }}</option>
+                @endforeach
+            </select>
+            @error('agent_id') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
+            <select name="direction" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                <option value="credit">Credit (add)</option>
+                <option value="debit">Debit (remove)</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Amount (UGX)</label>
+            <input type="number" name="amount" step="0.01" min="0.01" required value="{{ old('amount') }}"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            @error('amount') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+        </div>
+        <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+            <input type="text" name="description" required maxlength="255" value="{{ old('description') }}"
+                placeholder="e.g. Advance payment, correction for PS-..."
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            @error('description') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+        </div>
+        <div class="md:col-span-5 flex justify-end">
+            <button type="submit" class="bg-green-800 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition">
+                Post Adjustment
+            </button>
+        </div>
+    </form>
+</div>
+@endrole
+
 @if(empty($allWallets))
 <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">No active agents found.</div>
 @else

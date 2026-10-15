@@ -332,4 +332,89 @@ class AgentWalletTest extends TestCase
             ->assertOk()
             ->assertSee('This month: UGX 7,520');
     }
+
+    public function test_an_admin_can_credit_an_agent_wallet_and_the_balance_moves(): void
+    {
+        $agent = $this->agent();
+        $admin = $this->admin();
+
+        $wallet = Account::walletFor($agent, 'UGX');
+        $this->assertSame('0.00', (string) $wallet->balance());
+
+        $this->actingAs($admin)
+            ->post(route('wallets.adjust'), [
+                'agent_id' => $agent->id,
+                'direction' => 'credit',
+                'amount' => '50000',
+                'description' => 'Advance payment for October',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame('50000.00', (string) $wallet->fresh()->balance());
+
+        $entry = AccountEntry::where('account_id', $wallet->id)->where('type', 'adjustment_in')->first();
+        $this->assertNotNull($entry);
+        $this->assertSame('50000.00', (string) $entry->amount);
+        $this->assertSame('Advance payment for October', $entry->description);
+    }
+
+    public function test_an_admin_can_debit_an_agent_wallet_after_a_credit(): void
+    {
+        $agent = $this->agent();
+        $admin = $this->admin();
+        $wallet = Account::walletFor($agent, 'UGX');
+
+        $this->actingAs($admin)->post(route('wallets.adjust'), [
+            'agent_id' => $agent->id,
+            'direction' => 'credit',
+            'amount' => '80000',
+            'description' => 'Initial balance',
+        ]);
+
+        $this->actingAs($admin)->post(route('wallets.adjust'), [
+            'agent_id' => $agent->id,
+            'direction' => 'debit',
+            'amount' => '30000',
+            'description' => 'Cash advance returned',
+        ])->assertRedirect();
+
+        $this->assertSame('50000.00', (string) $wallet->fresh()->balance());
+
+        $entries = AccountEntry::where('account_id', $wallet->id)->orderBy('id')->get();
+        $this->assertCount(2, $entries);
+        $this->assertSame('adjustment_in', $entries[0]->type);
+        $this->assertSame('adjustment_out', $entries[1]->type);
+    }
+
+    public function test_an_agent_cannot_adjust_anyone_wallet(): void
+    {
+        $agent = $this->agent();
+        $other = $this->namedAgent('Other Agent');
+
+        $this->actingAs($agent)
+            ->post(route('wallets.adjust'), [
+                'agent_id' => $other->id,
+                'direction' => 'credit',
+                'amount' => '50000',
+                'description' => 'Sneaky',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_the_adjustment_form_is_visible_to_admins_only(): void
+    {
+        $agent = $this->agent();
+        $admin = $this->admin();
+
+        Account::walletsFor($agent);
+
+        $this->actingAs($admin)
+            ->get(route('wallet.index'))
+            ->assertSee('Adjust an Agent');
+
+        $this->actingAs($agent)
+            ->get(route('wallet.index'))
+            ->assertDontSee('Adjust an Agent');
+    }
 }
