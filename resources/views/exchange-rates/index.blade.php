@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Exchange Rates')
+@section('inline-validation', true)
 
 @section('content')
 @php
@@ -9,254 +10,240 @@
     $input = fn ($v) => rtrim(rtrim(number_format((float) $v, 6, '.', ''), '0'), '.');
 @endphp
 
-<div class="mb-6 flex flex-wrap justify-between items-center gap-3">
-    <div class="flex items-center gap-2">
-        <h1 class="text-2xl font-bold text-gray-900">Exchange Rates</h1>
-        <span class="group relative cursor-help text-gray-400 hover:text-gray-600" title="Rates are never deleted. Changing a rate does not affect past transfers.">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M12 16v-1m0-3a2 2 0 10-2-2"/></svg>
-        </span>
+<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <div class="flex items-center gap-2">
+            <h1 class="text-2xl font-bold text-gray-900">Exchange Rates</h1>
+            <details class="relative">
+                <summary aria-label="About rate history" class="list-none cursor-pointer rounded text-gray-600">&#9432;</summary>
+                <p class="absolute right-0 top-7 z-20 w-64 rounded-lg border bg-white p-3 text-sm text-gray-700 shadow-lg">Rates are never deleted. Changing a rate does not affect past transfers.</p>
+            </details>
+        </div>
+        <p class="mt-1 text-sm text-gray-600">Rate history. Set new rates in System Settings.</p>
     </div>
-    <p class="text-sm text-gray-500 hidden sm:block">Rate history. Set new rates in System Settings.</p>
-    <div class="flex gap-2 ml-auto">
-        <a href="{{ route('settings.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300 whitespace-nowrap">Update rates</a>
-        <a href="{{ route('export.exchange-rates', request()->query()) }}"
-            class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600 whitespace-nowrap">Export Excel</a>
+    <div class="flex gap-2">
+        @can('view-settings')
+        <a href="{{ route('settings.index') }}" class="rounded-md bg-gray-200 px-4 py-2 text-sm text-gray-800 hover:bg-gray-300">Update rates</a>
+        @endcan
+        @can('manage-exchange-rates')
+        <a href="{{ route('export.exchange-rates', request()->query()) }}" class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Export Excel</a>
+        @endcan
     </div>
 </div>
 
-<div class="bg-white rounded-lg shadow p-4 mb-6">
-    <form method="GET" action="{{ route('exchange-rates.index') }}" class="flex flex-wrap gap-3 items-end">
-        <div class="flex-1 min-w-[160px]">
-            <input type="text" name="search" value="{{ request('search') }}" placeholder="Search currency or name"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+<div class="mb-6 rounded-lg bg-white p-4 shadow">
+    <form method="GET" action="{{ route('exchange-rates.index') }}" class="rate-filters flex flex-wrap items-start gap-2">
+        <div class="min-w-40 flex-1">
+            <input aria-label="Search currency or name" type="search" name="search" value="{{ request('search') }}" placeholder="Search currency or name" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
         </div>
         <div>
-            <select name="currency" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+            <select aria-label="Currency" name="currency" class="rounded-md border border-gray-300 px-3 py-2 text-sm">
                 <option value="">All currencies</option>
-                <option value="USD" {{ request('currency') === 'USD' ? 'selected' : '' }}>USD</option>
-                <option value="UGX" {{ request('currency') === 'UGX' ? 'selected' : '' }}>UGX</option>
-                <option value="RMB" {{ request('currency') === 'RMB' ? 'selected' : '' }}>RMB</option>
-            </select>
-        </div>
-        <div>
-            <select name="status" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="active" {{ (request('status') ?? 'active') === 'active' ? 'selected' : '' }}>In use</option>
-                <option value="inactive" {{ request('status') === 'inactive' ? 'selected' : '' }}>Earlier</option>
-                <option value="" {{ request()->has('status') && request('status') === '' ? 'selected' : '' }}>All</option>
-            </select>
-        </div>
-        <div>
-            <select name="created_by" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option value="">Added by anyone</option>
-                @foreach($creators as $creator)
-                <option value="{{ $creator->id }}" {{ request('created_by') == $creator->id ? 'selected' : '' }}>{{ $creator->name }}</option>
+                @foreach(['USD', 'UGX', 'RMB'] as $currency)
+                <option value="{{ $currency }}" @selected(request('currency') === $currency)>{{ $currency }}</option>
                 @endforeach
             </select>
         </div>
-        <div class="flex flex-col gap-1">
+        <div>
+            <select aria-label="Status" name="status" class="rounded-md border border-gray-300 px-3 py-2 text-sm">
+                <option value="active" @selected(request('status') === 'active')>In use</option>
+                <option value="inactive" @selected(request('status') === 'inactive')>Earlier</option>
+                <option value="" @selected((string) request('status') === '')>All</option>
+            </select>
+        </div>
+        <div>
+            <select aria-label="Added by" name="created_by" class="rounded-md border border-gray-300 px-3 py-2 text-sm">
+                <option value="">Added by anyone</option>
+                @foreach($creators as $creator)
+                <option value="{{ $creator->id }}" @selected(request('created_by') == $creator->id)>{{ $creator->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="rate-dates flex min-w-0 flex-col gap-1">
             <div class="flex items-center gap-1">
-                <input type="date" name="date_from" value="{{ request('date_from') }}" placeholder="From"
-                    class="px-2 py-2 border border-gray-300 rounded-md text-sm w-[8.5rem]">
-                <span class="text-gray-400 text-xs">to</span>
-                <input type="date" name="date_to" value="{{ request('date_to') }}" placeholder="To"
-                    class="px-2 py-2 border border-gray-300 rounded-md text-sm w-[8.5rem]">
+                <input aria-label="From date" type="date" name="date_from" value="{{ request('date_from') }}" class="min-w-0 w-32 rounded-md border border-gray-300 px-2 py-2 text-sm">
+                <span class="text-xs text-gray-600">to</span>
+                <input aria-label="To date" type="date" name="date_to" value="{{ request('date_to') }}" class="min-w-0 w-32 rounded-md border border-gray-300 px-2 py-2 text-sm">
             </div>
-            <div class="flex gap-1">
+            <div class="flex flex-wrap gap-1">
                 @php
-                    $quickBase = array_filter(request()->only(['search', 'currency', 'status', 'created_by']), fn ($v) => $v !== null && $v !== '');
+                    $quickBase = request()->only(['search', 'currency', 'created_by']);
+                    $quickBase['status'] = (string) request('status');
                     $ranges = [
                         'Today' => [today()->toDateString(), today()->toDateString()],
                         'Yesterday' => [today()->subDay()->toDateString(), today()->subDay()->toDateString()],
                         'This month' => [now()->startOfMonth()->toDateString(), now()->toDateString()],
-                        'Last month' => [now()->subMonth()->startOfMonth()->toDateString(), now()->subMonth()->endOfMonth()->toDateString()],
+                        'Last month' => [now()->subMonthNoOverflow()->startOfMonth()->toDateString(), now()->subMonthNoOverflow()->endOfMonth()->toDateString()],
                     ];
                 @endphp
                 @foreach($ranges as $label => [$from, $to])
-                <a href="{{ route('exchange-rates.index', array_merge($quickBase, ['date_from' => $from, 'date_to' => $to])) }}"
-                    class="px-2 py-0.5 text-xs rounded-md whitespace-nowrap {{ request('date_from') === $from && request('date_to') === $to ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">{{ $label }}</a>
+                <a href="{{ route('exchange-rates.index', array_merge($quickBase, ['date_from' => $from, 'date_to' => $to])) }}" class="rounded px-1.5 py-1 text-xs {{ request('date_from') === $from && request('date_to') === $to ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">{{ $label }}</a>
                 @endforeach
             </div>
         </div>
-        <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Filter</button>
-        <a href="{{ route('exchange-rates.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Clear</a>
+        <button type="submit" class="rounded-md bg-green-800 px-3 py-2 text-sm text-white hover:bg-green-700">Filter</button>
+        <a href="{{ route('exchange-rates.index') }}" class="rounded-md bg-gray-200 px-3 py-2 text-sm text-gray-800 hover:bg-gray-300">Clear</a>
     </form>
 </div>
 
 @if(!empty($spreadWarnings))
-<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-    <div class="flex items-start gap-2">
-        <svg class="w-5 h-5 text-red-600 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-        <div>
-            <h2 class="text-sm font-semibold text-red-800">Spread warning</h2>
-            <ul class="mt-1 space-y-1">
-                @foreach($spreadWarnings as $warning)
-                <li class="text-sm text-red-700">{{ $warning }}</li>
-                @endforeach
-            </ul>
-        </div>
-    </div>
+<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+    <h2 class="text-sm font-semibold text-red-800">Spread warning</h2>
+    <ul class="mt-1 space-y-1">
+        @foreach($spreadWarnings as $warning)
+        <li class="text-sm text-red-700">{{ $warning }}</li>
+        @endforeach
+    </ul>
 </div>
 @endif
 
 @if($sendExample)
-<details class="bg-white rounded-lg shadow mb-6 group">
-    <summary class="px-4 py-3 cursor-pointer select-none flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900">
-        <svg class="w-4 h-4 text-gray-400 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+<details id="send-example" class="group mb-6 rounded-lg bg-white shadow">
+    <summary class="flex cursor-pointer flex-wrap items-center gap-2 px-4 py-3 text-sm font-medium text-gray-800">
+        <svg aria-hidden="true" class="h-4 w-4 shrink-0 text-gray-500 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
         Sample: send USD 1,000
-        <span class="text-xs text-gray-400 font-normal ml-1">{{ $sendExample['hands_over'] }} handed over</span>
     </summary>
-    <div class="px-4 pb-4 pt-1">
-        <div class="flex flex-wrap gap-4 text-sm">
-            <div class="bg-gray-50 rounded px-3 py-2">
-                <span class="text-xs text-gray-500 block">Charge</span>
-                <span class="font-medium text-gray-900">{{ $sendExample['charge'] }}</span>
+    <div class="px-4 pb-4">
+        <p class="mb-3 text-xs text-gray-600">{{ $sendExample['hands_over'] }} handed over</p>
+        <div class="flex flex-wrap gap-3 text-sm">
+            @foreach(['charge' => 'Charge', 'exchange' => 'FX profit', 'total' => 'Overall profit'] as $key => $label)
+            <div class="rounded bg-gray-50 px-3 py-2">
+                <span class="block text-xs text-gray-600">{{ $label }}</span>
+                <span class="font-medium text-gray-900">{{ $sendExample[$key] }}</span>
             </div>
-            <div class="bg-gray-50 rounded px-3 py-2">
-                <span class="text-xs text-gray-500 block">FX profit</span>
-                <span class="font-medium text-gray-900">{{ $sendExample['exchange'] }}</span>
-            </div>
-            <div class="bg-gray-50 rounded px-3 py-2">
-                <span class="text-xs text-gray-500 block">Overall profit</span>
-                <span class="font-medium text-gray-900">{{ $sendExample['total'] }}</span>
-            </div>
+            @endforeach
         </div>
     </div>
 </details>
 @endif
 
-<div class="bg-white rounded-lg shadow overflow-x-auto">
-    <table class="min-w-full divide-y divide-gray-200">
+<div class="rates-wrap overflow-x-auto rounded-lg bg-white shadow">
+    <table class="rates-table min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
-                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pair</th>
-                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Selling</th>
-                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buying</th>
-                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Margin</th>
-                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Added</th>
-                <th class="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated</th>
-                <th class="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                @foreach(['Pair', 'Selling', 'Buying', 'Margin', 'Status', 'Added', 'Updated', 'Actions'] as $heading)
+                <th scope="col" class="px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-600 {{ in_array($heading, ['Selling', 'Buying', 'Margin', 'Actions']) ? 'text-right' : 'text-left' }} {{ $heading === 'Actions' ? 'rate-actions' : '' }}">{{ $heading }}</th>
+                @endforeach
             </tr>
         </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
+        <tbody class="divide-y divide-gray-200">
             @forelse($rates as $rate)
-            <tr class="hover:bg-gray-50 transition-colors">
-                <td class="px-5 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">{{ $rate->from_currency }} &rarr; {{ $rate->to_currency }}</td>
-                <td class="px-5 py-4 text-sm text-gray-900 font-medium">{{ $trim($rate->sell_rate ?? $rate->rate) }}</td>
-                <td class="px-5 py-4 text-sm text-gray-900">{{ $rate->buy_rate === null ? '-' : $trim($rate->buy_rate) }}</td>
-                <td class="px-5 py-4 text-sm {{ ($rate->buy_rate === null) ? 'text-gray-400' : (((float) ($rate->sell_rate ?? $rate->rate) - (float) $rate->buy_rate) >= 0 ? 'text-green-700' : 'text-red-600') }}">
-                    {{ $rate->buy_rate === null ? '-' : $trim((float) ($rate->sell_rate ?? $rate->rate) - (float) $rate->buy_rate) }}
+            @php
+                $pair = $rate->from_currency.' to '.$rate->to_currency;
+                $selling = $trim($rate->sell_rate ?? $rate->rate);
+                $margin = $rate->buy_rate === null ? null : ((float) ($rate->sell_rate ?? $rate->rate) - (float) $rate->buy_rate) * ($rate->from_currency === 'USD' && $rate->to_currency === 'RMB' ? -1 : 1);
+            @endphp
+            <tr class="rate-row hover:bg-gray-50">
+                <td class="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900" data-label="Pair">{{ $rate->from_currency }} &rarr; {{ $rate->to_currency }}</td>
+                <td class="px-3 py-4 text-right text-sm tabular-nums text-gray-900" data-label="Selling">{{ $selling }}</td>
+                <td class="px-3 py-4 text-right text-sm tabular-nums text-gray-900" data-label="Buying">{{ $rate->buy_rate === null ? '-' : $trim($rate->buy_rate) }}</td>
+                <td class="px-3 py-4 text-right text-sm tabular-nums {{ $margin === null ? 'text-gray-900' : ($margin < 0 ? 'text-red-700' : 'text-green-800') }}" data-label="Margin" title="What this pair earns per dollar. Negative means a loss.">{{ $margin === null ? '-' : ($margin > 0 ? '+' : '').$trim($margin) }}</td>
+                <td class="px-3 py-4" data-label="Status"><span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $rate->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' }}">{{ $rate->is_active ? 'In use' : 'Earlier' }}</span></td>
+                <td class="px-3 py-4 text-sm" data-label="Added">
+                    <div><div class="text-gray-900">{{ $rate->creator?->name ?? '-' }}</div><time datetime="{{ $rate->created_at->toIso8601String() }}" title="{{ $rate->created_at->format('M d, Y H:i:s') }}" class="text-xs text-gray-600">{{ $rate->created_at->format('M d, Y') }}</time></div>
                 </td>
-                <td class="px-5 py-4">
-                    @if($rate->is_active)
-                        <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">In use</span>
+                <td class="px-3 py-4 text-sm" data-label="Updated">
+                    <div><div class="text-gray-900">{{ $rate->editor?->name ?? '-' }}</div><time datetime="{{ $rate->updated_at->toIso8601String() }}" title="{{ $rate->updated_at->format('M d, Y H:i:s') }}" class="text-xs text-gray-600">{{ $rate->updated_at->format('M d, Y') }}</time></div>
+                </td>
+                <td class="rate-actions px-3 py-4">
+                    @can('manage-exchange-rates')
+                    <div class="flex items-center justify-end gap-1">
+                        <button type="button" data-rate-edit="{{ $rate->id }}" onclick="toggleRateEdit({{ $rate->id }})" aria-controls="rate-edit-{{ $rate->id }}" aria-expanded="{{ $editing === $rate->id ? 'true' : 'false' }}" title="Edit the {{ $pair }} prices" aria-label="Edit the {{ $pair }} prices" class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-700 hover:bg-green-50 hover:text-green-800 focus-visible:ring-2 focus-visible:ring-green-600">
+                            <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        </button>
+                        @if(!$rate->is_active)
+                        <form method="POST" action="{{ route('exchange-rates.toggle', $rate) }}" data-confirm-title="Set the current rate" data-confirm="Set {{ $pair }} {{ $selling }} as the current rate?" data-confirm-ok="Set as current">
+                            @csrf
+                            @method('PATCH')
+                            <button type="submit" title="Set {{ $pair }} {{ $selling }} as the current rate" aria-label="Set {{ $pair }} {{ $selling }} as the current rate" class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-green-700 hover:bg-green-50 focus-visible:ring-2 focus-visible:ring-green-600">
+                                <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </button>
+                        </form>
+                        @else
+                        <span class="h-8 w-8 shrink-0" aria-hidden="true"></span>
+                        @endif
+                    </div>
                     @else
-                        <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600">Earlier</span>
-                    @endif
-                </td>
-                <td class="px-5 py-4 text-sm whitespace-nowrap">
-                    <div class="text-gray-900">{{ $rate->creator?->name ?? '-' }}</div>
-                    <div class="text-xs text-gray-400">{{ $rate->created_at->format('M d, Y') }}</div>
-                </td>
-                <td class="px-5 py-4 text-sm whitespace-nowrap">
-                    <div class="text-gray-900">{{ $rate->editor?->name ?? '-' }}</div>
-                    <div class="text-xs text-gray-400">{{ $rate->updated_at->format('M d, Y') }}</div>
-                </td>
-                <td class="px-5 py-4 text-sm text-right whitespace-nowrap space-x-3">
-                    <button type="button" onclick="toggleRateEdit({{ $rate->id }})"
-                        class="text-green-700 hover:text-green-900 font-medium">Edit</button>
-                    @if(! $rate->is_active)
-                    <form method="POST" action="{{ route('exchange-rates.toggle', $rate) }}" class="inline">
-                        @csrf
-                        @method('PATCH')
-                        <button type="submit" class="text-gray-500 hover:text-gray-800 font-medium">Set as current</button>
-                    </form>
-                    @endif
+                    <span class="block text-right text-sm text-gray-600">-</span>
+                    @endcan
                 </td>
             </tr>
-            <tr id="rate-edit-{{ $rate->id }}" class="{{ $editing === $rate->id ? '' : 'hidden' }} bg-gray-50">
-                <td colspan="8" class="px-5 py-4">
-                    <form method="POST" action="{{ route('exchange-rates.update', $rate) }}" class="flex flex-wrap gap-4 items-start">
+            @can('manage-exchange-rates')
+            <tr id="rate-edit-{{ $rate->id }}" class="rate-edit {{ $editing === $rate->id ? '' : 'hidden' }} bg-gray-50">
+                <td colspan="8" class="px-4 py-4">
+                    <form id="edit-rate-{{ $rate->id }}" data-validate method="POST" action="{{ route('exchange-rates.update', $rate) }}" class="flex flex-wrap items-start gap-4">
                         @csrf
                         @method('PATCH')
                         <input type="hidden" name="rate_id" value="{{ $rate->id }}">
-                        <div class="w-40">
-                            <p class="text-sm font-medium text-gray-900">{{ $rate->from_currency }} &rarr; {{ $rate->to_currency }}</p>
-                            <p class="text-xs text-gray-500">{{ $rate->is_active ? 'Currently in use.' : 'Added '.$rate->created_at->format('M d, Y').'.' }}</p>
+                        <p class="text-sm font-medium text-gray-900">{{ $rate->from_currency }} &rarr; {{ $rate->to_currency }}</p>
+                        @foreach(['sell_rate' => 'Selling', 'buy_rate' => 'Buying'] as $field => $label)
+                        <div data-field>
+                            <label for="{{ $field }}-{{ $rate->id }}" class="mb-1 block text-sm text-gray-700">{{ $label }}{{ $field === 'sell_rate' ? ' *' : '' }}</label>
+                            <input type="number" id="{{ $field }}-{{ $rate->id }}" name="{{ $field }}" step="0.000001" min="0.000001" max="999999.999999" @required($field === 'sell_rate') value="{{ $editing === $rate->id ? old($field) : ($rate->$field === null ? ($field === 'sell_rate' ? $input($rate->rate) : '') : $input($rate->$field)) }}" class="w-40 rounded-md border border-gray-300 px-3 py-2 text-sm">
+                            <p data-field-error="{{ $field }}" class="mt-1 text-sm text-red-700">@if($editing === $rate->id){{ $errors->first($field) }}@endif</p>
                         </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1" for="sell_rate-{{ $rate->id }}">Selling *</label>
-                            <input type="number" id="sell_rate-{{ $rate->id }}" name="sell_rate" step="0.000001" min="0.000001"
-                                value="{{ $editing === $rate->id ? old('sell_rate') : $input($rate->sell_rate ?? $rate->rate) }}"
-                                class="w-40 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                            @error('sell_rate')
-                            @if($editing === $rate->id)
-                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                            @endif
-                            @enderror
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1" for="buy_rate-{{ $rate->id }}">Buying</label>
-                            <input type="number" id="buy_rate-{{ $rate->id }}" name="buy_rate" step="0.000001" min="0.000001"
-                                value="{{ $editing === $rate->id ? old('buy_rate', $rate->buy_rate === null ? '' : $input($rate->buy_rate)) : ($rate->buy_rate === null ? '' : $input($rate->buy_rate)) }}"
-                                class="w-40 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                            @error('buy_rate')
-                            @if($editing === $rate->id)
-                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                            @endif
-                            @enderror
-                        </div>
-                        @if(! $rate->is_active)
-                        <div class="w-64">
-                            <label class="flex items-start gap-2 text-xs text-gray-600">
-                                <input type="checkbox" name="history_ok" value="1" class="mt-0.5 rounded border-gray-300">
-                                <span>I understand this is an earlier price, so correcting it changes how past transfers read back.</span>
-                            </label>
-                            @error('history_ok')
-                            @if($editing === $rate->id)
-                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                            @endif
-                            @enderror
+                        @endforeach
+                        @if(!$rate->is_active)
+                        <div data-field class="max-w-xs">
+                            <label class="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" required name="history_ok" value="1" @checked(old('history_ok') && $editing === $rate->id) class="mt-1 rounded border-gray-300"><span>I understand this is an earlier price, so correcting it changes how past transfers read back.</span></label>
+                            <p data-field-error="history_ok" class="mt-1 text-sm text-red-700">@if($editing === $rate->id){{ $errors->first('history_ok') }}@endif</p>
                         </div>
                         @endif
                         <div class="flex items-center gap-3">
-                            <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Save</button>
-                            <button type="button" onclick="toggleRateEdit({{ $rate->id }}, true)"
-                                class="text-gray-600 hover:text-gray-800 text-sm">Cancel</button>
+                            <button type="submit" class="rounded-md bg-green-800 px-4 py-2 text-sm text-white hover:bg-green-700">Save</button>
+                            <button type="button" onclick="toggleRateEdit({{ $rate->id }}, true)" class="rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-200">Cancel</button>
                         </div>
                     </form>
                 </td>
             </tr>
+            @endcan
             @empty
-            <tr>
-                <td colspan="8" class="px-6 py-8 text-center text-gray-500">
-                    No exchange rates found.
-                    <a href="{{ route('settings.index') }}" class="text-green-700 underline">Set rates in Settings</a>.
-                </td>
-            </tr>
+            <tr><td colspan="8" class="px-6 py-8 text-center text-gray-600">No exchange rates found. @can('view-settings')<a href="{{ route('settings.index') }}" class="text-green-800 underline">Set rates in Settings</a>.@endcan</td></tr>
             @endforelse
         </tbody>
     </table>
-    @if($rates->hasPages())
-    <div class="px-6 py-4 border-t border-gray-200">
-        {{ $rates->links() }}
-    </div>
-    @endif
+    @if($rates->hasPages())<div class="border-t border-gray-200 px-4 py-4">{{ $rates->links() }}</div>@endif
 </div>
 @endsection
+
+@push('styles')
+<style>
+    .rate-filters > div:first-child { flex: 1 1 150px; min-width: 150px; }
+    .rate-dates input { width: 118px; }
+    @media (min-width: 768px) {
+        .rates-table .rate-actions { position: sticky; right: 0; width: 96px; min-width: 96px; max-width: 96px; background: white; box-shadow: -8px 0 8px -8px rgb(0 0 0 / 25%); }
+        .rates-table th.rate-actions { background: #f9fafb; z-index: 1; }
+        .rates-table .rate-row:hover .rate-actions { background: #f9fafb; }
+    }
+    @media (max-width: 767px) {
+        .rate-filters > div:first-child, .rate-dates { flex-basis: 100%; }
+        .rate-dates input { flex: 1; }
+        .rates-wrap { background: transparent; box-shadow: none; overflow: visible; }
+        .rates-table thead { display: none; }
+        .rates-table, .rates-table tbody, .rates-table tr, .rates-table td { display: block; width: auto; }
+        .rates-table tbody tr { background: white; border-radius: .5rem; margin-bottom: .75rem; padding: .75rem 1rem; border: 1px solid #e5e7eb; }
+        .rates-table tbody tr.hidden { display: none; }
+        .rates-table .rate-row td { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: .3rem 0; text-align: right; }
+        .rates-table .rate-row td[data-label]::before { content: attr(data-label); font-size: .75rem; color: #4b5563; text-align: left; }
+        .rates-table td.rate-actions { border-top: 1px solid #e5e7eb; margin-top: .5rem; padding-top: .5rem; justify-content: flex-end; }
+        .rate-edit td { padding: 0; }
+    }
+</style>
+@endpush
 
 @push('scripts')
 <script>
     function toggleRateEdit(id, forceClose) {
         const row = document.getElementById('rate-edit-' + id);
         const open = row.classList.contains('hidden');
-
-        document.querySelectorAll('tr[id^="rate-edit-"]').forEach((tr) => tr.classList.add('hidden'));
-
-        if (open && ! forceClose) {
+        document.querySelectorAll('.rate-edit').forEach(tr => tr.classList.add('hidden'));
+        document.querySelectorAll('[data-rate-edit]').forEach(button => button.setAttribute('aria-expanded', 'false'));
+        const button = document.querySelector('[data-rate-edit="' + id + '"]');
+        if (open && !forceClose) {
             row.classList.remove('hidden');
+            button.setAttribute('aria-expanded', 'true');
             row.querySelector('input[name="sell_rate"]').focus();
-        }
+        } else button.focus();
     }
 </script>
 @endpush

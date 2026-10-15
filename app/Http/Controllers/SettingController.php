@@ -7,29 +7,42 @@ use App\Models\ExchangeRate;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class SettingController extends Controller
 {
-    public function index()
+    private const TAB_FIELDS = [
+        'rates' => ['usd_ugx_buying', 'usd_ugx_selling', 'usd_rmb_buying', 'usd_rmb_selling'],
+        'transactions' => ['service_fee_ugx', 'service_fee_usd', 'min_transaction_amount', 'max_transaction_amount', 'receipt_prefix'],
+        'company' => ['company_name', 'company_address', 'company_phone', 'company_email', 'company_website'],
+        'datetime' => ['timezone'],
+        'site' => ['site_mode'],
+    ];
+
+    public function index(Request $request)
     {
         $settings = Setting::all()->groupBy('group');
         $usdToUgx = ExchangeRate::usdToUgx();
         $usdUgxPair = ExchangeRate::usdUgxPair();
         $usdToRmb = ExchangeRate::getActiveRate('USD', 'RMB');
         $usdRmbPair = ExchangeRate::pair('USD', 'RMB');
+        $testingModeBlocked = self::testingModeBlocked($request);
 
         return view('settings.index', compact(
             'settings',
             'usdToUgx',
             'usdUgxPair',
             'usdToRmb',
-            'usdRmbPair'
+            'usdRmbPair',
+            'testingModeBlocked'
         ));
     }
 
     public function update(Request $request)
     {
-        $validated = $request->validate([
+        $request->validate(['settings_tab' => ['sometimes', 'required', Rule::in(array_keys(self::TAB_FIELDS))]]);
+        $tab = $request->input('settings_tab');
+        $rules = [
             'company_name' => 'nullable|string|max:100',
             'company_address' => 'nullable|string|max:255',
             'company_phone' => 'nullable|string|max:60',
@@ -44,9 +57,14 @@ class SettingController extends Controller
             'usd_ugx_selling' => 'nullable|numeric|min:0.01|max:999999.99',
             'usd_rmb_buying' => 'nullable|numeric|min:0.000001|max:999999.999999',
             'usd_rmb_selling' => 'nullable|numeric|min:0.000001|max:999999.999999',
-            'site_mode' => ['nullable', 'in:testing,production'],
+            'site_mode' => ['sometimes', 'required', 'in:testing,production'],
             'timezone' => ['nullable', Rule::in(array_keys(Setting::TIMEZONES))],
-        ], [
+        ];
+        // Older callers may omit a tab; tabbed forms can only save their own fields.
+        if ($tab !== null) {
+            $rules = array_intersect_key($rules, array_flip(self::TAB_FIELDS[$tab]));
+        }
+        $validated = $request->validate($rules, [
             'receipt_prefix.regex' => 'The receipt prefix can only contain letters and numbers, e.g. PS.',
             'site_mode.in' => 'Site mode must be Testing or Production.',
             'timezone.in' => 'Please choose one of the listed time zones.',
@@ -61,10 +79,10 @@ class SettingController extends Controller
         ]);
 
         // Rates live in the exchange rate table, not settings, so every screen converts with the same figure.
-        $ugxBuy = $this->rateInput($request, 'usd_ugx_buying');
-        $ugxSell = $this->rateInput($request, 'usd_ugx_selling');
-        $rmbBuy = $this->rateInput($request, 'usd_rmb_buying');
-        $rmbSell = $this->rateInput($request, 'usd_rmb_selling');
+        $ugxBuy = $this->rateInput($validated, 'usd_ugx_buying');
+        $ugxSell = $this->rateInput($validated, 'usd_ugx_selling');
+        $rmbBuy = $this->rateInput($validated, 'usd_rmb_buying');
+        $rmbSell = $this->rateInput($validated, 'usd_rmb_selling');
         unset(
             $validated['usd_ugx_buying'],
             $validated['usd_ugx_selling'],
@@ -76,6 +94,12 @@ class SettingController extends Controller
         // so it stays a Super Admin decision even though Admins can edit other settings.
         if (! $request->user()->hasRole('superadmin')) {
             unset($validated['site_mode']);
+        }
+        // Reject before any writes, even if a forged request bypasses the disabled option.
+        if (($validated['site_mode'] ?? null) === 'testing' && self::testingModeBlocked($request)) {
+            throw ValidationException::withMessages([
+                'site_mode' => 'Testing is unavailable on production. Use a local or non-production host.',
+            ]);
         }
 
         $changes = [];
@@ -91,7 +115,10 @@ class SettingController extends Controller
             };
 
             $previous = Setting::get($key);
-            if ((string) $previous === (string) $value) {
+            $unchanged = $type === 'float' && $previous !== null && $value !== null
+                ? (float) $previous === (float) $value
+                : (string) $previous === (string) $value;
+            if ($unchanged) {
                 continue;
             }
 
@@ -103,7 +130,7 @@ class SettingController extends Controller
 
         if ($ugxSell !== null) {
             $before = ExchangeRate::usdUgxPair();
-            $buy = $ugxBuy ?? $ugxSell;
+            $buy = $ugxBuy ?? $before['buy'] ?? $ugxSell;
 
             // Saving with the figures already on the screen must not rewrite the pair.
             // setPair retires the old row and inserts a new one, so a no-op save was
@@ -124,7 +151,7 @@ class SettingController extends Controller
 
         if ($rmbSell !== null) {
             $before = ExchangeRate::pair('USD', 'RMB');
-            $buy = $rmbBuy ?? $rmbSell;
+            $buy = $rmbBuy ?? $before['buy'] ?? $rmbSell;
 
             if (! $this->samePair($before, $buy, $rmbSell)) {
                 ExchangeRate::setPair('USD', 'RMB', $rmbSell, $buy, $rmbSell);
@@ -149,15 +176,38 @@ class SettingController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Settings updated successfully.');
+        return back()
+            ->with('success', $changes ? 'Settings saved.' : 'No changes to save.')
+            ->with('settings_saved_tab', $tab ?? 'rates');
     }
 
     /**
-     * A blank rate box means "leave that rate alone", not "set it to zero".
+     * Also usable by the sign-in view to suppress legacy Testing settings.
+     * This reads deployment configuration; it never changes it.
      */
-    private function rateInput(Request $request, string $key): ?float
+    public static function testingModeBlocked(Request $request): bool
     {
-        $value = trim((string) $request->input($key, ''));
+        if (app()->environment('production')) {
+            return true;
+        }
+
+        $host = strtolower(rtrim((string) parse_url((string) config('app.url'), PHP_URL_HOST), '.'));
+        $local = $host === '' || $host === 'localhost' || ! str_contains($host, '.')
+            || str_ends_with($host, '.localhost') || str_ends_with($host, '.local') || str_ends_with($host, '.test');
+        if (filter_var($host, FILTER_VALIDATE_IP)
+            && ! filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            $local = true;
+        }
+
+        return ! $local && $host === strtolower(rtrim($request->getHost(), '.'));
+    }
+
+    /**
+     * Blank selling skips a pair; blank buying preserves its saved buying rate.
+     */
+    private function rateInput(array $validated, string $key): ?float
+    {
+        $value = trim((string) ($validated[$key] ?? ''));
 
         return $value === '' ? null : (float) $value;
     }
