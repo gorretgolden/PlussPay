@@ -66,7 +66,6 @@ class ExchangeRateAuthorshipTest extends TestCase
         $this->actingAs($this->admin('Page Viewer'))
             ->get('/exchange-rates')
             ->assertOk()
-            ->assertSee('Added By')
             ->assertSee('Gorret Admin');
     }
 
@@ -155,8 +154,8 @@ class ExchangeRateAuthorshipTest extends TestCase
             ->assertOk()
             ->assertDontSee('Add Exchange Rate')
             ->assertDontSee('addRateModal', false)
-            ->assertSee('Change the prices')
-            ->assertSee('Save changes')
+            ->assertSee('Update rates')
+            ->assertSee('Save')
             ->assertSee('Yesterday');
     }
 

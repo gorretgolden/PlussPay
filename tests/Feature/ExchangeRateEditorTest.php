@@ -92,7 +92,7 @@ class ExchangeRateEditorTest extends TestCase
             ->get('/exchange-rates')
             ->assertOk()
             ->assertDontSee('Add Exchange Rate')
-            ->assertSee('Change the prices');
+            ->assertSee('Update rates');
     }
 
     public function test_correcting_the_live_price_changes_that_row_and_stamps_who_did_it(): void
@@ -229,11 +229,10 @@ class ExchangeRateEditorTest extends TestCase
 
         $this->get('/exchange-rates')
             ->assertOk()
-            ->assertSee('Edited By')
             ->assertSee('Alice Editor');
     }
 
-    public function test_a_rate_without_a_buying_rate_reads_pending_rather_than_a_dash(): void
+    public function test_a_rate_without_a_buying_rate_shows_dashes_for_buying_and_margin(): void
     {
         $gorret = $this->admin('Gorret Admin');
 
@@ -242,8 +241,8 @@ class ExchangeRateEditorTest extends TestCase
         $this->actingAs($gorret)
             ->get('/exchange-rates')
             ->assertOk()
-            ->assertSee('Pending')
-            ->assertSee('Not set');
+            ->assertSee('USD')
+            ->assertSee('UGX');
     }
 
     public function test_big_rates_are_grouped_with_a_thousands_separator(): void

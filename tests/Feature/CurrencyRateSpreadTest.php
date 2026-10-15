@@ -78,9 +78,13 @@ class CurrencyRateSpreadTest extends TestCase
         $this->actingAs($this->admin())
             ->get('/exchange-rates')
             ->assertOk()
-            ->assertSee('a USD 1,000 send at the rates now live')
-            ->assertSee('UGX 3,760,000.00', false)
+            ->assertSee('Sample: send USD 1,000')
+            ->assertSee('UGX 3,780,000.00 handed over', false)
+            ->assertSee('Charge', false)
             ->assertSee('UGX 20,000.00', false)
-            ->assertSee('UGX 10,000.00', false);
+            ->assertSee('FX profit', false)
+            ->assertSee('UGX 10,000.00', false)
+            ->assertSee('Overall profit', false)
+            ->assertSee('UGX 30,000.00', false);
     }
 }

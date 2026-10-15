@@ -12,6 +12,12 @@ class ExchangeRateController extends Controller
 {
     public function index(Request $request)
     {
+        // Default to showing only the rates currently in use. The Status dropdown lets anyone
+        // switch to Earlier or All with one click, so nothing is hidden permanently.
+        if (! $request->has('status')) {
+            $request->merge(['status' => 'active']);
+        }
+
         $rates = ExchangeRate::with(['creator', 'editor'])
             ->filtered($request)
             ->latest()
