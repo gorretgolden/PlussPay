@@ -58,7 +58,7 @@
         @if($editing && $user->two_factor_enabled)
         <span class="rounded-full bg-green-100 text-green-800 px-3 py-1 text-xs">2FA enabled</span>
         @else
-        <span class="rounded-full bg-yellow-100 text-yellow-800 px-3 py-1 text-xs">2FA not enabled — recommended</span>
+        <span class="rounded-full bg-yellow-100 text-yellow-800 px-3 py-1 text-xs">2FA not enabled (recommended)</span>
         @endif
         @if($editing)
         <a class="text-sm text-green-800 underline" href="{{ route('users.two-factor', $user) }}">{{ $user->two_factor_enabled ? 'Manage 2FA' : 'Set up 2FA' }}</a>

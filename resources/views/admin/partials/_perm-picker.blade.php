@@ -29,7 +29,7 @@
                 $available = !$locked && \App\Support\PermissionCatalog::mayDelegate(auth()->user(), $permission->name);
                 $label = \App\Support\PermissionCatalog::label($permission->name);
             @endphp
-            <label class="perm-item flex items-center gap-2 text-sm min-h-[44px] {{ $available ? 'text-gray-700' : 'text-gray-400' }}" data-name="{{ $group.' '.$label.' '.$permission->name }}" title="{{ $permission->name }}{{ $available ? '' : ' — protected or not delegable' }}">
+            <label class="perm-item flex items-center gap-2 text-sm min-h-[44px] {{ $available ? 'text-gray-700' : 'text-gray-400' }}" data-name="{{ $group.' '.$label.' '.$permission->name }}" title="{{ $permission->name }}{{ $available ? '' : ' (protected or not delegable)' }}">
                 <input type="checkbox" name="permissions[]" value="{{ $permission->name }}" data-label="{{ $label }}" data-sensitive="{{ \App\Support\PermissionCatalog::sensitive($permission->name) ? '1' : '0' }}"
                     @checked(in_array($permission->name, $checkedSet, true)) @disabled(!$available)
                     class="rounded border-gray-300 text-green-700 focus:ring-green-600">

@@ -1,4 +1,4 @@
-<div class="text-xs text-gray-500 mb-3" data-users-total="{{ $users->total() }}">{{ number_format($users->total()) }} {{ $users->total() === 1 ? 'account' : 'accounts' }} · {{ $users->firstItem() ?? 0 }}–{{ $users->lastItem() ?? 0 }} shown</div>
+<div class="text-xs text-gray-500 mb-3" data-users-total="{{ $users->total() }}">{{ number_format($users->total()) }} {{ $users->total() === 1 ? 'account' : 'accounts' }} · {{ $users->firstItem() ?? 0 }} to {{ $users->lastItem() ?? 0 }} shown</div>
 @can('edit-user')
 <form id="bulkForm" method="POST" action="{{ route('users.bulk') }}" data-user-confirm data-bulk hidden class="bg-green-50 border border-green-200 rounded-lg p-4 mb-3">
     @csrf
