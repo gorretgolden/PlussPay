@@ -7,7 +7,7 @@
         <input type="search" class="perm-filter mt-1 w-full border-gray-300 rounded-lg px-3 py-2 border" placeholder="Search permissions by label or module">
     </label>
     <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
-        <span class="text-gray-500"><span class="perm-selected">{{ count($checkedSet) }}</span> of {{ $groups->flatten()->count() }} permissions selected</span>
+        <span class="text-gray-500"><span class="perm-selected">{{ count($checkedSet) }}</span> of {{ $groups->flatten()->count() }} {{ Str::plural('permission', $groups->flatten()->count()) }} selected</span>
         @unless($locked)
         <div class="flex gap-3">
             <button type="button" data-check="true" class="min-h-[44px] text-green-800 font-medium">Select all available</button>

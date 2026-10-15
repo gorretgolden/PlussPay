@@ -49,7 +49,8 @@
         <p class="text-2xl font-bold {{ ($balances[$account->id] ?? '0') < 0 ? 'text-red-700' : 'text-gray-900' }} mt-1">
             {{ $account->currency }} {{ $fmt($balances[$account->id] ?? '0', $account->currency) }}
         </p>
-        <p class="text-xs text-gray-500 mt-2">{{ $todayMovements[$account->id] ?? 0 }} movement(s) today</p>
+        @php $movementsToday = $todayMovements[$account->id] ?? 0; @endphp
+        <p class="text-xs text-gray-500 mt-2">{{ $movementsToday }} {{ Str::plural('movement', $movementsToday) }} today</p>
     </a>
     @endforeach
 </div>

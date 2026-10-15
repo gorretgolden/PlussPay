@@ -467,7 +467,7 @@
             @if($byCustomer->isNotEmpty())
             <tfoot class="bg-gray-50">
                 <tr>
-                    <td class="px-6 py-3 text-sm font-bold text-gray-900">{{ number_format($byCustomer->count()) }} customer(s)</td>
+                    <td class="px-6 py-3 text-sm font-bold text-gray-900">{{ number_format($byCustomer->count()) }} {{ Str::plural('customer', $byCustomer->count()) }}</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ $byCustomer->sum('count') }}</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('total_usd'), 2) }}</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('rmb_delivered'), 2) }}</td>

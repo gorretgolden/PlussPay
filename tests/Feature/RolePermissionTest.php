@@ -146,6 +146,22 @@ class RolePermissionTest extends TestCase
             ->assertSee('id="roleSelect"', false);
     }
 
+    public function test_role_counts_read_as_english_and_not_with_a_parenthesised_s(): void
+    {
+        $this->actingAs($this->superadmin())->post('/admin/roles', [
+            'name' => 'Desk Lead',
+            'permissions' => ['view-transactions'],
+        ]);
+        $this->actingAs($this->superadmin())->post('/admin/roles', ['name' => 'Settlements']);
+
+        $this->actingAs($this->superadmin())->get('/admin/roles')
+            ->assertSee('1 permission<', false)
+            ->assertSee('0 permissions<', false)
+            ->assertDontSee('permission(s)', false)
+            ->assertDontSee('role(s)', false)
+            ->assertSee('Desk Lead');
+    }
+
     public function test_a_role_can_be_renamed_and_the_people_on_it_keep_their_access(): void
     {
         $admin = $this->superadmin();

@@ -34,7 +34,7 @@
             @foreach($roles as $role)
             <div data-role-name="{{ strtolower($role->name.' '.\App\Http\Controllers\RolePermissionController::displayName($role->name)) }}" class="rounded-lg border {{ $selectedRole?->id === $role->id ? 'border-green-700 bg-green-50' : 'border-transparent hover:bg-gray-50' }} p-3">
                 <a href="{{ route('admin.roles', ['role' => $role->id]) }}" @if($selectedRole?->id === $role->id) aria-current="page" @endif class="role-switch block text-sm font-semibold text-gray-900">{{ \App\Http\Controllers\RolePermissionController::displayName($role->name) }}</a>
-                <div class="flex justify-between gap-2 text-xs mt-2 text-gray-500"><span>{{ $role->name === 'superadmin' ? 'Full access · Locked' : $role->permissions->count().' permissions' }}</span>@can('view-users')<a class="underline" href="{{ url('/users').'?role='.urlencode($role->name) }}">{{ $role->users_count }} {{ Str::plural('user', $role->users_count) }}</a>@else<span>{{ $role->users_count }} {{ Str::plural('user', $role->users_count) }}</span>@endcan</div>
+                <div class="flex justify-between gap-2 text-xs mt-2 text-gray-500"><span>{{ $role->name === 'superadmin' ? 'Full access · Locked' : $role->permissions->count().' '.Str::plural('permission', $role->permissions->count()) }}</span>@can('view-users')<a class="underline" href="{{ url('/users').'?role='.urlencode($role->name) }}">{{ $role->users_count }} {{ Str::plural('user', $role->users_count) }}</a>@else<span>{{ $role->users_count }} {{ Str::plural('user', $role->users_count) }}</span>@endcan</div>
             </div>
             @endforeach
         </nav>
