@@ -5,7 +5,8 @@
 @section('content')
 @php
     $filtered = request()->filled('search') || request()->filled('category') || request()->filled('paid_via')
-        || request()->filled('account_id') || request()->filled('status')
+        || request()->filled('account_id') || request()->filled('status') || request()->filled('desk')
+        || request()->filled('created_by')
         || request()->filled('date_from') || request()->filled('date_to');
 @endphp
 <div class="mb-6 flex flex-wrap justify-between items-start gap-3">
@@ -52,6 +53,15 @@
             </select>
         </div>
         <div>
+            <label class="block text-xs text-gray-500 mb-1">Desk</label>
+            <select name="desk" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">Any desk</option>
+                @foreach($desks as $code => $label)
+                    <option value="{{ $code }}" @selected(request('desk') === $code)>{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
             <label class="block text-xs text-gray-500 mb-1">Paid from</label>
             <select name="account_id" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">Any account</option>
@@ -66,6 +76,15 @@
                 <option value="">Any method</option>
                 @foreach(\App\Models\Expense::PAID_VIA as $method)
                     <option value="{{ $method }}" @selected(request('paid_via') === $method)>{{ $method }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Entered by</label>
+            <select name="created_by" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">Anyone</option>
+                @foreach($recordists as $person)
+                    <option value="{{ $person->id }}" @selected((int) request('created_by') === $person->id)>{{ $person->name }}</option>
                 @endforeach
             </select>
         </div>
@@ -110,7 +129,7 @@
             <tr class="{{ $expense->isVoid() ? 'bg-gray-50 text-gray-400' : '' }}">
                 <td class="px-4 py-3 text-sm whitespace-nowrap">{{ $expense->expense_date->format('M d, Y') }}</td>
                 <td class="px-4 py-3 text-sm whitespace-nowrap">
-                    <a href="{{ route('expenses.index', ['search' => $expense->reference]) }}" class="text-green-800 hover:underline">{{ $expense->reference }}</a>
+                    <a href="{{ route('expenses.show', $expense) }}" class="text-green-800 hover:underline">{{ $expense->reference }}</a>
                     @if($expense->isVoid())
                         <span class="ml-1 px-2 py-0.5 text-xs rounded-full bg-red-50 text-red-700">Cancelled</span>
                     @endif
@@ -130,6 +149,7 @@
                     <button type="button" onclick="toggleMenu('exp{{ $expense->id }}')"
                         class="text-gray-500 hover:text-gray-800 border border-gray-300 rounded px-2 py-1 text-xs">More</button>
                     <div id="menu-exp{{ $expense->id }}" data-row-menu class="hidden absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg text-left z-20">
+                        <a href="{{ route('expenses.show', $expense) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Open entry</a>
                         <a href="{{ route('accounts.movements', ['search' => $expense->reference]) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Ledger lines</a>
                         @if(! $expense->isVoid())
                         <button type="button" onclick="openVoidModal(this)"

@@ -91,6 +91,8 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
         Route::get('/expenses/create', [ExpenseController::class, 'create'])->middleware('can:create-expense')->name('expenses.create');
         Route::post('/expenses', [ExpenseController::class, 'store'])->middleware('can:create-expense')->name('expenses.store');
+        Route::get('/expenses/{expense}', [ExpenseController::class, 'show'])->name('expenses.show');
+        Route::get('/expenses/{expense}/receipt', [ExpenseController::class, 'receipt'])->name('expenses.receipt');
         Route::post('/expenses/{expense}/void', [ExpenseController::class, 'void'])->middleware('can:void-expense')->name('expenses.void');
         Route::get('/export/expenses', [ExportController::class, 'expenses'])->middleware('can:export-expenses')->name('export.expenses');
     });

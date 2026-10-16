@@ -50,6 +50,7 @@ class Expense extends Model
         'paid_via',
         'status',
         'notes',
+        'receipt_file',
         'created_by',
     ];
 
@@ -129,6 +130,15 @@ class Expense extends Model
 
         if ($request->filled('account_id')) {
             $query->where('account_id', (int) $request->account_id);
+        }
+
+        // The desk is a property of the account that paid, not a second field to get wrong.
+        if ($request->filled('desk')) {
+            $query->whereHas('account', fn (Builder $q) => $q->where('country', $request->input('desk')));
+        }
+
+        if ($request->filled('created_by')) {
+            $query->where('created_by', (int) $request->input('created_by'));
         }
 
         if ($request->filled('date_from')) {

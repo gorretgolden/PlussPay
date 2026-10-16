@@ -16,7 +16,7 @@
     </div>
 
     <div class="bg-white rounded-lg shadow p-6">
-        <form method="POST" action="{{ route('expenses.store') }}" class="space-y-5">
+        <form method="POST" action="{{ route('expenses.store') }}" enctype="multipart/form-data" class="space-y-5">
             @csrf
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -72,10 +72,18 @@
                 <p class="text-xs text-gray-500 mt-1" id="account_note"></p>
             </div>
 
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1" for="notes">Note</label>
-                <input type="text" name="notes" id="notes" value="{{ old('notes') }}" maxlength="500" placeholder="Invoice or MoMo number, who was paid"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1" for="notes">Note</label>
+                    <input type="text" name="notes" id="notes" value="{{ old('notes') }}" maxlength="500" placeholder="Invoice or MoMo number, who was paid"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1" for="receipt">Slip or invoice</label>
+                    <input type="file" name="receipt" id="receipt" accept=".pdf,.jpg,.jpeg,.png"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white file:mr-3 file:px-3 file:py-1 file:rounded file:border-0 file:bg-green-50 file:text-green-800 file:text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <p class="text-xs text-gray-500 mt-1">Optional. A PDF or a photo of the slip, up to 5MB. Keep it with the entry.</p>
+                </div>
             </div>
 
             <div class="flex justify-end gap-2 pt-2">

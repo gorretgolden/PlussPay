@@ -6,8 +6,10 @@ use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class ExpenseController extends Controller
@@ -38,7 +40,35 @@ class ExpenseController extends Controller
             'liveCount' => $live->count(),
             'voidCount' => $rows->count() - $live->count(),
             'categories' => ExpenseCategory::orderBy('name')->pluck('name')->all(),
+            'desks' => User::COUNTRIES,
+            'recordists' => User::whereIn('id', Expense::whereNotNull('created_by')->distinct()->pluck('created_by'))
+                ->orderBy('name')->get(['id', 'name']),
         ]);
+    }
+
+    public function show(Expense $expense)
+    {
+        $expense->load(['account', 'creator', 'categoryGroup']);
+
+        return view('expenses.show', [
+            'expense' => $expense,
+            'legs' => $expense->legs(),
+        ]);
+    }
+
+    /**
+     * The slip is kept off the public disk on purpose: it is handed out through this route, which
+     * only opens for someone allowed to see the expense it belongs to.
+     */
+    public function receipt(Expense $expense)
+    {
+        abort_if(! $expense->receipt_file, 404);
+
+        $path = Storage::disk('local')->path($expense->receipt_file);
+
+        abort_unless(is_file($path), 404);
+
+        return response()->download($path, $expense->reference.'-receipt'.strrchr($expense->receipt_file, '.'));
     }
 
     public function create()
@@ -67,11 +97,14 @@ class ExpenseController extends Controller
             'expense_date' => ['required', 'date'],
             'paid_via' => ['nullable', Rule::in(Expense::PAID_VIA)],
             'notes' => ['nullable', 'string', 'max:500'],
+            'receipt' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
         ], [
             'category_id.required' => 'Choose what kind of spending this was.',
             'description.required' => 'Say what the money was spent on.',
             'amount.min' => 'Enter how much was paid out.',
             'account_id.required' => 'Choose which account paid for it.',
+            'receipt.mimes' => 'Attach the slip as a PDF or a photo.',
+            'receipt.max' => 'The slip file is too large. A photo of it usually fits.',
         ]);
 
         $account = Account::findOrFail($validated['account_id']);
@@ -89,6 +122,7 @@ class ExpenseController extends Controller
                 'account_id' => $account->id,
                 'paid_via' => $validated['paid_via'] ?? null,
                 'notes' => $validated['notes'] ?? null,
+                'receipt_file' => $request->hasFile('receipt') ? $request->file('receipt')->store('receipts', 'local') : null,
                 'created_by' => auth()->id(),
             ]);
         } catch (InsufficientFundsException $e) {
