@@ -3,6 +3,9 @@
     $companyPhone = \App\Models\Setting::get('company_phone');
     $companyAddress = \App\Models\Setting::get('company_address');
     $companyWebsite = \App\Models\Setting::get('company_website');
+    // The Plus Save artwork is not in the project yet, so the corner falls back to the saved
+    // company name. Dropping public/plussave-logo.png in replaces it without a code change.
+    $companyLogo = is_file(public_path('plussave-logo.png'));
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -21,8 +24,9 @@
             color: #000;
         }
         .header { text-align: center; margin-bottom: 8px; }
-        .header h1 { font-size: 18px; font-weight: bold; letter-spacing: 2px; }
-        .header .company { font-size: 10px; color: #555; }
+        .header .brand { display: flex; justify-content: space-between; align-items: center; gap: 4px; margin-bottom: 6px; }
+        .header .brand img { height: 9mm; width: auto; }
+        .header .company { font-size: 11px; font-weight: bold; text-align: right; }
         .header .title { font-size: 13px; font-weight: bold; margin: 6px 0; border: 1px solid #000; display: inline-block; padding: 2px 12px; }
         .header .receipt-no { font-size: 14px; color: #c00; font-weight: bold; margin-top: 4px; }
         .info-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
@@ -62,7 +66,14 @@
     <div class="watermark">PLUS SAVE</div>
 
     <div class="header">
-        <h1>{{ strtoupper($companyName) }}</h1>
+        <div class="brand">
+            <img src="{{ asset('logo.webp') }}" alt="PlusPay">
+            @if($companyLogo)
+                <img src="{{ asset('plussave-logo.png') }}" alt="{{ $companyName }}">
+            @else
+                <span class="company">{{ strtoupper($companyName) }}</span>
+            @endif
+        </div>
         <div class="title">RECEIPT</div>
         <div class="receipt-no">No: {{ $transaction->receipt_number }}</div>
     </div>

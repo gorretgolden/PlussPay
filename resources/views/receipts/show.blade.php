@@ -9,6 +9,9 @@
     $companyEmail = \App\Models\Setting::get('company_email');
     $companyAddress = \App\Models\Setting::get('company_address');
     $companyWebsite = \App\Models\Setting::get('company_website');
+    // The Plus Save artwork is not in the project yet, so the corner falls back to the saved
+    // company name. Dropping public/plussave-logo.png in replaces it without a code change.
+    $companyLogo = is_file(public_path('plussave-logo.png'));
 @endphp
 <div class="mb-6 flex justify-between items-center no-print">
     <div>
@@ -24,11 +27,18 @@
 
 <div class="bg-white rounded-lg shadow p-8 max-w-3xl mx-auto">
     {{-- Header --}}
-    <div class="flex justify-between items-start mb-6 border-b pb-4">
-        <div>
-            <h2 class="text-2xl font-bold text-green-800">{{ $companyName }}</h2>
+    <div class="mb-6 border-b pb-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <img src="{{ asset('logo.webp') }}" alt="PlusPay" width="640" height="232" class="h-10 w-auto self-start sm:h-12">
+            <div class="sm:text-right">
+                @if($companyLogo)
+                    <img src="{{ asset('plussave-logo.png') }}" alt="{{ $companyName }}" class="h-10 w-auto sm:h-12">
+                @else
+                    <p class="text-base leading-tight tracking-wide text-green-900 font-extrabold uppercase sm:text-lg">{{ $companyName }}</p>
+                @endif
+            </div>
         </div>
-        <div class="text-right">
+        <div class="mt-4 text-right">
             <div class="bg-green-800 text-white px-4 py-1 rounded text-sm font-bold inline-block">RECEIPT</div>
             <p class="mt-2 text-sm"><span class="text-gray-500">No.:</span> <span class="font-bold text-red-600 text-lg">{{ $transaction->receipt_number }}</span></p>
             <p class="text-sm"><span class="text-gray-500">Date:</span> {{ $transaction->created_at->format('M d, Y') }}</p>
