@@ -141,13 +141,13 @@
                 <td class="px-3 py-4 text-right text-sm tabular-nums text-gray-900" data-label="Street" title="The market price saved with this pair. Blank means the middle of the two desk prices is quoted.">{{ $rate->market_rate === null ? '-' : $trim($rate->market_rate) }}</td>
                 <td class="px-3 py-4" data-label="Status"><span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $rate->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' }}">{{ $rate->is_active ? 'In use' : 'Earlier' }}</span></td>
                 <td class="px-3 py-4 text-sm" data-label="Added">
-                    <div><div class="text-gray-900">{{ $rate->creator?->name ?? '-' }}</div><time datetime="{{ $rate->created_at->toIso8601String() }}" title="{{ $rate->created_at->format('M d, Y H:i:s') }}" class="text-xs text-gray-600">{{ $rate->created_at->format('M d, Y') }}</time>
+                    <div><div class="text-gray-900">{{ $rate->creator?->name ?? '-' }}</div><time datetime="{{ $rate->created_at->toIso8601String() }}" title="{{ $rate->created_at->format('M d, Y H:i:s') }}" class="text-xs text-gray-600 whitespace-nowrap">{{ $rate->created_at->format('M d, Y h:i A') }}</time>
                         @if($rate->effective_from && $rate->effective_from->toDateString() !== $rate->created_at->toDateString())
                             <div class="text-xs text-gray-600">In force from {{ $rate->effective_from->format('M d, Y') }}</div>
                         @endif</div>
                 </td>
                 <td class="px-3 py-4 text-sm" data-label="Updated">
-                    <div><div class="text-gray-900">{{ $rate->editor?->name ?? '-' }}</div><time datetime="{{ $rate->updated_at->toIso8601String() }}" title="{{ $rate->updated_at->format('M d, Y H:i:s') }}" class="text-xs text-gray-600">{{ $rate->updated_at->format('M d, Y') }}</time></div>
+                    <div><div class="text-gray-900">{{ $rate->editor?->name ?? '-' }}</div><time datetime="{{ $rate->updated_at->toIso8601String() }}" title="{{ $rate->updated_at->format('M d, Y H:i:s') }}" class="text-xs text-gray-600 whitespace-nowrap">{{ $rate->updated_at->format('M d, Y h:i A') }}</time></div>
                 </td>
                 <td class="rate-actions px-3 py-4">
                     @can('manage-exchange-rates')

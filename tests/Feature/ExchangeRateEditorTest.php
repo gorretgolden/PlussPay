@@ -232,6 +232,25 @@ class ExchangeRateEditorTest extends TestCase
             ->assertSee('Alice Editor');
     }
 
+    public function test_the_date_columns_carry_the_clock_time_and_not_just_the_day(): void
+    {
+        $gorret = $this->admin('Gorret Admin');
+        $alice = $this->admin('Alice Editor');
+
+        $this->travelTo(\Carbon\Carbon::parse('2026-10-16 09:05:00'));
+        $rate = $this->rate(['created_by' => $gorret->id]);
+
+        $this->actingAs($alice);
+        $rate->update(['buy_rate' => 3600]);
+
+        $html = $this->get('/exchange-rates')->assertOk()->getContent();
+
+        // Two price changes on the same Friday read as one row without the hour, and the Excel
+        // export has always printed it, so the table cannot be the only place that hides it.
+        $this->assertSame(2, substr_count($html, 'Oct 16, 2026 09:05 AM'),
+            'Both the Added and the Updated column print the time.');
+    }
+
     public function test_a_rate_without_a_buying_rate_shows_dashes_for_buying_and_margin(): void
     {
         $gorret = $this->admin('Gorret Admin');
