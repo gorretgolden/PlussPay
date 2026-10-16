@@ -9,10 +9,31 @@
     $companyEmail = \App\Models\Setting::get('company_email');
     $companyAddress = \App\Models\Setting::get('company_address');
     $companyWebsite = \App\Models\Setting::get('company_website');
-    // The Plus Save artwork is not in the project yet, so the corner falls back to the saved
-    // company name. Dropping public/plussave-logo.png in replaces it without a code change.
+    // The Plus Save artwork is not in the project yet. The header leads with the PlusPay mark,
+    // which is the name the customer knows, and the company that signs the slip is named where it
+    // signs. Dropping public/plussave-logo.png in adds the second corner without a code change.
     $companyLogo = is_file(public_path('plussave-logo.png'));
+    $usdRate = $transaction->shillingRateCell();
+    $rmbRate = $transaction->yuanRateCell();
+    // Whoever the booking was written into is who took the money: the clerk signed in at the
+    // counter, or the agent the office booked for. That name is saved on the transfer, so a receipt
+    // always carries the person standing there when the cash changed hands.
+    $issuedBy = $transaction->creator?->name ?: 'The office';
 @endphp
+
+@push('styles')
+<style>
+    @media print {
+        body { background: #fff !important; }
+        .app-shell { margin-left: 0 !important; width: 100% !important; }
+        main { padding: 0 !important; }
+        .receipt-card { box-shadow: none !important; max-width: none !important; padding: 0 !important; }
+        .receipt-line { break-inside: avoid; }
+        @page { size: A4; margin: 14mm; }
+    }
+</style>
+@endpush
+
 <div class="mb-6 flex justify-between items-center no-print">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Receipt: {{ $transaction->receipt_number }}</h1>
@@ -25,24 +46,31 @@
     </div>
 </div>
 
-<div class="bg-white rounded-lg shadow p-4 sm:p-8 max-w-3xl mx-auto">
+<div class="bg-white rounded-lg shadow p-4 sm:p-8 max-w-3xl mx-auto receipt-card">
     {{-- Header --}}
     <div class="mb-6 border-b pb-4">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <img src="{{ asset('logo.webp') }}" alt="PlusPay" width="640" height="232" class="h-10 w-auto self-start sm:h-12">
-            <div class="sm:text-right">
-                @if($companyLogo)
-                    <img src="{{ asset('plussave-logo.png') }}" alt="{{ $companyName }}" class="h-10 w-auto sm:h-12">
-                @else
-                    <p class="text-base leading-tight tracking-wide text-green-900 font-extrabold uppercase sm:text-lg">{{ $companyName }}</p>
+        <div class="flex items-start justify-between gap-4">
+            <img src="{{ asset('logo.webp') }}" alt="PlusPay" width="640" height="232" class="h-10 w-auto sm:h-12">
+            @if($companyLogo)
+                <img src="{{ asset('plussave-logo.png') }}" alt="{{ $companyName }}" class="h-10 w-auto sm:h-12">
+            @endif
+        </div>
+        <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
+            <span class="bg-green-800 text-white px-4 py-1 rounded text-sm font-bold">RECEIPT</span>
+            <span class="inline-flex items-center gap-1 px-3 py-1 text-sm rounded-full font-medium
+                @if($transaction->status === 'completed') bg-green-100 text-green-800
+                @elseif($transaction->status === 'pending') bg-yellow-100 text-yellow-800
+                @else bg-red-100 text-red-800 @endif">
+                @if($transaction->status === 'completed')
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
                 @endif
-            </div>
+                {{ ucfirst($transaction->status) }}
+            </span>
         </div>
-        <div class="mt-4 text-right">
-            <div class="bg-green-800 text-white px-4 py-1 rounded text-sm font-bold inline-block">RECEIPT</div>
-            <p class="mt-2 text-sm"><span class="text-gray-500">No.:</span> <span class="font-bold text-red-600 text-lg">{{ $transaction->receipt_number }}</span></p>
-            <p class="text-sm"><span class="text-gray-500">Date:</span> {{ $transaction->created_at->format('M d, Y') }}</p>
-        </div>
+        <p class="mt-2 text-right text-lg font-bold leading-tight text-gray-900 whitespace-nowrap">{{ $transaction->receipt_number }}</p>
+        <p class="text-right text-sm text-gray-600 whitespace-nowrap">{{ $transaction->created_at->format('M d, Y h:i A') }}</p>
     </div>
 
     @if($transaction->status !== 'completed')
@@ -65,98 +93,111 @@
     </div>
 
     {{-- Sender / Receiver --}}
-    <div class="grid grid-cols-2 gap-6 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4">
         <div>
-            <p class="text-sm text-gray-600">Sender's Name: <span class="font-medium text-gray-900">{{ $transaction->sender_name }}</span></p>
-            <p class="text-sm text-gray-600">Contact: <span class="font-medium text-gray-900">{{ $transaction->sender_contact }}</span></p>
+            <p class="text-xs uppercase tracking-wide text-gray-500">Sender</p>
+            <p class="text-sm font-medium text-gray-900">{{ $transaction->sender_name }}</p>
+            @if($transaction->sender_contact)
+                <p class="text-sm text-gray-600">{{ $transaction->sender_contact }}</p>
+            @endif
         </div>
         <div>
-            <p class="text-sm text-gray-600">Receiver's Name: <span class="font-medium text-gray-900">{{ $transaction->receiver_name }}</span></p>
-            <p class="text-sm text-gray-600">Contact: <span class="font-medium text-gray-900">{{ $transaction->receiver_contact }}</span></p>
+            <p class="text-xs uppercase tracking-wide text-gray-500">Receiver, in China</p>
+            <p class="text-sm font-medium text-gray-900">{{ $transaction->receiver_name }}</p>
+            @if($transaction->receiver_contact)
+                <p class="text-sm text-gray-600">{{ $transaction->receiver_contact }}</p>
+            @endif
         </div>
     </div>
 
-    {{-- Amount Table --}}
-    @php $usdRate = $transaction->shillingRateCell(); $rmbRate = $transaction->yuanRateCell(); @endphp
-    <div class="mb-2 overflow-x-auto">
-    <table class="w-full border-collapse border border-gray-300">
-        <thead>
-            <tr class="bg-gray-100">
-                <th class="border border-gray-300 px-2 py-2 text-left text-xs font-medium text-gray-700 sm:px-4 sm:text-sm">Particulars</th>
-                <th class="border border-gray-300 px-2 py-2 text-left text-xs font-medium text-gray-700 sm:px-4 sm:text-sm sm:whitespace-nowrap">Rate (per 1 USD)</th>
-                <th class="border border-gray-300 px-2 py-2 text-left text-xs font-medium text-gray-700 sm:px-4 sm:text-sm">Charge (UGX)</th>
-                <th class="border border-gray-300 px-2 py-2 text-left text-xs font-medium text-gray-700 sm:px-4 sm:text-sm">Amount (USD/RMB)</th>
-            </tr>
-        </thead>
+    {{-- Whose hand the money left --}}
+    <div class="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md bg-gray-50 px-4 py-3 text-sm">
+        <p class="text-gray-600">Money taken by <span class="font-medium text-gray-900">{{ $issuedBy }}</span></p>
+        @if($transaction->purpose)
+            <p class="text-gray-600 sm:text-right">Reason <span class="font-medium text-gray-900">{{ $transaction->purpose }}</span></p>
+        @endif
+    </div>
+
+    {{-- Money, one figure to a line --}}
+    <table class="w-full border-collapse text-sm mb-2">
         <tbody>
-            <tr>
-                <td class="border border-gray-300 px-2 py-3 text-xs sm:px-4 sm:text-sm">Send to China ({{ $transaction->currency }})</td>
-                <td class="border border-gray-300 px-2 py-3 text-xs whitespace-nowrap sm:px-4 sm:text-sm">
-                    <div title="{{ $usdRate['title'] }}">UGX {{ $usdRate['text'] }}</div>
-                    <div title="{{ $rmbRate['title'] }}">RMB {{ $rmbRate['text'] }}</div>
-                </td>
-                <td class="border border-gray-300 px-2 py-3 text-xs whitespace-nowrap sm:px-4 sm:text-sm">UGX {{ number_format((float) $transaction->charge_ugx) }}</td>
-                <td class="border border-gray-300 px-2 py-3 text-xs whitespace-nowrap sm:px-4 sm:text-sm">
-                    {{ $transaction->principalLabel() }}<br>
-                    ¥{{ number_format($transaction->rmb_amount, 1) }} RMB
-                </td>
+            <tr class="receipt-line border-b border-gray-200">
+                <td class="py-2 text-gray-600">Amount sent</td>
+                <td class="py-2 text-right font-medium text-gray-900 whitespace-nowrap">{{ $transaction->principalLabel() }}</td>
             </tr>
-            <tr>
-                <td class="border border-gray-300 px-2 py-3 text-xs sm:px-4 sm:text-sm">Total handed over ({{ $transaction->currency }})</td>
-                <td class="border border-gray-300 px-2 py-3 text-xs sm:px-4 sm:text-sm"></td>
-                <td class="border border-gray-300 px-2 py-3 text-xs sm:px-4 sm:text-sm"></td>
-                <td class="border border-gray-300 px-2 py-3 text-xs font-medium whitespace-nowrap sm:px-4 sm:text-sm">{{ $transaction->collectedAmount() }}</td>
+            <tr class="receipt-line border-b border-gray-200">
+                <td class="py-2 text-gray-600">Sending charge</td>
+                <td class="py-2 text-right font-medium text-gray-900 whitespace-nowrap">{{ $transaction->feeLabel() }}</td>
+            </tr>
+            <tr class="receipt-line bg-green-50">
+                <td class="py-3 pl-2 text-sm font-semibold text-green-900">Total handed over</td>
+                <td class="py-3 pr-2 text-right text-xl font-bold text-green-900 whitespace-nowrap">{{ $transaction->collectedAmount() }}</td>
+            </tr>
+            <tr class="receipt-line">
+                <td class="py-3 pl-2 text-sm font-semibold text-gray-700">Paid out in China</td>
+                <td class="py-3 pr-2 text-right text-lg font-semibold text-gray-900 whitespace-nowrap">¥{{ number_format($transaction->rmb_amount, 1) }} RMB</td>
             </tr>
         </tbody>
     </table>
-    </div>
-    <p class="mb-6 text-xs text-gray-500">
-        Shillings become dollars at the UGX rate, and those dollars become yuan at the RMB rate. Both
-        selling prices are saved on this booking, so a later change on the rate card does not move this slip.
+
+    {{-- The two selling prices this booking was quoted at --}}
+    <p class="mt-4 mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Prices used on this booking</p>
+    <table class="w-full border-collapse text-sm">
+        <tbody>
+            <tr class="receipt-line border-b border-gray-200">
+                <td class="py-2 text-gray-600">Shillings to the dollar</td>
+                <td class="py-2 text-right text-gray-900 whitespace-nowrap" title="{{ $usdRate['title'] }}">UGX {{ $usdRate['text'] }} per 1 USD</td>
+            </tr>
+            <tr class="receipt-line border-b border-gray-200">
+                <td class="py-2 text-gray-600">Dollars to the yuan</td>
+                <td class="py-2 text-right text-gray-900 whitespace-nowrap" title="{{ $rmbRate['title'] }}">RMB {{ $rmbRate['text'] }} per 1 USD</td>
+            </tr>
+        </tbody>
+    </table>
+    <p class="mt-2 mb-6 text-xs text-gray-500">
+        Shillings become dollars at the first price and those dollars become yuan at the second. Both
+        are saved on this booking, so a later change on the rate card does not move this slip.
     </p>
 
-    {{-- Status --}}
-    <div class="mb-6">
-        <span class="px-3 py-1 text-sm rounded-full font-medium
-            @if($transaction->status === 'completed') bg-green-100 text-green-800
-            @elseif($transaction->status === 'pending') bg-yellow-100 text-yellow-800
-            @else bg-red-100 text-red-800 @endif">
-            Status: {{ ucfirst($transaction->status) }}
-        </span>
+    {{-- Signatures --}}
+    <p class="text-center text-sm font-medium text-gray-800">Thank you for choosing Plus Save.</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 mt-8 mb-6">
+        <div>
+            <div class="h-10 border-b-2 border-gray-500"></div>
+            <p class="mt-1 text-sm font-medium text-gray-900">{{ $issuedBy }}</p>
+            <p class="text-xs text-gray-500">Signature and name, for {{ $companyName }}</p>
+        </div>
+        <div>
+            <div class="h-10 border-b-2 border-gray-500"></div>
+            <p class="mt-1 text-sm font-medium text-gray-900">{{ $transaction->sender_name }}</p>
+            <p class="text-xs text-gray-500">Signature and name, customer</p>
+        </div>
     </div>
 
-    {{-- Signatures --}}
-    <div class="grid grid-cols-2 gap-8 mt-8 pt-4 border-t">
-        <div>
-            <p class="text-sm font-medium text-gray-700 mb-8">Signature & Name:</p>
-            <p class="text-xs text-gray-500 border-t pt-1">For {{ $companyName }}</p>
-        </div>
-        <div>
-            <p class="text-sm font-medium text-gray-700 mb-8">Signature & Name:</p>
-            <p class="text-xs text-gray-500 border-t pt-1">Customer</p>
-        </div>
-    </div>
+    <p class="text-xs text-gray-500">
+        Keep this receipt as proof of payment. The transfer is found with the number at the top of
+        this page, so quote it in any call about this money.
+    </p>
 
     {{-- Footer --}}
-    <div class="mt-8 pt-4 border-t text-xs text-gray-500">
-        <div class="flex justify-between">
+    <div class="mt-8 border-t pt-4 text-xs leading-relaxed text-gray-500">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-                <p class="font-medium">CONTACT US</p>
+                <p class="font-semibold uppercase tracking-wide text-gray-600">Contact us</p>
                 @if($companyPhone)
-                    <p>CALL / WHATSAPP:</p>
-                    <p>{{ $companyPhone }}</p>
+                    <p>Call / WhatsApp: {{ $companyPhone }}</p>
                 @endif
-                @if($companyEmail ?? null)
+                @if($companyEmail)
                     <p>{{ $companyEmail }}</p>
                 @endif
-            </div>
-            <div class="text-right">
-                @foreach($companyAddress ? preg_split('/\r\n|\r|\n/', $companyAddress) : [] as $line)
-                    <p>{{ $line }}</p>
-                @endforeach
                 @if($companyWebsite)
                     <p>{{ $companyWebsite }}</p>
                 @endif
+            </div>
+            <div class="sm:text-right">
+                @foreach($companyAddress ? preg_split('/\r\n|\r|\n/', $companyAddress) : [] as $line)
+                    <p>{{ $line }}</p>
+                @endforeach
             </div>
         </div>
     </div>

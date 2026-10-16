@@ -285,7 +285,7 @@
 
         {{-- Main content --}}
         <div id="sidebarOverlay" class="hidden fixed inset-0 bg-black/50 z-30 md:hidden no-print" onclick="toggleSidebar(false)"></div>
-        <div class="ml-0 md:ml-64 w-full md:w-[calc(100%-16rem)] min-w-0">
+        <div class="app-shell ml-0 md:ml-64 w-full md:w-[calc(100%-16rem)] min-w-0">
             <div class="md:hidden flex items-center gap-3 bg-green-900 text-white px-4 py-3 no-print sticky top-0 z-20">
                 <button type="button" onclick="toggleSidebar()" aria-label="Open the menu" aria-controls="appSidebar" aria-expanded="false"
                     class="p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300">
