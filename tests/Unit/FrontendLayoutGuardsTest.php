@@ -42,4 +42,25 @@ class FrontendLayoutGuardsTest extends TestCase
         $this->assertMatchesRegularExpression('/<summary[^>]*list-none[^>]*>⋮<\/summary>/', $roles);
         $this->assertStringContainsString('[&::-webkit-details-marker]:hidden', $roles);
     }
+
+    /**
+     * The desk's country decides which wallets and which money a person is shown, so it
+     * has to be readable on the page they land on, including when it was never filled in.
+     */
+    public function test_the_dashboard_names_the_desk_country_and_says_so_when_it_is_missing(): void
+    {
+        $dashboard = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'dashboard.blade.php');
+        $layout = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'layouts'.DIRECTORY_SEPARATOR.'app.blade.php');
+
+        $this->assertStringContainsString('$me->countryLabel()', $dashboard);
+        $this->assertStringContainsString("'Desk country not set'", $dashboard);
+        $this->assertStringContainsString("'Desk country not set'", $layout);
+
+        // Two wallets in a three column grid left a hole at the right of the page.
+        $this->assertStringContainsString('grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6', $dashboard);
+        $this->assertStringNotContainsString('grid-cols-1 md:grid-cols-3 gap-4 mb-6', $dashboard);
+
+        $this->assertStringNotContainsString('Welcome, {{ auth()->user()->name }}', $dashboard);
+        $this->assertStringContainsString('$greeting', $dashboard);
+    }
 }

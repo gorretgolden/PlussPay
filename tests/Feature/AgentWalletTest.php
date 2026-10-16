@@ -330,7 +330,7 @@ class AgentWalletTest extends TestCase
         $this->actingAs($agent)
             ->get('/dashboard')
             ->assertOk()
-            ->assertSee('This month: UGX 7,520');
+            ->assertSee('Charge kept this month: UGX 7,520');
     }
 
     public function test_an_admin_can_credit_an_agent_wallet_and_the_balance_moves(): void

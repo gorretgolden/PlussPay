@@ -29,7 +29,7 @@
     </style>
     @stack('styles')
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-[#f5f7f6] min-h-screen">
     @auth
     <div class="flex">
         {{-- Sidebar --}}
@@ -270,7 +270,7 @@
                     <div class="min-w-0">
                         <p class="text-sm font-medium truncate">{{ auth()->user()->name }}</p>
                         <p class="text-xs text-green-300 truncate">
-                            {{ \App\Http\Controllers\RolePermissionController::displayName(auth()->user()->getRoleNames()->first() ?? '') }}@if(auth()->user()->countryLabel()) · {{ auth()->user()->countryLabel() }}@endif
+                            {{ \App\Http\Controllers\RolePermissionController::displayName(auth()->user()->getRoleNames()->first() ?? '') }} · {{ auth()->user()->countryLabel() ?: 'Desk country not set' }}
                         </p>
                     </div>
                 </div>
