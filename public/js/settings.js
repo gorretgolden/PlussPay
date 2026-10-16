@@ -51,7 +51,9 @@
             return [[sellField, 'Enter a selling rate, or clear the buying rate to leave it unchanged.']];
         }
         if (!buy || !sell) return [];
-        const inverted = currency === 'ugx' ? Number(sell) <= Number(buy) : Number(buy) <= Number(sell);
+        // Equal prices are allowed: a desk passing money at cost is a real thing she does. Only a
+        // reversed spread is stopped, because that one quietly books a loss on every transfer.
+        const inverted = currency === 'ugx' ? Number(sell) < Number(buy) : Number(buy) < Number(sell);
         if (!inverted) return [];
         // The card line below the margin already states the rule, so the field says what to type.
         const side = currency === 'ugx' ? 'Selling' : 'Buying';
@@ -91,14 +93,17 @@
             const output = card.querySelector('[data-margin]');
             const rule = card.querySelector('[data-margin-rule]');
             const margin = pair ? Number(pair.margin.toFixed(6)) : null;
-            const short = margin !== null && margin <= 0;
+            const short = margin !== null && margin < 0;
+            const flat = margin !== null && margin === 0;
             output.textContent = margin === null ? 'Margin: Enter a selling rate' : `Margin: ${margin > 0 ? '+' : ''}${format(margin)} ${currency.toUpperCase()}/USD`;
             output.classList.toggle('text-red-700', short);
-            output.classList.toggle('text-green-800', !short);
-            rule.textContent = short ? card.dataset.marginWarn : rule.dataset.ok;
+            output.classList.toggle('text-amber-700', flat);
+            output.classList.toggle('text-green-800', !short && !flat);
+            rule.textContent = short ? card.dataset.marginWarn : (flat ? card.dataset.marginFlat : rule.dataset.ok);
             rule.classList.toggle('text-red-700', short);
-            rule.classList.toggle('font-medium', short);
-            rule.classList.toggle('text-gray-500', !short);
+            rule.classList.toggle('text-amber-700', flat);
+            rule.classList.toggle('font-medium', short || flat);
+            rule.classList.toggle('text-gray-500', !short && !flat);
         });
         showPairErrors();
         const preview = page.querySelector('#receipt-preview');

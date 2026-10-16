@@ -69,9 +69,13 @@ class SettingsTabsTest extends TestCase
         $this->assertStringNotContainsString('id="unit-usd_ugx_buying"', $html);
         $this->assertStringNotContainsString('aria-describedby="unit-', $html);
         // One short line per card, and the two opposite rules named side by side.
-        $this->assertStringContainsString('Selling must be higher than buying.', $html);
-        $this->assertStringContainsString('For yuan payouts, buying must be higher than selling.', $html);
+        $this->assertStringContainsString('Selling at or above buying keeps a spread.', $html);
+        $this->assertStringContainsString('Buying at or above selling keeps a spread.', $html);
         $this->assertStringNotContainsString('A positive margin means', $html);
+        // The three states are each written once, and the flat one is reachable only as a warning.
+        $this->assertSame(2, substr_count($html, 'No spread: both prices are the same, so this leg earns nothing.'));
+        $this->assertStringContainsString('Selling is below buying, so this leg loses money.', $html);
+        $this->assertStringContainsString('Buying is below selling, so this leg loses money.', $html);
     }
 
     public function test_each_card_describes_the_direction_it_prices_and_holds_its_detail_behind_a_question_mark(): void

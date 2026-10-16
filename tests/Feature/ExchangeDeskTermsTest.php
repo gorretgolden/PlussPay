@@ -429,6 +429,30 @@ class ExchangeDeskTermsTest extends TestCase
         $this->assertSame('3760', ExchangeCalculator::card()['usd_sell']);
     }
 
+    public function test_a_pair_saved_at_cost_is_accepted_on_both_legs(): void
+    {
+        // A desk that passes money across at the same price it paid earns nothing, but it is a real
+        // thing to do, so only a reversed spread is refused. Here both pairs go flat.
+        $this->actingAs($this->admin)->put('/settings', [
+            'settings_tab' => 'rates',
+            'usd_ugx_buying' => '3760',
+            'usd_ugx_selling' => '3760',
+            'usd_rmb_buying' => '6.80',
+            'usd_rmb_selling' => '6.80',
+        ])->assertSessionHasNoErrors();
+
+        $ugx = ExchangeRate::getActiveRate('USD', 'UGX');
+        $rmb = ExchangeRate::getActiveRate('USD', 'RMB');
+
+        $this->assertEqualsWithDelta(3760, (float) $ugx->buy_rate, 0.000001);
+        $this->assertEqualsWithDelta(3760, (float) $ugx->sell_rate, 0.000001);
+        $this->assertEqualsWithDelta(6.80, (float) $rmb->buy_rate, 0.000001);
+        $this->assertEqualsWithDelta(6.80, (float) $rmb->sell_rate, 0.000001);
+
+        // The booking side converts off the selling figure, so a flat pair still prices a deal.
+        $this->assertSame('3760', ExchangeCalculator::card()['usd_sell']);
+    }
+
     public function test_every_saved_price_records_the_day_it_took_effect(): void
     {
         $older = ExchangeRate::setPair('USD', 'UGX', 3700, 3690, 3700);

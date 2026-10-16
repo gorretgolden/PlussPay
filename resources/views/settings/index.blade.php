@@ -14,15 +14,17 @@
         'ugx' => [
             'unit' => 'UGX', 'pair' => $usdUgxPair, 'row' => $usdUgxRow, 'min' => '0.01', 'max' => '999999.99',
             'helper' => 'Dollars to shillings.',
-            'rule' => 'Selling must be higher than buying.',
-            'warn' => 'Selling rate must be higher than buying rate.',
+            'rule' => 'Selling at or above buying keeps a spread.',
+            'flat' => 'No spread: both prices are the same, so this leg earns nothing.',
+            'warn' => 'Selling is below buying, so this leg loses money.',
             'more' => 'Buying is the shilling cost of a dollar. Selling is the shillings a customer hands over for one. Margin = selling - buying, so a positive margin means shillings were bought cheap and sold dear.',
         ],
         'rmb' => [
             'unit' => 'RMB', 'pair' => $usdRmbPair, 'row' => $usdRmbRow, 'min' => '0.000001', 'max' => '999999.999999',
             'helper' => 'Dollars to yuan for China payouts.',
-            'rule' => 'For yuan payouts, buying must be higher than selling.',
-            'warn' => 'Buying rate must be higher than selling rate.',
+            'rule' => 'Buying at or above selling keeps a spread.',
+            'flat' => 'No spread: both prices are the same, so this leg earns nothing.',
+            'warn' => 'Buying is below selling, so this leg loses money.',
             'more' => 'Selling prices what the receiver is credited. Buying is what the yuan cost on the China side. Margin = buying - selling, the reverse of the shilling card, so a positive margin means the payout was priced below the settlement.',
         ],
     ];
@@ -83,8 +85,11 @@
                                 @php
                                     $pair = $rate['pair'];
                                     $margin = $pair ? ($currency === 'ugx' ? $pair['sell'] - $pair['buy'] : $pair['buy'] - $pair['sell']) : null;
+                                    // Three states, because a zero spread is a choice she makes on
+                                    // purpose and a reversed one is a mistake.
+                                    $spread = $margin === null || $margin > 0 ? 'up' : ($margin == 0 ? 'flat' : 'down');
                                 @endphp
-                                <fieldset class="min-w-0 rounded-lg border border-gray-200 p-4" data-rate-pair="{{ $currency }}" data-margin-warn="{{ $rate['warn'] }}">
+                                <fieldset class="min-w-0 rounded-lg border border-gray-200 p-4" data-rate-pair="{{ $currency }}" data-margin-warn="{{ $rate['warn'] }}" data-margin-flat="{{ $rate['flat'] }}">
                                     <legend class="px-1 text-base font-semibold text-gray-900">USD → {{ $rate['unit'] }}</legend>
                                     <p class="mb-4 text-xs text-gray-500">{{ $rate['helper'] }}</p>
                                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -103,13 +108,13 @@
                                         @endforeach
                                     </div>
                                     <div class="mt-4 flex items-center gap-2">
-                                        <p data-margin class="min-w-0 flex-1 rounded-md bg-gray-50 px-3 py-2 text-sm font-medium tabular-nums {{ $margin === null || $margin > 0 ? 'text-green-800' : 'text-red-700' }}" aria-live="polite">Margin: {{ $margin === null ? 'Enter a selling rate' : ($margin > 0 ? '+' : '').$trimRate($margin).' '.$rate['unit'].'/USD' }}</p>
+                                        <p data-margin class="min-w-0 flex-1 rounded-md bg-gray-50 px-3 py-2 text-sm font-medium tabular-nums {{ ['up' => 'text-green-800', 'flat' => 'text-amber-700', 'down' => 'text-red-700'][$spread] }}" aria-live="polite">Margin: {{ $margin === null ? 'Enter a selling rate' : ($margin > 0 ? '+' : '').$trimRate($margin).' '.$rate['unit'].'/USD' }}</p>
                                         <details class="relative shrink-0">
                                             <summary aria-label="How the {{ $rate['unit'] }} margin is worked out" class="list-none h-5 w-5 cursor-pointer rounded-full border border-gray-400 text-center text-xs leading-4 text-gray-600 hover:border-green-700 hover:text-green-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-700">?</summary>
                                             <p class="absolute right-0 top-7 z-20 w-64 rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-700 shadow-lg">{{ $rate['more'] }}</p>
                                         </details>
                                     </div>
-                                    <p data-margin-rule data-ok="{{ $rate['rule'] }}" class="mt-1 text-xs {{ $margin === null || $margin > 0 ? 'text-gray-500' : 'text-red-700 font-medium' }}">{{ $margin === null || $margin > 0 ? $rate['rule'] : $rate['warn'] }}</p>
+                                    <p data-margin-rule data-ok="{{ $rate['rule'] }}" class="mt-1 text-xs {{ ['up' => 'text-gray-500', 'flat' => 'text-amber-700 font-medium', 'down' => 'text-red-700 font-medium'][$spread] }}">{{ ['up' => $rate['rule'], 'flat' => $rate['flat'], 'down' => $rate['warn']][$spread] }}</p>
                                     <p class="mt-3 text-xs text-gray-500">
                                         @if ($rate['row'])
                                             Updated <time datetime="{{ $rate['row']->updated_at->toIso8601String() }}" class="tabular-nums">{{ $rate['row']->updated_at->format('M d, Y h:i A') }}</time> by {{ $rate['row']->editor?->name ?? $rate['row']->creator?->name ?? 'nobody' }}.
