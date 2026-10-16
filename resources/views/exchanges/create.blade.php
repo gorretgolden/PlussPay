@@ -74,7 +74,7 @@
                         <select name="in_account_id" id="in_account_id" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                             @foreach($accounts as $account)
                                 <option value="{{ $account->id }}" data-currency="{{ $account->currency }}"
-                                    @selected((int) old('in_account_id') === $account->id)>{{ $account->name }} ({{ $account->currency }})</option>
+                                    @selected((int) old('in_account_id') === $account->id)>{{ $account->name }}, {{ $holdings[$account->id] }} held</option>
                             @endforeach
                         </select>
                     </div>
@@ -128,7 +128,7 @@
                         <select name="out_account_id" id="out_account_id" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                             @foreach($accounts as $account)
                                 <option value="{{ $account->id }}" data-currency="{{ $account->currency }}"
-                                    @selected((int) old('out_account_id') === $account->id)>{{ $account->name }} ({{ $account->currency }})</option>
+                                    @selected((int) old('out_account_id') === $account->id)>{{ $account->name }}, {{ $holdings[$account->id] }} held</option>
                             @endforeach
                         </select>
                     </div>

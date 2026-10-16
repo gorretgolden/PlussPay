@@ -72,19 +72,27 @@ class DashboardController extends Controller
 
         $profit = $seesProfit ? $this->profitWindows($user, $usdToUgx) : [];
 
-        $wallets = Account::walletsFor($user);
+        // The pair of cards is custody: money this person is holding and owes a hand-in for.
+        // Anyone who reads every wallet (Super Admin, Admin, Accountant) does that on the Wallets
+        // and Accounts screens, so the board gives them no personal pair. It also stops the visit
+        // minting two empty accounts for a desk that never holds money, because the wallets are
+        // created on demand.
+        $holdsMoney = ! $user->can('view-all-wallets');
+
+        $wallets = $holdsMoney ? Account::walletsFor($user) : [];
         $handedIn = AccountEntry::handedInFor($wallets);
 
         // Commission only ever lands in a shilling wallet, whoever booked the transfer, so it is
         // read from that account directly rather than from the wallets this person is shown.
         // A desk in China is shown yuan and dollars but still earns its commission in shillings.
-        $commissionMonth = (float) AccountEntry::query()
-            ->where('account_id', Account::walletFor($user, 'UGX')->id)
+        $custodyWallet = $holdsMoney ? Account::walletFor($user, 'UGX') : null;
+        $commissionMonth = $custodyWallet ? (float) AccountEntry::query()
+            ->where('account_id', $custodyWallet->id)
             ->whereIn('type', ['agent_fee', 'agent_fee_reversal'])
             ->whereDate('entry_date', '>=', now()->startOfMonth()->toDateString())
             ->whereDate('entry_date', '<=', now()->toDateString())
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'agent_fee' THEN amount ELSE -amount END), 0) as net")
-            ->value('net');
+            ->value('net') : 0.0;
 
         // Admins manage people, so a spike of failed sign-ins belongs on the page they open
         // first; only the Super Admin sees the machine errors, matching the Logs tabs.
@@ -207,6 +215,10 @@ class DashboardController extends Controller
                     {$ugxRevenue} as charge_ugx,
                     COALESCE(SUM(CASE WHEN status = 'completed' THEN charge_amount ELSE 0 END), 0) as charge_usd
                 ")
+                // The yuan each booking promised splits three ways by how far it has actually
+                // travelled, and the six figures come off the same rows as the totals above.
+                ->selectRaw(implode(', ', Transaction::yuanPileSql()))
+                ->selectRaw(implode(', ', Transaction::yuanPileCountSql()))
                 ->toBase()
                 ->first();
 
@@ -221,6 +233,12 @@ class DashboardController extends Controller
                 'rmb' => (float) $row['rmb'],
                 'charge_ugx' => (float) $row['charge_ugx'],
                 'charge_usd' => (float) $row['charge_usd'],
+                'yuan_in_uganda' => (float) $row['rmb_in_uganda'],
+                'yuan_in_china' => (float) $row['rmb_in_china'],
+                'yuan_paid' => (float) $row['rmb_paid'],
+                'yuan_in_uganda_transfers' => (int) $row['transfers_in_uganda'],
+                'yuan_in_china_transfers' => (int) $row['transfers_in_china'],
+                'yuan_paid_transfers' => (int) $row['transfers_paid'],
                 // Derived here from the shillings already summed, so the average cannot disagree
                 // with the Sent figure the way an average of re-converted dollars did.
                 'avg_ugx_sent' => $completed > 0 ? (float) $row['sent_ugx'] / $completed : 0.0,

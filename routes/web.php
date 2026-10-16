@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AgentPerformanceController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ChinaDeskController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CurrencyExchangeController;
 use App\Http\Controllers\DashboardController;
@@ -48,6 +49,15 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::get('/transactions/{transaction}', [TransactionController::class, 'show'])->name('transactions.show');
         Route::patch('/transactions/{transaction}/status', [TransactionController::class, 'updateStatus'])->middleware('can:approve-transaction')->name('transactions.update-status');
         Route::get('/export/transactions', [ExportController::class, 'transactions'])->middleware('can:export-transactions')->name('export.transactions');
+    });
+
+    // The corridor's second half: dollars out of Uganda into the desk in China, then the yuan that
+    // desk pays to the receiver. Both movements sit on the transfer itself, so this page is the
+    // only place the book is told which side of the world the money is on.
+    Route::middleware('can:view-transactions')->group(function () {
+        Route::get('/china', [ChinaDeskController::class, 'index'])->name('china.index');
+        Route::post('/china/send', [ChinaDeskController::class, 'send'])->middleware('can:send-to-china')->name('china.send');
+        Route::post('/china/payout', [ChinaDeskController::class, 'payout'])->middleware('can:confirm-china-payout')->name('china.payout');
     });
 
     Route::middleware('can:view-exchanges')->group(function () {

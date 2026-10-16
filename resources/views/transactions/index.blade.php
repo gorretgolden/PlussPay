@@ -3,9 +3,9 @@
 @section('title', 'Transactions')
 
 @section('content')
-<div class="mb-6 flex justify-between items-center">
+<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
     <h1 class="text-2xl font-bold text-gray-900">Transactions</h1>
-    <div class="flex gap-2">
+    <div class="flex flex-wrap gap-2">
         @can('bulk-import-transactions')
         <a href="{{ route('transactions.bulk-import') }}" class="bg-blue-800 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Bulk Import</a>
         @endcan
@@ -42,8 +42,8 @@
         </div>
         @can('view-profit')
         <div>
-            <label class="block text-sm text-gray-600 mb-1">UGX Rate</label>
-            <select name="usd_rate" title="The shilling price a dollar was bought at, or the price the money went out at" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+            <label class="block text-sm text-gray-600 mb-1">Dollar Selling Rate</label>
+            <select name="usd_rate" title="The shilling price each dollar was sent at" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All</option>
                 @foreach($usdPrices as $price)
                 <option value="{{ $price }}" {{ request('usd_rate') === $price ? 'selected' : '' }}>{{ $price }}</option>
@@ -51,8 +51,8 @@
             </select>
         </div>
         <div>
-            <label class="block text-sm text-gray-600 mb-1">RMB Rate</label>
-            <select name="rmb_rate" title="The yuan price a dollar was bought at, or the price the money went out at" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+            <label class="block text-sm text-gray-600 mb-1">Yuan Selling Rate</label>
+            <select name="rmb_rate" title="The yuan price each dollar was sent at" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All</option>
                 @foreach($rmbPrices as $price)
                 <option value="{{ $price }}" {{ request('rmb_rate') === $price ? 'selected' : '' }}>{{ $price }}</option>
@@ -122,7 +122,7 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Overall Profit</th>
                 @endcan
     @can('view-profit')
-    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rates Used<br><span class="font-normal normal-case text-gray-400">bought / sent</span></th>
+    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Selling Rate<br><span class="font-normal normal-case text-gray-400">what it went out at, per 1 USD</span></th>
     @endcan
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
@@ -213,7 +213,7 @@
         </tbody>
     </table>
     @can('view-profit')
-    <p class="px-6 py-3 text-xs text-gray-500 border-t">The exchange profit is what the rates came to on the money that travelled, and the overall profit adds the charge to it. Only a completed transfer counts toward profit, and one booked before its rates were stored shows n/a instead of a zero that would read as break-even. Each transfer also carries the price a dollar was bought at and the price the money went out at, in shillings and in yuan, so either profit leg can be checked against the day it happened.</p>
+    <p class="px-6 py-3 text-xs text-gray-500 border-t">The exchange profit is what the rates came to on the money that travelled, and the overall profit adds the charge to it. Only a completed transfer counts toward profit, and one booked before its rates were stored shows n/a instead of a zero that would read as break-even. Each transfer also carries the selling rate it went out at, in shillings and in yuan, which is the price the customer was quoted and the one the receiver is paid on. The buying price the profit was worked from stays behind the scenes.</p>
     @endcan
 </div>
 

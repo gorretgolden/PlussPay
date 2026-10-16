@@ -61,7 +61,7 @@
 </div>
 
 {{-- Summary Stats --}}
-<div id="section-hub" class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+<div id="section-hub" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
     <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">Total Transactions</div>
         <div class="text-2xl font-bold text-green-800 mt-1">{{ number_format($stats['total_transactions']) }}</div>
@@ -72,8 +72,19 @@
         <div class="text-2xl font-bold text-green-700 mt-1">${{ number_format($stats['total_usd_sent'], 1) }}</div>
     </div>
     <div class="bg-white rounded-lg shadow p-5">
+        <div class="text-sm text-gray-500">RMB Still In Uganda</div>
+        <div class="text-2xl font-bold text-amber-700 mt-1">¥{{ number_format($stats['rmb_in_uganda'], 1) }}</div>
+        <div class="text-xs text-gray-400 mt-1">Not sent to China yet</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-5">
+        <div class="text-sm text-gray-500">RMB In China, Unpaid</div>
+        <div class="text-2xl font-bold text-amber-700 mt-1">¥{{ number_format($stats['rmb_in_china'], 1) }}</div>
+        <div class="text-xs text-gray-400 mt-1">Dollars arrived, receiver not paid</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">RMB Delivered</div>
-        <div class="text-2xl font-bold text-purple-700 mt-1">¥{{ number_format($stats['total_rmb_sent'], 1) }}</div>
+        <div class="text-2xl font-bold text-purple-700 mt-1">¥{{ number_format($stats['rmb_paid'], 1) }}</div>
+        <div class="text-xs text-gray-400 mt-1">Of ¥{{ number_format($stats['total_rmb_sent'], 1) }} booked</div>
     </div>
     <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">Charges Kept</div>
@@ -443,7 +454,7 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Transfers</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">RMB Delivered</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">RMB Booked</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Fee Paid (UGX)</th>
                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Last Transfer</th>
                 </tr>
@@ -454,7 +465,7 @@
                     <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ $customer->sender_name }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $customer->count }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->total_usd, 1) }}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->rmb_delivered, 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->rmb_booked, 1) }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->fee_ugx) }}</td>
                     <td class="px-6 py-3 text-sm text-right text-gray-900">{{ \Carbon\Carbon::parse($customer->last_transfer)->format('M d, Y') }}</td>
                 </tr>
@@ -470,7 +481,7 @@
                     <td class="px-6 py-3 text-sm font-bold text-gray-900">{{ number_format($byCustomer->count()) }} {{ Str::plural('customer', $byCustomer->count()) }}</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ $byCustomer->sum('count') }}</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('total_usd'), 1) }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('rmb_delivered'), 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('rmb_booked'), 1) }}</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('fee_ugx')) }}</td>
                     <td class="px-6 py-3 text-sm text-right text-gray-500"></td>
                 </tr>
@@ -494,7 +505,7 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rate (USD to RMB)</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Txns</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">RMB Delivered</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">RMB Booked</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Charge (UGX)</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Exchange Profit (UGX)</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overall (UGX)</th>
@@ -508,7 +519,7 @@
                     <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ rtrim(rtrim(number_format((float) $rate->exchange_rate, 4, '.', ''), '0'), '.') }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $rate->count }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->total_usd, 1) }}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->rmb_delivered, 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->rmb_booked, 1) }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->fee_ugx) }}</td>
                     <td class="px-4 py-3 text-sm text-right {{ (float) $rate->exchange_ugx < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format((float) $rate->exchange_ugx, 1) }}</td>
                     @php $rateTotal = (float) $rate->fee_ugx + (float) $rate->exchange_ugx; @endphp

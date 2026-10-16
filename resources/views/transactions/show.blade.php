@@ -51,6 +51,40 @@
         </div>
     </div>
 
+    @if($stage)
+    <div class="border-t pt-4 mb-6">
+        <h3 class="text-sm font-medium text-gray-500 mb-1">Where this money is</h3>
+        <p class="text-xs text-gray-500 mb-3">{{ $stage['text'] }}. The yuan a customer is owed only
+            reaches China after the dollars for it have been sent, and the receiver is paid once the
+            desk in China holds those dollars.</p>
+        <ol class="text-sm space-y-2">
+            <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <span class="text-gray-600">Collected in Uganda</span>
+                <span class="font-medium text-gray-900 tabular-nums">{{ $transaction->collectedAmount() }} on {{ $transaction->created_at->format('M d, Y h:i A') }}</span>
+            </li>
+            <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <span class="text-gray-600">Dollars sent to a desk in China</span>
+                @if($transaction->settled_at)
+                <span class="font-medium text-gray-900 tabular-nums">{{ \App\Models\Account::format('USD', $transaction->total_usd_equivalent) }} to {{ $transaction->settledDesk?->name ?? 'the China desk' }} on {{ $transaction->settled_at->format('M d, Y h:i A') }}</span>
+                @else
+                <span class="font-medium text-amber-700">Still held in Uganda</span>
+                @endif
+            </li>
+            <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <span class="text-gray-600">Yuan paid to {{ $transaction->receiver_name }}</span>
+                @if($transaction->delivered_at)
+                <span class="font-medium text-gray-900 tabular-nums">{{ $transaction->yuanLabel() }} on {{ $transaction->delivered_at->format('M d, Y h:i A') }}</span>
+                @else
+                <span class="font-medium text-amber-700">Not paid yet</span>
+                @endif
+            </li>
+        </ol>
+        @canany(['send-to-china','confirm-china-payout'])
+        <a href="{{ route('china.index') }}" class="inline-block mt-3 bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Move it at the China Desk</a>
+        @endcanany
+    </div>
+    @endif
+
     @can('view-profit')
     <div class="border-t pt-4 mb-6">
         <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
@@ -127,10 +161,8 @@
     <div class="border-t pt-4 mb-6">
         <h3 class="text-sm font-medium text-gray-500 mb-3">Profit (admin only, never shown on a receipt)</h3>
         <div class="grid grid-cols-2 gap-4 text-sm">
-            <div><span class="text-gray-500">Shillings bought at:</span> {{ $price($transaction->rate_buy_ugx, 'UGX') }}</div>
-            <div><span class="text-gray-500">Shillings sent at:</span> {{ $price($transaction->rate_sell_ugx, 'UGX') }}</div>
-            <div><span class="text-gray-500">Yuan bought at:</span> {{ $price($transaction->rmb_buying_rate) }}</div>
-            <div><span class="text-gray-500">Yuan sent at:</span> {{ $price($transaction->exchange_rate) }}</div>
+            <div><span class="text-gray-500">Dollar selling rate:</span> {{ $price($transaction->rate_sell_ugx, 'UGX') }}</div>
+            <div><span class="text-gray-500">Yuan selling rate:</span> {{ $price($transaction->exchange_rate) }}</div>
             <div><span class="text-gray-500">Dollars credited:</span> ${{ number_format($transaction->total_usd_equivalent, 1) }}</div>
             <div><span class="text-gray-500">Yuan paid out:</span> &yen;{{ number_format($transaction->rmb_amount, 1) }}</div>
             <div><span class="text-gray-500">Foreign exchange profit:</span> <span class="{{ $toneClass[$profit['exchange']['tone']] }}">{{ $profit['exchange']['text'] }}</span></div>

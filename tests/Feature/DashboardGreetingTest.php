@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ExchangeRate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -116,11 +117,18 @@ class DashboardGreetingTest extends TestCase
 
     public function test_an_empty_wallet_is_said_in_three_words_and_links_out(): void
     {
-        $html = $this->actingAs($this->user('superadmin', 'Super Admin'))->get('/dashboard')->getContent();
+        // The cards are custody, so they are read as the person who holds the money. See
+        // DashboardWalletCardsTest for who is handed the row at all.
+        $agent = $this->user('agent', 'Amina Nabukenya');
+        $html = $this->actingAs($agent)->get('/dashboard')->getContent();
 
         $this->assertSame(2, substr_count($html, 'No balance yet.'));
         $this->assertStringNotContainsString('Nothing in this wallet yet', $html);
         $this->assertStringNotContainsString('Open it to record money in', $html);
-        $this->assertStringContainsString('Add money', $html);
+        $this->assertStringNotContainsString('Add money', $html, 'Only a desk that may move money is pointed at the form.');
+
+        $agent->givePermissionTo(Permission::firstOrCreate(['name' => 'adjust-wallets', 'guard_name' => 'web']));
+        $this->flushSession();
+        $this->assertStringContainsString('Add money', $this->actingAs($agent)->get('/dashboard')->getContent());
     }
 }

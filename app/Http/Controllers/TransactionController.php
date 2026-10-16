@@ -39,14 +39,14 @@ class TransactionController extends Controller
             ->orderBy('name')
             ->get();
 
-        // The price dropdowns list only the figures this desk has really booked at, newest
+        // The price dropdowns list only the selling figures this desk has really booked at, newest
         // price first, so a set-aside rate cannot offer a page of empty results. A viewer who
         // cannot see profit never sees the desk's prices either, and never pays for the queries.
         $usdPrices = $rmbPrices = [];
 
         if ($viewer->can('view-profit')) {
-            $usdPrices = Transaction::bookedPrices($viewer, ['rate_buy_ugx', 'rate_sell_ugx']);
-            $rmbPrices = Transaction::bookedPrices($viewer, ['rmb_buying_rate', 'exchange_rate']);
+            $usdPrices = Transaction::bookedPrices($viewer, ['rate_sell_ugx']);
+            $rmbPrices = Transaction::bookedPrices($viewer, ['exchange_rate']);
         }
 
         return view('transactions.index', compact('transactions', 'creators', 'usdPrices', 'rmbPrices'));
@@ -224,7 +224,12 @@ class TransactionController extends Controller
             'transaction' => $transaction,
             'legs' => $legs,
             'payoutAccount' => Account::byCode(Account::RMB_CHINA),
-            'payoutRecorded' => $legs->contains('direction', 'out'),
+            // Only yuan leaving an account counts as the payout. A dollar or shilling leg on the
+            // same receipt is the other half of the booking, not the cash put into the receiver's
+            // hand in China.
+            'payoutRecorded' => $legs->contains(fn (AccountEntry $leg) => $leg->direction === 'out'
+                && $leg->account?->currency === 'RMB'),
+            'stage' => $transaction->chinaStage(),
         ]);
     }
 
@@ -254,6 +259,17 @@ class TransactionController extends Controller
         if ($newStatus === 'cancelled' && $reason === '') {
             return back()->withErrors([
                 'reason' => 'Say why this transfer is being cancelled.',
+            ]);
+        }
+
+        // Once the dollars for a transfer have been sent to a desk in China, the cash this office
+        // holds no longer covers it: the yuan is either in China waiting or already handed over.
+        // Cancelling from here would take back money that is not here any more.
+        if ($newStatus === 'cancelled' && $transaction->hasLeftUganda()) {
+            return back()->withErrors([
+                'status' => $transaction->receipt_number.' has already been sent to China'
+                    .($transaction->delivered_at ? ' and paid to '.$transaction->receiver_name : '')
+                    .', so it cannot be cancelled from here. The desk in China has to bring the money back first.',
             ]);
         }
 

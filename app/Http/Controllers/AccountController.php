@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
+use App\Models\Transaction;
 use App\Services\AccountLedger;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -137,6 +138,17 @@ class AccountController extends Controller
             return back()->withErrors(['amount' => $e->getMessage()])->withInput();
         } catch (\InvalidArgumentException $e) {
             return back()->withErrors(['kind' => $e->getMessage()])->withInput();
+        }
+
+        // A yuan line written in by hand is still the China desk putting cash into a receiver's
+        // hand, so it stamps the transfer as paid exactly as the China Desk screen does. Without
+        // this the money would leave the account while every board still counted it as owed.
+        if ($validated['kind'] === 'money_out' && $account->currency === 'RMB') {
+            Transaction::where('receipt_number', trim($validated['reference'] ?? ''))
+                ->where('rmb_amount', '>', 0)
+                ->whereNull('delivered_at')
+                ->get()
+                ->each(fn (Transaction $t) => $t->forceFill(['delivered_at' => now()])->save());
         }
 
         // A manual ledger movement changes the cash books, so it is auditable in its own

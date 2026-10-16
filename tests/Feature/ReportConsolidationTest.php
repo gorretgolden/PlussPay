@@ -279,7 +279,7 @@ class ReportConsolidationTest extends TestCase
 
         $this->assertSame(['Kato Musa', 'Asuma Aggrey'], $byCustomer->pluck('sender_name')->all());
         $this->assertSame(2, (int) $byCustomer[1]->count);
-        $this->assertEqualsWithDelta(3500.0, (float) $byCustomer[1]->rmb_delivered, 0.01);
+        $this->assertEqualsWithDelta(3500.0, (float) $byCustomer[1]->rmb_booked, 0.01);
         $this->assertEqualsWithDelta(18800.0, (float) $byCustomer[1]->fee_ugx, 0.01);
 
         $html = $response->getContent();

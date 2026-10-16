@@ -56,8 +56,22 @@ class CurrencyExchangeController extends Controller
 
     public function create()
     {
+        $viewer = auth()->user();
+
+        // The office books are only half of the desk. A person in Uganda converts the shillings
+        // they are actually holding into dollars before that transfer can be sent to China, and a
+        // desk in China turns the dollars it was sent into yuan, so both sides of the list carry
+        // this person's own wallets. Left out, the only accounts to choose from are the office's
+        // and the cash in the desk's own hand cannot be moved.
+        $accounts = array_merge(Account::ordered(), array_values(Account::walletsFor($viewer)));
+        $holdings = [];
+        foreach ($accounts as $account) {
+            $holdings[$account->id] = Account::format($account->currency, $account->balance());
+        }
+
         return view('exchanges.create', [
-            'accounts' => Account::ordered(),
+            'accounts' => $accounts,
+            'holdings' => $holdings,
             'customers' => auth()->user()->can('view-customers') ? Customer::where('is_active', true)->orderBy('name')->get(['id', 'name', 'phone']) : collect(),
             'card' => ExchangeCalculator::card(),
             'currencies' => ExchangeCalculator::CURRENCIES,

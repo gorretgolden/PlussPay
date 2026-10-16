@@ -60,6 +60,8 @@ class Transaction extends Model
         'usd_rmb_profit_ugx' => 'decimal:6',
         'total_profit_ugx' => 'decimal:6',
         'total_usd_equivalent' => 'decimal:2',
+        'settled_at' => 'datetime',
+        'delivered_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -99,6 +101,15 @@ class Transaction extends Model
     public function editor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /**
+     * The desk in China the dollars for this transfer were sent to. Their own dollar and yuan
+     * wallets are found from this person, so the book always knows whose hand the money is in.
+     */
+    public function settledDesk(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'settled_to');
     }
 
     public function activityLogs(): HasMany
@@ -208,6 +219,119 @@ class Transaction extends Model
     }
 
     /**
+     * The rule that puts a transfer's yuan in one of the three piles, as a SQL fragment per pile.
+     * Kept in one place because the money total and the count of transfers beside it have to be
+     * cut on the same rule, and a board that sums one way and counts the other reads as a fault
+     * in the books rather than a fault on the page.
+     *
+     * A transfer with no yuan in it belongs to no pile: there is nothing on its way to anybody, so
+     * counting it as zero in the paid pile would hide how many receivers are still owed money.
+     *
+     * @return array<string, string> pile key => WHERE fragment
+     */
+    private static function yuanPileConditions(): array
+    {
+        $live = "status = 'completed' AND rmb_amount > 0";
+
+        return [
+            'in_uganda' => "{$live} AND settled_at IS NULL AND delivered_at IS NULL",
+            'in_china' => "{$live} AND settled_at IS NOT NULL AND delivered_at IS NULL",
+            'paid' => "{$live} AND delivered_at IS NOT NULL",
+        ];
+    }
+
+    /**
+     * The three piles the yuan sits in, as SQL, so a board and a report cut the book on exactly
+     * the same rule and can never disagree about what has actually reached China. The three are
+     * exclusive and add back to every yuan a completed transfer ever promised.
+     *
+     * @return array<string, string> pile key => select expression
+     */
+    public static function yuanPileSql(): array
+    {
+        return array_map(
+            fn (string $where, string $key) => "COALESCE(SUM(CASE WHEN {$where} THEN rmb_amount ELSE 0 END), 0) as rmb_{$key}",
+            array_values(static::yuanPileConditions()),
+            array_keys(static::yuanPileConditions()),
+        );
+    }
+
+    /**
+     * The same three piles counted, for the line under a yuan total that says how many transfers
+     * make it up.
+     *
+     * @return array<string, string> pile key => select expression
+     */
+    public static function yuanPileCountSql(): array
+    {
+        return array_map(
+            fn (string $where, string $key) => "COALESCE(SUM(CASE WHEN {$where} THEN 1 ELSE 0 END), 0) as transfers_{$key}",
+            array_values(static::yuanPileConditions()),
+            array_keys(static::yuanPileConditions()),
+        );
+    }
+
+    /**
+     * Yuan whose dollars have not left Uganda yet: the money has been collected and priced, and it
+     * is still sitting with the desk that took it.
+     */
+    public function scopeAwaitingSendToChina(Builder $query): Builder
+    {
+        return $query->where('status', 'completed')
+            ->where('rmb_amount', '>', 0)
+            ->whereNull('settled_at')
+            ->whereNull('delivered_at');
+    }
+
+    /**
+     * Yuan the desk in China holds dollars for, but has not yet handed over to the receiver.
+     */
+    public function scopeAwaitingPayoutInChina(Builder $query): Builder
+    {
+        return $query->where('status', 'completed')
+            ->where('rmb_amount', '>', 0)
+            ->whereNotNull('settled_at')
+            ->whereNull('delivered_at');
+    }
+
+    /**
+     * Whether this transfer's money has reached China at all, which is what decides if it can be
+     * cancelled from the Uganda side. Once the dollars have moved, cancelling the booking here
+     * would leave the cash in two places and the books telling two stories.
+     */
+    public function hasLeftUganda(): bool
+    {
+        return $this->settled_at !== null || $this->delivered_at !== null;
+    }
+
+    /**
+     * Where the money of one transfer actually is, in the words the desk uses for it. Null means
+     * there is no China leg to track: the booking is not finished, or it carries no yuan.
+     *
+     * @return array{key: string, text: string, tone: string}|null
+     */
+    public function chinaStage(): ?array
+    {
+        if ($this->status !== 'completed' || (float) $this->rmb_amount <= 0) {
+            return null;
+        }
+
+        if ($this->delivered_at !== null) {
+            return ['key' => 'paid', 'text' => 'Paid to '.$this->receiver_name.' in China', 'tone' => 'done'];
+        }
+
+        if ($this->settled_at !== null) {
+            return [
+                'key' => 'in_china',
+                'text' => 'Dollars with '.($this->settledDesk?->name ?? 'the China desk').', waiting to be paid out',
+                'tone' => 'waiting',
+            ];
+        }
+
+        return ['key' => 'in_uganda', 'text' => 'Held in Uganda, not yet sent to China', 'tone' => 'pending'];
+    }
+
+    /**
      * The three profit figures for this transfer as display text: what the exchange came to,
      * what was charged, and the two added. The legs are stored separately so the trail behind
      * the exchange figure survives, but the office reports one profit per transfer, so the
@@ -257,24 +381,27 @@ class Transaction extends Model
     }
 
     /**
-     * One booked price pair as the book shows it: what the desk pays for a dollar, then the
-     * price the money goes out at. A row booked before the prices were snapshotted has nothing
-     * to show, so it reads n/a instead of borrowing whatever stands on the rate sheet today.
+     * The price a transfer actually went out at, which is the only rate the book shows. The buying
+     * price stays behind the scenes: it is what the profit was worked out from, but the number a
+     * desk quotes a customer and the number a receiver is paid on are both the selling one.
+     * A row booked before the price was snapshotted has nothing to show, so it reads n/a instead
+     * of borrowing whatever stands on the rate sheet today. A price of nothing reads the same way:
+     * it would otherwise look like a dollar bought for no shillings at all.
      *
      * @return array{text: string, tone: string, title: string}
      */
-    private function rateCell(?string $buy, ?string $sell, string $unit): array
+    private function rateCell(?string $sell, string $unit): array
     {
-        if (empty($buy) || empty($sell)) {
+        if ($sell === null || (float) $sell === 0.0) {
             return ['text' => 'n/a', 'tone' => 'muted', 'title' => 'No price was recorded on this transfer'];
         }
 
         $trim = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.');
 
         return [
-            'text' => $trim($buy).' / '.$trim($sell),
+            'text' => $trim($sell),
             'tone' => 'plain',
-            'title' => 'Bought at '.$trim($buy).' and sent at '.$trim($sell).' '.$unit.' per 1 USD',
+            'title' => 'Sent at '.$trim($sell).' '.$unit.' per 1 USD',
         ];
     }
 
@@ -283,7 +410,7 @@ class Transaction extends Model
      */
     public function shillingRateCell(): array
     {
-        return $this->rateCell($this->rate_buy_ugx, $this->rate_sell_ugx, 'UGX');
+        return $this->rateCell($this->rate_sell_ugx, 'UGX');
     }
 
     /**
@@ -291,7 +418,7 @@ class Transaction extends Model
      */
     public function yuanRateCell(): array
     {
-        return $this->rateCell($this->rmb_buying_rate, $this->exchange_rate, 'RMB');
+        return $this->rateCell($this->exchange_rate, 'RMB');
     }
 
     public function yuanLabel(): string
@@ -318,17 +445,14 @@ class Transaction extends Model
             }
         }
 
-        // Which price a transfer was booked at, on either side of the pair. A transfer touched
-        // by a price counts as using it, so the buying price of the day and the price the money
-        // went out at both find their own rows. The figure is cut to the scale the column stores
-        // at, which keeps the comparison on the index instead of wrapping the column in a cast.
-        // Only a viewer who may see profit may narrow the book by price, because narrowing by a
-        // price reveals it.
+        // Which selling price a transfer went out at. The buying price is not a filter any more
+        // because it is not a figure the book shows; it still sits in the row and still feeds the
+        // profit. Only a viewer who may see profit may narrow the book by price, because narrowing
+        // by a price reveals it.
         if ($request->user()?->can('view-profit')) {
-            foreach (['usd_rate' => ['rate_buy_ugx', 'rate_sell_ugx'], 'rmb_rate' => ['rmb_buying_rate', 'exchange_rate']] as $filter => $columns) {
+            foreach (['usd_rate' => 'rate_sell_ugx', 'rmb_rate' => 'exchange_rate'] as $filter => $column) {
                 if ($request->filled($filter) && is_numeric($request->input($filter))) {
-                    $price = number_format((float) $request->input($filter), 6, '.', '');
-                    $query->where(fn ($q) => $q->where($columns[0], $price)->orWhere($columns[1], $price));
+                    $query->where($column, number_format((float) $request->input($filter), 6, '.', ''));
                 }
             }
         }
@@ -360,6 +484,7 @@ class Transaction extends Model
             $prices = $prices->merge(
                 static::visibleTo($viewer)
                     ->whereNotNull($column)
+                    ->where($column, '>', 0)
                     ->distinct()
                     ->limit(50)
                     ->pluck($column)

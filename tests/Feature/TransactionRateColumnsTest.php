@@ -13,11 +13,13 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * The accountant follows a transfer up from the prices it was cut at, so the book shows the four
- * figures every booking stored: what a dollar cost in shillings and the price it went out at, and
- * the same two on the yuan side. Each pair can also be filtered to, because the desk reprices and
- * needs to see which transfers fell on which side of the change. The prices are the business's own
- * numbers, so a teller who cannot see profit cannot see them either.
+ * Every transfer in the book carries the two selling prices it went out at: the shillings each
+ * dollar cost the customer and the yuan each dollar became in China. Those are the figures a desk
+ * quotes and a receiver is paid on, so they are the only rates a transaction record shows. The
+ * buying prices stay stored and keep feeding the profit, but they are not printed here. Either
+ * selling price can be filtered to, because the desk reprices and needs to see which transfers fell
+ * on which side of the change. The prices are the business's own numbers, so a teller who cannot
+ * see profit cannot see them either.
  */
 class TransactionRateColumnsTest extends TestCase
 {
@@ -89,23 +91,26 @@ class TransactionRateColumnsTest extends TestCase
         return Transaction::visibleTo($as)->filtered($request)->pluck('id')->all();
     }
 
-    public function test_the_book_shows_the_four_prices_each_transfer_was_booked_at(): void
+    public function test_the_book_shows_the_two_selling_prices_each_transfer_went_out_at(): void
     {
         $this->book($this->user('admin'));
 
         $html = $this->html('/transactions', $this->user('admin'));
 
-        foreach (['Rates Used', 'bought / sent'] as $header) {
+        foreach (['Selling Rate', 'what it went out at, per 1 USD'] as $header) {
             $this->assertStringContainsString($header, $html);
         }
 
-        // Shillings bought at 3,750 and sent at 3,760; yuan bought at 7.20 and sent at 7.24. Each
-        // pair is named by its currency so the two lines cannot be read the wrong way round.
-        $this->assertStringContainsString('UGX 3750 / 3760', $html);
-        $this->assertStringContainsString('RMB 7.2 / 7.24', $html);
+        // Sent out at 3,760 shillings to the dollar and 7.24 yuan to the dollar. Each line is named
+        // by its currency so the two cannot be read the wrong way round.
+        $this->assertStringContainsString('UGX 3760', $html);
+        $this->assertStringContainsString('RMB 7.24', $html);
 
-        // The tooltip spells out which half is which, so nobody has to remember the order.
-        $this->assertStringContainsString('Bought at 3750 and sent at 3760 UGX per 1 USD', $html);
+        // The tooltip says which way the price runs, and the buying price the profit was cut from
+        // appears nowhere on the row.
+        $this->assertStringContainsString('Sent at 3760 UGX per 1 USD', $html);
+        $this->assertStringNotContainsString('3750', $html);
+        $this->assertStringNotContainsString('7.2 ', $html);
     }
 
     public function test_a_teller_sees_no_prices_at_all(): void
@@ -116,7 +121,7 @@ class TransactionRateColumnsTest extends TestCase
 
         $html = $this->html('/transactions', $teller);
 
-        foreach (['Rates Used', 'bought / sent', 'UGX 3750 / 3760', 'RMB 7.2 / 7.24', 'UGX Rate', 'RMB Rate'] as $gone) {
+        foreach (['Selling Rate', 'UGX 3760', 'RMB 7.24', 'Dollar Selling Rate', 'Yuan Selling Rate'] as $gone) {
             $this->assertStringNotContainsString($gone, $html);
         }
 
@@ -131,39 +136,41 @@ class TransactionRateColumnsTest extends TestCase
     public function test_a_transfer_with_no_recorded_price_says_n_a_rather_than_borrowing_todays(): void
     {
         $legacy = $this->book($this->user('admin'));
-        $legacy->forceFill(['rate_buy_ugx' => null, 'rmb_buying_rate' => null])->save();
+        // A transfer cannot be booked without a yuan price, so the oldest rows carry it as nothing
+        // rather than as null; both readings have to come out as n/a.
+        $legacy->forceFill(['rate_sell_ugx' => null, 'exchange_rate' => 0])->save();
 
         $html = $this->html('/transactions', $this->user('admin'));
 
-        // Both pairs are incomplete, so neither prints a half-guessed figure.
+        // Neither side has a price of its own, so neither prints a half-guessed figure.
         $this->assertSame(2, substr_count($html, 'No price was recorded on this transfer'));
-        $this->assertStringNotContainsString('3750 / 3760', $html);
+        $this->assertStringNotContainsString('UGX 3760', $html);
     }
 
-    public function test_the_book_can_be_cut_to_one_shilling_price_on_either_side_of_the_pair(): void
+    public function test_the_book_can_be_cut_to_one_shilling_selling_price(): void
     {
         $admin = $this->user('admin');
         $first = $this->book($admin);
 
-        // The desk reprices, and the next transfer is booked at the new pair.
+        // The desk reprices, and the next transfer goes out at the new selling price.
         ExchangeRate::setPair('USD', 'UGX', 3800, 3790, 3800);
         $second = $this->book($admin);
 
         $viewer = $this->user('admin');
 
-        // The selling price of the first day, and the buying price of the second, each find
-        // exactly the transfers that met them, which is what following a reprice needs.
-        foreach ([['3760', $first], ['3750', $first], ['3800', $second], ['3790', $second]] as [$price, $wanted]) {
+        foreach ([['3760', $first], ['3800', $second]] as [$price, $wanted]) {
             $html = $this->html('/transactions?usd_rate='.$price, $viewer);
             $this->assertSame([$wanted->id], $this->filtered($viewer, ['usd_rate' => $price]), 'price '.$price);
             $this->assertStringContainsString('Rates Sender', $html);
         }
 
-        // A price neither transfer was booked at returns an empty book, not both of them.
+        // A buying price is not a filter any more, so the 3,750 the office paid for those first
+        // dollars finds nothing rather than reaching into a column the book no longer shows.
+        $this->assertSame([], $this->filtered($viewer, ['usd_rate' => '3750']));
         $this->assertSame([], $this->filtered($viewer, ['usd_rate' => '3770']));
     }
 
-    public function test_the_book_can_be_cut_to_one_yuan_price(): void
+    public function test_the_book_can_be_cut_to_one_yuan_selling_price(): void
     {
         $admin = $this->user('admin');
         $first = $this->book($admin);
@@ -172,9 +179,11 @@ class TransactionRateColumnsTest extends TestCase
         $second = $this->book($admin);
 
         $viewer = $this->user('admin');
-        foreach ([['7.24', $first], ['7.2', $first], ['7.4', $second], ['7.35', $second]] as [$price, $wanted]) {
+        foreach ([['7.24', $first], ['7.4', $second]] as [$price, $wanted]) {
             $this->assertSame([$wanted->id], $this->filtered($viewer, ['rmb_rate' => $price]), 'price '.$price);
         }
+
+        $this->assertSame([], $this->filtered($viewer, ['rmb_rate' => '7.2']));
     }
 
     public function test_a_price_that_is_not_a_number_is_ignored_rather_than_run_as_sql(): void
@@ -197,31 +206,33 @@ class TransactionRateColumnsTest extends TestCase
         $agent = $this->user('agent');
         $this->book($agent);
 
-        // The price menu is built from the viewer's own book, so an agent who has only ever booked
-        // at the new pair is never offered the office's older prices.
-        $this->assertSame(['3800', '3790'], Transaction::bookedPrices($agent, ['rate_buy_ugx', 'rate_sell_ugx']));
-        $this->assertSame(['3800', '3790', '3760', '3750'],
-            Transaction::bookedPrices($this->user('admin'), ['rate_buy_ugx', 'rate_sell_ugx']));
+        // The price menu is built from the viewer's own book, so an agent who has only ever gone out
+        // at the new price is never offered the office's older one. It lists selling prices only.
+        $this->assertSame(['3800'], Transaction::bookedPrices($agent, ['rate_sell_ugx']));
+        $this->assertSame(['3800', '3760'], Transaction::bookedPrices($this->user('admin'), ['rate_sell_ugx']));
 
         // The menu rides on the profit ability, so an agent booking transfers never sees one.
-        $this->assertStringNotContainsString('UGX Rate', $this->html('/transactions', $agent));
+        $this->assertStringNotContainsString('Dollar Selling Rate', $this->html('/transactions', $agent));
         $this->assertStringContainsString('value="3760"', $this->html('/transactions', $this->user('admin')));
     }
 
-    public function test_the_transfer_page_names_all_four_prices_and_never_prints_a_zero_rate(): void
+    public function test_the_transfer_page_names_both_selling_prices_and_never_prints_a_zero_rate(): void
     {
         $author = $this->user('admin');
         $priced = $this->book($author);
         $legacy = $this->book($author);
-        $legacy->forceFill(['rate_buy_ugx' => null, 'rmb_buying_rate' => null])->save();
+        $legacy->forceFill(['rate_sell_ugx' => null, 'exchange_rate' => 0])->save();
 
         $admin = $this->user('admin');
 
         $html = $this->html('/transactions/'.$priced->id, $admin);
-        foreach (['Shillings bought at:', 'Shillings sent at:', 'Yuan bought at:', 'Yuan sent at:',
-                  'UGX 3750 per 1 USD', 'UGX 3760 per 1 USD', '7.2 per 1 USD', '7.24 per 1 USD'] as $line) {
+        foreach (['Dollar selling rate:', 'Yuan selling rate:',
+                  'UGX 3760 per 1 USD', '7.24 per 1 USD'] as $line) {
             $this->assertStringContainsString($line, $html);
         }
+        // What the office paid for those dollars is not on a customer's record.
+        $this->assertStringNotContainsString('UGX 3750 per 1 USD', $html);
+        $this->assertStringNotContainsString('bought at', $html);
         $this->assertSame(0, substr_count($html, 'not recorded</div>'));
 
         // A price that was never stored is named as missing rather than priced at nothing, which an
@@ -240,15 +251,17 @@ class TransactionRateColumnsTest extends TestCase
         ExchangeRate::setPair('USD', 'UGX', 3800, 3790, 3800);
         $this->book($admin);
 
-        $bytes = $this->actingAs($admin)->get('/export/transactions?usd_rate=3750')->streamedContent();
+        $bytes = $this->actingAs($admin)->get('/export/transactions?usd_rate=3760')->streamedContent();
         $rows = $this->sheet($bytes);
 
-        // One transfer was touched by the 3,750 price, and it downloads with its prices beside it.
+        // One transfer went out at 3,760 to the dollar, and it downloads with both selling prices
+        // beside it.
         $this->assertSame('PS-20261016-0001', $rows[6][0]);
         $this->assertStringContainsString('1 record', implode(' ', array_map(fn ($row) => implode(' ', $row), $rows)));
-        $this->assertContains('UGX Bought At (per USD)', $rows[5]);
-        $this->assertSame('3750', $rows[6][12]);
-        $this->assertSame('3760', $rows[6][13]);
+        $this->assertContains('Dollar Selling Rate (per USD)', $rows[5]);
+        $this->assertContains('Yuan Selling Rate (per USD)', $rows[5]);
+        $this->assertSame('3760', $rows[6][12]);
+        $this->assertSame('7.24', $rows[6][13]);
     }
 
     public function test_the_shilling_amount_that_travels_prints_as_a_flat_figure(): void

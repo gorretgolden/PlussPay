@@ -13,6 +13,7 @@ final class PermissionCatalog
         'Roles' => ['view-roles', 'create-role', 'edit-role', 'delete-role', 'assign-permissions', 'seed-permissions'],
         'Transactions' => ['view-dashboard', 'view-transactions', 'view-own-transactions', 'view-all-transactions', 'edit-transaction', 'delete-transaction', 'approve-transaction', 'export-transactions'],
         'Send Money' => ['create-transaction', 'bulk-import-transactions', 'view-exchanges', 'view-all-exchanges', 'create-exchange', 'void-exchange', 'override-exchange-rate', 'export-exchanges'],
+        'China Desk' => ['send-to-china', 'confirm-china-payout'],
         'Exchange Rates' => ['view-exchange-rates', 'manage-exchange-rates', 'export-exchange-rates'],
         'Wallets' => ['view-wallets', 'view-all-wallets', 'adjust-wallets'],
         'Receipts' => ['view-receipts', 'print-receipt', 'export-receipts'],
@@ -87,6 +88,7 @@ final class PermissionCatalog
                 'view-dashboard', 'create-transaction', 'view-transactions', 'view-own-transactions',
                 'export-transactions', 'view-exchanges', 'create-exchange', 'override-exchange-rate', 'export-exchanges',
                 'view-wallets', 'view-receipts', 'print-receipt', 'export-receipts', 'view-reports', 'export-reports',
+                'send-to-china', 'confirm-china-payout',
             ],
             // Desk staff booked nothing under the old role gates and saw only their own records,
             // so the grant below is that same reach expressed as abilities.

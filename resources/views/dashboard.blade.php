@@ -33,7 +33,15 @@
         $cards = [
             ['Completed', number_format($t['completed']), 'text-gray-900'],
             ['Sent', $money($t['sent_ugx'], $t['sent_usd'], 0), 'text-gray-900'],
-            ['Yuan out', '¥' . number_format($t['rmb'], 1), 'text-gray-900'],
+            // The yuan a booking promised is one figure, but it is in three different hands
+            // depending on how far the money has actually travelled, so it is shown as three cards
+            // rather than one total that reads as if China already has it.
+            ['Yuan To Receive In China', '¥' . number_format($t['yuan_in_uganda'], 1), 'text-gray-900',
+                $t['yuan_in_uganda_transfers'] . ' held in Uganda'],
+            ['Yuan In China, Unpaid', '¥' . number_format($t['yuan_in_china'], 1), 'text-gray-900',
+                $t['yuan_in_china_transfers'] . ' waiting to be handed over'],
+            ['Yuan Paid In China', '¥' . number_format($t['yuan_paid'], 1), 'text-gray-900',
+                $t['yuan_paid_transfers'] . ' paid to receivers'],
             ['Charge', $money($t['charge_ugx'], $t['charge_usd'], 0), 'text-gray-900'],
         ];
         if (isset($profit[$key])) {
@@ -53,6 +61,7 @@
             'avg_ugx' => $t['avg_ugx_sent'],
             'avg_usd' => $t['avg_usd_sent'],
             'unpriced' => $profit[$key]['unpriced'] ?? 0,
+            'yuanTotal' => $t['rmb'],
         ];
     }
 
@@ -90,6 +99,23 @@
             {{ $desk ?: 'Desk country not set' }}
         </span>
         <span class="text-xs text-gray-500" id="liveClock">{{ now()->format('l, F d, Y') }} · {{ now()->format('h:i:s A') }}</span>
+        {{-- Log out and Reload sit here as well as at the bottom of the sidebar, because the
+             sidebar is hidden on a phone and the clock line is where eyes already land. --}}
+        <div class="flex items-center gap-2 no-print">
+            <button type="button" onclick="reloadDashboard(this)"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span>Reload</span>
+            </button>
+            <form method="POST" action="{{ route('logout') }}">
+                @csrf
+                <button type="submit"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                    Log out
+                </button>
+            </form>
+        </div>
         </div>
     </div>
 </div>
@@ -144,7 +170,9 @@
 </div>
 @endif
 
-{{-- Account::currenciesFor() orders the wallets by the desk's country, so the local currency is always the first card. --}}
+{{-- Account::currenciesFor() orders the wallets by the desk's country, so the local currency is always the first card.
+     The controller hands an empty list to anyone who reads every wallet instead of holding one, and the row is left out. --}}
+@if($wallets !== [])
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
     @foreach($wallets as $currency => $account)
     @php
@@ -179,6 +207,7 @@
     </a>
     @endforeach
 </div>
+@endif
 
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -201,14 +230,26 @@
     @foreach($panels as $key => $panel)
     <div role="tabpanel" id="panel-{{ $key }}" aria-labelledby="tab-{{ $key }}" @if(! $loop->first) hidden @endif>
         <div class="grid grid-cols-[repeat(auto-fit,minmax(min({{ $panel['minCol'] }},100%),1fr))] gap-4">
-            @foreach($panel['cards'] as [$cardLabel, $cardValue, $cardTone])
+            @foreach($panel['cards'] as $card)
+            @php [$cardLabel, $cardValue, $cardTone, $cardNote] = array_pad($card, 4, null); @endphp
             <div class="stat-card min-w-0 rounded-lg border border-gray-200 p-4">
                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $cardLabel }}</div>
                 <div class="stat-value mt-2 font-bold {{ $cardTone }} tabular-nums whitespace-nowrap" style="--len: {{ strlen($cardValue) }}">{{ $cardValue }}</div>
+                @if($cardNote !== null)
+                <div class="text-xs text-gray-500 mt-1">{{ $cardNote }}</div>
+                @endif
             </div>
             @endforeach
         </div>
         <p class="text-xs text-gray-500 mt-3">{{ number_format($panel['pending']) }} pending · {{ number_format($panel['cancelled']) }} cancelled · average transfer {{ $money($panel['avg_ugx'], $panel['avg_usd'], 0) }}</p>
+        @if($panel['yuanTotal'] > 0)
+        <p class="text-xs text-gray-500 mt-2">The three yuan cards are the same ¥{{ number_format($panel['yuanTotal'], 1) }} of booked yuan split by whose hands it is in: held in Uganda until its
+            dollars are sent, with a desk in China until the receiver is paid, then paid.
+            @canany(['send-to-china', 'confirm-china-payout'])
+            <a href="{{ route('china.index') }}" class="text-green-800 font-medium hover:underline">Move the money at the China Desk</a>.
+            @endcanany
+        </p>
+        @endif
         @if($panel['unpriced'] > 0)
         <p class="text-xs text-amber-700 mt-2">{{ number_format($panel['unpriced']) }} without rates</p>
         @endif
@@ -490,5 +531,15 @@
         document.getElementById('liveClock').textContent = `${day}, ${month} ${String(date).padStart(2, '0')}, ${year} · ${String(h).padStart(2, '0')}:${m}:${s} ${ampm}`;
     }
     setInterval(updateClock, 1000);
+
+    // The button is disabled and spun before the reload so the click is never silent, and a
+    // second click cannot queue a second reload. The short pause lets that state paint first.
+    function reloadDashboard(button) {
+        button.disabled = true;
+        button.classList.add('opacity-60', 'cursor-wait');
+        button.querySelector('span').textContent = 'Reloading...';
+        button.querySelector('svg').classList.add('animate-spin');
+        setTimeout(function () { window.location.reload(); }, 150);
+    }
 </script>
 @endsection

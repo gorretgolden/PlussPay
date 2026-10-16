@@ -30,20 +30,28 @@ class ReportsController extends Controller
 
         $transactions = (clone $query)->latest()->get();
 
+        $completed = $transactions->where('status', 'completed');
+
         $stats = [
             'total_transactions' => $transactions->count(),
-            'completed' => $transactions->where('status', 'completed')->count(),
+            'completed' => $completed->count(),
             'pending' => $transactions->where('status', 'pending')->count(),
             'cancelled' => $transactions->where('status', 'cancelled')->count(),
-            'total_usd_sent' => $transactions->where('status', 'completed')->sum('total_usd_equivalent'),
-            'total_rmb_sent' => $transactions->where('status', 'completed')->sum('rmb_amount'),
-            'total_revenue' => $transactions->where('status', 'completed')->sum('charge_amount'),
-            'avg_transaction' => $transactions->where('status', 'completed')->count()
-                ? $transactions->where('status', 'completed')->avg('total_usd_equivalent')
+            'total_usd_sent' => $completed->sum('total_usd_equivalent'),
+            'total_rmb_sent' => $completed->sum('rmb_amount'),
+            // Yuan only counts as delivered when it has actually reached a hand in China, so the
+            // booked figure is split by the two moments that move it: the dollars leaving Uganda
+            // and the yuan being paid out. The three add back to total_rmb_sent.
+            'rmb_in_uganda' => $completed->whereNull('settled_at')->whereNull('delivered_at')->sum('rmb_amount'),
+            'rmb_in_china' => $completed->whereNotNull('settled_at')->whereNull('delivered_at')->sum('rmb_amount'),
+            'rmb_paid' => $completed->whereNotNull('delivered_at')->sum('rmb_amount'),
+            'total_revenue' => $completed->sum('charge_amount'),
+            'avg_transaction' => $completed->count()
+                ? $completed->avg('total_usd_equivalent')
                 : 0,
         ];
 
-        $profit = $this->profitTotals($transactions->where('status', 'completed'), $stats['total_usd_sent']);
+        $profit = $this->profitTotals($completed, $stats['total_usd_sent']);
 
         // One transfer counts as unpriced when either rate is missing: the buying rate on the
         // dollar is what prices the shilling leg, and the yuan figure is what prices the leg
@@ -97,7 +105,7 @@ class ReportsController extends Controller
             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
             ->where('status', 'completed')
             ->where('sender_name', '!=', '')
-            ->selectRaw('sender_name, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(rmb_amount) as rmb_delivered, sum(charge_ugx) as fee_ugx, max(created_at) as last_transfer')
+            ->selectRaw('sender_name, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(rmb_amount) as rmb_booked, sum(charge_ugx) as fee_ugx, max(created_at) as last_transfer')
             ->groupBy('sender_name')
             ->orderByDesc('total_usd')
             ->get();
@@ -121,7 +129,7 @@ class ReportsController extends Controller
         $rows = Transaction::visibleTo($viewer)
             ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
             ->where('status', 'completed')
-            ->selectRaw('exchange_rate, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(rmb_amount) as rmb_delivered, sum(charge_ugx) as fee_ugx, sum(coalesce(fx_profit_ugx, 0) + coalesce(usd_rmb_profit_ugx, 0)) as exchange_ugx, min(created_at) as first_booked, max(created_at) as last_booked')
+            ->selectRaw('exchange_rate, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(rmb_amount) as rmb_booked, sum(charge_ugx) as fee_ugx, sum(coalesce(fx_profit_ugx, 0) + coalesce(usd_rmb_profit_ugx, 0)) as exchange_ugx, min(created_at) as first_booked, max(created_at) as last_booked')
             ->groupBy('exchange_rate')
             ->orderByDesc('last_booked')
             ->get();

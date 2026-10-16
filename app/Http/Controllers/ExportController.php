@@ -72,9 +72,7 @@ class ExportController extends Controller
                     '¥' . number_format((float) $t->rmb_amount, 1),
                     'UGX ' . number_format((float) $t->charge_ugx),
                     'USD ' . number_format((float) $t->charge_amount, 1),
-                    $this->rate($t->rate_buy_ugx),
                     $this->rate($t->rate_sell_ugx),
-                    $this->rate($t->rmb_buying_rate),
                     $this->rate($t->exchange_rate),
                     $labels['exchange']['text'],
                     $labels['total']['text'],
@@ -82,6 +80,9 @@ class ExportController extends Controller
                     $t->purpose ?? '-',
                     ucfirst($t->status),
                     $this->bookedBy($t),
+                    $t->settled_at?->format('Y-m-d h:i A') ?? '-',
+                    $t->settledDesk?->name ?? '-',
+                    $t->delivered_at?->format('Y-m-d h:i A') ?? '-',
                 ];
             })
             ->all();
@@ -89,15 +90,18 @@ class ExportController extends Controller
         $headers = [
             'Receipt #', 'Date', 'Sender', 'Sender Contact', 'Receiver', 'Receiver Contact',
             'Money Handed Over', 'Amount Sent', 'UGX Equivalent', 'RMB', 'Charge (UGX)', 'Charge (USD)',
-            'UGX Bought At (per USD)', 'UGX Sent At (per USD)', 'RMB Bought At (per USD)', 'RMB Sent At (per USD)',
+            'Dollar Selling Rate (per USD)', 'Yuan Selling Rate (per USD)',
             'Exchange Profit (UGX)', 'Overall Profit (UGX)', 'Overall Profit (USD)',
             'Purpose', 'Status', 'Booked By',
+            // The last three columns are the settlement chain: a row with '-' under all of them is
+            // still cash in a hand in Uganda.
+            'Sent To China', 'Held In China By', 'Paid In China',
         ];
         if (!$request->user()->can('view-profit')) {
-            // The four booked prices and the three profit figures are the desk's own numbers,
+            // The two selling prices and the three profit figures are the desk's own numbers,
             // so a teller's download keeps the customer's side of the row and nothing else.
-            array_splice($headers, 12, 7);
-            $rows = array_map(function ($row) { array_splice($row, 12, 7); return $row; }, $rows);
+            array_splice($headers, 12, 5);
+            $rows = array_map(function ($row) { array_splice($row, 12, 5); return $row; }, $rows);
         }
         return $this->download('transactions', $headers, $rows);
     }
@@ -557,7 +561,7 @@ class ExportController extends Controller
 
     private function transactionQuery(Request $request)
     {
-        return Transaction::with('creator')
+        return Transaction::with(['creator', 'settledDesk'])
             ->visibleTo($request->user())
             ->filtered($request);
     }

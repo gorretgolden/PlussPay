@@ -131,6 +131,62 @@ class AccountLedger
     }
 
     /**
+     * The dollars one transfer is worth leave the Uganda side whole and land in the desk in China's
+     * own dollar wallet, and the transfer is stamped as sent in the same breath. The ledger, both
+     * wallets, and the transfer have to agree that the money crossed or none of it changes, because
+     * a half-recorded settlement is worse than none: the books would show dollars in China while
+     * the screens still said Uganda was holding them.
+     *
+     * @return array{0: AccountEntry, 1: AccountEntry}
+     */
+    public static function sendToChina(Transaction $transaction, Account $from, User $desk, ?string $date = null): array
+    {
+        $amount = number_format((float) $transaction->total_usd_equivalent, 2, '.', '');
+
+        $legs = static::transfer(
+            $from,
+            Account::walletFor($desk, 'USD'),
+            $amount,
+            "Transfer {$transaction->receipt_number}: ".Account::format('USD', $amount)
+                .' sent to '.$desk->name.' in China for '.$transaction->receiver_name,
+            $date,
+            $transaction->receipt_number,
+            $transaction->id,
+        );
+
+        $transaction->forceFill(['settled_at' => now(), 'settled_to' => $desk->id])->save();
+
+        return $legs;
+    }
+
+    /**
+     * The yuan a transfer promised is put into the receiver's hand, out of the yuan wallet of the
+     * very desk that was sent the dollars, so the two sides of the chain always point at each
+     * other. The China account is allowed to run below zero (see guardAgainstOverdraft), because
+     * that side pays the receiver before Uganda has made the dollars whole across; the stamp that
+     * follows is what moves the transfer out of "in China, unpaid" and into "paid".
+     */
+    public static function payOutInChina(Transaction $transaction, Account $yuanAccount, ?string $date = null): AccountEntry
+    {
+        $amount = number_format((float) $transaction->rmb_amount, 2, '.', '');
+
+        $entry = static::record(
+            $yuanAccount,
+            'money_out',
+            $amount,
+            "Transfer {$transaction->receipt_number}: ".Account::format($yuanAccount->currency, $amount)
+                .' paid to '.$transaction->receiver_name.' in China',
+            $date,
+            $transaction->receipt_number,
+            $transaction->id,
+        );
+
+        $transaction->forceFill(['delivered_at' => now()])->save();
+
+        return $entry;
+    }
+
+    /**
      * One currency given up and another taken in, which is how dollars bought in Uganda and
      * RMB handed over in China are recorded. The rate is stored so the deal can be re-checked.
      *
