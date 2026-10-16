@@ -13,7 +13,7 @@ class SettingController extends Controller
 {
     private const TAB_FIELDS = [
         'rates' => ['usd_ugx_buying', 'usd_ugx_selling', 'usd_rmb_buying', 'usd_rmb_selling'],
-        'transactions' => ['min_transaction_amount', 'max_transaction_amount', 'receipt_prefix'],
+        'transactions' => ['min_transaction_amount', 'max_transaction_amount', 'receipt_prefix', 'default_charge_ugx'],
         'company' => ['company_name', 'company_address', 'company_phone', 'company_email', 'company_website'],
         'datetime' => ['timezone'],
         'site' => ['site_mode'],
@@ -51,6 +51,7 @@ class SettingController extends Controller
             'min_transaction_amount' => 'nullable|numeric|min:0',
             'max_transaction_amount' => 'nullable|numeric|min:0',
             'receipt_prefix' => ['nullable', 'string', 'max:10', 'regex:/^[A-Za-z0-9]+$/'],
+            'default_charge_ugx' => 'nullable|numeric|min:0',
             'usd_ugx_buying' => 'nullable|numeric|min:0.01|max:999999.99',
             'usd_ugx_selling' => 'nullable|numeric|min:0.01|max:999999.99',
             'usd_rmb_buying' => 'nullable|numeric|min:0.000001|max:999999.999999',
@@ -64,6 +65,8 @@ class SettingController extends Controller
         }
         $validated = $request->validate($rules, [
             'receipt_prefix.regex' => 'The receipt prefix can only contain letters and numbers, e.g. PS.',
+            'default_charge_ugx.numeric' => 'The default charge must be a number in shillings, e.g. 2000.',
+            'default_charge_ugx.min' => 'The default charge cannot be negative.',
             'site_mode.in' => 'Site mode must be Testing or Production.',
             'timezone.in' => 'Please choose one of the listed time zones.',
             'usd_ugx_buying.numeric' => 'The UGX buying rate must be a number, e.g. 3750.',
@@ -104,7 +107,7 @@ class SettingController extends Controller
         $newValues = [];
 
         foreach ($validated as $key => $value) {
-            $type = in_array($key, ['min_transaction_amount', 'max_transaction_amount'], true) ? 'float' : 'string';
+            $type = in_array($key, ['min_transaction_amount', 'max_transaction_amount', 'default_charge_ugx'], true) ? 'float' : 'string';
             $group = match (true) {
                 in_array($key, ['site_mode', 'timezone'], true) => 'display',
                 str_starts_with($key, 'company_') => 'company',

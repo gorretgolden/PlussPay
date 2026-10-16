@@ -41,6 +41,12 @@ class SettingsSeeder extends Seeder
                 'description' => 'Prefix for generated receipt numbers, e.g. PS-20261005-0001',
             ],
             [
+                'key' => 'default_charge_ugx',
+                'value' => '0',
+                'type' => 'float',
+                'description' => 'Flat charge in shillings that opens the charge box on a new booking, editable per booking',
+            ],
+            [
                 'key' => 'max_login_attempts',
                 'value' => '5',
                 'type' => 'number',

@@ -19,6 +19,7 @@
             'min_transaction_amount' => ['label' => 'Minimum amount', 'default' => '100', 'unit' => 'UGX / USD', 'min' => '0', 'helper' => 'Applies in the selected transaction currency.'],
             'max_transaction_amount' => ['label' => 'Maximum amount', 'default' => '100000000', 'unit' => 'UGX / USD', 'min' => '0', 'helper' => 'Applies in the selected transaction currency.'],
             'receipt_prefix' => ['label' => 'Receipt prefix', 'default' => 'PS', 'maxlength' => 10, 'pattern' => '[A-Za-z0-9]+', 'helper' => 'Letters and numbers only.'],
+            'default_charge_ugx' => ['label' => 'Default charge', 'default' => '0', 'unit' => 'UGX', 'min' => '0', 'helper' => 'Opens the charge box on a new booking.'],
         ],
         'company' => [
             'company_name' => ['label' => 'Company name', 'default' => 'Plus Save Financial Solutions', 'maxlength' => 100],

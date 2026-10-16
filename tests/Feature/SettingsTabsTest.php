@@ -120,6 +120,31 @@ class SettingsTabsTest extends TestCase
         $this->assertSame(100.0, Setting::get('service_fee_usd'));
     }
 
+    /**
+     * One flat figure replaces the old two-field rule: it only opens the charge box on a
+     * new booking, so it is saved and read as plain shillings.
+     */
+    public function test_the_transactions_tab_holds_one_default_charge_and_saves_it(): void
+    {
+        $html = $this->get('/settings')->assertOk()->getContent();
+
+        $this->assertStringContainsString('name="default_charge_ugx"', $html);
+        $this->assertStringContainsString('Default charge', $html);
+        $this->assertStringContainsString('Opens the charge box on a new booking.', $html);
+        $this->assertStringNotContainsString('per 100 USD', $html);
+        $this->assertSame(1, substr_count($html, 'name="default_charge_ugx"'));
+
+        $this->from('/settings')->put('/settings', [
+            'settings_tab' => 'transactions', 'default_charge_ugx' => '2000',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(2000.0, Setting::get('default_charge_ugx'));
+
+        $this->from('/settings')->put('/settings', [
+            'settings_tab' => 'transactions', 'default_charge_ugx' => '-5',
+        ])->assertSessionHasErrors('default_charge_ugx');
+    }
+
     public function test_rates_save_leaves_other_settings_and_other_pair_untouched(): void
     {
         $rmbId = ExchangeRate::getActiveRate('USD', 'RMB')->id;

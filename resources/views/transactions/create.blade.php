@@ -150,13 +150,15 @@
                         <label class="block text-sm font-medium text-gray-700" for="charge_ugx">Charge (UGX) *</label>
                         @include('transactions.partials.field-tip', [
                             'id' => 'charge-help-tip',
-                            'text' => 'You agree this per customer, so nothing is filled in for you. Type what you kept, or 0 when nothing was taken.',
+                            'text' => $defaultCharge !== ''
+                                ? 'The box opens at the default charge from System Settings. Type over it whenever this customer agreed a different figure, or 0 when nothing was taken.'
+                                : 'You agree this per customer, so nothing is filled in for you. Type what you kept, or 0 when nothing was taken.',
                         ])
                     </div>
-                    <input type="text" inputmode="decimal" autocomplete="off" data-money name="charge_ugx" id="charge_ugx" value="{{ old('charge_ugx') }}" min="0" required
+                    <input type="text" inputmode="decimal" autocomplete="off" data-money name="charge_ugx" id="charge_ugx" value="{{ old('charge_ugx', $defaultCharge) }}" min="0" required
                         placeholder="0"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 tabular-nums">
-                    <p class="text-xs text-gray-500 mt-1">Type what you kept from this customer.</p>
+                    <p class="text-xs text-gray-500 mt-1">{{ $defaultCharge !== '' ? 'Starts at the default charge from Settings.' : 'Type what you kept from this customer.' }}</p>
                 </div>
                 <div>
                     <label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose (optional)</label>

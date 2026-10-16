@@ -51,7 +51,12 @@ class TransactionController extends Controller
         $formId = (string) Str::uuid();
         session(['transaction_form_id' => $formId]);
 
-        return view('transactions.create', compact('usdUgx', 'usdRmb', 'formId'));
+        // One flat figure from Settings opens the charge box. It is a starting point only:
+        // the cashier types the real charge for each customer, and zero opens the box empty.
+        $default = (float) \App\Models\Setting::get('default_charge_ugx', 0);
+        $defaultCharge = $default > 0 ? rtrim(rtrim(number_format($default, 2, '.', ''), '0'), '.') : '';
+
+        return view('transactions.create', compact('usdUgx', 'usdRmb', 'formId', 'defaultCharge'));
     }
 
     public function store(Request $request)

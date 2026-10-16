@@ -182,6 +182,26 @@ class WizardPaymentStepTest extends TestCase
         $this->assertMatchesRegularExpression('/<input[^>]*name="charge_ugx" id="charge_ugx" value=""/', $this->step3($html));
     }
 
+    /**
+     * The default charge is a starting point typed once in Settings, never a rule: the box
+     * opens at it and the cashier still owns the figure for each customer.
+     */
+    public function test_the_charge_box_opens_at_the_default_charge_and_stays_editable(): void
+    {
+        \App\Models\Setting::set('default_charge_ugx', '2000', 'float');
+
+        $step = $this->step3($this->page('agent'));
+
+        $this->assertMatchesRegularExpression('/<input[^>]*name="charge_ugx" id="charge_ugx" value="2000"/', $step);
+        $this->assertStringContainsString('Starts at the default charge from Settings.', $step);
+        $this->assertStringContainsString('The box opens at the default charge from System Settings.', $step);
+        $this->assertStringNotContainsString('disabled', preg_replace('/<button.*?<\/button>/s', '', $step));
+
+        // The old rate card wording stays gone, on the step and in the tooltips.
+        $this->assertStringNotContainsString('per 100 USD', $step);
+        $this->assertStringNotContainsString('Default from Settings. Editable.', $step);
+    }
+
     public function test_the_step_pairs_up_on_desktop_and_the_next_button_waits_for_valid_input(): void
     {
         $html = $this->page('agent');
