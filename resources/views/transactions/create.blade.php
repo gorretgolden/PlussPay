@@ -161,6 +161,18 @@
                     <p class="text-xs text-gray-500 mt-1">{{ $defaultCharge !== '' ? 'Starts at the default charge from Settings.' : 'Type what you kept from this customer.' }}</p>
                 </div>
                 <div>
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label class="block text-sm font-medium text-gray-700" for="travels_out">Amount that travels</label>
+                        @include('transactions.partials.field-tip', [
+                            'id' => 'travels-help-tip',
+                            'text' => 'The figure the booking is priced from. In shillings it is the money handed over less your charge; in dollars it is all of them. It fills itself in as you type, so there is nothing to enter here.',
+                        ])
+                    </div>
+                    <input type="text" id="travels_out" readonly aria-readonly="true" placeholder="-"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-900 tabular-nums cursor-default">
+                    <p class="text-xs text-gray-500 mt-1" id="travels_help">Fills itself in from the two boxes above.</p>
+                </div>
+                <div>
                     <label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose (optional)</label>
                     <select name="purpose" id="purpose"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
@@ -176,7 +188,7 @@
                             class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                     </div>
                 </div>
-                <div class="md:col-span-2">
+                <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1" for="notes">Notes (optional)</label>
                     <input type="text" name="notes" id="notes" value="{{ old('notes', 'Sending money to China') }}" maxlength="500"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
@@ -562,6 +574,15 @@ function calculate() {
     document.getElementById('cash_help').textContent = f.paidInUgx
         ? 'Total received, charge included.'
         : 'All of these dollars travel.';
+
+    // The figure the booking is priced from, shown beside the charge it came from rather than only
+    // further down the page. It stays blank until there is cash to work with so it never reads as a
+    // booked zero, and it carries no name attribute, so nothing here can be posted by mistake.
+    const travelsEl = document.getElementById('travels_out');
+    travelsEl.value = f.cash > 0 ? showMoney(f.currency, f.sent) : '';
+    document.getElementById('travels_help').textContent = f.paidInUgx
+        ? 'Money handed over minus the charge.'
+        : 'Every dollar handed over, since the charge comes on top.';
 
     // An amount or a rate that is missing leaves one plain line, never a row of zeros.
     if (amountEl.value.trim() === '' || !Number.isFinite(cash) || cash <= 0) {

@@ -89,7 +89,7 @@ class WizardPaymentStepTest extends TestCase
         // The per-dollar fee rule is gone, so no sentence may point at it.
         $this->assertStringNotContainsString('Settings suggest', $html);
         $this->assertStringNotContainsString('Default from Settings', $html);
-        $this->assertSame(3, substr_count($html, 'role="tooltip"'));
+        $this->assertSame(4, substr_count($html, 'role="tooltip"'));
     }
 
     public function test_the_currency_options_are_bare_codes(): void
@@ -129,17 +129,35 @@ class WizardPaymentStepTest extends TestCase
     }
 
     /**
-     * The balance left after the charge is the figure everything else is priced from, and the
-     * card's first row already carries it, so it must not be repeated in its own box.
+     * The desk asked for the figure everything is priced from to sit beside the charge that
+     * produces it rather than only further down the page, so the step carries it twice: as a
+     * read-only box after the charge, and as the strong row of the card. The box carries no name
+     * attribute, so a derived number can never be posted in place of a field the server checks.
      */
-    public function test_the_balance_that_travels_is_the_strong_row_of_the_card(): void
+    public function test_the_amount_that_travels_is_read_back_beside_the_charge_that_produced_it(): void
     {
         $step = $this->step3($this->page('agent'));
         $html = $this->page('agent');
 
-        $this->assertStringContainsString('Amount that travels', $step);
-        $this->assertSame(1, substr_count($step, 'data-c="travels"'));
+        $charge = strpos($step, 'name="charge_ugx"');
+        $travels = strpos($step, 'id="travels_out"');
+        $purpose = strpos($step, 'name="purpose"');
+
+        $this->assertIsInt($charge);
+        $this->assertIsInt($travels);
+        $this->assertIsInt($purpose);
+        $this->assertLessThan($travels, $charge, 'The box follows the charge.');
+        $this->assertLessThan($purpose, $travels, 'and comes before the purpose.');
+
+        $this->assertMatchesRegularExpression('/<input type="text" id="travels_out" readonly aria-readonly="true"/', $step);
+        $this->assertStringNotContainsString('name="travels_out"', $step);
+        $this->assertStringContainsString("travelsEl.value = f.cash > 0 ? showMoney(f.currency, f.sent) : '';", $html);
+
+        // One name for the figure on this step, painted by the one renderer, and no second copy
+        // of the strip that used to hold it.
+        $this->assertStringContainsString('>Amount that travels</label>', $step);
         $this->assertStringContainsString("calcSet(panel, 'travels', showMoney(f.currency, f.sent));", $html);
+        $this->assertSame(1, substr_count($step, 'data-c="travels"'));
 
         foreach (['balance_strip', 'Balance after the charge', 'preview_sent'] as $gone) {
             $this->assertStringNotContainsString($gone, $html);
@@ -227,7 +245,8 @@ class WizardPaymentStepTest extends TestCase
         preg_match('/<div class="wizard-step[^"]*" id="step-3">(.*?)<div class="rounded-2xl/s', $html, $match);
 
         $this->assertStringContainsString('grid grid-cols-1 md:grid-cols-2 gap-6', $match[0] ?? '');
-        $this->assertStringContainsString('md:col-span-2', $match[0] ?? '');
+        // Six fields now, so they pair up three rows deep and nothing needs to span the row.
+        $this->assertStringNotContainsString('md:col-span-2', $match[0] ?? '');
         $this->assertStringNotContainsString('md:grid-cols-3', $match[0] ?? '');
 
         $this->assertStringContainsString('id="next-3"', $html);
