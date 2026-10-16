@@ -178,49 +178,17 @@
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-1" for="notes">Notes (optional)</label>
-                    <input type="text" name="notes" id="notes" value="{{ old('notes') }}" maxlength="500"
-                        placeholder="Sending money to China"
+                    <input type="text" name="notes" id="notes" value="{{ old('notes', 'Sending money to China') }}" maxlength="500"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                 </div>
             </div>
 
-            <div class="mt-6 rounded-lg border-2 border-green-700 bg-white p-4 sm:p-5 hidden" id="balance_strip">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <span class="block text-sm font-semibold text-gray-800" id="balance_label">Balance after the charge</span>
-                        <span class="block text-xs text-gray-500 mt-1" id="balance_note">This is the money turned into dollars, then into yuan.</span>
-                    </div>
-                    <span class="text-2xl font-bold text-green-800 tabular-nums leading-none" id="balance_amount">-</span>
-                </div>
-            </div>
-
-            <div class="bg-green-50 rounded-lg p-5 mt-4">
-                <div class="flex items-center justify-between mb-3">
-                    <h4 class="font-semibold text-green-800">Live Calculation</h4>
-                    @can('manage-exchange-rates')
-                        <a href="{{ route('settings.index') }}" class="text-xs text-green-700 underline hover:text-green-900">Update rates</a>
-                    @endcan
-                </div>
-
-                <p class="text-sm text-gray-600" id="calc_empty">Enter an amount to see the total.</p>
-
-                <div id="calc_rows" class="hidden">
-                    <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                        <div class="text-sm font-medium text-gray-600">RMB receiver gets</div>
-                        <div class="text-3xl font-bold text-purple-700 tabular-nums leading-none" id="preview_rmb">-</div>
-                    </div>
-                    <div class="mt-3 pt-2 border-t border-green-200 space-y-1 text-sm">
-                        <div class="flex items-center justify-between gap-4">
-                            <span class="text-gray-600">Credited in USD</span>
-                            <span class="font-medium text-gray-900 tabular-nums" id="preview_usd">-</span>
-                        </div>
-                        <div class="flex items-center justify-between gap-4">
-                            <span class="text-gray-600">Rate</span>
-                            <span class="font-medium text-gray-900 tabular-nums" id="preview_rate">{{ $usdRmb && $usdRmb['sell'] > 0 ? '1 USD = ' . $trimRate($usdRmb['sell']) . ' RMB' : 'Not set' }}</span>
-                        </div>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-3 leading-relaxed" id="preview_formula"></p>
-                </div>
+            <div class="mt-6">
+                @include('transactions.partials.calculation-card', [
+                    'panel' => 'live',
+                    'ratesLink' => true,
+                    'collapsible' => true,
+                ])
             </div>
 
             <div class="flex items-start justify-between mt-8">
@@ -238,63 +206,56 @@
 
         {{-- Step 4: Preview & Confirm --}}
         <div class="wizard-step bg-white rounded-lg shadow p-8 hidden" id="step-4">
-            <h2 class="text-lg font-semibold text-gray-800 mb-6">Review & Confirm</h2>
+            <h2 class="text-lg font-semibold text-gray-800 mb-6">Review &amp; Confirm</h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div class="border border-gray-200 rounded-lg p-5">
-                    <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Sender</h3>
-                    <p class="text-lg font-medium" id="rev_sender_name">-</p>
-                    <p class="text-sm text-gray-600" id="rev_sender_contact">-</p>
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div class="rounded-lg border border-gray-200 p-5">
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Sender</h3>
+                    <p class="mt-2 text-lg font-medium text-gray-900" id="rev_sender_name">-</p>
+                    <p class="mt-1 text-sm text-gray-600 tabular-nums" id="rev_sender_contact_row"><span class="text-gray-400">Phone</span> <span id="rev_sender_contact">-</span></p>
                 </div>
-                <div class="border border-gray-200 rounded-lg p-5">
-                    <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Receiver</h3>
-                    <p class="text-lg font-medium" id="rev_receiver_name">-</p>
-                    <p class="text-sm text-gray-600" id="rev_receiver_contact">-</p>
+                <div class="rounded-lg border border-gray-200 p-5">
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Receiver</h3>
+                    <p class="mt-2 text-lg font-medium text-gray-900" id="rev_receiver_name">-</p>
+                    <p class="mt-1 text-sm text-gray-600 tabular-nums" id="rev_receiver_contact_row"><span class="text-gray-400">Phone</span> <span id="rev_receiver_contact">-</span></p>
                 </div>
             </div>
 
-            <div class="bg-gray-50 rounded-lg p-5 mb-6">
-                <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Transaction Summary</h3>
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    <div>
-                        <div class="text-xs text-gray-500">Money Handed Over</div>
-                        <div class="font-bold text-lg" id="rev_amount">-</div>
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-500">Charge Taken Out</div>
-                        <div class="font-bold text-lg text-green-700" id="rev_charge">-</div>
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-500">Money That Travels</div>
-                        <div class="font-bold text-lg" id="rev_sent">-</div>
-                        <div class="text-xs text-gray-500 mt-1" id="rev_total_note"></div>
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-500">Dollars Credited</div>
-                        <div class="font-bold text-lg" id="rev_usd">-</div>
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-500">RMB to Receiver</div>
-                        <div class="font-bold text-lg text-purple-700" id="rev_rmb">-</div>
-                    </div>
-                </div>
-                <div class="mt-3 text-sm text-gray-600" id="rev_purpose"></div>
+            <p class="mt-3 text-sm text-gray-600 hidden" id="rev_purpose"></p>
+
+            <div class="mt-6">
+                @include('transactions.partials.calculation-card', [
+                    'panel' => 'review',
+                    'heading' => 'Transaction Summary',
+                    'collapsible' => true,
+                ])
             </div>
 
-            <div class="flex justify-between items-center mt-8">
-                <button type="button" onclick="prevStep(4)" class="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 font-medium">
+            <div class="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <button type="button" onclick="prevStep(4)" class="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 font-medium self-start sm:self-auto">
                     ← Edit Details
                 </button>
-                <div class="text-right">
+                <div class="flex flex-col items-start gap-2 sm:items-end">
+                    <p class="flex items-center gap-1.5 text-xs text-gray-600">
+                        <svg class="h-4 w-4 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        The transfer is finished as soon as you book it.
+                    </p>
                     <button type="submit" id="submitBtn" class="bg-green-800 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium">
-                        Book & Generate Receipt
+                        Book transfer
                     </button>
-                    <p class="text-xs text-gray-500 mt-2">The transfer is finished as soon as you book it.</p>
                 </div>
             </div>
         </div>
     </form>
 </div>
+
+@push('styles')
+<style>
+    /* calcBump() skips this class entirely when the visitor asks for reduced motion. */
+    @@keyframes calc-bump { from { opacity: .35; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+    .calc-bump { display: inline-block; animation: calc-bump .18s ease-out; }
+</style>
+@endpush
 
 @push('scripts')
 <script>
@@ -451,10 +412,6 @@ function ugx(n) {
     return 'UGX ' + n.toLocaleString(undefined, {maximumFractionDigits: 2});
 }
 
-function dollars(n) {
-    return '$' + n.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1});
-}
-
 function showMoney(currency, n) {
     return currency === 'UGX' ? ugx(n) : '$' + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
@@ -493,80 +450,131 @@ document.querySelectorAll('[data-money]').forEach(el => {
     if (el.value) setMoney(el, el.value);
 });
 
-// Everything the pricing depends on, worked the same way the server works it: the charge comes
-// out of the cash handed over, the dollars that travel are credited at one decimal place, and
-// the yuan payout is priced from that rounded figure.
+// Everything the pricing depends on, worked the same way the server works it: the charge comes out
+// of the cash handed over, the dollars are divided out at full precision, and the yuan payout is
+// priced from those unrounded dollars. Rounding happens only where a figure is shown or stored.
 function figures() {
     const currency = document.getElementById('currency').value;
     const cash = parseMoney(document.getElementById('amount')) || 0;
     const charge = parseMoney(document.getElementById('charge_ugx')) || 0;
     const paidInUgx = currency === 'UGX';
-    const sent = paidInUgx ? cash - charge : cash;
-    const credited = sent > 0
-        ? Number((paidInUgx && usdSellRate > 0 ? sent / usdSellRate : sent).toFixed(1))
-        : 0;
+    const travels = paidInUgx ? cash - charge : cash;
+    const exact = travels > 0 ? (paidInUgx && usdSellRate > 0 ? travels / usdSellRate : travels) : 0;
+
     return {
         currency,
         cash,
         charge,
         paidInUgx,
-        sent: sent > 0 ? sent : 0,
-        credited,
-        payout: rmbSellRate > 0 ? Number((credited * rmbSellRate).toFixed(2)) : 0
+        sent: travels > 0 ? travels : 0,
+        exact,
+        credited: Number(exact.toFixed(2)),
+        payout: rmbSellRate > 0 ? Number((exact * rmbSellRate).toFixed(2)) : 0
     };
 }
 
 // The card shows the working as well as the answer: the same three operations the server runs,
-// in the order the money moves.
-function derivation(f) {
-    if (!f.sent) {
-        return 'The charge is the whole of the money handed over, so nothing is left to send. It must be less than that.';
-    }
+// in the order the money moves. One renderer fills both panels, so the Payment step and the
+// Review step cannot disagree with each other or with what gets saved.
+const calcPanels = Array.from(document.querySelectorAll('[data-calc-panel]'));
+const CALC_LABELS = {
+    live: { cash: 'Handed over', charge: 'Service charge', travels: 'Amount that travels', usd: 'Converted to USD', rmb: 'Converted to RMB' },
+    review: { cash: 'Money handed over', charge: 'Charge taken out', travels: 'Money that travels', usd: 'Dollars credited', rmb: 'RMB to receiver' },
+};
+let calcState = { ready: false, message: '' };
 
-    const steps = [];
-    if (f.paidInUgx) {
-        steps.push('Step 1: ' + ugx(f.cash) + ' handed over − ' + ugx(f.charge) + ' charge = ' + ugx(f.sent) + ' that travels');
-        if (usdSellRate > 0) {
-            steps.push('Step 2: ' + ugx(f.sent) + ' ÷ ' + trimRate(usdSellRate) + ' = ' + dollars(f.credited) + ' credited');
-        } else {
-            steps.push('Step 2: no dollar rate is set, so the dollars cannot be worked out yet');
-        }
-    } else {
-        steps.push('Step 1: paid in dollars, so ' + dollars(f.credited) + ' travels and no shilling rate is used');
-        steps.push('Step 2: the ' + ugx(f.charge) + ' charge is collected on top in shillings');
-    }
-    if (rmbSellRate > 0) {
-        steps.push('Step 3: ' + dollars(f.credited) + ' × ' + trimRate(rmbSellRate) + ' = ¥' + f.payout.toLocaleString(undefined, {minimumFractionDigits: 2}) + ' to the receiver');
-    } else {
-        steps.push('Step 3: no yuan rate is set, so the payout cannot be worked out yet');
-    }
-
-    return steps.join('   ·   ');
+function two(n) {
+    return n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
+
+function rateLabel(n) {
+    return Number(trimRate(n)).toLocaleString(undefined, {maximumFractionDigits: 6});
+}
+
+function calcBump(el) {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    el.classList.remove('calc-bump');
+    void el.offsetWidth;
+    el.classList.add('calc-bump');
+}
+
+function calcSet(panel, key, value) {
+    const el = panel.querySelector('[data-c="' + key + '"]');
+    if (!el || el.textContent === value) return;
+    el.textContent = value;
+    if (key === 'rmb') calcBump(el);
+}
+
+function renderCalcPanels(f) {
+    calcPanels.forEach(panel => {
+        const body = panel.querySelector('[data-c="body"]');
+        const empty = panel.querySelector('[data-c="empty"]');
+        const steps = panel.querySelector('[data-c="steps"]');
+        const collapsed = panel.dataset.collapsed === 'true';
+
+        body.classList.toggle('hidden', !calcState.ready || collapsed);
+        empty.classList.toggle('hidden', calcState.ready);
+        steps.classList.toggle('hidden', collapsed);
+
+        if (!calcState.ready) {
+            empty.textContent = calcState.message;
+            return;
+        }
+
+        const labels = CALC_LABELS[panel.dataset.calcPanel] || CALC_LABELS.live;
+
+        calcSet(panel, 'cash-label', labels.cash);
+        calcSet(panel, 'cash', showMoney(f.currency, f.cash));
+        calcSet(panel, 'charge-label', f.paidInUgx ? labels.charge : labels.charge + ', collected on top');
+        calcSet(panel, 'charge', (f.paidInUgx ? '− ' : '') + ugx(f.charge));
+        calcSet(panel, 'travels-label', labels.travels);
+        calcSet(panel, 'travels', showMoney(f.currency, f.sent));
+        calcSet(panel, 'usd-label', labels.usd);
+        calcSet(panel, 'usd', '$' + two(f.credited));
+        calcSet(panel, 'usd-hint', f.paidInUgx
+            ? ugx(f.sent) + ' ÷ ' + rateLabel(usdSellRate)
+            : 'Paid in dollars, so nothing is divided');
+        calcSet(panel, 'rmb-label', labels.rmb);
+        calcSet(panel, 'rmb-line', '¥' + two(f.payout));
+        calcSet(panel, 'rmb-hint', '$' + two(f.credited) + ' × ' + rateLabel(rmbSellRate));
+        calcSet(panel, 'rates', (f.paidInUgx ? '1 USD = UGX ' + rateLabel(usdSellRate) + ' · ' : '') + '1 USD = ' + rateLabel(rmbSellRate) + ' RMB');
+        calcSet(panel, 'rmb', two(f.payout));
+    });
+}
+
+calcPanels.forEach(panel => {
+    const toggle = panel.querySelector('[data-c="toggle"]');
+    if (!toggle) return;
+    toggle.addEventListener('click', () => {
+        const collapsing = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', String(!collapsing));
+        toggle.textContent = collapsing ? 'Show calculation' : 'Hide calculation';
+        panel.dataset.collapsed = collapsing ? 'true' : 'false';
+        renderCalcPanels(figures());
+    });
+});
 
 function calculate() {
     const f = figures();
-    const typed = document.getElementById('amount').value.trim() !== '';
+    const amountEl = document.getElementById('amount');
+    const cash = parseMoney(amountEl);
 
     document.getElementById('cash_help').textContent = f.paidInUgx
         ? 'Total received, charge included.'
         : 'All of these dollars travel.';
 
-    // Until an amount is typed the card holds one line instead of a row of dashes.
-    document.getElementById('calc_empty').classList.toggle('hidden', typed);
-    document.getElementById('calc_rows').classList.toggle('hidden', !typed);
-    document.getElementById('balance_strip').classList.toggle('hidden', !typed);
-
-    if (typed) {
-        document.getElementById('balance_amount').textContent = showMoney(f.currency, f.sent);
-        document.getElementById('balance_note').textContent = f.paidInUgx
-            ? 'This is the money turned into dollars, then into yuan.'
-            : 'Paid in dollars, so all of them travel. The charge is collected on top in shillings.';
-        document.getElementById('preview_usd').textContent = dollars(f.credited);
-        document.getElementById('preview_rmb').textContent = '¥' + f.payout.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-        document.getElementById('preview_formula').textContent = derivation(f);
+    // An amount or a rate that is missing leaves one plain line, never a row of zeros.
+    if (amountEl.value.trim() === '' || !Number.isFinite(cash) || cash <= 0) {
+        calcState = { ready: false, message: 'Enter an amount to see the calculation.' };
+    } else if (f.sent <= 0) {
+        calcState = { ready: false, message: 'The charge is the whole of the money handed over, so nothing is left to send.' };
+    } else if (usdSellRate <= 0 || rmbSellRate <= 0) {
+        calcState = { ready: false, message: 'Set the dollar and yuan selling rates to see the calculation.' };
+    } else {
+        calcState = { ready: true, message: '' };
     }
 
+    renderCalcPanels(f);
     syncStep3();
 }
 
@@ -611,25 +619,24 @@ function populateReview() {
     document.querySelectorAll('input[name="sender_name"], input[name="receiver_name"]').forEach(titleCaseName);
 
     document.getElementById('rev_sender_name').textContent = document.querySelector('[name=sender_name]').value;
-    document.getElementById('rev_sender_contact').textContent = document.getElementById('sender_contact').value.trim() ? document.getElementById('sender_full_contact').value : 'Not provided';
     document.getElementById('rev_receiver_name').textContent = document.querySelector('[name=receiver_name]').value;
-    document.getElementById('rev_receiver_contact').textContent = document.getElementById('receiver_contact').value.trim() ? document.getElementById('receiver_full_contact').value : 'Not provided';
 
-    const f = figures();
-
-    document.getElementById('rev_amount').textContent = showMoney(f.currency, f.cash);
-    document.getElementById('rev_charge').textContent = ugx(f.charge);
-    document.getElementById('rev_sent').textContent = showMoney(f.currency, f.sent);
-    document.getElementById('rev_usd').textContent = f.credited ? dollars(f.credited) : '-';
-    document.getElementById('rev_rmb').textContent = f.payout ? '¥' + f.payout.toLocaleString(undefined, {minimumFractionDigits: 2}) : '-';
-
-    document.getElementById('rev_total_note').textContent = f.paidInUgx
-        ? showMoney(f.currency, f.cash) + ' − UGX ' + f.charge.toLocaleString(undefined, {maximumFractionDigits: 2}) + ' charge'
-        : 'Dollars travel in full; the charge is collected in shillings';
+    // A contact nobody typed is left out rather than announced as missing.
+    ['sender', 'receiver'].forEach(who => {
+        const filled = document.getElementById(who + '_contact').value.trim() !== '';
+        document.getElementById('rev_' + who + '_contact_row').classList.toggle('hidden', !filled);
+        document.getElementById('rev_' + who + '_contact').textContent = document.getElementById(who + '_full_contact').value;
+    });
 
     const chosen = purposeSelect.value;
     const purpose = chosen === 'Other' ? (purposeOther.value.trim() || 'Other') : chosen;
-    document.getElementById('rev_purpose').textContent = purpose ? 'Purpose: ' + purpose : '';
+    const purposeRow = document.getElementById('rev_purpose');
+    purposeRow.classList.toggle('hidden', purpose === '');
+    purposeRow.textContent = purpose ? 'Purpose: ' + purpose : '';
+
+    // The summary is the same card the Payment step fills, so it is repainted rather than
+    // rebuilt here and the two cannot end up showing different figures.
+    calculate();
 }
 
 document.getElementById('currency').addEventListener('change', calculate);
@@ -655,7 +662,7 @@ document.getElementById('transactionForm').addEventListener('submit', function(e
 
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
-    btn.textContent = 'Processing...';
+    btn.textContent = 'Booking...';
 });
 
 // ---- Draft save / restore (scoped to the signed-in user) ----

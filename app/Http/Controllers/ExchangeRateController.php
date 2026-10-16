@@ -114,7 +114,7 @@ class ExchangeRateController extends Controller
         return [
             'hands_over' => $shilling($cash),
             'travels' => $shilling($quote['amount']),
-            'dollars' => 'USD ' . number_format((float) $quote['total_usd_equivalent'], 1),
+            'dollars' => 'USD ' . number_format((float) $quote['total_usd_equivalent'], 2),
             'charge' => $shilling($quote['charge_ugx']),
             'exchange' => $shilling(bcadd($quote['fx_profit_ugx'], $quote['usd_rmb_profit_ugx'], 2)),
             'total' => $shilling($quote['total_profit_ugx']),

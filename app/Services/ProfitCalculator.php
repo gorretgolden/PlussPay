@@ -20,8 +20,8 @@ use App\Models\ExchangeRate;
  * The exchange profit is still split into two stored legs so the trail survives. The shilling leg
  * is the cash collected less those dollars valued at what dollars cost us, and the yuan leg is the
  * rest, which is the gap between the rate the receiver is credited at and the rate China settles
- * at. The two add back to the exchange profit exactly, including whatever giving the dollar figure
- * to one decimal place hands over to the customer.
+ * at. The two add back to the exchange profit exactly, including whatever rounding the stored
+ * dollar and yuan figures hands over to the customer.
  */
 class ProfitCalculator
 {
@@ -62,10 +62,12 @@ class ProfitCalculator
             return null;
         }
 
-        // The dollars the customer is credited with are rounded to one decimal place, and the
-        // yuan payout is priced from that rounded figure so the two can never disagree.
-        $dollars = self::dollars($paidInUgx ? bcdiv($sent, $usdSell, 6) : $sent);
-        $payout = self::money(bcmul($dollars, $rmbSell, 8));
+        // The dollars are divided out at full precision and the yuan payout is worked from that
+        // unrounded figure, so the receiver is never priced off a credit nobody was given. Each
+        // figure is rounded once, for storing, which is why the two can show a cent apart.
+        $exact = $paidInUgx ? bcdiv($sent, $usdSell, 10) : $sent;
+        $dollars = self::money($exact);
+        $payout = self::money(bcmul($exact, $rmbSell, 10));
 
         // What those dollars would have cost us at our own buying price. The cash collected above
         // it is the shilling leg, and what the delivered yuan cost below it is the yuan leg.
@@ -91,15 +93,6 @@ class ProfitCalculator
             'usd_rmb_profit_ugx' => $yuanLeg,
             'total_profit_ugx' => bcadd(bcadd($shillingLeg, $yuanLeg, 2), $charge, 2),
         ];
-    }
-
-    /**
-     * The dollar figure a booking is priced on. One decimal place, half up, because that is the
-     * precision the customer is credited with before the yuan payout is worked out.
-     */
-    public static function dollars(string $value): string
-    {
-        return number_format((float) $value, 1, '.', '');
     }
 
     private static function money(string $value, int $scale = 2): string

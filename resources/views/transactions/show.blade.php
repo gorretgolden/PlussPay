@@ -38,7 +38,7 @@
             <div><span class="text-gray-500">Money That Travels:</span> {{ $transaction->currency }} {{ number_format($transaction->amount, 2) }}</div>
             <div><span class="text-gray-500">Exchange Rate:</span> {{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</div>
             <div><span class="text-gray-500">RMB Amount:</span> ¥{{ number_format($transaction->rmb_amount, 2) }}</div>
-            <div><span class="text-gray-500">Dollars Credited:</span> ${{ number_format($transaction->total_usd_equivalent, 1) }}</div>
+            <div><span class="text-gray-500">Dollars Credited:</span> ${{ number_format($transaction->total_usd_equivalent, 2) }}</div>
             <div>
                 <span class="text-gray-500">Status:</span>
                 <span class="px-2 py-1 text-xs rounded-full
@@ -126,7 +126,7 @@
             <div><span class="text-gray-500">Buying rate:</span> UGX {{ $trim($transaction->rate_buy_ugx) }} per 1 USD</div>
             <div><span class="text-gray-500">Yuan selling rate:</span> {{ $trim($transaction->exchange_rate) }} per 1 USD</div>
             <div><span class="text-gray-500">Yuan buying rate:</span> {{ $trim($transaction->rmb_buying_rate) }} per 1 USD</div>
-            <div><span class="text-gray-500">Dollars credited:</span> ${{ number_format($transaction->total_usd_equivalent, 1) }}</div>
+            <div><span class="text-gray-500">Dollars credited:</span> ${{ number_format($transaction->total_usd_equivalent, 2) }}</div>
             <div><span class="text-gray-500">Yuan paid out:</span> &yen;{{ number_format($transaction->rmb_amount, 2) }}</div>
             <div><span class="text-gray-500">Foreign exchange profit:</span> <span class="{{ $toneClass[$profit['exchange']['tone']] }}">{{ $profit['exchange']['text'] }}</span></div>
             <div><span class="text-gray-500">Charge:</span> <span class="{{ $toneClass[$profit['charge']['tone']] }}">{{ $profit['charge']['text'] }}</span></div>

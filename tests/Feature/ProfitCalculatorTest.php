@@ -12,9 +12,10 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * Pricing agreed with the office on 2026-10-14. The operator enters the cash handed over and the
- * charge taken out of it, the dollars the customer is credited with are rounded to one decimal
- * place, and the profit is the cash in less what the delivered yuan actually cost us.
+ * Pricing agreed with the office on 2026-10-14 and re-cut on 2026-10-16. The operator enters the
+ * cash handed over and the charge taken out of it, the dollars are divided out at full precision,
+ * the yuan payout is priced from those unrounded dollars, and each figure is rounded once, to two
+ * decimals, when it is stored. The profit is the cash in less what the delivered yuan cost us.
  *
  * The rates in setUp are the live ones as of that date: shillings bought at 3,600 and sold at
  * 4,128, yuan settled with China at 6.56 and credited to recipients at 6.615. The yuan pair is
@@ -59,18 +60,17 @@ class ProfitCalculatorTest extends TestCase
 
         $this->assertSame('480000.00', $quote['amount']);
         $this->assertSame('20000.00', $quote['charge_ugx']);
-        // 480,000 at the 4,300 selling price is 111.63 dollars, credited as 111.6.
-        $this->assertSame('111.6', $quote['total_usd_equivalent']);
-        // 111.6 dollars at the 6.56 yuan selling price is what the receiver is sent.
-        $this->assertSame('732.10', $quote['rmb_amount']);
-        // Those yuan cost 732.10 / 6.61 = 110.756 dollars, at 4,000 shillings each, which is
-        // 3,374.28 less than the 446,400 those same dollars would have cost us.
-        $this->assertEqualsWithDelta(3374.28, (float) $quote['usd_rmb_profit_ugx'], 0.01);
-        // The shilling leg is the 480,000 collected less 111.6 dollars at what they cost us.
-        $this->assertSame('33600.00', $quote['fx_profit_ugx']);
-        $this->assertEqualsWithDelta(3374.28, (float) $quote['usd_rmb_profit_ugx'], 0.01);
-        // 33,600 + 3,374.28 + 20,000 charge.
-        $this->assertEqualsWithDelta(56974.28, (float) $quote['total_profit_ugx'], 0.01);
+        // 480,000 at the 4,300 selling price is 111.6279 dollars, stored as 111.63.
+        $this->assertSame('111.63', $quote['total_usd_equivalent']);
+        // The payout is priced from the unrounded dollars: 111.6279 at the 6.56 yuan selling price.
+        $this->assertSame('732.28', $quote['rmb_amount']);
+        // Those yuan cost 732.28 / 6.61 = 110.784 dollars, at 4,000 shillings each, which is
+        // 3,385.36 less than the 446,520 the stored credit would have cost us.
+        $this->assertEqualsWithDelta(3385.36, (float) $quote['usd_rmb_profit_ugx'], 0.01);
+        // The shilling leg is the 480,000 collected less 111.63 dollars at what they cost us.
+        $this->assertSame('33480.00', $quote['fx_profit_ugx']);
+        // 33,480 + 3,385.36 + 20,000 charge.
+        $this->assertEqualsWithDelta(56865.36, (float) $quote['total_profit_ugx'], 0.01);
     }
 
     public function test_it_reproduces_the_sheet_for_a_dollar_payer(): void
@@ -81,7 +81,7 @@ class ProfitCalculatorTest extends TestCase
         $quote = $this->quote('USD', '112', '2000');
 
         $this->assertSame('112.00', $quote['amount']);
-        $this->assertSame('112.0', $quote['total_usd_equivalent']);
+        $this->assertSame('112.00', $quote['total_usd_equivalent']);
         $this->assertSame('734.72', $quote['rmb_amount']);
         // No shillings went through the till, so there is no shilling leg to price.
         $this->assertSame('0.00', $quote['fx_profit_ugx']);
@@ -106,16 +106,18 @@ class ProfitCalculatorTest extends TestCase
         }
     }
 
-    public function test_the_yuan_payout_is_priced_from_the_rounded_dollars(): void
+    public function test_the_yuan_payout_is_priced_from_the_unrounded_dollars(): void
     {
         $this->useSheetRates();
 
         $quote = $this->quote('UGX', '500000', '20000');
 
-        // 111.63 unrounded would have paid 732.28 yuan. The customer is credited 111.6, so the
-        // receiver gets 732.10 and the difference is profit we gave away, not a missing figure.
-        $this->assertSame('732.10', $quote['rmb_amount']);
-        $this->assertEqualsWithDelta(732.28, (float) bcmul(bcdiv('480000', '4300', 6), '6.56', 4), 0.01);
+        // 480,000 / 4,300 is 111.6279069767 dollars. Pricing the payout off that full figure pays
+        // 732.28 yuan; pricing it off the stored 111.63 credit would pay 732.29, and the old habit
+        // of crediting 111.6 paid only 732.10. The receiver now gets the fuller figure.
+        $this->assertSame('732.28', $quote['rmb_amount']);
+        $this->assertEqualsWithDelta(732.2790697, (float) bcmul(bcdiv('480000', '4300', 10), '6.56', 7), 0.0001);
+        $this->assertSame('732.29', number_format((float) bcmul('111.63', '6.56', 8), 2, '.', ''));
     }
 
     public function test_a_reversed_yuan_pair_is_recorded_as_a_loss_not_a_positive(): void
@@ -180,14 +182,14 @@ class ProfitCalculatorTest extends TestCase
         $transaction = Transaction::latest('id')->firstOrFail();
 
         $this->assertSame('480000.00', (string) $transaction->amount);
-        $this->assertSame('111.60', (string) $transaction->total_usd_equivalent);
-        $this->assertSame('732.10', (string) $transaction->rmb_amount);
+        $this->assertSame('111.63', (string) $transaction->total_usd_equivalent);
+        $this->assertSame('732.28', (string) $transaction->rmb_amount);
         $this->assertSame('20000.00', (string) $transaction->charge_ugx);
-        $this->assertSame('33600.00', (string) $transaction->fx_profit_ugx);
+        $this->assertSame('33480.00', (string) $transaction->fx_profit_ugx);
         $this->assertSame('4300.000000', (string) $transaction->rate_sell_ugx);
         $this->assertSame('4000.000000', (string) $transaction->rate_buy_ugx);
         $this->assertSame('6.610000', (string) $transaction->rmb_buying_rate);
-        $this->assertEqualsWithDelta(56974.28, (float) $transaction->total_profit_ugx, 0.01);
+        $this->assertEqualsWithDelta(56865.36, (float) $transaction->total_profit_ugx, 0.01);
     }
 
     private function makeAdmin(): User
