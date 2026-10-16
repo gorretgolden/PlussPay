@@ -197,8 +197,8 @@ class TransactionProfitTableTest extends TestCase
             ->get('/export/transactions')
             ->streamedContent());
 
-        foreach (['Money Handed Over', 'Charge (UGX)', 'Dollar Selling Rate (per USD)',
-            'Yuan Selling Rate (per USD)', 'Exchange Profit (UGX)',
+        foreach (['Money Handed Over', 'Charge (UGX)', 'Dollar Selling Price (per USD)',
+            'Yuan Selling Price (per USD)', 'Exchange Profit (UGX)',
             'Overall Profit (UGX)', 'Overall Profit (USD)'] as $header) {
             $this->assertContains($header, $rows[5]);
         }

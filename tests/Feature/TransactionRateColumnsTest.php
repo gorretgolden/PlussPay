@@ -58,7 +58,7 @@ class TransactionRateColumnsTest extends TestCase
      * UGX 3,780,000 handed over with a UGX 20,000 charge, so UGX 3,760,000 travels and buys
      * exactly $1,000 at the selling price of 3,760.
      */
-    private function book(User $by, string $cash = '3780000', string $charge = '20000'): Transaction
+    private function book(User $by, string $cash = '3780000', string $charge = '20000', ?string $purpose = null): Transaction
     {
         $this->actingAs($by)->get('/transactions/create');
         $this->actingAs($by)->post('/transactions', [
@@ -69,9 +69,54 @@ class TransactionRateColumnsTest extends TestCase
             'currency' => 'UGX',
             'amount' => $cash,
             'charge_ugx' => $charge,
+            'purpose' => $purpose,
         ])->assertSessionHasNoErrors();
 
         return Transaction::latest('id')->firstOrFail();
+    }
+
+    /**
+     * The two selling prices used to share one cell, so a row had to be read top to bottom to know
+     * which figure was which. Each now stands under its own heading, and the money columns keep the
+     * order the transfer takes: what travelled, what it became in China, the prices, the charge.
+     */
+    public function test_each_selling_price_stands_under_a_heading_of_its_own(): void
+    {
+        $this->book($this->user('admin'));
+
+        $html = $this->html('/transactions', $this->user('admin'));
+
+        $this->assertMatchesRegularExpression('/Yuan Selling Price<\/th>\s*<th[^>]*>Charge \(UGX\)<\/th>/', $html);
+        $this->assertMatchesRegularExpression('/Dollar Selling Price<\/th>\s*<th[^>]*>Yuan Selling Price<\/th>/', $html);
+
+        // One figure to a cell, not two lines stacked inside one box.
+        $this->assertSame(0, preg_match_all('/<td[^>]*>\s*<div[^>]*>UGX 3760<\/div>/', $html));
+    }
+
+    /**
+     * The reason a customer gave is on the booking and on the receipt, so the desk can match a row to
+     * a conversation without opening the receipt. The receipt number is the link a teller reads out
+     * over the phone, so it has to stay whole on one line rather than break mid-number.
+     */
+    public function test_the_reason_reads_on_the_row_and_the_receipt_number_stays_whole(): void
+    {
+        $row = $this->book($this->user('admin'), '3780000', '20000', 'School fees');
+
+        $html = $this->html('/transactions', $this->user('admin'));
+
+        $this->assertMatchesRegularExpression('/<th[^>]*>Reason<\/th>/', $html);
+        $this->assertStringContainsString('School fees', $html);
+
+        // The number is one unbroken run, and the cell that holds it refuses to wrap.
+        $this->assertMatchesRegularExpression(
+            '/<td class="[^"]*whitespace-nowrap[^"]*">\s*<a [^>]*class="[^"]*whitespace-nowrap[^"]*">'.$row->receipt_number.'<\/a>/',
+            $html
+        );
+
+        // A booking with no reason says so rather than leaving an empty box a teller reads as a bug.
+        $this->book($this->user('admin'));
+        $plain = $this->html('/transactions', $this->user('admin'));
+        $this->assertMatchesRegularExpression('/<td class="[^"]*text-gray-700[^"]*">-<\/td>/', $plain);
     }
 
     private function html(string $path, User $as): string
@@ -100,9 +145,11 @@ class TransactionRateColumnsTest extends TestCase
 
         $html = $this->html('/transactions', $this->user('admin'));
 
-        // The heading is the column's only word on the row. The sentence explaining which way the
-        // price runs sits once under the table rather than wrapped inside the header.
-        $this->assertStringContainsString('Selling Rate', $html);
+        // Each price has its own column, so a row can be read without working out which of the two
+        // numbers is which. The sentence explaining how each price runs sits once under the table
+        // rather than wrapped inside a header.
+        $this->assertStringContainsString('Dollar Selling Price', $html);
+        $this->assertStringContainsString('Yuan Selling Price', $html);
         $this->assertStringNotContainsString('what it went out at, per 1 USD', $html);
 
         // Sent out at 3,760 shillings to the dollar and 7.24 yuan to the dollar. Each line is named
@@ -147,7 +194,7 @@ class TransactionRateColumnsTest extends TestCase
 
         $html = $this->html('/transactions', $teller);
 
-        foreach (['Selling Rate', 'UGX 3760', 'RMB 7.24', 'Dollar Selling Rate', 'Yuan Selling Rate'] as $gone) {
+        foreach (['Selling Price', 'UGX 3760', 'RMB 7.24', 'Dollar Selling Price', 'Yuan Selling Price'] as $gone) {
             $this->assertStringNotContainsString($gone, $html);
         }
 
@@ -238,7 +285,7 @@ class TransactionRateColumnsTest extends TestCase
         $this->assertSame(['3800', '3760'], Transaction::bookedPrices($this->user('admin'), ['rate_sell_ugx']));
 
         // The menu rides on the profit ability, so an agent booking transfers never sees one.
-        $this->assertStringNotContainsString('Dollar Selling Rate', $this->html('/transactions', $agent));
+        $this->assertStringNotContainsString('Dollar Selling Price', $this->html('/transactions', $agent));
         $this->assertStringContainsString('value="3760"', $this->html('/transactions', $this->user('admin')));
     }
 
@@ -287,8 +334,8 @@ class TransactionRateColumnsTest extends TestCase
         // beside it.
         $this->assertSame('PS-20261016-0001', $rows[6][0]);
         $this->assertStringContainsString('1 record', implode(' ', array_map(fn ($row) => implode(' ', $row), $rows)));
-        $this->assertContains('Dollar Selling Rate (per USD)', $rows[5]);
-        $this->assertContains('Yuan Selling Rate (per USD)', $rows[5]);
+        $this->assertContains('Dollar Selling Price (per USD)', $rows[5]);
+        $this->assertContains('Yuan Selling Price (per USD)', $rows[5]);
         $this->assertSame('3760', $rows[6][12]);
         $this->assertSame('7.24', $rows[6][13]);
     }

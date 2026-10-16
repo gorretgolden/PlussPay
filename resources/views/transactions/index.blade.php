@@ -42,8 +42,8 @@
         </div>
         @can('view-profit')
         <div>
-            <label class="block text-sm text-gray-600 mb-1">Dollar Selling Rate</label>
-            <select name="usd_rate" title="The shilling price each dollar was sent at" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+            <label class="block text-sm text-gray-600 mb-1">Dollar Selling Price</label>
+            <select name="usd_rate" title="The shillings each dollar was sent at" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All</option>
                 @foreach($usdPrices as $price)
                 <option value="{{ $price }}" {{ request('usd_rate') === $price ? 'selected' : '' }}>{{ $price }}</option>
@@ -51,8 +51,8 @@
             </select>
         </div>
         <div>
-            <label class="block text-sm text-gray-600 mb-1">Yuan Selling Rate</label>
-            <select name="rmb_rate" title="The yuan price each dollar was sent at" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+            <label class="block text-sm text-gray-600 mb-1">Yuan Selling Price</label>
+            <select name="rmb_rate" title="The yuan each dollar became in China" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All</option>
                 @foreach($rmbPrices as $price)
                 <option value="{{ $price }}" {{ request('rmb_rate') === $price ? 'selected' : '' }}>{{ $price }}</option>
@@ -111,49 +111,54 @@
     <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receipt #</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Sender</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receiver</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Money Travels</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">RMB</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge (UGX)</th>
+                {{-- The book is wider than any screen, so the number a teller reads out over the phone
+                     is pinned to the left edge and stays put while the rest slides under it. --}}
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap sticky left-0 z-20 bg-gray-50 border-r border-gray-200">Receipt #</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Sender</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receiver</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Reason</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Money Travels</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">RMB</th>
                 @can('view-profit')
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Exchange Profit</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Overall Profit</th>
-                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Selling Rate</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="The shillings each dollar was sent at">Dollar Selling Price</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="The yuan each dollar became in China">Yuan Selling Price</th>
                 @endcan
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Date</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge (UGX)</th>
                 @can('view-profit')
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Booked By</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Exchange Profit</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Overall Profit</th>
                 @endcan
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Actions</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Date</th>
+                @can('view-profit')
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Booked By</th>
+                @endcan
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Actions</th>
             </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
             @forelse($transactions as $t)
             @php $profit = $t->profitLabels(); @endphp
             <tr>
-                <td class="px-6 py-4 text-sm font-medium text-green-800">
-                    <a href="{{ route('receipts.show', $t->receipt_number) }}">{{ $t->receipt_number }}</a>
+                <td class="px-2 py-4 text-sm font-medium text-green-800 whitespace-nowrap sticky left-0 z-10 bg-white border-r border-gray-200">
+                    <a href="{{ route('receipts.show', $t->receipt_number) }}" class="whitespace-nowrap">{{ $t->receipt_number }}</a>
                 </td>
-                <td class="px-6 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">{{ $t->principalLabel() }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($t->rmb_amount, 1) }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">UGX {{ number_format((float) $t->charge_ugx) }}</td>
-                @can('view-profit')
-                <td class="px-6 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['exchange']['tone']] }}">{{ $profit['exchange']['text'] }}</td>
-                <td class="px-6 py-4 text-sm font-medium whitespace-nowrap {{ $toneClass[$profit['total']['tone']] }}">{{ $profit['total']['text'] }}</td>
-                @endcan
+                <td class="px-2 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
+                <td class="px-2 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
+                <td class="px-2 py-4 text-sm text-gray-700">{{ $t->purpose ?: '-' }}</td>
+                <td class="px-2 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->principalLabel() }}</td>
+                <td class="px-2 py-4 text-sm text-gray-900 whitespace-nowrap">¥{{ number_format($t->rmb_amount, 1) }}</td>
                 @can('view-profit')
                 @php $usdRate = $t->shillingRateCell(); $rmbRate = $t->yuanRateCell(); @endphp
-                <td class="px-3 py-4 text-xs whitespace-nowrap tabular-nums leading-5">
-                    <div class="{{ $toneClass[$usdRate['tone']] }}" title="{{ $usdRate['title'] }}">UGX {{ $usdRate['text'] }}</div>
-                    <div class="{{ $toneClass[$rmbRate['tone']] }}" title="{{ $rmbRate['title'] }}">RMB {{ $rmbRate['text'] }}</div>
-                </td>
+                <td class="px-2 py-4 text-sm whitespace-nowrap tabular-nums {{ $toneClass[$usdRate['tone']] }}" title="{{ $usdRate['title'] }}">UGX {{ $usdRate['text'] }}</td>
+                <td class="px-2 py-4 text-sm whitespace-nowrap tabular-nums {{ $toneClass[$rmbRate['tone']] }}" title="{{ $rmbRate['title'] }}">RMB {{ $rmbRate['text'] }}</td>
                 @endcan
-                <td class="px-6 py-4">
+                <td class="px-2 py-4 text-sm text-gray-900 whitespace-nowrap">UGX {{ number_format((float) $t->charge_ugx) }}</td>
+                @can('view-profit')
+                <td class="px-2 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['exchange']['tone']] }}">{{ $profit['exchange']['text'] }}</td>
+                <td class="px-2 py-4 text-sm font-medium whitespace-nowrap {{ $toneClass[$profit['total']['tone']] }}">{{ $profit['total']['text'] }}</td>
+                @endcan
+                <td class="px-2 py-4">
                     <span class="px-2 py-1 text-xs rounded-full
                         @if($t->status === 'completed') bg-green-100 text-green-800
                         @elseif($t->status === 'pending') bg-yellow-100 text-yellow-800
@@ -161,13 +166,13 @@
                         {{ ucfirst($t->status) }}
                     </span>
                 </td>
-                <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('M d, Y h:i A') }}</td>
+                <td class="px-2 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('M d, Y h:i A') }}</td>
                 @can('view-profit')
-                <td class="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
+                <td class="px-2 py-4 text-sm text-gray-700 whitespace-nowrap">
                     {{ $t->creator?->name ?? '-' }}@if($t->creator && $t->creator->countryLabel())<span class="text-gray-400"> · {{ $t->creator->countryLabel() }}</span>@endif
                 </td>
                 @endcan
-                <td data-row-menu-host class="px-6 py-4 text-right relative">
+                <td data-row-menu-host class="px-2 py-4 text-right relative">
                     <button type="button" onclick="toggleMenu({{ $t->id }})" class="p-1 rounded hover:bg-gray-100">
                         <svg class="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>
                     </button>
@@ -205,13 +210,13 @@
             </tr>
             @empty
             <tr>
-                <td colspan="{{ auth()->user()->can('view-profit') ? 13 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
+                <td colspan="{{ auth()->user()->can('view-profit') ? 15 : 10 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
             </tr>
             @endforelse
         </tbody>
     </table>
     @can('view-profit')
-    <p class="px-6 py-3 text-xs text-gray-500 border-t">The exchange profit is what the rates came to on the money that travelled, and the overall profit adds the charge to it. Only a completed transfer counts toward profit, and one booked before its rates were stored shows n/a instead of a zero that would read as break-even. Each transfer also carries the selling rate it went out at, in shillings and in yuan, which is the price the customer was quoted and the one the receiver is paid on. The buying price the profit was worked from stays behind the scenes.</p>
+    <p class="px-6 py-3 text-xs text-gray-500 border-t">The exchange profit is what the rates came to on the money that travelled, and the overall profit adds the charge to it. Only a completed transfer counts toward profit, and one booked before its rates were stored shows n/a instead of a zero that would read as break-even. The dollar selling price is the shillings each dollar cost the customer, and the yuan selling price is what each dollar became in China. Those two are the prices the customer was quoted and the receiver is paid on; the buying price the profit was worked from stays behind the scenes.</p>
     @endcan
 </div>
 

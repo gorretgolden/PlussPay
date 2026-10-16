@@ -90,9 +90,9 @@ class ExportController extends Controller
         $headers = [
             'Receipt #', 'Date', 'Sender', 'Sender Contact', 'Receiver', 'Receiver Contact',
             'Money Handed Over', 'Amount Sent', 'UGX Equivalent', 'RMB', 'Charge (UGX)', 'Charge (USD)',
-            'Dollar Selling Rate (per USD)', 'Yuan Selling Rate (per USD)',
+            'Dollar Selling Price (per USD)', 'Yuan Selling Price (per USD)',
             'Exchange Profit (UGX)', 'Overall Profit (UGX)', 'Overall Profit (USD)',
-            'Purpose', 'Status', 'Booked By',
+            'Reason', 'Status', 'Booked By',
             // The last three columns are the settlement chain: a row with '-' under all of them is
             // still cash in a hand in Uganda.
             'Sent To China', 'Held In China By', 'Paid In China',
