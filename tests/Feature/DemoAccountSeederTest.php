@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Env;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -174,5 +175,63 @@ class DemoAccountSeederTest extends TestCase
         $this->assertTrue($agent->is_active);
         $this->assertStringStartsWith('$2y$', (string) $agent->password);
         $this->assertTrue($agent->hasRole('agent'));
+    }
+
+    public function test_the_seed_rebuilds_a_machine_where_the_roles_were_never_made(): void
+    {
+        // What a fresh or drifted database looks like: no catalogue rows at all, so an account
+        // cannot be given a role and the Roles screen has nothing to show.
+        foreach (Role::all() as $role) {
+            $role->permissions()->detach();
+            $role->delete();
+        }
+        Permission::query()->delete();
+
+        $this->assertSame([], Role::orderBy('name')->pluck('name')->all());
+
+        $this->seed(RoleAndUserSeeder::class);
+
+        $this->assertSame(
+            ['accountant', 'admin', 'agent', 'staff', 'superadmin'],
+            Role::orderBy('name')->pluck('name')->all()
+        );
+
+        // Each role can actually open something now, and booking a transfer stays with the desk
+        // roles, so the accountant only ever reads the book.
+        $this->assertContains('create-transaction', Role::findByName('agent')->permissions->pluck('name')->all());
+        $this->assertNotContains('create-transaction', Role::findByName('accountant')->permissions->pluck('name')->all());
+        $this->assertNotEmpty(Role::findByName('admin')->permissions);
+        $this->assertNotEmpty(Role::findByName('staff')->permissions);
+
+        $this->assertTrue(User::where('email', 'accountant@plussave.com')->firstOrFail()->hasRole('accountant'));
+        $this->assertTrue(User::where('email', 'agent@plussave.com')->firstOrFail()->hasRole('agent'));
+    }
+
+    public function test_the_password_typed_at_the_terminal_is_the_one_the_account_gets(): void
+    {
+        $accounts = collect(RoleAndUserSeeder::DEMO_ACCOUNTS)->keyBy('email');
+        $seeder = new RoleAndUserSeeder();
+
+        // This is how an account whose generated password was never written down is recovered.
+        $seeder->ensureAccount($accounts['accountant@plussave.com'], fn ($email, $exists) => 'books-she-typed');
+
+        $accountant = User::where('email', 'accountant@plussave.com')->firstOrFail();
+        $this->assertTrue(Hash::check('books-she-typed', $accountant->password));
+        $this->assertTrue($accountant->hasRole('accountant'));
+        $this->assertTrue($accountant->is_active);
+
+        // Pressing Enter on an account that is already there leaves its password standing.
+        $seeder->ensureAccount($accounts['accountant@plussave.com'], fn ($email, $exists) => null);
+        $this->assertTrue(Hash::check('books-she-typed', User::where('email', 'accountant@plussave.com')->value('password')));
+
+        // Typing at an existing account is how she changes it, and the asker is told which is
+        // which so a fresh account can be answered differently.
+        $seeder->ensureAccount($accounts['agent@plussave.com'], fn ($email, $exists) => $exists ? 'agent-changed' : 'agent-first-go');
+
+        $this->assertTrue(Hash::check('agent-first-go', User::where('email', 'agent@plussave.com')->value('password')));
+
+        $seeder->ensureAccount($accounts['agent@plussave.com'], fn ($email, $exists) => $exists ? 'agent-changed' : 'agent-first-go');
+
+        $this->assertTrue(Hash::check('agent-changed', User::where('email', 'agent@plussave.com')->value('password')));
     }
 }
