@@ -99,11 +99,11 @@ class TransactionController extends Controller
         }
 
         if (! ExchangeRate::getActiveRate('USD', 'RMB')) {
-            return back()->withErrors(['exchange_rate' => 'USD to RMB rate not set. Please contact admin.']);
+            return back()->withErrors(['exchange_rate' => 'No price is in use for USD to RMB. Set it in System Settings, or bring an earlier price back on the Currency Rates page.']);
         }
 
         if (! ExchangeRate::usdUgxPair()) {
-            return back()->withErrors(['exchange_rate' => 'UGX to USD rate not set. Please contact admin.']);
+            return back()->withErrors(['exchange_rate' => 'No price is in use for USD to UGX. Set it in System Settings, or bring an earlier price back on the Currency Rates page.']);
         }
 
         // The browser only ever shows a preview. Every figure that lands in the books, including

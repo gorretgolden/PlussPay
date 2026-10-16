@@ -59,9 +59,6 @@
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs uppercase tracking-wide text-gray-500">Rate done at</p>
         <p class="text-sm font-medium text-gray-900 mt-1">{{ $exchange->quotedRate() ?? 'Not recorded' }}</p>
-        @if($exchange->quotedMarketRate())
-            <p class="text-xs text-gray-500 mt-1">Street price then: {{ $exchange->quotedMarketRate() }}</p>
-        @endif
         @if($exchange->rate_reason)
             <p class="text-xs text-amber-700 mt-1">Agreed by hand: {{ $exchange->rate_reason }}</p>
         @endif

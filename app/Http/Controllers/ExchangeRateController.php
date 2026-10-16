@@ -31,7 +31,9 @@ class ExchangeRateController extends Controller
 
         return view('exchange-rates.index', compact('rates', 'creators'))
             ->with('spreadWarnings', $this->spreadWarnings())
-            ->with('sendExample', $this->sendExample());
+            ->with('sendExample', $this->sendExample())
+            ->with('outsideRule', ExchangeRate::liveRowsOutsideRule())
+            ->with('unpricedPairs', ExchangeRate::unpricedDeskPairs());
     }
 
     /**
@@ -54,8 +56,7 @@ class ExchangeRateController extends Controller
             $buy = (float) $shilling->buy_rate;
             if ($sell <= $buy) {
                 $warnings[] = sprintf(
-                    'USD to UGX: the selling price (%s) is at or below the buying price (%s). '
-                    . 'Shillings make money only when we sell above what we pay, so this pair earns nothing as it stands.',
+                    'USD to UGX: the selling price (%s) is at or below the buying price (%s), so this pair earns nothing.',
                     $this->trim($sell),
                     $this->trim($buy),
                 );
@@ -68,8 +69,7 @@ class ExchangeRateController extends Controller
             $buy = (float) $yuan->buy_rate;
             if ($sell >= $buy) {
                 $warnings[] = sprintf(
-                    'USD to RMB: the selling price (%s) is at or above the buying price (%s). '
-                    . 'We credit the receiver at the selling price but the China side settles at the buying price, so each dollar sent now loses money.',
+                    'USD to RMB: the selling price (%s) is at or above the buying price (%s), so each dollar sent loses money.',
                     $this->trim($sell),
                     $this->trim($buy),
                 );
@@ -165,7 +165,7 @@ class ExchangeRateController extends Controller
             return back()->withErrors(['sell_rate' => 'Those are the figures already on this row, so nothing was changed.']);
         }
 
-        $pair = $exchangeRate->from_currency.'-'.$exchangeRate->to_currency;
+        $pair = $exchangeRate->from_currency.' → '.$exchangeRate->to_currency;
         $before = 'selling '.$this->trim((float) $liveSell).', buying '.($liveBuy === null ? 'not set' : $this->trim((float) $liveBuy));
         $after = 'selling '.$this->trim((float) $sell).', buying '.$this->trim((float) $buy);
 
@@ -180,10 +180,28 @@ class ExchangeRateController extends Controller
             'new_value' => $after,
         ]);
 
-        return back()->with('success', $pair.' corrected to '.$after.'. '
-            .($exchangeRate->is_active
-                ? 'It is the price now live, so every new booking and quote uses it.'
-                : 'It is an earlier price, so it is what the books read back for transfers entered under it.'));
+        return back()->with('success', $pair.' corrected to '.$after.'. '.$this->editOutcome($exchangeRate));
+    }
+
+    /**
+     * Whether the corrected row is the one new bookings read, said shortly so the flash names the
+     * clash instead of leaving a duplicate price looking like the live one.
+     */
+    private function editOutcome(ExchangeRate $rate): string
+    {
+        if (! ExchangeRate::isDeskPair($rate->from_currency, $rate->to_currency)) {
+            return 'This direction prices nothing.';
+        }
+
+        $read = ExchangeRate::getActiveRate($rate->from_currency, $rate->to_currency);
+
+        if ($read && $read->id === $rate->id) {
+            return 'It is the price in use.';
+        }
+
+        return $rate->is_active
+            ? 'Another price for this pair is the one in use.'
+            : 'It is an earlier price.';
     }
 
     private function figure(string $value): string
@@ -191,23 +209,37 @@ class ExchangeRateController extends Controller
         return number_format((float) $value, 6, '.', '');
     }
 
+    /**
+     * Switch a price between in use and earlier. Bringing one in always sets the previous price for
+     * that pair aside, so a pair can never hold two current prices, and only the two desk pairs can
+     * be brought in at all: a reverse-direction row would quietly stand in for a price the desk
+     * reads with figures nobody set.
+     */
     public function toggle(Request $request, ExchangeRate $exchangeRate)
     {
-        // A pair with no price at all stops every conversion working, so the live row cannot be
-        // switched off. The way to change a price is to set a new one, or to bring an older one back.
+        $pair = $exchangeRate->from_currency.' → '.$exchangeRate->to_currency;
+        $price = $this->trim((float) ($exchangeRate->sell_rate ?: $exchangeRate->rate));
+
         if ($exchangeRate->is_active) {
-            return back()->withErrors(['rate' => 'This is the price in use now. Change the prices in Settings, or bring an older price back by activating that row.']);
+            $exchangeRate->setAside();
+
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'exchange_rate_deactivated',
+                'description' => "Price {$pair} {$price} taken out of use",
+                'old_value' => 'in use',
+                'new_value' => 'earlier',
+            ]);
+
+            return back()->with('success', $pair.' '.$price.' is out of use.');
         }
 
-        $pair = $exchangeRate->from_currency.'-'.$exchangeRate->to_currency;
-        $current = ExchangeRate::where('from_currency', $exchangeRate->from_currency)
-            ->where('to_currency', $exchangeRate->to_currency)
-            ->where('is_active', true)
-            ->first();
+        if (! ExchangeRate::isDeskPair($exchangeRate->from_currency, $exchangeRate->to_currency)) {
+            return back()->withErrors(['rate' => $pair.' cannot be set as current. Only '.ExchangeRate::deskPairsList().' price bookings.']);
+        }
 
-        ExchangeRate::retirePair($exchangeRate->from_currency, $exchangeRate->to_currency);
-
-        $exchangeRate->update(['is_active' => true]);
+        $current = ExchangeRate::getActiveRate($exchangeRate->from_currency, $exchangeRate->to_currency);
+        $exchangeRate->putIntoUse();
 
         ActivityLog::create([
             'user_id' => auth()->id(),
@@ -217,6 +249,8 @@ class ExchangeRateController extends Controller
             'new_value' => (string) $exchangeRate->rate,
         ]);
 
-        return back()->with('success', 'Exchange rate activated.');
+        return back()->with('success', $current
+            ? $pair.' '.$price.' is the price in use, and '.$this->trim((float) ($current->sell_rate ?: $current->rate)).' is now an earlier price.'
+            : $pair.' '.$price.' is the price in use.');
     }
 }

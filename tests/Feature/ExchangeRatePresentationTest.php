@@ -76,7 +76,7 @@ class ExchangeRatePresentationTest extends TestCase
         $response = $this->actingAs($this->viewer())->get('/exchange-rates')->assertOk();
         $this->assertMatchesRegularExpression('/data-label="Margin"[^>]*>\+10<\/td>/', $response->getContent());
         $this->assertMatchesRegularExpression('/data-label="Margin"[^>]*>\+0\.06<\/td>/', $response->getContent());
-        $this->assertStringContainsString('data-label="Margin" title="What this pair earns per dollar. Negative means a loss."', $response->getContent());
+        $this->assertStringContainsString('data-label="Margin" title="Earned per dollar"', $response->getContent());
         $rmb->update(['buy_rate' => 7.18]);
         $this->assertMatchesRegularExpression('/data-label="Margin"[^>]*>-0\.06<\/td>/', $this->get('/exchange-rates')->getContent());
     }

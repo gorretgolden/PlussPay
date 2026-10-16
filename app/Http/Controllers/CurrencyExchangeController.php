@@ -152,8 +152,6 @@ class CurrencyExchangeController extends Controller
             }
         }
 
-        $market = ExchangeCalculator::market($card, $inCurrency, $travels, $outCurrency);
-
         try {
             $exchange = CurrencyExchange::record([
                 'exchange_date' => $validated['exchange_date'],
@@ -168,7 +166,6 @@ class CurrencyExchangeController extends Controller
                 'fee' => $fee === '0.00' ? null : $fee,
                 'payment_method' => $validated['payment_method'] ?? null,
                 'rate' => $this->unitRate($travels, $outAmount),
-                'market_rate' => $market === null ? null : $this->unitRate($travels, $market),
                 'rate_reason' => $overridden ? trim($validated['rate_reason']) : null,
                 'margin_ugx' => ExchangeCalculator::margin($card, $inCurrency, $inAmount, $outCurrency, $outAmount),
                 'notes' => $validated['notes'] ?? null,

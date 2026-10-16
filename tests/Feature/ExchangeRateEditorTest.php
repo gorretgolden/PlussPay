@@ -109,7 +109,7 @@ class ExchangeRateEditorTest extends TestCase
                 'buy_rate' => '3750',
             ])
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('success', fn (string $message) => str_contains($message, 'USD-UGX corrected to selling 3760, buying 3750'));
+            ->assertSessionHas('success', fn (string $message) => str_contains($message, 'USD → UGX corrected to selling 3760, buying 3750'));
 
         $fresh = $rate->fresh();
 
@@ -123,7 +123,7 @@ class ExchangeRateEditorTest extends TestCase
         $this->assertSame($gorret->id, $fresh->created_by);
 
         $log = ActivityLog::where('action', 'exchange_rate_edited')->firstOrFail();
-        $this->assertStringContainsString('Live price for USD-UGX corrected from selling 3772, buying 3758', $log->description);
+        $this->assertStringContainsString('Live price for USD → UGX corrected from selling 3772, buying 3758', $log->description);
     }
 
     public function test_an_earlier_price_is_only_corrected_once_the_warning_is_acknowledged(): void
@@ -206,7 +206,7 @@ class ExchangeRateEditorTest extends TestCase
     {
         $alice = $this->admin('Alice Admin');
 
-        $this->rate();
+        $live = $this->rate();
         $dormant = $this->rate(['rate' => 3700, 'sell_rate' => 3700, 'is_active' => false]);
 
         $this->actingAs($alice)
@@ -215,6 +215,153 @@ class ExchangeRateEditorTest extends TestCase
 
         $this->assertTrue($dormant->fresh()->is_active);
         $this->assertSame($alice->id, $dormant->fresh()->updated_by);
+
+        // One pair, one current price: bringing a row in always retires the one it replaces, so two
+        // bookings entered a minute apart cannot be priced off different figures.
+        $this->assertFalse($live->fresh()->is_active);
+        $this->assertSame(1, ExchangeRate::where('is_active', true)->where('to_currency', 'UGX')->count());
+    }
+
+    /**
+     * A pair left with two prices in use is data from before the rule, and the desk reads the newer
+     * one. Setting the quiet row aside is the fix she asked to be able to do by hand, and the page
+     * has to name the row so the switch is not guesswork.
+     */
+    public function test_a_price_in_use_that_nothing_reads_is_named_and_can_be_taken_out_of_use(): void
+    {
+        $alice = $this->admin('Alice Admin');
+
+        $older = $this->rate(['rate' => 3700, 'sell_rate' => 3700, 'buy_rate' => 3690]);
+        $current = $this->rate(['rate' => 3772, 'sell_rate' => 3772, 'buy_rate' => 3758]);
+
+        $this->actingAs($alice)
+            ->get('/exchange-rates')
+            ->assertOk()
+            ->assertSee('Prices in use')
+            ->assertSee('USD → UGX 3,700 is not the price being read.');
+
+        $this->actingAs($alice)
+            ->patch('/exchange-rates/'.$older->id.'/toggle')
+            ->assertSessionHas('success', fn (string $message) => str_contains($message, 'USD → UGX 3700 is out of use.'));
+
+        $this->assertFalse($older->fresh()->is_active);
+        $this->assertTrue($current->fresh()->is_active, 'The price the desk reads is untouched.');
+    }
+
+    public function test_taking_the_only_price_for_a_pair_out_of_use_leaves_it_unpriced(): void
+    {
+        $alice = $this->admin('Alice Admin');
+
+        $this->rate(['from_currency' => 'USD', 'to_currency' => 'RMB', 'rate' => 7.24, 'sell_rate' => 7.24, 'buy_rate' => 7.2]);
+        $live = $this->rate();
+
+        $this->actingAs($alice)
+            ->patch('/exchange-rates/'.$live->id.'/toggle')
+            ->assertSessionHas('success', fn (string $message) => str_contains($message,
+                'USD → UGX 3772 is out of use.'));
+
+        $this->assertFalse($live->fresh()->is_active);
+
+        $this->actingAs($alice)
+            ->get('/exchange-rates')
+            ->assertOk()
+            ->assertSee('No price is in use for USD → UGX.')
+            ->assertDontSee('No price is in use for USD → RMB');
+    }
+
+    public function test_a_reverse_direction_row_cannot_become_a_price_in_use(): void
+    {
+        $alice = $this->admin('Alice Admin');
+
+        // The shilling price is held as USD → UGX with both figures on it. The reverse row prices
+        // nothing and would stand in for the desk price if it were ever switched off, so it is
+        // refused rather than silently accepted.
+        $reverse = $this->rate([
+            'from_currency' => 'UGX',
+            'to_currency' => 'USD',
+            'rate' => 0.00027,
+            'sell_rate' => 0.00027,
+            'buy_rate' => null,
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($alice)
+            ->patch('/exchange-rates/'.$reverse->id.'/toggle')
+            ->assertSessionHasErrors(['rate' => 'UGX → USD cannot be set as current. Only USD → UGX and USD → RMB price bookings.']);
+
+        $this->assertFalse($reverse->fresh()->is_active);
+
+        $this->actingAs($alice)
+            ->get('/exchange-rates?status=')
+            ->assertOk()
+            ->assertDontSee('Set UGX to USD 0.00027 as the current rate', false);
+    }
+
+    public function test_a_live_reverse_direction_row_can_be_switched_off_and_prices_nothing(): void
+    {
+        $alice = $this->admin('Alice Admin');
+
+        $this->rate();
+        $reverse = $this->rate([
+            'from_currency' => 'UGX',
+            'to_currency' => 'USD',
+            'rate' => 4235,
+            'sell_rate' => 4235,
+            'buy_rate' => 4115,
+        ]);
+
+        $this->assertSame(3772.0, ExchangeRate::usdToUgx(), 'The shilling price comes from the desk pair, never the reverse row.');
+
+        $this->actingAs($alice)
+            ->get('/exchange-rates')
+            ->assertOk()
+            ->assertSee('UGX → USD 4,235 is not the price being read. Take it out of use.');
+
+        $this->actingAs($alice)
+            ->patch('/exchange-rates/'.$reverse->id.'/toggle')
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', fn (string $message) => str_contains($message, 'UGX → USD 4235 is out of use.'));
+
+        $this->assertFalse($reverse->fresh()->is_active);
+        $this->assertSame(3772.0, ExchangeRate::usdToUgx(), 'Switching the reverse row off changes no price anything is worked out at.');
+    }
+
+    public function test_the_price_in_use_carries_a_switch_that_names_what_it_does(): void
+    {
+        $alice = $this->admin('Alice Admin');
+        $this->rate();
+
+        $html = $this->actingAs($alice)->get('/exchange-rates')->assertOk()->getContent();
+
+        $this->assertStringContainsString('aria-label="Take USD to UGX 3,772 out of use"', $html);
+        $this->assertStringContainsString('data-confirm="Take USD to UGX 3,772 out of use?"', $html);
+    }
+
+    public function test_the_desk_prices_are_the_only_rows_anything_is_worked_from(): void
+    {
+        // An in-use UGX → USD row is not a substitute for the shilling price: the desk has none, so
+        // conversions report no price rather than inventing one by inverting a row nobody set.
+        $this->rate(['from_currency' => 'UGX', 'to_currency' => 'USD', 'rate' => 0.00027, 'sell_rate' => 0.00027, 'buy_rate' => null]);
+
+        $this->assertNull(ExchangeRate::usdToUgx());
+        $this->assertNull(ExchangeRate::usdUgxPair());
+    }
+
+    public function test_seeding_leaves_exactly_the_two_desk_prices_in_use(): void
+    {
+        // Re-running the demo seed on the live book used to resurrect the oldest row of each pair
+        // and add a third, reverse-direction price, which is how a pair ended up with two prices
+        // in use at once.
+        $this->rate(['rate' => 3772, 'sell_rate' => 3772, 'buy_rate' => 3758]);
+        $this->rate(['from_currency' => 'USD', 'to_currency' => 'RMB', 'rate' => 7.24, 'sell_rate' => 7.24, 'buy_rate' => 7.2]);
+        $retired = $this->rate(['from_currency' => 'USD', 'to_currency' => 'RMB', 'rate' => 7.10, 'sell_rate' => 7.10, 'buy_rate' => 7.05, 'is_active' => false]);
+
+        $this->seed(\Database\Seeders\ExchangeRateSeeder::class);
+
+        $this->assertFalse($retired->fresh()->is_active, 'An earlier price stays an earlier price.');
+        $this->assertSame(2, ExchangeRate::where('is_active', true)->count());
+        $this->assertSame([], ExchangeRate::liveRowsOutsideRule()->all());
+        $this->assertSame([], ExchangeRate::unpricedDeskPairs());
     }
 
     public function test_the_rates_page_shows_who_edited_each_rate(): void

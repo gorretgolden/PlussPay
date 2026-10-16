@@ -11,8 +11,8 @@
     if (!isset($tabs[$activeTab])) $activeTab = 'rates';
     $trimRate = fn ($value) => $value === null ? '' : rtrim(rtrim(number_format((float) $value, 6, '.', ''), '0'), '.');
     $pairs = [
-        'ugx' => ['unit' => 'UGX', 'pair' => $usdUgxPair, 'market' => $usdUgxMarket, 'min' => '0.01', 'max' => '999999.99', 'helper' => 'Convert shillings into dollars.', 'rule' => 'buying shillings cheap and selling them dear, so the selling price must be the higher one'],
-        'rmb' => ['unit' => 'RMB', 'pair' => $usdRmbPair, 'market' => $usdRmbMarket, 'min' => '0.000001', 'max' => '999999.999999', 'helper' => 'Price RMB payouts to China.', 'rule' => 'crediting the receiver at the selling price and settling with the China side at the buying price, so the buying price must be the higher one'],
+        'ugx' => ['unit' => 'UGX', 'pair' => $usdUgxPair, 'min' => '0.01', 'max' => '999999.99', 'helper' => 'Convert shillings into dollars.', 'rule' => 'buying shillings cheap and selling them dear, so the selling price must be the higher one'],
+        'rmb' => ['unit' => 'RMB', 'pair' => $usdRmbPair, 'min' => '0.000001', 'max' => '999999.999999', 'helper' => 'Price RMB payouts to China.', 'rule' => 'crediting the receiver at the selling price and settling with the China side at the buying price, so the buying price must be the higher one'],
     ];
     $fields = [
         'transactions' => [
@@ -79,12 +79,10 @@
                                     <legend class="px-1 text-base font-semibold text-gray-900">USD → {{ $rate['unit'] }}</legend>
                                     <p class="mb-4 text-xs text-gray-500">{{ $rate['helper'] }}</p>
                                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                        @foreach (['buying' => 'Buying rate', 'selling' => 'Selling rate', 'market' => 'Street price'] as $side => $rateLabel)
+                                        @foreach (['buying' => 'Buying rate', 'selling' => 'Selling rate'] as $side => $rateLabel)
                                             @php
                                                 $key = 'usd_'.$currency.'_'.$side;
-                                                $saved = $side === 'market'
-                                                    ? $trimRate($rate['market'])
-                                                    : $trimRate($pair[$side === 'buying' ? 'buy' : 'sell'] ?? null);
+                                                $saved = $trimRate($pair[$side === 'buying' ? 'buy' : 'sell'] ?? null);
                                             @endphp
                                             <div class="min-w-0">
                                                 <label for="{{ $key }}" class="block text-sm font-medium text-gray-700 mb-1">{{ $rateLabel }} <span class="text-gray-500">({{ $rate['unit'] }}/USD)</span></label>
@@ -92,9 +90,6 @@
                                                     <input id="{{ $key }}" name="{{ $key }}" type="text" inputmode="decimal" pattern="(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?" data-money data-min="{{ $rate['min'] }}" data-max="{{ $rate['max'] }}" data-original="{{ $saved }}" data-label="{{ $rate['unit'] }} {{ strtolower($rateLabel) }}" value="{{ old($key, $saved) }}" aria-describedby="error-{{ $key }}" @if ($errors->has($key)) aria-invalid="true" @endif class="min-w-0 w-full bg-transparent px-3 py-2 outline-none tabular-nums">
                                                 </div>
                                                 <p id="error-{{ $key }}" data-field-error="{{ $key }}" class="mt-1 text-xs text-red-700">@error($key){{ $message }}@enderror</p>
-                                                @if ($side === 'market')
-                                                    <p class="mt-1 text-xs text-gray-500">Optional. What the money was worth outside the desk; a blank box means the middle of your own two prices is quoted. Exchange slips print this beside the price the customer was given.</p>
-                                                @endif
                                             </div>
                                         @endforeach
                                     </div>
@@ -106,12 +101,8 @@
                         <details class="mt-5 text-sm text-gray-600">
                             <summary class="cursor-pointer font-medium text-green-800">Learn more about rates</summary>
                             <div class="mt-3 space-y-2">
-                                <p>UGX buying is your cost per dollar; selling converts the customer's shillings. Margin = selling − buying.</p>
-                                <p>RMB buying is what China pays per dollar; selling prices the recipient's payout. Margin = buying − selling.</p>
                                 <p>A negative margin means a loss. Changes over 5% and negative margins need review, but are not blocked.</p>
                                 <p>Leave selling blank to skip that pair. Blank buying keeps its saved value, or uses selling for a new pair. Previous rates remain in history.</p>
-                                <p>The street price is kept with the pair and is what a counter slip shows as the market on the day. Leave it blank to have the middle of your buying and selling prices quoted instead. Saving it does not change any conversion or any charge.</p>
-                                <p>Each saved price records the date it took effect, so a transfer entered under an older figure still reads back the one that was live when it was booked.</p>
                             </div>
                         </details>
                     @else

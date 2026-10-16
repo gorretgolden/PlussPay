@@ -15,8 +15,8 @@ use Tests\TestCase;
 
 /**
  * The counter terms of a currency exchange: the commission the desk keeps as its own line in the
- * cash books, how the money physically moved, a price agreed off the card that has to say why, the
- * street price stamped on the day, and the slip that prints only what the deal itself saved.
+ * cash books, how the money physically moved, a price agreed off the card that has to say why, and
+ * the slip that prints only what the deal itself saved.
  *
  * The figures below are worked from a card of UGX 3,750 buying / 3,760 selling a dollar and
  * 6.75 yuan either way, so every expected amount can be checked by hand.
@@ -218,7 +218,7 @@ class ExchangeDeskTermsTest extends TestCase
         $this->assertNull(CurrencyExchange::latest('id')->firstOrFail()->rate_reason);
     }
 
-    public function test_the_street_price_is_stamped_on_the_deal_and_never_moves_afterwards(): void
+    public function test_the_price_is_stamped_on_the_deal_and_never_moves_afterwards(): void
     {
         $this->fund(Account::USD_UGANDA, '1000.00');
         $this->fund(Account::UGX_UGANDA, '5000000.00');
@@ -227,15 +227,14 @@ class ExchangeDeskTermsTest extends TestCase
 
         $exchange = CurrencyExchange::latest('id')->firstOrFail();
 
-        // With no street price recorded, the middle of the desk's own two figures stands in:
-        // 980,000 / 3,755 = $260.99, which reads back as 3,754.933139 shillings to the dollar.
-        $this->assertSame('3754.933139', (string) $exchange->market_rate);
-        $this->assertSame('3754.933139 UGX per 1 USD', $exchange->quotedMarketRate());
+        // 980,000 priced at the selling rate: $260.64, which reads back as 3,759.975445 shillings
+        // to the dollar. Moving the card afterwards must not restate a deal already done.
+        $this->assertSame('3759.975445', (string) $exchange->rate);
+        $this->assertSame('260.64', (string) $exchange->out_amount);
 
         ExchangeRate::setPair('USD', 'UGX', 3900, 3800, 3900);
 
         $exchange->refresh();
-        $this->assertSame('3754.933139', (string) $exchange->market_rate);
         $this->assertSame('3759.975445', (string) $exchange->rate);
         $this->assertSame('260.64', (string) $exchange->out_amount);
     }
@@ -279,7 +278,6 @@ class ExchangeDeskTermsTest extends TestCase
         $exchange = CurrencyExchange::latest('id')->firstOrFail();
 
         $this->assertSame('3750.000000', (string) $exchange->rate);
-        $this->assertSame('3755.000000', (string) $exchange->market_rate);
         $this->assertSame('3750 UGX per 1 USD', $exchange->quotedRate());
         $this->assertSame('1856250.00', (string) $exchange->out_amount);
         $this->assertSame('23750.00', (string) $exchange->margin_ugx);
@@ -348,8 +346,6 @@ class ExchangeDeskTermsTest extends TestCase
             ->assertSee('UGX 980,000')
             ->assertSee('Price given')
             ->assertSee('3769.230769 UGX per 1 USD', false)
-            ->assertSee('Street price on the day')
-            ->assertSee('3754.933139 UGX per 1 USD', false)
             ->assertSee('HANDED OVER TO YOU (USD)')
             ->assertSee('$260.00', false)
             ->assertSee('Rush job, agreed with the manager')
@@ -361,8 +357,7 @@ class ExchangeDeskTermsTest extends TestCase
 
         $this->actingAs($this->admin)->get('/exchanges/'.$exchange->id.'/receipt')
             ->assertOk()
-            ->assertSee('3769.230769 UGX per 1 USD', false)
-            ->assertSee('3754.933139 UGX per 1 USD', false);
+            ->assertSee('3769.230769 UGX per 1 USD', false);
     }
 
     public function test_a_cancelled_deal_says_so_on_the_slip(): void
@@ -419,42 +414,7 @@ class ExchangeDeskTermsTest extends TestCase
             ->assertSee('Locked to the card price. An Admin can agree a different price with a customer.', false);
     }
 
-    public function test_a_street_price_saved_in_settings_is_the_one_a_deal_stamps(): void
-    {
-        $this->fund(Account::USD_UGANDA, '1000.00');
-        $this->fund(Account::UGX_UGANDA, '5000000.00');
-
-        $this->actingAs($this->admin)->put('/settings', [
-            'settings_tab' => 'rates',
-            'usd_ugx_buying' => '3750',
-            'usd_ugx_selling' => '3760',
-            'usd_ugx_market' => '3800',
-        ])->assertSessionHasNoErrors();
-
-        $this->assertSame('3800.000000', ExchangeRate::marketPrice('USD', 'UGX'));
-        $this->assertSame('3800.000000', ExchangeCalculator::mid(ExchangeCalculator::card())['usd']);
-
-        // The street price is only ever a mark beside the deal, so the conversions still run off
-        // the selling rate.
-        $this->assertSame('260.64', ExchangeCalculator::suggest(ExchangeCalculator::card(), 'UGX', '980000.00', 'USD'));
-
-        $this->book(['fee' => '20000'])->assertSessionHasNoErrors();
-
-        // The stamp is the rate the priced shillings bought at on the street: 980,000 / $257.89.
-        $this->assertSame('3800.069797', (string) CurrencyExchange::latest('id')->firstOrFail()->market_rate);
-    }
-
-    public function test_a_street_price_cannot_be_saved_without_the_pair_it_belongs_to(): void
-    {
-        $this->actingAs($this->admin)->put('/settings', [
-            'settings_tab' => 'rates',
-            'usd_ugx_market' => '3800',
-        ])->assertSessionHasErrors('usd_ugx_market');
-
-        $this->assertNull(ExchangeRate::marketPrice('USD', 'UGX'));
-    }
-
-    public function test_a_blank_street_price_leaves_the_pair_alone_rather_than_opening_a_new_row(): void
+    public function test_saving_the_prices_already_on_the_screen_leaves_the_pair_alone(): void
     {
         $before = ExchangeRate::where('from_currency', 'USD')->where('to_currency', 'UGX')->count();
 
@@ -465,7 +425,8 @@ class ExchangeDeskTermsTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $this->assertSame($before, ExchangeRate::where('from_currency', 'USD')->where('to_currency', 'UGX')->count());
-        $this->assertSame('3755.000000', ExchangeCalculator::mid(ExchangeCalculator::card())['usd']);
+        $this->assertSame('3750', ExchangeCalculator::card()['usd_buy']);
+        $this->assertSame('3760', ExchangeCalculator::card()['usd_sell']);
     }
 
     public function test_every_saved_price_records_the_day_it_took_effect(): void
@@ -484,21 +445,18 @@ class ExchangeDeskTermsTest extends TestCase
         $this->assertSame('3800.000000', (string) ExchangeRate::getActiveRate('USD', 'UGX')->rate);
     }
 
-    public function test_the_rates_history_shows_the_street_price_and_the_date_a_price_took_effect(): void
+    public function test_the_rates_history_shows_the_date_a_price_took_effect(): void
     {
         $this->actingAs($this->admin)->put('/settings', [
             'settings_tab' => 'rates',
             'usd_ugx_buying' => '3750',
             'usd_ugx_selling' => '3760',
-            'usd_ugx_market' => '3755.5',
         ])->assertSessionHasNoErrors();
 
         ExchangeRate::latest('id')->firstOrFail()->update(['effective_from' => now()->subDays(3)->toDateString()]);
 
         $this->actingAs($this->admin)->get('/exchange-rates')
             ->assertOk()
-            ->assertSee('Street')
-            ->assertSee('3,755.5')
             ->assertSee('In force from');
     }
 }

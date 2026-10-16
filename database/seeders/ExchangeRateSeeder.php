@@ -9,14 +9,14 @@ class ExchangeRateSeeder extends Seeder
 {
     public function run(): void
     {
-        ExchangeRate::updateOrCreate(
-            ['from_currency' => 'USD', 'to_currency' => 'RMB'],
-            ['rate' => 7.24, 'is_active' => true]
-        );
-
-        ExchangeRate::updateOrCreate(
-            ['from_currency' => 'UGX', 'to_currency' => 'USD'],
-            ['rate' => 0.00027, 'is_active' => true]
-        );
+        // The desk reads two prices, so two are seeded, and only where a pair has nothing in use.
+        // The reverse-direction row used to be seeded here too, which put a third price in use that
+        // no conversion reads. An earlier price is history and stays retired: bringing one back is a
+        // decision somebody makes on the rates page, not something a re-seed does by itself.
+        foreach ([['USD', 'UGX', 3760], ['USD', 'RMB', 7.24]] as [$from, $to, $rate]) {
+            if (ExchangeRate::getActiveRate($from, $to) === null) {
+                ExchangeRate::setPair($from, $to, $rate);
+            }
+        }
     }
 }

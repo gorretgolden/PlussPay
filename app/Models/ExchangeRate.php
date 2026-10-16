@@ -9,13 +9,23 @@ use Illuminate\Http\Request;
 
 class ExchangeRate extends Model
 {
+    /**
+     * The only two prices the desk works from, and the only two that may be in use at once. The
+     * buying and selling figures on one row already price money travelling both ways, so a row for
+     * the reverse direction either duplicates a live price or quietly replaces it with a rate nobody
+     * set. Money is bought and sold against dollars here: shillings for dollars, dollars for yuan.
+     */
+    public const DESK_PAIRS = [
+        ['USD', 'UGX'],
+        ['USD', 'RMB'],
+    ];
+
     protected $fillable = [
         'from_currency',
         'to_currency',
         'rate',
         'buy_rate',
         'sell_rate',
-        'market_rate',
         'effective_from',
         'is_active',
         'created_by',
@@ -26,7 +36,6 @@ class ExchangeRate extends Model
         'rate' => 'decimal:6',
         'buy_rate' => 'decimal:6',
         'sell_rate' => 'decimal:6',
-        'market_rate' => 'decimal:6',
         'effective_from' => 'date',
         'is_active' => 'boolean',
     ];
@@ -117,17 +126,9 @@ class ExchangeRate extends Model
 
     public static function usdToUgx(): ?float
     {
-        $direct = static::getActiveRate('USD', 'UGX');
-        if ($direct && (float) $direct->rate > 0) {
-            return (float) $direct->rate;
-        }
+        $row = static::getActiveRate('USD', 'UGX');
 
-        $inverse = static::getActiveRate('UGX', 'USD');
-        if ($inverse && (float) $inverse->rate > 0) {
-            return 1 / (float) $inverse->rate;
-        }
-
-        return null;
+        return $row && (float) $row->rate > 0 ? (float) $row->rate : null;
     }
 
     public static function getActiveRate(string $from, string $to): ?self
@@ -136,7 +137,98 @@ class ExchangeRate extends Model
             ->where('to_currency', $to)
             ->where('is_active', true)
             ->latest()
+            ->orderByDesc('id')
             ->first();
+    }
+
+    /**
+     * Whether a direction is one of the two prices the desk reads.
+     */
+    public static function isDeskPair(string $from, string $to): bool
+    {
+        foreach (static::DESK_PAIRS as [$start, $end]) {
+            if ($start === strtoupper($from) && $end === strtoupper($to)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The two desk pairs named the way the table prints them, for any message that has to say
+     * which prices are allowed to be in use.
+     */
+    public static function deskPairsList(): string
+    {
+        return implode(' and ', array_map(
+            fn (array $pair) => $pair[0].' → '.$pair[1],
+            static::DESK_PAIRS,
+        ));
+    }
+
+    /**
+     * Every price in use that the rule says should not be: a direction the desk does not read, or a
+     * second live row for a pair whose current price is already being read elsewhere. Nothing here
+     * is deleted, and nothing is switched off by itself; these are the rows the person at the desk
+     * has to set aside.
+     *
+     * @return \Illuminate\Support\Collection<int, self>
+     */
+    public static function liveRowsOutsideRule()
+    {
+        $outside = collect();
+
+        foreach (static::where('is_active', true)->get()->groupBy(fn (self $r) => $r->from_currency.'-'.$r->to_currency) as $rows) {
+            $first = $rows->first();
+
+            if (! static::isDeskPair($first->from_currency, $first->to_currency)) {
+                $outside = $outside->merge($rows);
+
+                continue;
+            }
+
+            $read = static::getActiveRate($first->from_currency, $first->to_currency);
+            $outside = $outside->merge($rows->reject(fn (self $r) => $read && $r->id === $read->id));
+        }
+
+        return $outside->sortBy([['from_currency', 'asc'], ['to_currency', 'asc'], ['id', 'desc']])->values();
+    }
+
+    /**
+     * The desk pairs with no price in use. A booking cannot be worked out without both of them, so
+     * an empty one is said out loud rather than left for the counter to discover.
+     *
+     * @return array<int, string>
+     */
+    public static function unpricedDeskPairs(): array
+    {
+        return array_values(array_filter(array_map(
+            fn (array $pair) => static::getActiveRate($pair[0], $pair[1]) ? null : $pair[0].' → '.$pair[1],
+            static::DESK_PAIRS,
+        )));
+    }
+
+    /**
+     * Bring this price into use. Whatever else is live for the same pair is set aside first, so a
+     * pair can never hold two current prices at once.
+     */
+    public function putIntoUse(): self
+    {
+        static::retirePair($this->from_currency, $this->to_currency);
+        $this->update(['is_active' => true]);
+
+        return $this;
+    }
+
+    /**
+     * Take this price out of use.
+     */
+    public function setAside(): self
+    {
+        $this->update(['is_active' => false]);
+
+        return $this;
     }
 
     /**
@@ -155,19 +247,6 @@ class ExchangeRate extends Model
                 ->orWhere(fn (Builder $inner) => $inner->whereNull('effective_from')->whereDate('created_at', '<=', $date)))
             ->orderByRaw('COALESCE(effective_from, created_at) desc, id desc')
             ->first();
-    }
-
-    /**
-     * The street price saved against the live row of a pair, if anyone recorded one. This is the
-     * figure a slip quotes as the market on the day, and it is deliberately separate from the two
-     * desk prices: the buying and selling rates are what we deal at, the market rate is what the
-     * money was worth outside.
-     */
-    public static function marketPrice(string $from, string $to): ?string
-    {
-        $row = static::getActiveRate($from, $to);
-
-        return $row?->market_rate === null ? null : (string) $row->market_rate;
     }
 
     /**
@@ -196,28 +275,11 @@ class ExchangeRate extends Model
      */
     public static function usdUgxPair(): ?array
     {
-        $direct = static::pair('USD', 'UGX');
-        if ($direct) {
-            return $direct;
-        }
-
-        // Only the inverse quote is stored, so there is no spread to recover from it.
-        $inverse = static::getActiveRate('UGX', 'USD');
-        if ($inverse && (float) $inverse->rate > 0) {
-            $rate = 1 / (float) $inverse->rate;
-
-            return ['buy' => $rate, 'sell' => $rate];
-        }
-
-        return null;
+        return static::pair('USD', 'UGX');
     }
 
-    public static function setPair(string $from, string $to, float $rate, ?float $buy = null, ?float $sell = null, ?float $market = null): self
+    public static function setPair(string $from, string $to, float $rate, ?float $buy = null, ?float $sell = null): self
     {
-        // Read before retiring: a blank street price keeps whatever the live row carried, so a
-        // market figure recorded once does not have to be retyped every time the desk prices move.
-        $market ??= static::marketPrice($from, $to);
-
         static::retirePair($from, $to);
 
         return static::create([
@@ -226,7 +288,6 @@ class ExchangeRate extends Model
             'rate' => $rate,
             'buy_rate' => $buy,
             'sell_rate' => $sell ?? $rate,
-            'market_rate' => $market,
             'is_active' => true,
             'created_by' => auth()->id(),
         ]);

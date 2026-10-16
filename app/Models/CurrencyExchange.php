@@ -36,7 +36,6 @@ class CurrencyExchange extends Model
         'fee',
         'payment_method',
         'rate',
-        'market_rate',
         'rate_reason',
         'margin_ugx',
         'status',
@@ -50,7 +49,6 @@ class CurrencyExchange extends Model
         'out_amount' => 'decimal:2',
         'fee' => 'decimal:2',
         'rate' => 'decimal:6',
-        'market_rate' => 'decimal:6',
         'margin_ugx' => 'decimal:2',
     ];
 
@@ -121,26 +119,6 @@ class CurrencyExchange extends Model
             : [$in / $out, $this->in_currency.' per 1 '.$this->out_currency];
 
         return rtrim(rtrim(number_format($figure, 6, '.', ''), '0'), '.').' '.$label;
-    }
-
-    /**
-     * The street price saved on the deal on the day it was done, said the same way round as the
-     * deal's own price. It is read off the stored figure rather than the current card on purpose:
-     * a slip printed later must not move when someone updates the rates.
-     */
-    public function quotedMarketRate(): ?string
-    {
-        $in = (float) $this->in_amount - (float) ($this->fee ?? 0);
-
-        if ($this->market_rate === null || $in <= 0 || (float) $this->out_amount <= 0) {
-            return null;
-        }
-
-        $label = (float) $this->out_amount >= $in
-            ? $this->out_currency.' per 1 '.$this->in_currency
-            : $this->in_currency.' per 1 '.$this->out_currency;
-
-        return rtrim(rtrim(number_format((float) $this->market_rate, 6, '.', ''), '0'), '.').' '.$label;
     }
 
     /**

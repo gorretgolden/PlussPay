@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 class SettingController extends Controller
 {
     private const TAB_FIELDS = [
-        'rates' => ['usd_ugx_buying', 'usd_ugx_selling', 'usd_ugx_market', 'usd_rmb_buying', 'usd_rmb_selling', 'usd_rmb_market'],
+        'rates' => ['usd_ugx_buying', 'usd_ugx_selling', 'usd_rmb_buying', 'usd_rmb_selling'],
         'transactions' => ['min_transaction_amount', 'max_transaction_amount', 'receipt_prefix', 'default_charge_ugx'],
         'company' => ['company_name', 'company_address', 'company_phone', 'company_email', 'company_website'],
         'datetime' => ['timezone'],
@@ -24,20 +24,16 @@ class SettingController extends Controller
         $settings = Setting::all()->groupBy('group');
         $usdToUgx = ExchangeRate::usdToUgx();
         $usdUgxPair = ExchangeRate::usdUgxPair();
-        $usdUgxMarket = ExchangeRate::marketPrice('USD', 'UGX');
         $usdToRmb = ExchangeRate::getActiveRate('USD', 'RMB');
         $usdRmbPair = ExchangeRate::pair('USD', 'RMB');
-        $usdRmbMarket = ExchangeRate::marketPrice('USD', 'RMB');
         $testingModeBlocked = self::testingModeBlocked($request);
 
         return view('settings.index', compact(
             'settings',
             'usdToUgx',
             'usdUgxPair',
-            'usdUgxMarket',
             'usdToRmb',
             'usdRmbPair',
-            'usdRmbMarket',
             'testingModeBlocked'
         ));
     }
@@ -58,10 +54,8 @@ class SettingController extends Controller
             'default_charge_ugx' => 'nullable|numeric|min:0',
             'usd_ugx_buying' => 'nullable|numeric|min:0.01|max:999999.99',
             'usd_ugx_selling' => 'nullable|numeric|min:0.01|max:999999.99',
-            'usd_ugx_market' => 'nullable|numeric|min:0.01|max:999999.99',
             'usd_rmb_buying' => 'nullable|numeric|min:0.000001|max:999999.999999',
             'usd_rmb_selling' => 'nullable|numeric|min:0.000001|max:999999.999999',
-            'usd_rmb_market' => 'nullable|numeric|min:0.000001|max:999999.999999',
             'site_mode' => ['sometimes', 'required', 'in:testing,production'],
             'timezone' => ['nullable', Rule::in(array_keys(Setting::TIMEZONES))],
         ];
@@ -82,37 +76,19 @@ class SettingController extends Controller
             'usd_ugx_selling.max' => 'The UGX rate is too high.',
             'usd_rmb_buying.numeric' => 'The RMB buying rate must be a number, e.g. 6.70.',
             'usd_rmb_selling.numeric' => 'The RMB selling rate must be a number, e.g. 6.75.',
-            'usd_ugx_market.numeric' => 'The UGX street price must be a number, e.g. 3755.',
-            'usd_rmb_market.numeric' => 'The RMB street price must be a number, e.g. 6.72.',
         ]);
 
         // Rates live in the exchange rate table, not settings, so every screen converts with the same figure.
         $ugxBuy = $this->rateInput($validated, 'usd_ugx_buying');
         $ugxSell = $this->rateInput($validated, 'usd_ugx_selling');
-        $ugxMarket = $this->rateInput($validated, 'usd_ugx_market');
         $rmbBuy = $this->rateInput($validated, 'usd_rmb_buying');
         $rmbSell = $this->rateInput($validated, 'usd_rmb_selling');
-        $rmbMarket = $this->rateInput($validated, 'usd_rmb_market');
         unset(
             $validated['usd_ugx_buying'],
             $validated['usd_ugx_selling'],
-            $validated['usd_ugx_market'],
             $validated['usd_rmb_buying'],
             $validated['usd_rmb_selling'],
-            $validated['usd_rmb_market'],
         );
-
-        // A street price is saved onto the pair's row, so it cannot be recorded on its own.
-        $streetWithoutPrice = [];
-        if ($ugxMarket !== null && $ugxSell === null) {
-            $streetWithoutPrice['usd_ugx_market'] = 'The street price is saved with the shilling pair, so enter the selling price beside it.';
-        }
-        if ($rmbMarket !== null && $rmbSell === null) {
-            $streetWithoutPrice['usd_rmb_market'] = 'The street price is saved with the yuan pair, so enter the selling price beside it.';
-        }
-        if ($streetWithoutPrice) {
-            throw ValidationException::withMessages($streetWithoutPrice);
-        }
 
         // Site mode decides whether the sign-in page prints the real admin emails,
         // so it stays a Super Admin decision even though Admins can edit other settings.
@@ -154,52 +130,38 @@ class SettingController extends Controller
 
         if ($ugxSell !== null) {
             $before = ExchangeRate::usdUgxPair();
-            $beforeMarket = ExchangeRate::marketPrice('USD', 'UGX');
             $buy = $ugxBuy ?? $before['buy'] ?? $ugxSell;
-            $market = $ugxMarket ?? ($beforeMarket === null ? null : (float) $beforeMarket);
 
             // Saving with the figures already on the screen must not rewrite the pair.
             // setPair retires the old row and inserts a new one, so a no-op save was
             // filling the rates table with duplicates and logging a change that never happened.
-            if (! $this->samePair($before, $buy, $ugxSell) || ! $this->sameStreet($beforeMarket, $market)) {
+            if (! $this->samePair($before, $buy, $ugxSell)) {
                 // The customer-facing figure keeps driving every conversion; the buying rate only measures margin.
-                ExchangeRate::setPair('USD', 'UGX', $ugxSell, $buy, $ugxSell, $market);
+                ExchangeRate::setPair('USD', 'UGX', $ugxSell, $buy, $ugxSell);
                 $changes[] = 'USD to UGX selling rate changed from '.($before['sell'] ?? 'unset').' to '.$ugxSell
-                    .($ugxBuy !== null ? ', buying rate to '.$ugxBuy : '')
-                    .($ugxMarket !== null && ! $this->sameStreet($beforeMarket, $ugxMarket) ? ', street price to '.$ugxMarket : '');
+                    .($ugxBuy !== null ? ', buying rate to '.$ugxBuy : '');
                 $oldValues['usd_ugx_selling'] = $before['sell'] ?? null;
                 $newValues['usd_ugx_selling'] = $ugxSell;
                 if ($ugxBuy !== null) {
                     $oldValues['usd_ugx_buying'] = $before['buy'] ?? null;
                     $newValues['usd_ugx_buying'] = $ugxBuy;
                 }
-                if ($ugxMarket !== null && ! $this->sameStreet($beforeMarket, $ugxMarket)) {
-                    $oldValues['usd_ugx_market'] = $beforeMarket;
-                    $newValues['usd_ugx_market'] = $ugxMarket;
-                }
             }
         }
 
         if ($rmbSell !== null) {
             $before = ExchangeRate::pair('USD', 'RMB');
-            $beforeMarket = ExchangeRate::marketPrice('USD', 'RMB');
             $buy = $rmbBuy ?? $before['buy'] ?? $rmbSell;
-            $market = $rmbMarket ?? ($beforeMarket === null ? null : (float) $beforeMarket);
 
-            if (! $this->samePair($before, $buy, $rmbSell) || ! $this->sameStreet($beforeMarket, $market)) {
-                ExchangeRate::setPair('USD', 'RMB', $rmbSell, $buy, $rmbSell, $market);
+            if (! $this->samePair($before, $buy, $rmbSell)) {
+                ExchangeRate::setPair('USD', 'RMB', $rmbSell, $buy, $rmbSell);
                 $changes[] = 'USD to RMB selling rate changed from '.($before['sell'] ?? 'unset').' to '.$rmbSell
-                    .($rmbBuy !== null ? ', buying rate to '.$rmbBuy : '')
-                    .($rmbMarket !== null && ! $this->sameStreet($beforeMarket, $rmbMarket) ? ', street price to '.$rmbMarket : '');
+                    .($rmbBuy !== null ? ', buying rate to '.$rmbBuy : '');
                 $oldValues['usd_rmb_selling'] = $before['sell'] ?? null;
                 $newValues['usd_rmb_selling'] = $rmbSell;
                 if ($rmbBuy !== null) {
                     $oldValues['usd_rmb_buying'] = $before['buy'] ?? null;
                     $newValues['usd_rmb_buying'] = $rmbBuy;
-                }
-                if ($rmbMarket !== null && ! $this->sameStreet($beforeMarket, $rmbMarket)) {
-                    $oldValues['usd_rmb_market'] = $beforeMarket;
-                    $newValues['usd_rmb_market'] = $rmbMarket;
                 }
             }
         }
@@ -262,18 +224,5 @@ class SettingController extends Controller
         return $before !== null
             && abs($before['sell'] - $sell) < 0.0000005
             && abs($before['buy'] - $buy) < 0.0000005;
-    }
-
-    /**
-     * A street price is optional, so "not recorded" and "blank on the screen" are the same thing
-     * and saving either one must not open a new rate row.
-     */
-    private function sameStreet(?string $before, ?float $after): bool
-    {
-        if ($before === null || $after === null) {
-            return $before === null && $after === null;
-        }
-
-        return abs((float) $before - $after) < 0.0000005;
     }
 }

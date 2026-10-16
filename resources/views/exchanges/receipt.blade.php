@@ -117,13 +117,6 @@
                 <td class="amount-cell">{{ $exchange->quotedRate() ?? 'Not recorded' }}</td>
                 <td class="amount-cell"></td>
             </tr>
-            @if($exchange->quotedMarketRate())
-            <tr>
-                <td>Street price on the day</td>
-                <td class="amount-cell">{{ $exchange->quotedMarketRate() }}</td>
-                <td class="amount-cell"></td>
-            </tr>
-            @endif
             <tr class="total-row">
                 <td>HANDED OVER TO YOU ({{ $exchange->out_currency }})</td>
                 <td></td>
