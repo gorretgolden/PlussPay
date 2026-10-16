@@ -16,11 +16,15 @@
     // caller can hand over grouped label and value rows instead and they print as an aligned list.
     function renderSections(container, sections) {
         container.replaceChildren();
+        // A section with one group is already named by the dialog title, so an empty title prints
+        // no heading rather than repeating itself.
         (sections || []).forEach(({ title, rows }) => {
-            const head = document.createElement('dt');
-            head.className = 'col-span-2 mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500 first:mt-0';
-            head.textContent = title;
-            container.append(head);
+            if (title) {
+                const head = document.createElement('dt');
+                head.className = 'col-span-2 mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500 first:mt-0';
+                head.textContent = title;
+                container.append(head);
+            }
             (rows || []).forEach(([label, value]) => {
                 const name = document.createElement('dt');
                 name.className = 'text-sm text-gray-500';

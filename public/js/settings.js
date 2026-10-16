@@ -164,6 +164,81 @@
         return { sections, message: warnings.join('\n'), danger };
     }
 
+    function sectionTitle(form) {
+        const tab = page.querySelector(`[data-settings-tab="${form.dataset.settingsForm}"]`);
+        return tab ? tab.textContent.trim() : 'Settings';
+    }
+
+    function labelFor(field) {
+        if (field.dataset.label) return field.dataset.label;
+        const label = field.id && page.querySelector(`label[for="${CSS.escape(field.id)}"]`);
+        return (label?.textContent || field.name || '').replace(/\s+/g, ' ').trim();
+    }
+
+    // People chose from a list of words, so the summary repeats the words rather than the stored
+    // code. An address prints line by line on a receipt, so its breaks show as slashes.
+    function display(field, value) {
+        if (field.tagName === 'SELECT') {
+            const option = Array.from(field.options).find((item) => item.value === value);
+            return option ? option.textContent.trim() : value;
+        }
+        const text = value.replaceAll('\r', '').split('\n').map((line) => line.trim()).filter(Boolean).join(' / ');
+        return field.hasAttribute('data-money') && text ? format(raw(text)) : text;
+    }
+
+    // The rates card has its own summary because a rate pair has a figure between the two boxes
+    // that only makes sense when they are read together. Everything else is a list of boxes.
+    function sectionConfirmation(form) {
+        const rows = [];
+        controls(form).filter(changed).forEach((field) => {
+            // A password has no safe place on screen, so the summary only says that it moved.
+            if (field.name === 'demo_password') {
+                rows.push([labelFor(field), 'Changed (the value is not shown here)']);
+                return;
+            }
+            const previous = display(field, field.dataset.original);
+            const next = display(field, field.value);
+            rows.push([labelFor(field), `${previous || 'not set'} → ${next || 'blank'}`]);
+        });
+        return [{ title: '', rows }];
+    }
+
+    // Every section asks before it saves, and every section shows the same thing: the boxes that
+    // actually moved, then whatever the change goes on to affect.
+    function confirmOptions(form) {
+        let options;
+        if (form.dataset.settingsForm === 'rates') {
+            const rateChanges = rateConfirmation();
+            const empty = !rateChanges.sections.length;
+            options = {
+                title: 'Save rates?',
+                sections: rateChanges.sections,
+                message: rateChanges.message || (empty ? 'No rate values will change. A blank selling rate leaves its pair unchanged.' : ''),
+                confirmText: 'Save rates',
+                danger: rateChanges.danger,
+            };
+        } else {
+            const sections = sectionConfirmation(form);
+            const mode = form.elements.namedItem('site_mode');
+            if (form.dataset.settingsForm === 'datetime') {
+                options = { title: 'Change time zone?', sections, message: 'Screen dates, new receipts and report day boundaries will use this zone. Existing timestamps are not rewritten.', confirmText: 'Save changes' };
+            } else if (form.dataset.settingsForm === 'site' && mode && changed(mode)) {
+                const testing = mode.value === 'testing';
+                options = { title: 'Change site mode?', sections, message: testing ? 'Demo logins are visible on the sign-in page' : 'Demo logins will be hidden on the sign-in page.', confirmText: 'Save changes', danger: testing };
+            } else {
+                options = { title: `Save ${sectionTitle(form)}?`, sections, confirmText: 'Save changes' };
+            }
+        }
+        return appendOtherWarning(options, form);
+    }
+
+    function appendOtherWarning(options, form) {
+        if (!forms.some((other) => other !== form && dirty(other))) return options;
+        options.message = [options.message, 'Other sections have unsaved changes. Saving this section reloads the page and discards those changes.'].filter(Boolean).join('\n');
+        options.danger = true;
+        return options;
+    }
+
     async function switchTab(tab) {
         if (confirming || tab.dataset.settingsTab === page.dataset.activeTab) return;
         const current = forms.find((form) => form.dataset.settingsForm === page.dataset.activeTab);
@@ -241,35 +316,11 @@
                 return;
             }
             const before = snapshot(form);
-            let options = null;
-            if (form.dataset.settingsForm === 'rates') {
-                const rateChanges = rateConfirmation();
-                const empty = !rateChanges.sections.length;
-                options = {
-                    title: 'Save rates?',
-                    sections: rateChanges.sections,
-                    message: rateChanges.message || (empty ? 'No rate values will change. A blank selling rate leaves its pair unchanged.' : ''),
-                    confirmText: 'Save rates',
-                    danger: rateChanges.danger,
-                };
-            } else if (form.dataset.settingsForm === 'datetime') {
-                const field = form.elements.namedItem('timezone');
-                const previous = Array.from(field.options).find((option) => option.value === field.dataset.original)?.textContent.trim() || field.dataset.original;
-                options = { title: 'Change time zone?', message: `${previous} → ${field.selectedOptions[0].textContent.trim()}\nScreen dates, new receipts and report day boundaries will use this zone. Existing timestamps are not rewritten.`, confirmText: 'Save changes' };
-            } else if (form.dataset.settingsForm === 'site') {
-                options = { title: 'Change site mode?', message: form.elements.namedItem('site_mode').value === 'testing' ? 'Demo logins are visible on the sign-in page' : 'Demo logins will be hidden on the sign-in page.', confirmText: 'Save changes', danger: form.elements.namedItem('site_mode').value === 'testing' };
-            }
-            if (forms.some((other) => other !== form && dirty(other))) {
-                options ||= { title: 'Save this section?', message: '', confirmText: 'Save changes' };
-                options.message += '\nOther sections have unsaved changes. Saving this section reloads the page and discards those changes.';
-                options.danger = true;
-            }
-            if (options) {
-                confirming = true;
-                try { if (!await window.askConfirm(options)) return; }
-                finally { confirming = false; }
-                if (snapshot(form) !== before) return;
-            }
+            const options = confirmOptions(form);
+            confirming = true;
+            try { if (!await window.askConfirm(options)) return; }
+            finally { confirming = false; }
+            if (snapshot(form) !== before) return;
             form.querySelectorAll('[data-money]').forEach((field) => { field.value = raw(field.value); });
             approved = true;
             form.requestSubmit(event.submitter || form.querySelector('[data-save]'));
