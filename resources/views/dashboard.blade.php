@@ -66,10 +66,22 @@
         ? ''
         : $firstName;
 @endphp
-<div class="mb-6">
-    <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
-    <p class="text-gray-600 mt-1">{{ $greeting }}{{ $who ? ', '.$who : '' }}.</p>
-    <div class="flex flex-wrap items-center gap-3 mt-3">
+<div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm p-4 sm:p-5">
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+        {{-- The mark follows the same hour bands as the words: a sun for the desk hours, a moon
+             for the night shift. It carries no text, so it cannot repeat anything on the page. --}}
+        <span aria-hidden="true" class="w-11 h-11 shrink-0 rounded-full flex items-center justify-center {{ $hour >= 6 && $hour < 18 ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-500' }}">
+            @if($hour >= 6 && $hour < 18)
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66l1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14l-1.41-1.41M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            @else
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.5 13.5A8.5 8.5 0 1110.5 3.5a7 7 0 0010 10z"/></svg>
+            @endif
+        </span>
+        <div class="mr-auto min-w-0">
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p class="text-gray-600 mt-1">{{ $greeting }}{{ $who ? ', '.$who : '' }}.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize">{{ $role }}</span>
         {{-- No flag emoji: Windows draws them as two bare letters, which reads as a fault. --}}
         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border {{ $desk ? 'bg-green-100 text-green-800 border-green-200' : 'bg-amber-50 text-amber-800 border-amber-200' }}">
@@ -77,6 +89,7 @@
             {{ $desk ?: 'Desk country not set' }}
         </span>
         <span class="text-xs text-gray-500" id="liveClock">{{ now()->format('l, F d, Y') }} · {{ now()->format('h:i:s A') }}</span>
+        </div>
     </div>
 </div>
 

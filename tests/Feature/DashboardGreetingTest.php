@@ -89,6 +89,31 @@ class DashboardGreetingTest extends TestCase
         $this->assertStringContainsString('Super Admin ·', $html);
     }
 
+    public function test_the_mark_by_the_greeting_matches_the_same_hours_as_the_words(): void
+    {
+        // The two paths are the sun and the moon drawn in the band, so the assertions read as
+        // which mark is up rather than which colour blob happened to land nearby.
+        $sun = 'M12 4V2';
+        $moon = 'M20.5 13.5';
+
+        foreach ([6 => 'sun', 11 => 'sun', 17 => 'sun', 18 => 'moon', 22 => 'moon', 2 => 'moon'] as $hour => $expected) {
+            $html = $this->pageAt($hour);
+            $wanted = $expected === 'sun' ? $sun : $moon;
+            $other = $expected === 'sun' ? $moon : $sun;
+
+            $this->assertSame(1, substr_count($html, $wanted), "Expected the {$expected} mark at {$hour}:00.");
+            $this->assertSame(0, substr_count($html, $other), "The other mark must not be on the page at {$hour}:00.");
+        }
+    }
+
+    private function pageAt(int $hour): string
+    {
+        $this->travelTo(now()->setTime($hour, 14, 0));
+        $this->flushSession();
+
+        return $this->actingAs($this->user('agent', 'Amina Nabukenya'))->get('/dashboard')->getContent();
+    }
+
     public function test_an_empty_wallet_is_said_in_three_words_and_links_out(): void
     {
         $html = $this->actingAs($this->user('superadmin', 'Super Admin'))->get('/dashboard')->getContent();
