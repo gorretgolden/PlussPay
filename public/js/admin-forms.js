@@ -61,6 +61,35 @@
 
     const messages = new WeakMap();
     const fields = (form) => Array.from(form.elements).filter((field) => field.matches('input,select,textarea') && field.name && !field.disabled && !['hidden', 'submit', 'button', 'reset'].includes(field.type));
+    // The words a person sees beside the box, which is the only name they have for it. Tooltips
+    // and the "(optional)" marker are decoration on the label, not part of the field's name.
+    function labelOf(field) {
+        if (!field) return '';
+        const label = (field.id && field.form.querySelector(`label[for="${CSS.escape(field.id)}"]`)) || field.closest('label');
+        return (label?.textContent || '').replace(/\(optional\)/i, '').replace(/[?]/g, '').replace(/\s+/g, ' ').trim();
+    }
+    function requiredMessage(field) {
+        const label = labelOf(field);
+        if (!label) return 'This field is required.';
+        // A label that is already an instruction needs nothing added: "Confirm password." reads
+        // better than "Enter confirm password."
+        if (/^(choose|select|enter|confirm)\b/i.test(label)) return label.charAt(0).toUpperCase() + label.slice(1) + '.';
+        // "Choose role." reads as an instruction, "Role is required." reads as a complaint.
+        const noun = /^[A-Z]{2,}/.test(label) ? label : label.charAt(0).toLowerCase() + label.slice(1);
+        const verb = field.tagName === 'SELECT' ? 'Choose'
+            : (field.type === 'checkbox' || field.type === 'radio' ? 'Select' : 'Enter');
+        return `${verb} ${noun}.`;
+    }
+    function focusField(field) {
+        if (!field) return;
+        // A searchable select is hidden behind the button the enhancer builds, so focus has to
+        // land on that button or the jump goes nowhere.
+        const target = field.tagName === 'SELECT' && !field.offsetParent
+            ? field.parentElement?.querySelector('button[role=combobox]') || field
+            : field;
+        target.scrollIntoView({ block: 'center' });
+        target.focus({ preventScroll: true });
+    }
     function errorNode(field) {
         const name = field.name.replace(/\[\]$/, '');
         let node = Array.from(field.form.querySelectorAll('[data-field-error]')).find((el) => el.dataset.fieldError === name);
@@ -81,11 +110,32 @@
         if (!banner) {
             banner = document.createElement('div');
             banner.dataset.errorSummary = '';
-            banner.className = 'mb-4 min-h-[45px] rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800';
+            banner.className = 'mb-4 min-h-[45px] rounded-md border border-red-200 bg-white p-3 text-sm text-red-800';
             banner.setAttribute('role', 'alert');
+            banner.addEventListener('click', (event) => {
+                const link = event.target.closest('a[data-jump-to]');
+                if (!link) return;
+                event.preventDefault();
+                focusField(link.field);
+            });
             form.prepend(banner);
         }
-        banner.textContent = active.length ? `Please fix ${active.length} ${active.length === 1 ? 'error' : 'errors'} below.` : '';
+        // The count alone sends people hunting down a long form, so the banner names each field
+        // and its link puts the cursor in that box.
+        banner.textContent = '';
+        if (active.length) {
+            const lead = document.createElement('p');
+            lead.textContent = `Please check the ${active.length} ${active.length === 1 ? 'field' : 'fields'} named here.`;
+            banner.appendChild(lead);
+            active.forEach((node) => {
+                const link = document.createElement('a');
+                link.href = `#${node.id}`;
+                link.dataset.jumpTo = node.dataset.fieldError;
+                link.field = node.field;
+                link.textContent = labelOf(node.field) || node.dataset.fieldError;
+                banner.appendChild(link);
+            });
+        }
         // The slot keeps its height when empty so a message cannot push the fields out from under a click.
         banner.hidden = false;
         banner.style.visibility = active.length ? 'visible' : 'hidden';
@@ -93,6 +143,7 @@
     }
     function setError(field, message) {
         const node = errorNode(field);
+        node.field = field;
         node.textContent = message;
         node.hidden = !message;
         field.setAttribute('aria-invalid', message ? 'true' : 'false');
@@ -110,23 +161,21 @@
         if (field.disabled || !field.willValidate) return true;
         const v = field.validity;
         let message = '';
-        if (v.valueMissing) message = 'This field is required.';
+        if (v.valueMissing) message = requiredMessage(field);
         else if (v.typeMismatch) message = field.type === 'email' ? 'Enter a valid email address.' : 'Enter a valid value.';
         else if (v.badInput) message = 'Enter a number.';
         else if (v.rangeUnderflow) message = `Enter ${field.min} or more.`;
         else if (v.rangeOverflow) message = `Enter ${field.max} or less.`;
         else if (v.tooShort || (field.minLength > 0 && field.value && field.value.length < field.minLength)) message = `Use at least ${field.minLength} characters.`;
         else if (v.tooLong) message = `Use no more than ${field.maxLength} characters.`;
-        else if (v.patternMismatch) message = field.dataset.validationMessage || 'Check this value.';
+        else if (v.patternMismatch) message = field.dataset.validationMessage || `${labelOf(field) || 'This field'} is not in the right format.`;
         if (!message && field.name === 'password_confirmation' && field.value !== field.form.elements.namedItem('password')?.value) message = 'Passwords do not match.';
         if (!message && messages.get(field)?.value === field.value) message = messages.get(field).message;
         setError(field, message);
         return !message;
     }
     function firstError(form) {
-        const first = fields(form).find((field) => field.getAttribute('aria-invalid') === 'true');
-        first?.scrollIntoView({ block: 'center', behavior: 'auto' });
-        first?.focus({ preventScroll: true });
+        focusField(fields(form).find((field) => field.getAttribute('aria-invalid') === 'true'));
     }
     function initialize(form) {
         if (form.dataset.validationReady) return;

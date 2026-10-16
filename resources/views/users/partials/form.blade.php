@@ -5,7 +5,7 @@
 <div class="user-grid">
     <div class="user-field">
         <label for="name">Full name</label>
-        <input id="name" name="name" class="user-control" autocomplete="off" value="{{ old('name', $user->name ?? '') }}" required minlength="3" maxlength="100" pattern="[A-Za-z][A-Za-z.\-]*(\s+[A-Za-z][A-Za-z.\-]*)+" aria-describedby="help-name error-name">
+        <input id="name" name="name" class="user-control" autocomplete="off" value="{{ old('name', $user->name ?? '') }}" required minlength="3" maxlength="100" pattern="[A-Za-z][A-Za-z.\-]*(\s+[A-Za-z][A-Za-z.\-]*)+" data-validation-message="Enter a first and last name, like Gorret Golden." aria-describedby="help-name error-name">
         <p id="help-name" class="user-help">First and last name, like Gorret Golden.</p>
         <p id="error-name" data-field-error="name" class="user-error">@error('name'){{ $message }}@enderror</p>
     </div>
@@ -17,7 +17,7 @@
     </div>
     <div class="user-field">
         <label for="phone">Phone <span class="text-gray-400">(optional)</span></label>
-        <input id="phone" name="phone" type="tel" class="user-control" autocomplete="off" value="{{ old('phone', $user->phone ?? '') }}" maxlength="20" pattern="[+0-9() .\-]{8,20}" data-unique aria-describedby="help-phone error-phone status-phone">
+        <input id="phone" name="phone" type="tel" class="user-control" autocomplete="off" value="{{ old('phone', $user->phone ?? '') }}" maxlength="20" pattern="[+0-9() .\-]{8,20}" data-validation-message="Enter at least 8 digits, like 0772 000000." data-unique aria-describedby="help-phone error-phone status-phone">
         <p id="help-phone" class="user-help">Local or international; formatting is corrected.</p>
         <span id="status-phone" data-availability-status="phone" class="user-help" aria-live="polite"></span>
         <p id="error-phone" data-field-error="phone" class="user-error">@error('phone'){{ $message }}@enderror</p>

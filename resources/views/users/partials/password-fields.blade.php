@@ -2,7 +2,7 @@
     <div class="user-field">
         <label for="password">{{ $passwordLabel ?? 'Password' }}</label>
         <div class="user-password">
-            <input id="password" name="password" type="password" class="user-control" autocomplete="new-password" minlength="8" maxlength="72" pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,72}" @required($passwordRequired ?? true) aria-describedby="help-password error-password strength-label">
+            <input id="password" name="password" type="password" class="user-control" autocomplete="new-password" minlength="8" maxlength="72" pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,72}" data-validation-message="Use 8 to 72 characters, with letters and numbers." @required($passwordRequired ?? true) aria-describedby="help-password error-password strength-label">
             <button type="button" data-toggle-password="password" aria-label="Show password" aria-pressed="false">Show</button>
         </div>
         <p id="help-password" class="user-help">8 to 72 characters, including letters and numbers.</p>

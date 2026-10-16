@@ -24,8 +24,10 @@
         .admin-confirm::backdrop { background: rgb(0 0 0 / 50%); }
         .admin-confirm { max-width: min(28rem, calc(100vw - 2rem)); }
         .field-invalid { border-color: #b91c1c !important; }
-        .field-invalid:not([type=checkbox]):not([type=radio]) { box-shadow: 0 0 0 2px #b91c1c, 0 0 0 6px rgb(185 28 28 / 15%); background-color: #fef2f2; color: #7f1d1d; }
-        [data-error-summary]:not(:empty) { border-left: 4px solid #b91c1c; font-weight: 500; }
+        .field-invalid:not([type=checkbox]):not([type=radio]) { border-width: 2px; box-shadow: none; background-color: #fff; color: inherit; }
+        [data-error-summary]:not(:empty) { border-left: 3px solid #b42318; }
+        [data-error-summary] a { color: #b42318; text-decoration: underline; }
+        [data-error-summary] a + a::before { content: ' · '; text-decoration: none; }
         .field-error:not([hidden]):not(:empty)::before { content: '!'; display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: 1rem; background: #b91c1c; color: #fff; border: 0; border-radius: 50%; font-size: .7rem; margin-right: .35rem; }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; } }
     </style>

@@ -69,15 +69,52 @@ class FrontendLayoutGuardsTest extends TestCase
         $this->assertStringContainsString("const visible = () => Array.from(list.children)", $layout);
     }
 
+    /**
+     * A failed field has to announce itself without a person having to read the colour, so the
+     * border thickens as well as turning red and the message carries its own mark. What it must
+     * not do is shout: no tinted fill, no glow, no heavy type, because a form that comes back
+     * looking like an alarm is harder to read than one that points at the box that needs work.
+     */
     public function test_a_field_that_failed_validation_is_marked_by_more_than_its_border(): void
     {
         $layout = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'layouts'.DIRECTORY_SEPARATOR.'app.blade.php');
         $css = $this->read('public'.DIRECTORY_SEPARATOR.'user-management.css');
 
-        $this->assertMatchesRegularExpression('/\.field-invalid:not\(\[type=checkbox\]\)[^{]*\{[^}]*box-shadow: 0 0 0 2px/', $layout);
-        $this->assertMatchesRegularExpression('/\.user-field \[aria-invalid=true\]\{[^}]*box-shadow:0 0 0 2px/', $css);
-        $this->assertMatchesRegularExpression('/\.user-field \[aria-invalid=true\]\{[^}]*background-color:#fef2f2/', $css);
-        $this->assertMatchesRegularExpression('/\.user-error\{[^}]*font-weight:600/', $css);
+        // Width plus colour, so the state survives colour blindness and a grey-scale print.
+        $this->assertMatchesRegularExpression('/\.field-invalid:not\(\[type=checkbox\]\)[^{]*\{[^}]*border-width: 2px/', $layout);
+        $this->assertMatchesRegularExpression('/\.user-field \[aria-invalid=true\]\{[^}]*border:2px solid var\(--user-error\)/', $css);
+
+        // The box keeps its white fill and normal ink: typed values stay the easiest thing to read.
+        $this->assertMatchesRegularExpression('/\.user-field \[aria-invalid=true\]\{[^}]*background-color:#fff/', $css);
+        $this->assertMatchesRegularExpression('/\.field-invalid:not\(\[type=checkbox\]\)[^{]*\{[^}]*background-color: #fff/', $layout);
+        $this->assertStringNotContainsString('0 0 0 6px', $css);
+        $this->assertStringNotContainsString('0 0 0 6px', $layout);
+
+        // The message reads as a note beside the field, lighter than the label above it.
+        $this->assertMatchesRegularExpression('/\.user-error\{[^}]*font-weight:400/', $css);
+        $this->assertMatchesRegularExpression('/\.user-error:not\(:empty\):before\{[^}]*content:/', $css);
+    }
+
+    /**
+     * "Please fix 5 errors below" counts boxes she cannot see and reads like a rap, so the banner
+     * names each field and links to it instead.
+     */
+    public function test_the_error_banner_names_each_bad_field_and_points_at_it(): void
+    {
+        $forms = $this->read('public'.DIRECTORY_SEPARATOR.'js'.DIRECTORY_SEPARATOR.'admin-forms.js');
+
+        $this->assertStringNotContainsString('errors below.', $forms);
+        $this->assertStringContainsString('named here.', $forms);
+        $this->assertStringContainsString("link.dataset.jumpTo = node.dataset.fieldError;", $forms);
+        $this->assertStringContainsString('focusField(link.field);', $forms);
+
+        // A required box is named with its own label, so the line is never the same sentence twice.
+        $this->assertStringNotContainsString("message = 'This field is required.'", $forms);
+        $this->assertStringContainsString('message = requiredMessage(field);', $forms);
+        $this->assertStringContainsString("field.tagName === 'SELECT' ? 'Choose'", $forms);
+
+        // The searchable selects hide their native element, so focus has to go to its button.
+        $this->assertStringContainsString("querySelector('button[role=combobox]')", $forms);
     }
 
     public function test_a_details_element_used_as_a_menu_button_hides_the_disclosure_triangle(): void
