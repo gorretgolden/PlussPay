@@ -17,7 +17,7 @@
         <li>Required columns: <strong>sender_name</strong>, <strong>receiver_name</strong>, <strong>currency</strong>, <strong>amount</strong></li>
         <li>Optional columns: sender_contact, receiver_contact, purpose, notes, charge_ugx</li>
         <li><strong>amount</strong> is the whole money the customer handed over, not the money that travels. The charge is taken out of it and the rest is what is sent.</li>
-        <li><strong>charge_ugx</strong> is the sending charge in shillings, entered per row. Leave it blank and the row is charged the UGX per 100 USD fee set in System Settings.</li>
+        <li><strong>charge_ugx</strong> is the sending charge in shillings, entered per row. Nothing is filled in for you: leave it blank only where no charge was taken.</li>
     </ul>
 </div>
 
@@ -81,12 +81,12 @@
                     <td class="px-3 py-2 text-gray-600">+86 138 0000 0002</td>
                     <td class="px-3 py-2 text-gray-600">UGX</td>
                     <td class="px-3 py-2 text-gray-900">3780000</td>
-                    <td class="px-3 py-2 text-gray-600">(blank)</td>
+                    <td class="px-3 py-2 text-gray-900">20000</td>
                     <td class="px-3 py-2 text-gray-600">Family Support</td>
                 </tr>
             </tbody>
         </table>
-        <p class="text-xs text-gray-500 mt-3">John pays 500 dollars and 10,000 shillings on top, so all 500 dollars travel. Jane hands over 3,780,000 shillings, and her blank charge is filled at the fee set in System Settings, which leaves 3,760,000 to send.</p>
+        <p class="text-xs text-gray-500 mt-3">John pays 500 dollars and 10,000 shillings on top, so all 500 dollars travel. Jane hands over 3,780,000 shillings, the 20,000 kept as the charge is typed in her row, and 3,760,000 is left to send.</p>
     </div>
 </div>
 

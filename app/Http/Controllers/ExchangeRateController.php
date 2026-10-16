@@ -94,9 +94,9 @@ class ExchangeRateController extends Controller
             return null;
         }
 
-        // A send that leaves exactly a thousand dollars behind the counter: the charge the
-        // settings rule gives for those dollars, added to the shillings they are sold at.
-        $charge = ProfitCalculator::suggestedCharge('USD', '1000') ?? '0.00';
+        // A send that leaves exactly a thousand dollars behind the counter, with the kind of
+        // charge an operator would actually type for it: a flat figure, not a rule.
+        $charge = '20000.00';
         $cash = bcadd(bcmul('1000', (string) $pair['sell'], 2), $charge, 2);
         $quote = ProfitCalculator::quote('UGX', $cash, $charge);
         if ($quote === null) {

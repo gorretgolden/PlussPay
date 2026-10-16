@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\ExchangeRate;
-use App\Models\Setting;
 
 /**
  * The one place that decides what a transfer earns.
@@ -92,29 +91,6 @@ class ProfitCalculator
             'usd_rmb_profit_ugx' => $yuanLeg,
             'total_profit_ugx' => bcadd(bcadd($shillingLeg, $yuanLeg, 2), $charge, 2),
         ];
-    }
-
-    /**
-     * The charge the System Settings rule would suggest for this much cash, so the booking form
-     * can open with a figure the operator is free to override.
-     */
-    public static function suggestedCharge(string $currency, string $cashReceived): ?string
-    {
-        $feeUgx = (float) Setting::get('service_fee_ugx', 2000);
-        $feeBlockUsd = (float) Setting::get('service_fee_usd', 100);
-        $usdSell = (string) (ExchangeRate::usdUgxPair()['sell'] ?? 0);
-
-        if ($feeUgx <= 0 || $feeBlockUsd <= 0 || $usdSell <= 0) {
-            return null;
-        }
-
-        $dollars = self::dollars(
-            strtoupper($currency) === 'UGX'
-                ? bcdiv(self::money($cashReceived), $usdSell, 6)
-                : self::money($cashReceived)
-        );
-
-        return self::money(bcmul($dollars, (string) ($feeUgx / $feeBlockUsd), 4));
     }
 
     /**

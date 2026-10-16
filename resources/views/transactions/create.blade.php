@@ -9,7 +9,6 @@
     $draftKey = 'pluspay_send_draft_u' . (auth()->id() ?? 'guest');
     $keepKey = 'pluspay_keep_draft_u' . (auth()->id() ?? 'guest');
     $trimRate = fn ($r) => rtrim(rtrim(number_format((float) $r, 6, '.', ''), '0'), '.');
-    $trimMoney = fn ($v) => rtrim(rtrim(number_format((float) $v, 2, '.', ','), '0'), '.');
 @endphp
 <div class="max-w-4xl mx-auto">
     <div class="mb-6">
@@ -151,13 +150,13 @@
                         <label class="block text-sm font-medium text-gray-700" for="charge_ugx">Charge (UGX) *</label>
                         @include('transactions.partials.field-tip', [
                             'id' => 'charge-help-tip',
-                            'text' => 'Settings suggest UGX ' . $trimMoney($serviceFeeUgx) . ' per ' . $trimMoney($serviceFeeUsd) . ' USD. Type what this customer actually paid.',
+                            'text' => 'You agree this per customer, so nothing is filled in for you. Type what you kept, or 0 when nothing was taken.',
                         ])
                     </div>
                     <input type="text" inputmode="decimal" autocomplete="off" data-money name="charge_ugx" id="charge_ugx" value="{{ old('charge_ugx') }}" min="0" required
                         placeholder="0"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 tabular-nums">
-                    <p class="text-xs text-gray-500 mt-1">Default from Settings. Editable.</p>
+                    <p class="text-xs text-gray-500 mt-1">Type what you kept from this customer.</p>
                 </div>
                 <div>
                     <label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose (optional)</label>
@@ -293,8 +292,6 @@
 <script>
 const usdSellRate = {{ $usdUgx && $usdUgx['sell'] > 0 ? $usdUgx['sell'] : 0 }};
 const rmbSellRate = {{ $usdRmb && $usdRmb['sell'] > 0 ? $usdRmb['sell'] : 0 }};
-const serviceFeeUgx = {{ $serviceFeeUgx ?? 0 }};
-const serviceFeeUsd = {{ $serviceFeeUsd ?? 0 }};
 const errorFields = @json($errorFields);
 let currentStep = 1;
 
@@ -511,19 +508,6 @@ function figures() {
     };
 }
 
-let chargeTouched = document.getElementById('charge_ugx').value.trim() !== '';
-
-function suggestCharge() {
-    if (chargeTouched) return;
-    const input = document.getElementById('charge_ugx');
-    const currency = document.getElementById('currency').value;
-    const cash = parseMoney(document.getElementById('amount')) || 0;
-    if (!cash || serviceFeeUsd <= 0 || serviceFeeUgx <= 0) return;
-    if (currency === 'UGX' && usdSellRate <= 0) return;
-    const credited = currency === 'UGX' ? cash / usdSellRate : cash;
-    setMoney(input, (Math.round(credited * (serviceFeeUgx / serviceFeeUsd) * 100) / 100).toFixed(2));
-}
-
 // The card shows the working as well as the answer: the same three operations the server runs,
 // in the order the money moves.
 function derivation(f) {
@@ -553,7 +537,6 @@ function derivation(f) {
 }
 
 function calculate() {
-    suggestCharge();
     const f = figures();
     const typed = document.getElementById('amount').value.trim() !== '';
 
@@ -639,10 +622,7 @@ function populateReview() {
 
 document.getElementById('currency').addEventListener('change', calculate);
 document.getElementById('amount').addEventListener('input', calculate);
-document.getElementById('charge_ugx').addEventListener('input', function () {
-    chargeTouched = true;
-    calculate();
-});
+document.getElementById('charge_ugx').addEventListener('input', calculate);
 document.getElementById('purpose_other').addEventListener('input', syncStep3);
 calculate();
 
@@ -737,7 +717,6 @@ function restoreDraft() {
     document.querySelectorAll('[data-money]').forEach(el => { if (el.value) setMoney(el, el.value); });
     pickPrefix('sender', data.sender_prefix);
     pickPrefix('receiver', data.receiver_prefix);
-    if (data.charge_ugx && data.charge_ugx.trim() !== '') chargeTouched = true;
     form.querySelectorAll('select').forEach(sel => sel.dispatchEvent(new Event('change', { bubbles: true })));
 
     document.getElementById('draftMessage').textContent =

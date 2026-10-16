@@ -151,17 +151,15 @@ class ProfitCalculatorTest extends TestCase
         $this->assertNull(ProfitCalculator::quote('UGX', '500000', '2000'));
     }
 
-    public function test_the_settings_rule_only_suggests_a_charge_the_operator_can_override(): void
+    public function test_the_charge_typed_is_the_charge_booked(): void
     {
         $this->useSheetRates();
 
-        // 111.6 dollars at 2,000 shillings per 100 dollars.
-        $this->assertSame('2232.00', ProfitCalculator::suggestedCharge('UGX', '480000'));
-        $this->assertSame('2240.00', ProfitCalculator::suggestedCharge('USD', '112'));
-
-        // The entered charge is what is booked, whatever the rule would have said.
+        // Nothing suggests a figure from a rate any more. What the operator enters is what is
+        // booked, and the rest of the money handed over is what travels.
         $quote = $this->quote('UGX', '500000', '20000');
         $this->assertSame('20000.00', $quote['charge_ugx']);
+        $this->assertSame('480000.00', $quote['amount']);
     }
 
     public function test_a_booking_saves_every_profit_figure_on_the_row(): void

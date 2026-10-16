@@ -26,7 +26,7 @@ class SettingsTabsTest extends TestCase
         $this->actingAs($user);
         config(['app.url' => 'http://localhost']);
         Setting::set('company_name', 'Original company', 'string', 'company');
-        Setting::set('service_fee_ugx', 2000, 'float', 'transaction');
+        Setting::set('min_transaction_amount', 100, 'float', 'transaction');
         Setting::set('receipt_prefix', 'PS', 'string', 'transaction');
         Setting::set('timezone', 'Africa/Kampala', 'string', 'display');
         Setting::set('site_mode', 'production', 'string', 'display');
@@ -77,11 +77,11 @@ class SettingsTabsTest extends TestCase
         $rows = ExchangeRate::count();
         $this->from('/settings')->put('/settings', [
             'settings_tab' => 'company', 'company_name' => 'New company',
-            'service_fee_ugx' => 999, 'timezone' => 'UTC', 'site_mode' => 'testing',
+            'min_transaction_amount' => 999, 'timezone' => 'UTC', 'site_mode' => 'testing',
             'usd_ugx_selling' => 5000, 'usd_ugx_buying' => 4900,
         ])->assertRedirect('/settings')->assertSessionHasNoErrors()->assertSessionHas('settings_saved_tab', 'company');
         $this->assertSame('New company', Setting::get('company_name'));
-        $this->assertSame(2000.0, Setting::get('service_fee_ugx'));
+        $this->assertSame(100.0, Setting::get('min_transaction_amount'));
         $this->assertSame('Africa/Kampala', Setting::get('timezone'));
         $this->assertSame('production', Setting::get('site_mode'));
         $this->assertSame($rows, ExchangeRate::count());
@@ -93,12 +93,31 @@ class SettingsTabsTest extends TestCase
     public function test_transaction_save_leaves_company_and_rates_untouched(): void
     {
         $rows = ExchangeRate::count();
-        $this->put('/settings', ['settings_tab' => 'transactions', 'service_fee_ugx' => '2500.50', 'receipt_prefix' => 'PAY'])
+        $this->put('/settings', ['settings_tab' => 'transactions', 'min_transaction_amount' => '250.50', 'receipt_prefix' => 'PAY'])
             ->assertSessionHasNoErrors();
-        $this->assertSame(2500.5, Setting::get('service_fee_ugx'));
+        $this->assertSame(250.5, Setting::get('min_transaction_amount'));
         $this->assertSame('PAY', Setting::get('receipt_prefix'));
         $this->assertSame('Original company', Setting::get('company_name'));
         $this->assertSame($rows, ExchangeRate::count());
+    }
+
+    public function test_the_per_dollar_fee_is_gone_from_settings_and_ignores_old_posts(): void
+    {
+        Setting::set('service_fee_ugx', 2000, 'float', 'transaction');
+        Setting::set('service_fee_usd', 100, 'float', 'transaction');
+
+        $html = $this->get('/settings')->assertOk()->getContent();
+        $this->assertStringNotContainsString('service_fee_ugx', $html);
+        $this->assertStringNotContainsString('Service fee', $html);
+        $this->assertStringNotContainsString('Charged per', $html);
+
+        // A tab left open in a browser still posts the old fields. They must not be written back.
+        $this->from('/settings')->put('/settings', [
+            'settings_tab' => 'transactions', 'receipt_prefix' => 'PS',
+            'service_fee_ugx' => 999, 'service_fee_usd' => 1,
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(2000.0, Setting::get('service_fee_ugx'));
+        $this->assertSame(100.0, Setting::get('service_fee_usd'));
     }
 
     public function test_rates_save_leaves_other_settings_and_other_pair_untouched(): void
@@ -107,7 +126,7 @@ class SettingsTabsTest extends TestCase
         $this->put('/settings', ['settings_tab' => 'rates', 'usd_ugx_buying' => '3650', 'usd_ugx_selling' => '4010'])
             ->assertSessionHasNoErrors();
         $this->assertSame('Original company', Setting::get('company_name'));
-        $this->assertSame(2000.0, Setting::get('service_fee_ugx'));
+        $this->assertSame(100.0, Setting::get('min_transaction_amount'));
         $this->assertSame($rmbId, ExchangeRate::getActiveRate('USD', 'RMB')->id);
         $this->assertEquals(4010, ExchangeRate::usdUgxPair()['sell']);
         $this->assertEquals(3650, ExchangeRate::usdUgxPair()['buy']);
@@ -135,7 +154,7 @@ class SettingsTabsTest extends TestCase
     public function test_no_op_saves_do_not_write_rates_or_audit_entries_even_with_decimal_formatting(): void
     {
         $rows = ExchangeRate::count();
-        $this->put('/settings', ['settings_tab' => 'transactions', 'service_fee_ugx' => '2000.00'])
+        $this->put('/settings', ['settings_tab' => 'transactions', 'min_transaction_amount' => '100.00'])
             ->assertSessionHasNoErrors()->assertSessionHas('success', 'No changes to save.');
         $this->put('/settings', [
             'settings_tab' => 'rates', 'usd_ugx_buying' => '3600.00', 'usd_ugx_selling' => '4000.0000',
@@ -148,10 +167,10 @@ class SettingsTabsTest extends TestCase
     public function test_validation_preserves_all_settings_and_returns_to_the_failed_tab(): void
     {
         $response = $this->followingRedirects()->from('/settings')->put('/settings', [
-            'settings_tab' => 'transactions', 'service_fee_ugx' => -1, 'service_fee_usd' => 0,
+            'settings_tab' => 'transactions', 'min_transaction_amount' => -1, 'max_transaction_amount' => -5,
             'receipt_prefix' => 'NOT-VALID',
         ])->assertOk();
-        $this->assertSame(2000.0, Setting::get('service_fee_ugx'));
+        $this->assertSame(100.0, Setting::get('min_transaction_amount'));
         $this->assertSame('PS', Setting::get('receipt_prefix'));
         $html = $response->getContent();
         $dom = new \DOMDocument;
@@ -159,7 +178,7 @@ class SettingsTabsTest extends TestCase
         $xpath = new \DOMXPath($dom);
         $this->assertCount(1, $xpath->query('//*[@id="tab-transactions" and @aria-selected="true"]'));
         $this->assertCount(1, $xpath->query('//*[@id="panel-transactions" and not(@hidden)]'));
-        foreach (['service_fee_ugx', 'service_fee_usd', 'receipt_prefix'] as $field) {
+        foreach (['min_transaction_amount', 'max_transaction_amount', 'receipt_prefix'] as $field) {
             $this->assertNotEmpty(trim($xpath->query('//*[@data-field-error="'.$field.'"]')->item(0)->textContent));
         }
         $this->assertSame('The receipt prefix can only contain letters and numbers, e.g. PS.', trim($xpath->query('//*[@data-field-error="receipt_prefix"]')->item(0)->textContent));

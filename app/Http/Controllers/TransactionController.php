@@ -46,14 +46,12 @@ class TransactionController extends Controller
     {
         $usdUgx = ExchangeRate::usdUgxPair();
         $usdRmb = ExchangeRate::pair('USD', 'RMB');
-        $serviceFeeUgx = (float) \App\Models\Setting::get('service_fee_ugx', 2000);
-        $serviceFeeUsd = (float) \App\Models\Setting::get('service_fee_usd', 100);
 
         // One-time token so a replayed or double-posted submit cannot mint a second receipt.
         $formId = (string) Str::uuid();
         session(['transaction_form_id' => $formId]);
 
-        return view('transactions.create', compact('usdUgx', 'usdRmb', 'serviceFeeUgx', 'serviceFeeUsd', 'formId'));
+        return view('transactions.create', compact('usdUgx', 'usdRmb', 'formId'));
     }
 
     public function store(Request $request)
@@ -317,11 +315,11 @@ class TransactionController extends Controller
                 $currency = strtoupper(trim($data['currency']));
                 $cashReceived = (string) $data['amount'];
 
-                // A file with no charge column, or a blank cell, gets the charge the System
-                // Settings rule suggests. The operator can put the real figure in the file.
+                // The charge is agreed with each customer, so a blank cell is read as no charge
+                // taken rather than a figure guessed from a rate card.
                 $charge = isset($data['charge_ugx']) && $data['charge_ugx'] !== ''
                     ? (string) $data['charge_ugx']
-                    : (ProfitCalculator::suggestedCharge($currency, $cashReceived) ?? '0.00');
+                    : '0.00';
 
                 $sender = trim($data['sender_contact'] ?? '');
                 $receiver = trim($data['receiver_contact'] ?? '');

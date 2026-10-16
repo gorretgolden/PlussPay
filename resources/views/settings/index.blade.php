@@ -16,8 +16,6 @@
     ];
     $fields = [
         'transactions' => [
-            'service_fee_ugx' => ['label' => 'Service fee', 'default' => '2000', 'unit' => 'UGX', 'min' => '0', 'helper' => 'Charged per dollar block below.'],
-            'service_fee_usd' => ['label' => 'Charged per', 'default' => '100', 'unit' => 'USD', 'min' => '0.01', 'helper' => 'Fee scales with the amount sent.'],
             'min_transaction_amount' => ['label' => 'Minimum amount', 'default' => '100', 'unit' => 'UGX / USD', 'min' => '0', 'helper' => 'Applies in the selected transaction currency.'],
             'max_transaction_amount' => ['label' => 'Maximum amount', 'default' => '100000000', 'unit' => 'UGX / USD', 'min' => '0', 'helper' => 'Applies in the selected transaction currency.'],
             'receipt_prefix' => ['label' => 'Receipt prefix', 'default' => 'PS', 'maxlength' => 10, 'pattern' => '[A-Za-z0-9]+', 'helper' => 'Letters and numbers only.'],

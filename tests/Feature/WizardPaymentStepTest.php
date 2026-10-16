@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\ExchangeRate;
-use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -28,8 +27,6 @@ class WizardPaymentStepTest extends TestCase
 
         ExchangeRate::setPair('USD', 'UGX', 3760, 3750, 3760);
         ExchangeRate::setPair('USD', 'RMB', 7.24, 7.24, 7.24);
-        Setting::set('service_fee_ugx', '2000', 'float', 'transaction');
-        Setting::set('service_fee_usd', '100', 'float', 'transaction');
     }
 
     private function page(string $role): string
@@ -76,7 +73,7 @@ class WizardPaymentStepTest extends TestCase
         foreach ([
             'Choose what the customer pays in.',
             'Total received, charge included.',
-            'Default from Settings. Editable.',
+            'Type what you kept from this customer.',
         ] as $line) {
             $this->assertStringContainsString($line, $html);
         }
@@ -87,7 +84,10 @@ class WizardPaymentStepTest extends TestCase
         }
 
         $this->assertStringContainsString('UGX: the customer pays shillings, the charge comes out of that money', $html);
-        $this->assertStringContainsString('Settings suggest UGX 2,000 per 100 USD. Type what this customer actually paid.', $html);
+        $this->assertStringContainsString('You agree this per customer, so nothing is filled in for you. Type what you kept, or 0 when nothing was taken.', $html);
+        // The per-dollar fee rule is gone, so no sentence may point at it.
+        $this->assertStringNotContainsString('Settings suggest', $html);
+        $this->assertStringNotContainsString('Default from Settings', $html);
         $this->assertSame(3, substr_count($html, 'role="tooltip"'));
     }
 
@@ -149,6 +149,11 @@ class WizardPaymentStepTest extends TestCase
 
         $this->assertStringContainsString('function formatMoney(el)', $html);
         $this->assertStringContainsString("el.value = String(parseMoney(el));", $html);
+
+        // The charge opens empty every time: no script and no setting fills it in.
+        $this->assertStringNotContainsString('suggestCharge', $html);
+        $this->assertStringNotContainsString('serviceFee', $html);
+        $this->assertMatchesRegularExpression('/<input[^>]*name="charge_ugx" id="charge_ugx" value=""/', $this->step3($html));
     }
 
     public function test_the_step_pairs_up_on_desktop_and_the_next_button_waits_for_valid_input(): void

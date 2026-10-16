@@ -105,16 +105,16 @@ class FxRateAndProfitTest extends TestCase
 
         $html = $this->actingAs($agent)->get('/transactions/create')->getContent();
 
-        // The charge box is theirs to fill. Settings only ever supplies a starting point, which
-        // now sits in the tooltip beside the label rather than in the sentence under the field.
-        $this->assertStringContainsString('Settings suggest UGX 2,000 per 100 USD. Type what this customer actually paid.', $html);
-        $this->assertStringContainsString('Default from Settings. Editable.', $html);
+        // The charge box is theirs to fill from an empty start. There is no rate card behind it,
+        // so the field carries its own short line and the tooltip says what the figure is.
+        $this->assertStringContainsString('You agree this per customer, so nothing is filled in for you. Type what you kept, or 0 when nothing was taken.', $html);
+        $this->assertStringContainsString('Type what you kept from this customer.', $html);
         $this->assertStringContainsString('name="charge_ugx"', $html);
         $this->assertStringNotContainsString('name="charge_ugx" readonly', $html);
         $this->assertStringNotContainsString('name="charge_ugx" disabled', $html);
 
         // 3,772,500 handed over with 12,500 typed by hand leaves 3,760,000, which is exactly
-        // $1,000.0 at the selling rate. The settings rule would have said 20,000 for $1,000.0.
+        // $1,000.0 at the selling rate. The 12,500 is what the desk agreed with the customer.
         $this->actingAs($agent)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
             'sender_name' => 'Agent Sender',
@@ -133,7 +133,7 @@ class FxRateAndProfitTest extends TestCase
         $this->assertSame('3.32', (string) $transaction->charge_amount);
         $this->assertSame('22500.000000', (string) $transaction->total_profit_ugx);
 
-        // The agent's own commission is the figure they typed, not the rule's suggestion.
+        // The agent's own commission is the figure they typed, not one worked out for them.
         $wallet = Account::walletFor($agent, 'UGX');
         $this->assertSame('12500.00', $wallet->balance());
     }

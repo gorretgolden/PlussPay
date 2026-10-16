@@ -13,7 +13,7 @@ class SettingController extends Controller
 {
     private const TAB_FIELDS = [
         'rates' => ['usd_ugx_buying', 'usd_ugx_selling', 'usd_rmb_buying', 'usd_rmb_selling'],
-        'transactions' => ['service_fee_ugx', 'service_fee_usd', 'min_transaction_amount', 'max_transaction_amount', 'receipt_prefix'],
+        'transactions' => ['min_transaction_amount', 'max_transaction_amount', 'receipt_prefix'],
         'company' => ['company_name', 'company_address', 'company_phone', 'company_email', 'company_website'],
         'datetime' => ['timezone'],
         'site' => ['site_mode'],
@@ -48,8 +48,6 @@ class SettingController extends Controller
             'company_phone' => 'nullable|string|max:60',
             'company_email' => 'nullable|email|max:100',
             'company_website' => 'nullable|string|max:100',
-            'service_fee_ugx' => 'nullable|numeric|min:0',
-            'service_fee_usd' => 'nullable|numeric|min:0.01',
             'min_transaction_amount' => 'nullable|numeric|min:0',
             'max_transaction_amount' => 'nullable|numeric|min:0',
             'receipt_prefix' => ['nullable', 'string', 'max:10', 'regex:/^[A-Za-z0-9]+$/'],
@@ -75,7 +73,6 @@ class SettingController extends Controller
             'usd_ugx_selling.max' => 'The UGX rate is too high.',
             'usd_rmb_buying.numeric' => 'The RMB buying rate must be a number, e.g. 6.70.',
             'usd_rmb_selling.numeric' => 'The RMB selling rate must be a number, e.g. 6.75.',
-            'service_fee_usd.min' => 'The USD amount must be greater than zero, e.g. 100.',
         ]);
 
         // Rates live in the exchange rate table, not settings, so every screen converts with the same figure.
@@ -107,7 +104,7 @@ class SettingController extends Controller
         $newValues = [];
 
         foreach ($validated as $key => $value) {
-            $type = in_array($key, ['service_fee_ugx', 'service_fee_usd', 'min_transaction_amount', 'max_transaction_amount']) ? 'float' : 'string';
+            $type = in_array($key, ['min_transaction_amount', 'max_transaction_amount'], true) ? 'float' : 'string';
             $group = match (true) {
                 in_array($key, ['site_mode', 'timezone'], true) => 'display',
                 str_starts_with($key, 'company_') => 'company',
