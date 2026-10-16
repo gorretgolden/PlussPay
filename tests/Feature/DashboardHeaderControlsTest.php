@@ -28,10 +28,10 @@ class DashboardHeaderControlsTest extends TestCase
         ExchangeRate::setPair('USD', 'RMB', 6.56, 6.56, 6.56);
     }
 
-    private function desk(string $role = 'superadmin'): User
+    private function desk(string $role = 'superadmin', string $name = 'Super Admin'): User
     {
         $user = User::create([
-            'name' => 'Super Admin',
+            'name' => $name,
             'email' => 'desk.'.uniqid().'@plussave.test',
             'password' => 'Password123',
             'is_active' => true,
@@ -41,9 +41,9 @@ class DashboardHeaderControlsTest extends TestCase
         return $user;
     }
 
-    private function board(string $role = 'superadmin'): string
+    private function board(string $role = 'superadmin', string $name = 'Super Admin'): string
     {
-        return $this->actingAs($this->desk($role))->get('/dashboard')->getContent();
+        return $this->actingAs($this->desk($role, $name))->get('/dashboard')->getContent();
     }
 
     /** Counts real form tags only, so the idle script that names the same URL is not one. */
@@ -117,5 +117,18 @@ class DashboardHeaderControlsTest extends TestCase
             ->assertSessionHas('success', 'You have been logged out successfully.');
 
         $this->assertGuest();
+    }
+
+    public function test_the_header_names_the_person_signed_in_before_the_role_they_hold(): void
+    {
+        $html = $this->board('agent', 'Amina Nabukenya');
+
+        // Several desks share the role, so the chip that only says "agent" cannot tell her whose
+        // hand the balances below are in. The name gets its own chip, in front of the role.
+        preg_match('#<span class="truncate max-w-\[12rem\]">(.*?)</span>.*?capitalize">(.*?)</span>#s', $html, $chips);
+
+        $this->assertNotSame([], $chips, 'The header card carries a name chip and then a role chip.');
+        $this->assertSame('Amina Nabukenya', $chips[1]);
+        $this->assertStringContainsString('agent', strtolower($chips[2]), 'The role is still stated beside the name.');
     }
 }

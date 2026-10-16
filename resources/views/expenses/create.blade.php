@@ -12,7 +12,9 @@
     <div class="mb-6">
         <p class="text-sm text-gray-500"><a href="{{ route('expenses.index') }}" class="underline hover:text-gray-700">Expenses</a> / New</p>
         <h1 class="text-2xl font-bold text-gray-900">Record Expense</h1>
-        <p class="text-gray-600">Money the business spent on itself. Saving this takes the amount straight out of the account that paid for it.</p>
+        <p class="text-gray-600">{{ $seesAll
+            ? 'Money the business spent on itself. Saving this takes the amount straight out of the account that paid for it.'
+            : 'Money you paid out while working. Saving this takes the amount straight out of the cash you are holding, so it comes off what you hand in.' }}</p>
     </div>
 
     <div class="bg-white rounded-lg shadow p-6">
@@ -39,7 +41,7 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1" for="description">Details *</label>
                 <input type="text" name="description" id="description" value="{{ old('description') }}" maxlength="255" required
-                    placeholder="e.g. Kampala office rent for October"
+                    placeholder="{{ $seesAll ? 'e.g. Kampala office rent for October' : 'e.g. Boda to the customer in Mbale' }}"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
             </div>
 
@@ -64,8 +66,9 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1" for="account_id">Paid out of *</label>
                 <select name="account_id" id="account_id" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
                     @foreach($accounts as $account)
+                        {{-- A wallet is already named after its currency; a company account is not. --}}
                         <option value="{{ $account->id }}" data-currency="{{ $account->currency }}" @selected((int) old('account_id', $defaultAccountId) === $account->id)>
-                            {{ $account->name }} ({{ $account->currency }})
+                            {{ $account->name }}{{ str_contains($account->name, $account->currency) ? '' : ' ('.$account->currency.')' }}
                         </option>
                     @endforeach
                 </select>

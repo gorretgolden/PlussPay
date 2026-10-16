@@ -100,11 +100,14 @@ class ExpenseReachabilityTest extends TestCase
             $this->assertStringContainsString('>'.$label.'</span>', $superadmin, $label.' is a Super Admin shortcut.');
         }
 
-        // A desk agent books transfers and swaps notes, and owns neither the books nor the prices.
+        // A desk agent books transfers, swaps notes and logs what they spent out of the cash in
+        // hand. Prices and the customer list stay with the office.
         $agent = $this->html($this->user('agent', 'Amina Nabukenya'));
         $this->assertStringContainsString('>Send Money</span>', $agent);
         $this->assertStringContainsString('>Record Exchange</span>', $agent);
-        foreach (['Record Expense', 'Expenses', 'Exchange Rates', 'Add Customer'] as $label) {
+        $this->assertStringContainsString('>Record Expense</span>', $agent, 'An agent who spends the desk\'s cash records it themselves.');
+        $this->assertStringContainsString('>Expenses</span>', $agent, 'Their own page of the book, reached from the same card.');
+        foreach (['Exchange Rates', 'Add Customer'] as $label) {
             $this->assertStringNotContainsString('>'.$label.'</span>', $agent, $label.' is beyond an agent.');
         }
 
@@ -117,13 +120,10 @@ class ExpenseReachabilityTest extends TestCase
     {
         $agent = $this->user('agent', 'Amina Nabukenya');
 
-        foreach (['/transactions/create', '/exchanges/create'] as $path) {
+        foreach (['/transactions/create', '/exchanges/create', '/expenses', '/expenses/create'] as $path) {
             $this->flushSession();
             $this->actingAs($agent)->get($path)->assertOk();
         }
-
-        $this->flushSession();
-        $this->actingAs($agent)->get('/expenses')->assertForbidden();
     }
 
     public function test_send_money_is_offered_once_on_the_dashboard(): void

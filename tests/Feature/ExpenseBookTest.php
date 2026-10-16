@@ -254,10 +254,15 @@ class ExpenseBookTest extends TestCase
         $this->actingAs($this->makeUser('accountant'))->get('/expenses')->assertOk();
         $this->actingAs($this->makeUser('accountant'))->get('/expenses/create')->assertOk();
 
-        // A desk agent books transfers and changes money, but does not spend the business's own cash.
-        $this->actingAs($this->makeUser('agent'))->get('/expenses')->assertForbidden();
-        $this->actingAs($this->makeUser('agent'))->post('/expenses/'.$expense->id.'/void', ['reason' => 'Nothing'])
+        // An agent keeps their own page of the book, not the office's. The entry above was recorded
+        // by the admin, so it is nowhere on the agent's screen, and cancelling it is not theirs.
+        $agent = $this->makeUser('agent');
+        $this->actingAs($agent)->get('/expenses')->assertOk()->assertDontSee($expense->reference);
+        $this->actingAs($agent)->get('/expenses/'.$expense->id)->assertForbidden();
+        $this->actingAs($agent)->post('/expenses/'.$expense->id.'/void', ['reason' => 'Nothing'])
             ->assertForbidden();
+
+        // Desk staff read the day and change nothing, spending included.
         $this->actingAs($this->makeUser('staff'))->get('/expenses')->assertForbidden();
 
         $this->assertSame('active', $expense->fresh()->status);

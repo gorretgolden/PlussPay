@@ -92,6 +92,12 @@
             <p class="text-gray-600 mt-1">{{ $greeting }}{{ $who ? ', '.$who : '' }}.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+        {{-- Several desks share one role, so the role chip alone cannot say who is reading the
+             board. The name goes first and the role stays beside it as its own chip. --}}
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            <span class="truncate max-w-[12rem]">{{ $me->name }}</span>
+        </span>
         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize">{{ $role }}</span>
         {{-- No flag emoji: Windows draws them as two bare letters, which reads as a fault. --}}
         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border {{ $desk ? 'bg-green-100 text-green-800 border-green-200' : 'bg-amber-50 text-amber-800 border-amber-200' }}">
@@ -146,7 +152,7 @@
         ['create-transaction', 'Send Money', 'Book a transfer', 'transactions.create', 'M12 4v16m8-8H4'],
         ['create-exchange', 'Record Exchange', 'Buy or sell notes', 'exchanges.create', 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4'],
         ['create-expense', 'Record Expense', 'Money spent here', 'expenses.create', 'M12 3v11m0 0l-4-4m4 4l4-4M4 20h16'],
-        ['view-expenses', 'Expenses', 'Every expense logged', 'expenses.index', 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
+        ['view-expenses', 'Expenses', $me->can('view-all-expenses') ? 'Every expense logged' : 'What you spent', 'expenses.index', 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
         ['view-exchange-rates', 'Exchange Rates', "Today's prices", 'exchange-rates.index', 'M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2zm3-14h4m-4 4h4m-4 4h4'],
         ['create-customer', 'Add Customer', 'Save a person', 'customers.create', 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
     ], fn (array $a) => $me->can($a[0])));

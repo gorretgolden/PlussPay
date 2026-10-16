@@ -38,7 +38,13 @@
         <p class="text-xs uppercase tracking-wide text-gray-500">Paid from</p>
         <p class="text-sm font-medium text-gray-900 mt-1">
             @if($expense->account)
-                <a href="{{ route('accounts.show', $expense->account) }}" class="text-green-800 hover:underline">{{ $expense->account->name }}</a>
+                {{-- The account page is a different door (view-accounts), so the name is only a link
+                     for someone who can walk through it. --}}
+                @can('view-accounts')
+                    <a href="{{ route('accounts.show', $expense->account) }}" class="text-green-800 hover:underline">{{ $expense->account->name }}</a>
+                @else
+                    {{ $expense->account->name }}
+                @endcan
             @else
                 Deleted account
             @endif
@@ -75,7 +81,11 @@
                 <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{{ $leg->entry_date->format('M d, Y') }}</td>
                 <td class="px-4 py-3 text-sm text-gray-900">
                     @if($leg->account)
-                        <a href="{{ route('accounts.show', $leg->account) }}" class="text-green-800 hover:underline">{{ $leg->account->name }}</a>
+                        @can('view-accounts')
+                            <a href="{{ route('accounts.show', $leg->account) }}" class="text-green-800 hover:underline">{{ $leg->account->name }}</a>
+                        @else
+                            {{ $leg->account->name }}
+                        @endcan
                     @else
                         Deleted account
                     @endif
@@ -98,7 +108,9 @@
 
 <div class="bg-white rounded-lg shadow p-6 max-w-3xl">
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+        @if($seesAll)
         <div><span class="text-gray-500">Entered by:</span> {{ $expense->creator?->name ?? 'System' }}</div>
+        @endif
         <div><span class="text-gray-500">Saved on:</span> {{ $expense->created_at->format('M d, Y h:i A') }}</div>
         @if($expense->notes)
         <div class="sm:col-span-2"><span class="text-gray-500">Note:</span> {{ $expense->notes }}</div>

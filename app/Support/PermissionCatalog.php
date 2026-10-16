@@ -21,7 +21,7 @@ final class PermissionCatalog
         'Settings' => ['view-settings', 'manage-settings', 'manage-system-settings'],
         'Customers' => ['view-customers', 'create-customer', 'edit-customer', 'delete-customer', 'export-customers'],
         'Accounts' => ['view-accounts', 'create-account-entry', 'export-accounts'],
-        'Expenses' => ['view-expenses', 'create-expense', 'void-expense', 'export-expenses', 'manage-expense-categories'],
+        'Expenses' => ['view-expenses', 'view-all-expenses', 'create-expense', 'void-expense', 'export-expenses', 'manage-expense-categories'],
         'Logs' => ['view-activity-logs', 'view-login-logs', 'export-logs', 'view-system-logs', 'resolve-system-logs', 'export-system-logs'],
     ];
 
@@ -31,7 +31,7 @@ final class PermissionCatalog
         'superadmin' => 'Full access to every module. This protected role cannot be changed.',
         'admin' => 'Manages daily operations, people and permissions. System internals stay with Super Admin.',
         'accountant' => 'Reads all books, customers, profit and exchange rates. No editing or settings access.',
-        'agent' => 'Books transfers and exchanges. Sees only their own transactions, receipts, reports and wallets.',
+        'agent' => 'Books transfers and exchanges and logs what they spent out of the cash in hand. Sees only their own transactions, expenses, receipts, reports and wallets.',
         'staff' => 'Desk staff. Reads their own transactions, receipts and reports; books nothing and changes nothing.',
     ];
 
@@ -71,7 +71,7 @@ final class PermissionCatalog
             'view-wallets', 'view-all-wallets', 'view-receipts', 'print-receipt', 'export-receipts',
             'view-reports', 'export-reports', 'view-profit', 'view-agent-performance',
             'view-customers', 'export-customers', 'view-accounts', 'export-accounts',
-            'view-expenses', 'export-expenses', 'view-exchange-rates', 'export-exchange-rates',
+            'view-expenses', 'view-all-expenses', 'export-expenses', 'view-exchange-rates', 'export-exchange-rates',
         ];
 
         return [
@@ -89,6 +89,11 @@ final class PermissionCatalog
                 'export-transactions', 'view-exchanges', 'create-exchange', 'override-exchange-rate', 'export-exchanges',
                 'view-wallets', 'view-receipts', 'print-receipt', 'export-receipts', 'view-reports', 'export-reports',
                 'send-to-china', 'confirm-china-payout',
+                // An agent pays for transport, airtime and mobile money charges out of the cash they
+                // are already holding, so they record that spending themselves. view-expenses opens
+                // their own page of the book; the rows other people entered stay behind
+                // view-all-expenses, and cancelling one stays with the office.
+                'view-expenses', 'create-expense',
             ],
             // Desk staff booked nothing under the old role gates and saw only their own records,
             // so the grant below is that same reach expressed as abilities.

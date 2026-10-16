@@ -143,7 +143,8 @@ class ExpenseDetailsTest extends TestCase
             ->assertOk()
             ->assertDownload($expense->reference.'-receipt.pdf');
 
-        // An agent has no business in the spending book, so no route into the file either.
+        // The slip belongs to the entry, and this entry is not the agent's, so there is no route
+        // into the file either.
         $this->actingAs($this->makeUser('agent'))->get('/expenses/'.$expense->id.'/receipt')
             ->assertForbidden();
 

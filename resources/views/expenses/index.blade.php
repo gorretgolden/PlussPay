@@ -12,20 +12,24 @@
 <div class="mb-6 flex flex-wrap justify-between items-start gap-3">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Expenses</h1>
-        <p class="text-gray-600 text-sm">What the business spent on itself. Every entry takes the money out of the account that paid for it.</p>
+        <p class="text-gray-600 text-sm">{{ $seesAll
+            ? 'What the business spent on itself. Every entry takes the money out of the account that paid for it.'
+            : 'What you spent out of the cash you are holding. Every entry takes the amount off your balance.' }}</p>
     </div>
     <div class="flex gap-2">
         <a href="{{ route('expenses.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Record Expense</a>
         @can('manage-expense-categories')
         <a href="{{ route('expense-categories.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Spending Heads</a>
         @endcan
+        @can('export-expenses')
         <a href="{{ route('export.expenses', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
+        @endcan
     </div>
 </div>
 
 <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
     <div class="bg-white rounded-lg shadow p-4">
-        <p class="text-xs uppercase tracking-wide text-gray-500">Entries on {{ $filtered ? 'this filter' : 'all expenses' }}</p>
+        <p class="text-xs uppercase tracking-wide text-gray-500">Entries {{ $filtered ? 'on this filter' : ($seesAll ? 'on all expenses' : 'you recorded') }}</p>
         <p class="text-xl font-semibold text-gray-900">{{ number_format($liveCount) }}@if($voidCount > 0) <span class="text-sm font-normal text-gray-500">(+{{ number_format($voidCount) }} cancelled)</span>@endif</p>
     </div>
     @foreach($totals as $currency => $total)
@@ -52,6 +56,7 @@
                 @endforeach
             </select>
         </div>
+        @if($seesAll)
         <div>
             <label class="block text-xs text-gray-500 mb-1">Desk</label>
             <select name="desk" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
@@ -61,12 +66,15 @@
                 @endforeach
             </select>
         </div>
+        @endif
         <div>
             <label class="block text-xs text-gray-500 mb-1">Paid from</label>
+            {{-- The list is the one the entry can actually be paid out of, so a filter never offers
+                 a row a person could not have recorded. --}}
             <select name="account_id" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">Any account</option>
-                @foreach(\App\Models\Account::ordered() as $account)
-                    <option value="{{ $account->id }}" @selected((int) request('account_id') === $account->id)>{{ $account->name }} ({{ $account->currency }})</option>
+                @foreach($payableAccounts as $account)
+                    <option value="{{ $account->id }}" @selected((int) request('account_id') === $account->id)>{{ $account->name }}{{ str_contains($account->name, $account->currency) ? '' : ' ('.$account->currency.')' }}</option>
                 @endforeach
             </select>
         </div>
@@ -79,6 +87,7 @@
                 @endforeach
             </select>
         </div>
+        @if($seesAll)
         <div>
             <label class="block text-xs text-gray-500 mb-1">Entered by</label>
             <select name="created_by" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
@@ -88,6 +97,7 @@
                 @endforeach
             </select>
         </div>
+        @endif
         <div>
             <label class="block text-xs text-gray-500 mb-1">Status</label>
             <select name="status" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
@@ -120,7 +130,9 @@
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Paid out of</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Paid how</th>
+                @if($seesAll)
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entered By</th>
+                @endif
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
         </thead>
@@ -144,13 +156,18 @@
                 <td class="px-4 py-3 text-sm text-right text-gray-900 whitespace-nowrap">{{ \App\Models\Account::format($expense->currency, $expense->amount) }}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">{{ $expense->account?->name ?? 'Deleted account' }}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">{{ $expense->paid_via ?? '-' }}</td>
+                @if($seesAll)
                 <td class="px-4 py-3 text-sm text-gray-500">{{ $expense->creator?->name ?? 'System' }}</td>
+                @endif
                 <td class="px-4 py-3 text-sm text-right relative" data-row-menu-host>
                     <button type="button" onclick="toggleMenu('exp{{ $expense->id }}')"
                         class="text-gray-500 hover:text-gray-800 border border-gray-300 rounded px-2 py-1 text-xs">More</button>
                     <div id="menu-exp{{ $expense->id }}" data-row-menu class="hidden absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg text-left z-20">
                         <a href="{{ route('expenses.show', $expense) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Open entry</a>
+                        @can('view-accounts')
                         <a href="{{ route('accounts.movements', ['search' => $expense->reference]) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Ledger lines</a>
+                        @endcan
+                        @can('void-expense')
                         @if(! $expense->isVoid())
                         <button type="button" onclick="openVoidModal(this)"
                             data-action="{{ route('expenses.void', $expense) }}"
@@ -158,13 +175,14 @@
                             data-first="{{ \App\Models\Account::format($expense->currency, $expense->amount) }}"
                             class="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50">Cancel entry</button>
                         @endif
+                        @endcan
                     </div>
                 </td>
             </tr>
             @empty
             <tr>
-                <td colspan="9" class="px-4 py-8 text-center text-gray-500">
-                    No expenses have been recorded yet.
+                <td colspan="{{ $seesAll ? 9 : 8 }}" class="px-4 py-8 text-center text-gray-500">
+                    {{ $seesAll ? 'No expenses have been recorded yet.' : 'You have not recorded an expense yet.' }}
                     <a href="{{ route('expenses.create') }}" class="text-green-700 underline">Record the first one</a>.
                 </td>
             </tr>
