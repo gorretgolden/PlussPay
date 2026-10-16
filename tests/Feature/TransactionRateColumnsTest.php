@@ -98,9 +98,10 @@ class TransactionRateColumnsTest extends TestCase
 
         $html = $this->html('/transactions', $this->user('admin'));
 
-        foreach (['Selling Rate', 'what it went out at, per 1 USD'] as $header) {
-            $this->assertStringContainsString($header, $html);
-        }
+        // The heading is the column's only word on the row. The sentence explaining which way the
+        // price runs sits once under the table rather than wrapped inside the header.
+        $this->assertStringContainsString('Selling Rate', $html);
+        $this->assertStringNotContainsString('what it went out at, per 1 USD', $html);
 
         // Sent out at 3,760 shillings to the dollar and 7.24 yuan to the dollar. Each line is named
         // by its currency so the two cannot be read the wrong way round.

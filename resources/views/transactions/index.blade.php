@@ -111,25 +111,23 @@
     <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt #</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receiver</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Money Travels</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">RMB</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Charge (UGX)</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receipt #</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Sender</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receiver</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Money Travels</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">RMB</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge (UGX)</th>
                 @can('view-profit')
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exchange Profit</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Overall Profit</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Exchange Profit</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Overall Profit</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Selling Rate</th>
                 @endcan
-    @can('view-profit')
-    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Selling Rate<br><span class="font-normal normal-case text-gray-400">what it went out at, per 1 USD</span></th>
-    @endcan
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Date</th>
                 @can('view-profit')
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Booked By</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Booked By</th>
                 @endcan
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Actions</th>
             </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
