@@ -25,7 +25,7 @@
     </div>
 </div>
 
-<div class="bg-white rounded-lg shadow p-8 max-w-3xl mx-auto">
+<div class="bg-white rounded-lg shadow p-4 sm:p-8 max-w-3xl mx-auto">
     {{-- Header --}}
     <div class="mb-6 border-b pb-4">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -77,33 +77,43 @@
     </div>
 
     {{-- Amount Table --}}
-    <table class="w-full border-collapse border border-gray-300 mb-6">
+    @php $usdRate = $transaction->shillingRateCell(); $rmbRate = $transaction->yuanRateCell(); @endphp
+    <div class="mb-2 overflow-x-auto">
+    <table class="w-full border-collapse border border-gray-300">
         <thead>
             <tr class="bg-gray-100">
-                <th class="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-700">Particulars</th>
-                <th class="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-700">Rate</th>
-                <th class="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-700">Charge (UGX)</th>
-                <th class="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-700">Amount (USD/RMB)</th>
+                <th class="border border-gray-300 px-2 py-2 text-left text-xs font-medium text-gray-700 sm:px-4 sm:text-sm">Particulars</th>
+                <th class="border border-gray-300 px-2 py-2 text-left text-xs font-medium text-gray-700 sm:px-4 sm:text-sm sm:whitespace-nowrap">Rate (per 1 USD)</th>
+                <th class="border border-gray-300 px-2 py-2 text-left text-xs font-medium text-gray-700 sm:px-4 sm:text-sm">Charge (UGX)</th>
+                <th class="border border-gray-300 px-2 py-2 text-left text-xs font-medium text-gray-700 sm:px-4 sm:text-sm">Amount (USD/RMB)</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td class="border border-gray-300 px-4 py-3 text-sm">Send to China ({{ $transaction->currency }})</td>
-                <td class="border border-gray-300 px-4 py-3 text-sm">{{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</td>
-                <td class="border border-gray-300 px-4 py-3 text-sm">UGX {{ number_format((float) $transaction->charge_ugx) }}</td>
-                <td class="border border-gray-300 px-4 py-3 text-sm">
+                <td class="border border-gray-300 px-2 py-3 text-xs sm:px-4 sm:text-sm">Send to China ({{ $transaction->currency }})</td>
+                <td class="border border-gray-300 px-2 py-3 text-xs whitespace-nowrap sm:px-4 sm:text-sm">
+                    <div title="{{ $usdRate['title'] }}">UGX {{ $usdRate['text'] }}</div>
+                    <div title="{{ $rmbRate['title'] }}">RMB {{ $rmbRate['text'] }}</div>
+                </td>
+                <td class="border border-gray-300 px-2 py-3 text-xs whitespace-nowrap sm:px-4 sm:text-sm">UGX {{ number_format((float) $transaction->charge_ugx) }}</td>
+                <td class="border border-gray-300 px-2 py-3 text-xs whitespace-nowrap sm:px-4 sm:text-sm">
                     {{ $transaction->principalLabel() }}<br>
                     ¥{{ number_format($transaction->rmb_amount, 1) }} RMB
                 </td>
             </tr>
             <tr>
-                <td class="border border-gray-300 px-4 py-3 text-sm">Total handed over ({{ $transaction->currency }})</td>
-                <td class="border border-gray-300 px-4 py-3 text-sm"></td>
-                <td class="border border-gray-300 px-4 py-3 text-sm"></td>
-                <td class="border border-gray-300 px-4 py-3 text-sm font-medium">{{ $transaction->collectedAmount() }}</td>
+                <td class="border border-gray-300 px-2 py-3 text-xs sm:px-4 sm:text-sm">Total handed over ({{ $transaction->currency }})</td>
+                <td class="border border-gray-300 px-2 py-3 text-xs sm:px-4 sm:text-sm"></td>
+                <td class="border border-gray-300 px-2 py-3 text-xs sm:px-4 sm:text-sm"></td>
+                <td class="border border-gray-300 px-2 py-3 text-xs font-medium whitespace-nowrap sm:px-4 sm:text-sm">{{ $transaction->collectedAmount() }}</td>
             </tr>
         </tbody>
     </table>
+    </div>
+    <p class="mb-6 text-xs text-gray-500">
+        Shillings become dollars at the UGX rate, and those dollars become yuan at the RMB rate. Both
+        selling prices are saved on this booking, so a later change on the rate card does not move this slip.
+    </p>
 
     {{-- Status --}}
     <div class="mb-6">

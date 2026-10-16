@@ -102,11 +102,12 @@
         <span class="value">{{ $transaction->receiver_contact }}</span>
     </div>
 
+    @php $usdRate = $transaction->shillingRateCell(); $rmbRate = $transaction->yuanRateCell(); @endphp
     <table>
         <thead>
             <tr>
                 <th>PARTICULARS</th>
-                <th>RATE</th>
+                <th>RATE (PER 1 USD)</th>
                 <th>CHARGE (UGX)</th>
                 <th style="text-align:right;">AMOUNT (USD/RMB)</th>
             </tr>
@@ -114,7 +115,10 @@
         <tbody>
             <tr>
                 <td>Send to China ({{ $transaction->currency }})</td>
-                <td class="amount-cell">{{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</td>
+                <td class="amount-cell">
+                    UGX {{ $usdRate['text'] }}<br>
+                    RMB {{ $rmbRate['text'] }}
+                </td>
                 <td class="amount-cell">UGX {{ number_format((float) $transaction->charge_ugx) }}</td>
                 <td class="amount-cell">
                     {{ $transaction->principalLabel() }}<br>
@@ -129,6 +133,8 @@
             </tr>
         </tbody>
     </table>
+
+    <p style="font-size:9px; margin:0 0 8px;">Shillings become dollars at the UGX rate, and those dollars become yuan at the RMB rate. Both selling prices are saved on this booking.</p>
 
     <div class="signatures">
         <div class="sig-block">

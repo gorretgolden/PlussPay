@@ -19,7 +19,9 @@ use Tests\TestCase;
  * buying prices stay stored and keep feeding the profit, but they are not printed here. Either
  * selling price can be filtered to, because the desk reprices and needs to see which transfers fell
  * on which side of the change. The prices are the business's own numbers, so a teller who cannot
- * see profit cannot see them either.
+ * see profit cannot see them either. The customer copy carries the same two prices, because the
+ * money travels in two steps and a slip quoting only the yuan price leaves the shilling one
+ * unexplained.
  */
 class TransactionRateColumnsTest extends TestCase
 {
@@ -115,8 +117,30 @@ class TransactionRateColumnsTest extends TestCase
         $this->assertStringNotContainsString('7.2 ', $html);
     }
 
-    public function test_a_teller_sees_no_prices_at_all(): void
+    /**
+     * The money on a booking travels in two steps, shillings into dollars then dollars into yuan,
+     * so a customer copy that quotes only the second price leaves the first one unexplained. Both
+     * selling prices print on the screen receipt and on the slip handed over the counter.
+     */
+    public function test_both_customer_copies_carry_both_selling_prices(): void
     {
+        $row = $this->book($this->user('admin'));
+
+        foreach (['/receipts/'.$row->receipt_number, '/receipts/'.$row->receipt_number.'/print'] as $path) {
+            $html = $this->html($path, $this->user('admin'));
+
+            // The slip prints in capitals, so the heading is matched whatever case the copy uses.
+            $this->assertTrue(str_contains(strtolower($html), 'per 1 usd'), $path.' has no rate heading');
+            $this->assertStringContainsString('UGX 3760', $html, $path);
+            $this->assertStringContainsString('RMB 7.24', $html, $path);
+
+            // The buying prices the margin was cut from stay off the document the customer keeps.
+            $this->assertStringNotContainsString('3750', $html, $path);
+            $this->assertStringNotContainsString('7.2 ', $html, $path);
+        }
+    }
+
+    public function test_a_teller_sees_no_prices_at_all(): void    {
         $teller = $this->user('staff');
         $row = $this->book($this->user('admin'));
         $row->forceFill(['created_by' => $teller->id])->save();
