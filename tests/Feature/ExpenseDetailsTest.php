@@ -186,7 +186,7 @@ class ExpenseDetailsTest extends TestCase
         $this->expense($till, ['description' => 'Kampala office rent']);
         $this->expense($yuan, ['description' => 'Guangzhou warehouse rent', 'currency' => 'RMB', 'amount' => '650.00']);
 
-        $recorder = $this->makeUser('accountant');
+        $recorder = $this->makeUser('admin');
         $this->expense($till, ['description' => 'Airtime for the phones', 'amount' => '50000.00', 'created_by' => $recorder->id]);
 
         $this->actingAs($this->admin)->get('/expenses?desk=UG')

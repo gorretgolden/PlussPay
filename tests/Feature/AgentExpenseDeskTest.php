@@ -149,7 +149,7 @@ class AgentExpenseDeskTest extends TestCase
     {
         $amina = $this->user('agent', 'Amina Nabukenya');
         $peter = $this->user('agent', 'Peter Okello');
-        $office = $this->user('accountant', 'Grace Naigaga');
+        $office = $this->user('admin', 'Grace Naigaga');
 
         $this->typed($amina, $this->wallet($amina))->assertSessionHasNoErrors();
         $hers = Expense::latest('id')->firstOrFail();
@@ -242,7 +242,7 @@ class AgentExpenseDeskTest extends TestCase
 
     public function test_the_office_still_pays_its_own_spending_out_of_its_own_accounts(): void
     {
-        $office = $this->user('accountant', 'Grace Naigaga');
+        $office = $this->user('admin', 'Grace Naigaga');
         $till = $this->fund(Account::UGX_UGANDA, '5000000.00');
 
         $this->assertTrue($office->can('view-all-expenses'));

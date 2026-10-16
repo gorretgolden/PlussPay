@@ -17,7 +17,9 @@
             : 'What you spent out of the cash you are holding. Every entry takes the amount off your balance.' }}</p>
     </div>
     <div class="flex gap-2">
+        @can('create-expense')
         <a href="{{ route('expenses.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Record Expense</a>
+        @endcan
         @can('manage-expense-categories')
         <a href="{{ route('expense-categories.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Spending Heads</a>
         @endcan
@@ -183,7 +185,9 @@
             <tr>
                 <td colspan="{{ $seesAll ? 9 : 8 }}" class="px-4 py-8 text-center text-gray-500">
                     {{ $seesAll ? 'No expenses have been recorded yet.' : 'You have not recorded an expense yet.' }}
+                    @can('create-expense')
                     <a href="{{ route('expenses.create') }}" class="text-green-700 underline">Record the first one</a>.
+                    @endcan
                 </td>
             </tr>
             @endforelse

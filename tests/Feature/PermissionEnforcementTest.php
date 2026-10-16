@@ -134,25 +134,29 @@ class PermissionEnforcementTest extends TestCase
         $this->get('/export/transactions')->assertForbidden();
     }
 
-    public function test_accountant_reads_the_books_and_keeps_book_entries_but_not_people_prices_or_settings(): void
+    public function test_accountant_reads_the_books_and_writes_customers_but_keeps_out_of_the_spending_book(): void
     {
         $accountant = $this->user('accountant');
-        foreach (['view-all-transactions', 'view-profit', 'view-customers', 'view-accounts', 'view-expenses', 'view-exchange-rates'] as $ability) {
+        foreach (['view-all-transactions', 'view-profit', 'view-customers', 'view-accounts', 'view-expenses', 'view-all-expenses', 'export-expenses', 'view-exchange-rates'] as $ability) {
             $this->assertTrue($accountant->can($ability), $ability);
         }
-        // Customers, expenses and account entries are book entries, and the old books gate let the
-        // accountant write them, so that access carries over. Booking a transfer, setting a price,
-        // managing people and opening settings were never in it.
-        foreach (['create-customer', 'edit-customer', 'create-expense', 'void-expense', 'create-account-entry'] as $ability) {
+        // Customers and account entries are book entries the old books gate let the accountant
+        // write, so that access carries over. Booking a transfer, setting a price, managing people
+        // and opening settings were never in it, and neither is the spending book: an expense is
+        // recorded by the desk that paid the money out, while the accountant reads that book to
+        // check it and report on it.
+        foreach (['create-customer', 'edit-customer', 'create-account-entry'] as $ability) {
             $this->assertTrue($accountant->can($ability), $ability);
         }
-        foreach (['create-transaction', 'create-exchange', 'view-users', 'create-user', 'manage-exchange-rates', 'view-settings'] as $ability) {
+        foreach (['create-expense', 'void-expense', 'create-transaction', 'create-exchange', 'view-users', 'create-user', 'manage-exchange-rates', 'view-settings'] as $ability) {
             $this->assertFalse($accountant->can($ability), $ability);
         }
         $this->actingAs($accountant)->get('/exchange-rates')->assertOk();
-        foreach (['/settings', '/transactions/create', '/exchanges/create', '/users'] as $url) {
+        $this->get('/expenses')->assertOk();
+        foreach (['/settings', '/transactions/create', '/exchanges/create', '/users', '/expenses/create'] as $url) {
             $this->get($url)->assertForbidden();
         }
+        $this->post('/expenses', [])->assertForbidden();
         $rate = \App\Models\ExchangeRate::create(['from_currency' => 'USD', 'to_currency' => 'UGX', 'rate' => 3750]);
         $this->patch('/exchange-rates/'.$rate->id, [])->assertForbidden();
     }

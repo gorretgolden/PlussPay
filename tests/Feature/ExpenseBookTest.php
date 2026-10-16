@@ -251,8 +251,14 @@ class ExpenseBookTest extends TestCase
         $till = $this->fund(Account::UGX_UGANDA, '5000000.00');
         $expense = $this->expense($till, ['amount' => '1200000.00']);
 
-        $this->actingAs($this->makeUser('accountant'))->get('/expenses')->assertOk();
-        $this->actingAs($this->makeUser('accountant'))->get('/expenses/create')->assertOk();
+        // The accountant reads the whole spending book to check it and report on it, and does not
+        // write in it. The pen belongs to the desk that actually paid the money out.
+        $accountant = $this->makeUser('accountant');
+        $this->actingAs($accountant)->get('/expenses')->assertOk()->assertSee($expense->reference);
+        $this->actingAs($accountant)->get('/expenses/create')->assertForbidden();
+        $this->actingAs($accountant)->post('/expenses', [])->assertForbidden();
+        $this->actingAs($accountant)->post('/expenses/'.$expense->id.'/void', ['reason' => 'Nothing'])
+            ->assertForbidden();
 
         // An agent keeps their own page of the book, not the office's. The entry above was recorded
         // by the admin, so it is nowhere on the agent's screen, and cancelling it is not theirs.
@@ -266,5 +272,25 @@ class ExpenseBookTest extends TestCase
         $this->actingAs($this->makeUser('staff'))->get('/expenses')->assertForbidden();
 
         $this->assertSame('active', $expense->fresh()->status);
+    }
+
+    /**
+     * A fresh install is handed the accountant grant the catalog describes, so the catalog change
+     * alone would leave every book already open untouched. This runs the update the way the deploy
+     * does, against a role that was given the pen years ago.
+     */
+    public function test_the_update_takes_the_pen_off_an_accountant_already_in_place(): void
+    {
+        $role = Role::findByName('accountant', 'web');
+        $role->givePermissionTo(['create-expense', 'void-expense']);
+        $this->assertTrue($role->hasPermissionTo('create-expense'), 'The role starts as an installed one would.');
+
+        $migration = require database_path('migrations/2026_10_17_090000_take_the_expense_pen_from_the_accountant.php');
+        $migration->up();
+
+        $role = Role::findByName('accountant', 'web');
+        $this->assertFalse($role->hasPermissionTo('create-expense'));
+        $this->assertFalse($role->hasPermissionTo('void-expense'));
+        $this->assertTrue($role->hasPermissionTo('view-all-expenses'), 'The reading the oversight and the reporting need stays.');
     }
 }

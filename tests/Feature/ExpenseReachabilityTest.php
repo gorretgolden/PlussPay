@@ -86,7 +86,7 @@ class ExpenseReachabilityTest extends TestCase
         $admin = $this->html($this->user('admin', 'Admin One'));
         $this->assertMatchesRegularExpression('#<a href="[^"]+/expenses/categories" class="sidebar-sublink[^"]*">#', $admin);
 
-        // An accountant records against a head but does not own the list.
+        // An accountant reads the spending book but neither owns the heads nor writes in the book.
         $accountant = $this->html($this->user('accountant', 'Grace Naigaga'));
         $this->assertStringNotContainsString('/expenses/categories', $accountant);
     }
@@ -111,7 +111,14 @@ class ExpenseReachabilityTest extends TestCase
             $this->assertStringNotContainsString('>'.$label.'</span>', $agent, $label.' is beyond an agent.');
         }
 
-        // Desk staff read the day and print receipts, so there is nothing for them to start.
+        // The accountant checks the spending book and reports on it, so the book is one click away
+        // while the pen that writes it is not offered.
+        $accountant = $this->html($this->user('accountant', 'Grace Naigaga'));
+        $this->assertStringContainsString('>Expenses</span>', $accountant);
+        $this->assertStringNotContainsString('>Record Expense</span>', $accountant, 'Recording spending is the desk that paid it out.');
+        $this->assertStringNotContainsString('>Send Money</span>', $accountant, 'Booking a transfer is beyond an accountant.');
+
+        // Desk staff read the day and change nothing, so there is nothing for them to start.
         $staff = $this->html($this->user('staff', 'Peter Mugisha'));
         $this->assertStringNotContainsString('Quick Actions', $staff);
     }

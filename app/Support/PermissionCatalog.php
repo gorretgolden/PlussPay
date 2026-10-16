@@ -30,7 +30,7 @@ final class PermissionCatalog
     public const DESCRIPTIONS = [
         'superadmin' => 'Full access to every module. This protected role cannot be changed.',
         'admin' => 'Manages daily operations, people and permissions. System internals stay with Super Admin.',
-        'accountant' => 'Reads all books, customers, profit and exchange rates. No editing or settings access.',
+        'accountant' => 'Reads every book, the customers, the profit and the prices, and writes customer and account entries. Records no expenses: the spending book is opened to check it and report on it.',
         'agent' => 'Books transfers and exchanges and logs what they spent out of the cash in hand. Sees only their own transactions, expenses, receipts, reports and wallets.',
         'staff' => 'Desk staff. Reads their own transactions, receipts and reports; books nothing and changes nothing.',
     ];
@@ -79,10 +79,11 @@ final class PermissionCatalog
             'admin' => array_values(array_diff(self::names(), self::RESERVED)),
             // The old books gate opened customers, expenses and account entries to the accountant
             // for writing as well as reading, so those abilities stay in this grant. People,
-            // prices and settings were never in it.
+            // prices and settings were never in it. The spending book is the exception: the
+            // accountant reads it to check the office's costs and to report on them, while the
+            // entries themselves are made by the desk that actually paid the money out.
             'accountant' => array_merge($read, [
-                'create-customer', 'edit-customer', 'delete-customer',
-                'create-expense', 'void-expense', 'create-account-entry',
+                'create-customer', 'edit-customer', 'delete-customer', 'create-account-entry',
             ]),
             'agent' => [
                 'view-dashboard', 'create-transaction', 'view-transactions', 'view-own-transactions',
