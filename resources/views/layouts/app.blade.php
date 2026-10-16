@@ -24,7 +24,9 @@
         .admin-confirm::backdrop { background: rgb(0 0 0 / 50%); }
         .admin-confirm { max-width: min(28rem, calc(100vw - 2rem)); }
         .field-invalid { border-color: #b91c1c !important; }
-        .field-error:not([hidden]):not(:empty)::before { content: '!'; display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: 1rem; border: 1px solid currentColor; border-radius: 50%; font-size: .7rem; margin-right: .35rem; }
+        .field-invalid:not([type=checkbox]):not([type=radio]) { box-shadow: 0 0 0 2px #b91c1c, 0 0 0 6px rgb(185 28 28 / 15%); background-color: #fef2f2; color: #7f1d1d; }
+        [data-error-summary]:not(:empty) { border-left: 4px solid #b91c1c; font-weight: 500; }
+        .field-error:not([hidden]):not(:empty)::before { content: '!'; display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: 1rem; background: #b91c1c; color: #fff; border: 0; border-radius: 50%; font-size: .7rem; margin-right: .35rem; }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; } }
     </style>
     @stack('styles')
@@ -474,9 +476,13 @@
                     li.textContent = opt.textContent.trim();
                     li.dataset.index = opt.index;
                     li.id = listId + '-' + opt.index;
+                    li.tabIndex = -1;
                     li.setAttribute('role', 'option');
                     li.setAttribute('aria-disabled', opt.disabled ? 'true' : 'false');
-                    li.dataset.search = (opt.textContent + ' ' + opt.value).toLowerCase();
+                    // Label and code are kept apart so a search can rank the name above the
+                    // value instead of treating them as one string.
+                    li.dataset.label = opt.textContent.trim().toLowerCase();
+                    li.dataset.value = opt.value.toLowerCase();
                     if (opt.disabled) li.classList.add('opacity-40', 'cursor-not-allowed');
                     list.appendChild(li);
                     return li;
@@ -494,11 +500,41 @@
                 }
 
                 const isOpen = () => !panel.classList.contains('hidden');
-                const visible = () => items.filter(li => !li.classList.contains('hidden'));
+                // Read from the panel rather than the option list, because a search puts the
+                // best matches at the top and the arrow keys follow what the eye sees.
+                const visible = () => Array.from(list.children).filter(li => !li.classList.contains('hidden'));
 
+                function rank(li, q) {
+                    const label = li.dataset.label;
+                    if (label === q) return 0;
+                    if (label.startsWith(q)) return 1;
+                    if (label.includes(q)) return 2;
+                    const value = li.dataset.value;
+                    if (value === q) return 3;
+                    if (value.startsWith(q)) return 4;
+                    if (value.includes(q)) return 5;
+                    return -1;
+                }
+
+                // Typing "admin" used to leave Super Admin first in the list because its value
+                // is "superadmin", and Enter picked whatever sat on top. The name decides the
+                // order; the value only breaks a tie.
                 function filter() {
                     const q = search.value.toLowerCase().trim();
-                    items.forEach(li => li.classList.toggle('hidden', q !== '' && !li.dataset.search.includes(q)));
+                    if (q === '') {
+                        items.forEach(li => {
+                            li.classList.remove('hidden');
+                            list.appendChild(li);
+                        });
+                        return;
+                    }
+                    const hits = items
+                        .map(li => [rank(li, q), li])
+                        .filter(pair => pair[0] >= 0)
+                        .sort((a, b) => a[0] - b[0]);
+                    const keep = new Set(hits.map(pair => pair[1]));
+                    items.forEach(li => li.classList.toggle('hidden', !keep.has(li)));
+                    hits.forEach(pair => list.appendChild(pair[1]));
                 }
 
                 let active = -1;
@@ -533,6 +569,23 @@
                     if (!opt || opt.disabled) return;
                     sel.value = opt.value;
                     sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    // A form with the inline validator clears its own error on that change event
+                    // and repaints the summary. Forms without it leave the marks from a previous
+                    // attempt behind, so the click takes the field out of the invalid state here.
+                    if (opt.value !== '' && sel.getAttribute('aria-invalid') === 'true'
+                        && sel.form && !sel.form.dataset.validationReady) {
+                        const node = sel.form.querySelector('[data-field-error="' + sel.name + '"]');
+                        if (node) {
+                            node.textContent = '';
+                            node.hidden = true;
+                            const described = new Set((sel.getAttribute('aria-describedby') || '').split(' ').filter(Boolean));
+                            described.delete(node.id);
+                            if (described.size) sel.setAttribute('aria-describedby', Array.from(described).join(' '));
+                            else sel.removeAttribute('aria-describedby');
+                        }
+                        sel.setAttribute('aria-invalid', 'false');
+                        sel.classList.remove('field-invalid', 'ring-2', 'ring-red-400');
+                    }
                     render();
                     close();
                     trigger.focus();
@@ -551,7 +604,16 @@
                         if (option) pick(Number(option.dataset.index));
                     }
                 });
-                wrap.addEventListener('focusout', () => queueMicrotask(() => { if (!wrap.contains(document.activeElement)) close(); }));
+                // Pressing the mouse on an option used to move focus off the search box, which
+                // hid the panel before the click landed, so the option was never picked and the
+                // select kept its empty value under "This field is required". Blocking that focus
+                // change lets the click through, and the guard keeps a tap inside the panel from
+                // counting as leaving it.
+                list.addEventListener('mousedown', (event) => event.preventDefault());
+                wrap.addEventListener('focusout', (event) => {
+                    if (wrap.contains(event.relatedTarget)) return;
+                    queueMicrotask(() => { if (!wrap.contains(document.activeElement)) close(); });
+                });
                 search.addEventListener('input', () => { filter(); highlight(0); });
                 search.addEventListener('keydown', function(e) {
                     const vis = visible();

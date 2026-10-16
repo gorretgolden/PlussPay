@@ -36,6 +36,50 @@ class FrontendLayoutGuardsTest extends TestCase
         $this->assertMatchesRegularExpression('/\.user-summary\{[^}]*min-height:\d+px/', $this->read('public'.DIRECTORY_SEPARATOR.'user-management.css'));
     }
 
+    /**
+     * Every select in the app is rebuilt as a searchable listbox, so a mouse click that does not
+     * reach the native select breaks the whole admin area, not one form.
+     */
+    public function test_a_mouse_click_on_a_dropdown_option_reaches_the_select_it_belongs_to(): void
+    {
+        $layout = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'layouts'.DIRECTORY_SEPARATOR.'app.blade.php');
+
+        // Without this the panel closes between mousedown and mouseup and the click is lost.
+        $this->assertStringContainsString("list.addEventListener('mousedown', (event) => event.preventDefault());", $layout);
+        $this->assertStringContainsString('li.tabIndex = -1;', $layout);
+        $this->assertStringContainsString('if (wrap.contains(event.relatedTarget)) return;', $layout);
+
+        // Picking a value has to take the field out of the invalid state as well as set it.
+        $this->assertMatchesRegularExpression('/function pick\([\s\S]*?aria-invalid.\) === .true.[\s\S]*?render\(\);/', $layout);
+    }
+
+    public function test_typing_a_role_name_in_a_dropdown_cannot_put_a_privileged_role_first(): void
+    {
+        $layout = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'layouts'.DIRECTORY_SEPARATOR.'app.blade.php');
+
+        // One haystack of label plus value ranked every match the same way, so "admin" showed
+        // Super Admin on top because its value is "superadmin".
+        $this->assertStringNotContainsString('li.dataset.search', $layout);
+        $this->assertStringContainsString("li.dataset.label = opt.textContent.trim().toLowerCase();", $layout);
+        $this->assertStringContainsString('if (label === q) return 0;', $layout);
+        $this->assertStringContainsString('if (label.startsWith(q)) return 1;', $layout);
+        $this->assertStringContainsString('if (value === q) return 3;', $layout);
+
+        // The keyboard follows the ranked order, so Enter picks what the reader sees first.
+        $this->assertStringContainsString("const visible = () => Array.from(list.children)", $layout);
+    }
+
+    public function test_a_field_that_failed_validation_is_marked_by_more_than_its_border(): void
+    {
+        $layout = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'layouts'.DIRECTORY_SEPARATOR.'app.blade.php');
+        $css = $this->read('public'.DIRECTORY_SEPARATOR.'user-management.css');
+
+        $this->assertMatchesRegularExpression('/\.field-invalid:not\(\[type=checkbox\]\)[^{]*\{[^}]*box-shadow: 0 0 0 2px/', $layout);
+        $this->assertMatchesRegularExpression('/\.user-field \[aria-invalid=true\]\{[^}]*box-shadow:0 0 0 2px/', $css);
+        $this->assertMatchesRegularExpression('/\.user-field \[aria-invalid=true\]\{[^}]*background-color:#fef2f2/', $css);
+        $this->assertMatchesRegularExpression('/\.user-error\{[^}]*font-weight:600/', $css);
+    }
+
     public function test_a_details_element_used_as_a_menu_button_hides_the_disclosure_triangle(): void
     {
         $roles = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'admin'.DIRECTORY_SEPARATOR.'roles.blade.php');

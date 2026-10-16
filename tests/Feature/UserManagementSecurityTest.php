@@ -232,6 +232,23 @@ class UserManagementSecurityTest extends TestCase
         $this->assertStringNotContainsString('Temporary123!', ActivityLog::all()->toJson());
     }
 
+    public function test_the_forced_password_change_is_a_choice_and_not_a_default(): void
+    {
+        $actor = $this->user('superadmin');
+        $html = $this->actingAs($actor)->get('/users/create')->getContent();
+        preg_match('/<input id="must_change_password"[^>]*>/', $html, $box);
+
+        $this->assertNotEmpty($box[0] ?? '', 'The create form has to keep the box.');
+        $this->assertStringNotContainsString('checked', $box[0], 'A new account changes its password only when the admin asks for it.');
+
+        $this->post('/users', array_replace($this->payload(), ['email' => 'plain@example.test']))->assertSessionHasNoErrors();
+        $this->assertFalse(User::where('email', 'plain@example.test')->firstOrFail()->must_change_password);
+
+        $target = $this->user('agent', ['must_change_password' => true]);
+        preg_match('/<input id="must_change_password"[^>]*>/', $this->get('/users/'.$target->id.'/edit')->getContent(), $kept);
+        $this->assertMatchesRegularExpression('/checked/', $kept[0] ?? '', 'An account already told to change its password still shows that.');
+    }
+
     public function test_forms_and_partial_table_render_the_new_controls(): void
     {
         $actor = $this->user('superadmin');

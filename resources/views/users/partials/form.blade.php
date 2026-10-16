@@ -49,7 +49,7 @@
     </div>
     <input type="hidden" name="must_change_password" value="0">
     <label class="user-check mt-4" for="must_change_password">
-        <input id="must_change_password" name="must_change_password" type="checkbox" value="1" @checked(old('must_change_password', $user->must_change_password ?? true)) @disabled($editing && $user->must_change_password)>
+        <input id="must_change_password" name="must_change_password" type="checkbox" value="1" @checked(old('must_change_password', $user->must_change_password ?? false)) @disabled($editing && $user->must_change_password)>
         Require password change at next sign-in
     </label>
     <p class="user-help">Required changes cannot be waived by administrators.</p>
