@@ -124,29 +124,44 @@
     }
 
     function rateConfirmation() {
-        const lines = [];
+        const sections = [];
         const warnings = [];
+        let danger = false;
+        const signed = (value) => `${value > 0 ? '+' : ''}${format(Number(value.toFixed(6)))}`;
         ['ugx', 'rmb'].forEach((currency) => {
             const pair = effectivePair(currency);
             if (!pair) return;
-            let pairChanged = false;
-            [[pair.buyField, pair.buy], [pair.sellField, pair.sell]].forEach(([field, next]) => {
-                const previous = field.dataset.original;
+            const unit = currency.toUpperCase();
+            const rows = [];
+            let moved = false;
+            [['Buying', pair.buyField, pair.buy], ['Selling', pair.sellField, pair.sell]].forEach(([side, field, next]) => {
+                const previous = raw(field.dataset.original);
                 if (previous !== '' && Math.abs(Number(previous) - next) < 0.0000005) return;
-                pairChanged = true;
-                lines.push(`${field.dataset.label}: ${previous === '' ? 'Not set' : format(previous)} → ${format(next)} ${currency.toUpperCase()}/USD`);
-                if (previous !== '' && Number(previous) > 0 && Math.abs((next - Number(previous)) / Number(previous)) > 0.05) {
-                    warnings.push(`${field.dataset.label} changes by more than 5%.`);
+                moved = true;
+                // A jump this big is usually a mistyped figure, so its size rides on the row it
+                // belongs to rather than repeating itself as a separate sentence.
+                let note = '';
+                if (previous !== '' && Number(previous) > 0) {
+                    const percent = (next - Number(previous)) / Number(previous) * 100;
+                    if (Math.abs(percent) > 5) note = ` (${percent > 0 ? 'up' : 'down'} ${format(Math.round(Math.abs(percent) * 10) / 10)}%)`;
                 }
+                rows.push([side, `${previous === '' ? 'not set' : format(previous)} → ${format(next)}${note}`]);
             });
-            if (pairChanged && pair.margin <= 0) {
-                const figure = `${format(Number(pair.margin.toFixed(6)))} ${currency.toUpperCase()}/USD`;
-                warnings.push(pair.margin < 0
-                    ? `${currency.toUpperCase()} margin is negative (${figure}). This pair would lose money.`
-                    : `${currency.toUpperCase()} margin is zero. Both prices are the same, so this pair earns nothing.`);
+            if (!moved) return;
+            const saved = [raw(pair.buyField.dataset.original), raw(pair.sellField.dataset.original)];
+            const was = saved[0] !== '' && saved[1] !== ''
+                ? signed(currency === 'ugx' ? Number(saved[1]) - Number(saved[0]) : Number(saved[0]) - Number(saved[1]))
+                : 'not set';
+            rows.push(['Margin', `${was} → ${signed(pair.margin)} ${unit}/USD`]);
+            sections.push({ title: `USD → ${unit}`, rows });
+            if (pair.margin < 0) {
+                danger = true;
+                warnings.push(`${unit} margin is negative (${signed(pair.margin)} ${unit}/USD). Every transfer through this pair loses money.`);
+            } else if (pair.margin === 0) {
+                warnings.push(`${unit} margin is zero. Both prices are the same, so this leg earns nothing.`);
             }
         });
-        return { message: [...lines, ...warnings].join('\n'), danger: warnings.length > 0 };
+        return { sections, message: warnings.join('\n'), danger };
     }
 
     async function switchTab(tab) {
@@ -229,7 +244,14 @@
             let options = null;
             if (form.dataset.settingsForm === 'rates') {
                 const rateChanges = rateConfirmation();
-                options = { title: 'Save rates?', message: rateChanges.message || 'No rate values will change. A blank selling rate leaves its pair unchanged.', confirmText: 'Save rates', danger: rateChanges.danger };
+                const empty = !rateChanges.sections.length;
+                options = {
+                    title: 'Save rates?',
+                    sections: rateChanges.sections,
+                    message: rateChanges.message || (empty ? 'No rate values will change. A blank selling rate leaves its pair unchanged.' : ''),
+                    confirmText: 'Save rates',
+                    danger: rateChanges.danger,
+                };
             } else if (form.dataset.settingsForm === 'datetime') {
                 const field = form.elements.namedItem('timezone');
                 const previous = Array.from(field.options).find((option) => option.value === field.dataset.original)?.textContent.trim() || field.dataset.original;

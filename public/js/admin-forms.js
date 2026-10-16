@@ -12,6 +12,28 @@
         resolve(answer);
     }
 
+    // A wall of "field: old → new" sentences is the hardest thing to check in a confirmation, so a
+    // caller can hand over grouped label and value rows instead and they print as an aligned list.
+    function renderSections(container, sections) {
+        container.replaceChildren();
+        (sections || []).forEach(({ title, rows }) => {
+            const head = document.createElement('dt');
+            head.className = 'col-span-2 mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500 first:mt-0';
+            head.textContent = title;
+            container.append(head);
+            (rows || []).forEach(([label, value]) => {
+                const name = document.createElement('dt');
+                name.className = 'text-sm text-gray-500';
+                name.textContent = label;
+                const figure = document.createElement('dd');
+                figure.className = 'text-sm tabular-nums text-gray-900';
+                figure.textContent = value;
+                container.append(name, figure);
+            });
+        });
+        container.classList.toggle('hidden', !sections?.length);
+    }
+
     window.askConfirm = (options = {}) => {
         if (resolveDialog) return Promise.resolve(false);
         if (!dialog) {
@@ -20,6 +42,7 @@
             dialog.setAttribute('aria-labelledby', 'admin-confirm-title');
             dialog.setAttribute('aria-describedby', 'admin-confirm-message');
             dialog.innerHTML = '<h2 id="admin-confirm-title" class="text-lg font-semibold"></h2>'
+                + '<dl data-sections id="admin-confirm-sections" class="mt-1 grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1"></dl>'
                 + '<p id="admin-confirm-message" class="mt-3 whitespace-pre-line text-sm text-gray-700"></p>'
                 + '<label data-typed-label class="hidden mt-4 text-sm">Type <strong data-expected></strong> to confirm'
                 + '<input data-typed autocomplete="off" class="mt-2 w-full rounded-md border border-gray-300 px-3 py-2"></label>'
@@ -40,8 +63,16 @@
             });
         }
         previousFocus = document.activeElement;
+        const message = dialog.querySelector('#admin-confirm-message');
+        const sections = dialog.querySelector('[data-sections]');
         dialog.querySelector('#admin-confirm-title').textContent = options.title || 'Confirm changes';
-        dialog.querySelector('#admin-confirm-message').textContent = options.message || '';
+        message.textContent = options.message || '';
+        message.classList.toggle('mt-3', !options.sections?.length);
+        message.classList.toggle('mt-2', !!options.sections?.length);
+        message.classList.toggle('text-red-700', !!options.danger);
+        message.hidden = !options.message;
+        renderSections(sections, options.sections);
+        dialog.setAttribute('aria-describedby', options.sections?.length && options.message ? 'admin-confirm-sections admin-confirm-message' : options.sections?.length ? 'admin-confirm-sections' : 'admin-confirm-message');
         dialog.querySelector('[data-cancel]').textContent = options.cancelText || 'Cancel';
         const confirm = dialog.querySelector('[data-confirm]');
         confirm.textContent = options.confirmText || 'Confirm';
