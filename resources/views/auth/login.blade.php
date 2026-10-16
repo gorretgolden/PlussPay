@@ -29,7 +29,7 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" name="email" id="email" value="{{ old('email') }}" autocomplete="username" required autofocus
+                <input type="email" name="email" id="email" value="{{ old('email') }}" autocomplete="off" required autofocus
                     class="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition @error('email') border-red-500 @enderror">
                 @error('email')
                     <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
@@ -39,7 +39,9 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
                 <div class="relative">
-                    <input id="password" type="password" name="password" autocomplete="current-password" required placeholder="••••••••"
+                    <input id="password" type="password" name="password" autocomplete="new-password" required placeholder="••••••••"
+                    {{-- new-password, not current-password: the latter lets the browser drop its
+                         own saved sign-in into these boxes and overwrite the demo account chosen. --}}
                         class="w-full rounded-lg border border-gray-300 px-4 py-3 pr-12 text-gray-900 focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition">
                     <button type="button" onclick="togglePassword()"
                         class="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600 text-sm">
@@ -115,6 +117,7 @@
             const emailBox = document.getElementById('email');
             const passwordBox = document.getElementById('password');
             const form = document.getElementById('loginForm');
+            const hint = document.getElementById('demoHint');
             const buttons = Array.from(document.querySelectorAll('[data-demo-email]'));
 
             if (!buttons.length) return;
@@ -125,28 +128,52 @@
                 try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; }
             }
 
+            function remember(email, password) {
+                if (!email) return;
+                const store = saved();
+                if (password) {
+                    store[email] = password;
+                } else {
+                    delete store[email];
+                }
+                try { localStorage.setItem(STORE, JSON.stringify(store)); } catch (e) {}
+            }
+
+            // The browser holds its own saved sign-in for this site and writes that pair into the
+            // boxes as soon as the password field is focused, which lands on top of the account
+            // just clicked. So focus first, then write, then check on the next frame that the
+            // browser has not put its own pair back. The password is always written, blank
+            // included, so another account's figure never stays behind in the box.
+            function fill(email, password) {
+                passwordBox.focus();
+                emailBox.value = email;
+                passwordBox.value = password;
+                requestAnimationFrame(function () {
+                    if (emailBox.value !== email) emailBox.value = email;
+                    if (passwordBox.value !== password) passwordBox.value = password;
+                });
+                hint.classList.toggle('hidden', !!password);
+            }
+
             buttons.forEach(function (button) {
                 button.addEventListener('click', function () {
-                    emailBox.value = button.dataset.demoEmail;
-                    const password = button.dataset.demoPassword || saved()[button.dataset.demoEmail] || '';
-                    if (password) {
-                        passwordBox.value = password;
-                    }
-                    passwordBox.focus();
-                    document.getElementById('demoHint').classList.toggle('hidden', !!password);
+                    const email = button.dataset.demoEmail;
+                    fill(email, button.dataset.demoPassword || saved()[email] || '');
                 });
             });
 
             form.addEventListener('submit', function () {
                 const email = emailBox.value.trim().toLowerCase();
-                const password = passwordBox.value;
-
-                if (accounts.includes(email) && password) {
-                    const store = saved();
-                    store[email] = password;
-                    try { localStorage.setItem(STORE, JSON.stringify(store)); } catch (e) {}
+                if (accounts.includes(email) && passwordBox.value) {
+                    remember(email, passwordBox.value);
                 }
             });
+
+            // A password that just failed to sign in is a wrong one, so the button stops offering
+            // it. The next successful sign-in above puts the right figure back.
+            @if ($errors->has('email'))
+            remember(@json(mb_strtolower(trim((string) old('email', '')))), '');
+            @endif
         })();
 
         function togglePassword() {

@@ -71,6 +71,49 @@ class SiteModeSwitchTest extends TestCase
         $this->assertStringContainsString('plussave.demoPasswords', $html);
     }
 
+    public function test_the_sign_in_boxes_do_not_invite_the_browsers_own_saved_account(): void
+    {
+        auth()->logout();
+
+        $html = $this->get('/admin/login')->assertOk()->getContent();
+
+        // username/current-password tell the browser that these boxes carry a sign-in it has
+        // saved, and it then writes its own pair over the demo account the button just chose.
+        $this->assertStringNotContainsString('autocomplete="username"', $html);
+        $this->assertStringNotContainsString('autocomplete="current-password"', $html);
+        $this->assertStringContainsString('autocomplete="new-password"', $html);
+        $this->assertStringContainsString('id="email" value="" autocomplete="off"', $html);
+    }
+
+    public function test_a_kept_demo_password_is_forgotten_once_it_fails_to_sign_in(): void
+    {
+        User::create([
+            'name' => 'Books Accountant',
+            'email' => 'accountant@plussave.com',
+            'password' => 'the-real-books-password',
+            'is_active' => true,
+        ]);
+
+        auth()->logout();
+
+        // Opening the form first is what lets a refused sign-in come back to it in one hop, which
+        // is how the browser does it; two hops would already have forgotten the message.
+        $this->get('/admin/login')->assertOk();
+
+        $html = $this->followingRedirects()
+            ->post('/admin/login', [
+                'email' => 'accountant@plussave.com',
+                'password' => 'a-figure-from-another-account',
+            ])
+            ->assertOk()
+            ->assertSee('Invalid password.')
+            ->getContent();
+
+        // Without this the button replays the same wrong figure every time she clicks Accountant.
+        // The next successful sign-in puts the right one back.
+        $this->assertStringContainsString('remember("accountant@plussave.com", \'\')', $html);
+    }
+
     public function test_on_the_developers_own_host_the_button_fills_the_password_from_the_env(): void
     {
         config(['demo.accounts' => ['admin@plussave.com' => 'chosen-in-dot-env']]);
