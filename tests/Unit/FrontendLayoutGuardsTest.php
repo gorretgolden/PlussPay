@@ -88,6 +88,50 @@ class FrontendLayoutGuardsTest extends TestCase
     }
 
     /**
+     * The dropdown script rebuilds every select as a button, so a rule written for inputs and
+     * selects alone leaves Role and Country as loose text with a caret next to it. One shared
+     * block now sizes all four controls, and the stylesheet is cache-busted because it is served
+     * straight from disk with no build step to rename it.
+     */
+    public function test_every_field_on_the_user_form_is_one_shared_box(): void
+    {
+        $css = $this->read('public'.DIRECTORY_SEPARATOR.'user-management.css');
+        $controls = preg_quote('.user-control,.user-field input:not([type=checkbox]),.user-field select,.user-field [role=combobox]', '/');
+
+        $this->assertMatchesRegularExpression('/'.$controls.'\{[^}]*min-height:46px/', $css, 'A field has to be tall enough to tap.');
+        $this->assertMatchesRegularExpression('/'.$controls.'\{[^}]*border-radius:8px;padding:10px 16px/', $css, 'One radius and one inset for every field.');
+        $this->assertMatchesRegularExpression('/'.$controls.'\{[^}]*background:var\(--user-fill\)/', $css, 'One fill, so a dropdown cannot read as plain text.');
+        $this->assertMatchesRegularExpression('/\.user-control:hover[^{]*\{[^}]*border-color:var\(--user-border-hover\)/', $css);
+        $this->assertMatchesRegularExpression('/\.user-control:focus[^{]*\{[^}]*border-color:var\(--user-green\);outline:3px solid var\(--user-ring\)/', $css, 'Focus must be a green edge and a soft ring, not a bare outline.');
+        $this->assertMatchesRegularExpression('/\.user-control:disabled[^{]*\{[^}]*cursor:not-allowed/', $css);
+
+        // The caret lives inside the box, so the label gives up pixels before it overlaps.
+        $this->assertMatchesRegularExpression('/'.preg_quote('.user-field [role=combobox]>.ss-label', '/').'\{[^}]*min-width:0/', $css);
+        $this->assertMatchesRegularExpression('/\.user-value-box\{[^}]*display:flex[^}]*justify-content:space-between/', $css);
+
+        $form = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'users'.DIRECTORY_SEPARATOR.'partials'.DIRECTORY_SEPARATOR.'form.blade.php');
+        $country = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'users'.DIRECTORY_SEPARATOR.'partials'.DIRECTORY_SEPARATOR.'country-fields.blade.php');
+        $password = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'users'.DIRECTORY_SEPARATOR.'partials'.DIRECTORY_SEPARATOR.'password-fields.blade.php');
+        $access = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'users'.DIRECTORY_SEPARATOR.'partials'.DIRECTORY_SEPARATOR.'access-fields.blade.php');
+        $fields = $form.$country.$password.$access;
+
+        foreach (['name', 'email', 'phone', 'role', 'country', 'timezone', 'password', 'password_confirmation', 'allowed_from', 'allowed_to'] as $id) {
+            $this->assertMatchesRegularExpression('/<(?:input|select)[^>]*id="'.$id.'"[^>]*class="user-control"/', $fields, $id.' must carry the shared field style.');
+        }
+
+        // The clock used to be a bare sentence; the value and its Change link now share the box.
+        $this->assertMatchesRegularExpression('/<div class="user-control user-value-box[^"]*"><span id="timezone-label">/', $country);
+        $this->assertMatchesRegularExpression('/<button type="button" id="change-timezone"[^>]*class="user-link">Change<\/button><\/div>/', $country);
+
+        $this->assertStringContainsString('Privileged access: review carefully before saving.', $form);
+
+        foreach (['create', 'edit', 'index', 'password-change', 'password-enroll'] as $page) {
+            $view = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'users'.DIRECTORY_SEPARATOR.$page.'.blade.php');
+            $this->assertStringContainsString("filemtime(public_path('user-management.css'))", $view, $page.' must not be shown a cached stylesheet.');
+        }
+    }
+
+    /**
      * The desk's country decides which wallets and which money a person is shown, so it
      * has to be readable on the page they land on, including when it was never filled in.
      */

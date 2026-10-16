@@ -5,26 +5,26 @@
 <div class="user-grid">
     <div class="user-field">
         <label for="name">Full name</label>
-        <input id="name" name="name" autocomplete="off" value="{{ old('name', $user->name ?? '') }}" required minlength="3" maxlength="100" pattern="[A-Za-z][A-Za-z.\-]*(\s+[A-Za-z][A-Za-z.\-]*)+" aria-describedby="help-name error-name">
+        <input id="name" name="name" class="user-control" autocomplete="off" value="{{ old('name', $user->name ?? '') }}" required minlength="3" maxlength="100" pattern="[A-Za-z][A-Za-z.\-]*(\s+[A-Za-z][A-Za-z.\-]*)+" aria-describedby="help-name error-name">
         <p id="help-name" class="user-help">First and last name, like Gorret Golden.</p>
         <p id="error-name" data-field-error="name" class="user-error">@error('name'){{ $message }}@enderror</p>
     </div>
     <div class="user-field">
         <label for="email">Email</label>
-        <input id="email" name="email" type="email" autocomplete="off" value="{{ old('email', $user->email ?? '') }}" required maxlength="100" data-unique aria-describedby="error-email status-email">
+        <input id="email" name="email" type="email" class="user-control" autocomplete="off" value="{{ old('email', $user->email ?? '') }}" required maxlength="100" data-unique aria-describedby="error-email status-email">
         <span id="status-email" data-availability-status="email" class="user-help" aria-live="polite"></span>
         <p id="error-email" data-field-error="email" class="user-error">@error('email'){{ $message }}@enderror</p>
     </div>
     <div class="user-field">
         <label for="phone">Phone <span class="text-gray-400">(optional)</span></label>
-        <input id="phone" name="phone" type="tel" autocomplete="off" value="{{ old('phone', $user->phone ?? '') }}" maxlength="20" pattern="[+0-9() .\-]{8,20}" data-unique aria-describedby="help-phone error-phone status-phone">
+        <input id="phone" name="phone" type="tel" class="user-control" autocomplete="off" value="{{ old('phone', $user->phone ?? '') }}" maxlength="20" pattern="[+0-9() .\-]{8,20}" data-unique aria-describedby="help-phone error-phone status-phone">
         <p id="help-phone" class="user-help">Local or international; formatting is corrected.</p>
         <span id="status-phone" data-availability-status="phone" class="user-help" aria-live="polite"></span>
         <p id="error-phone" data-field-error="phone" class="user-error">@error('phone'){{ $message }}@enderror</p>
     </div>
     <div class="user-field">
         <label for="role">Role</label>
-        <select id="role" name="role" required aria-describedby="role-description role-warning error-role">
+        <select id="role" name="role" class="user-control" required aria-describedby="role-description role-warning error-role">
             <option value="">Choose a role</option>
             @foreach($roles as $role)
             <option value="{{ $role->name }}" data-description="{{ $descriptions[$role->name] ?? 'Uses the permissions assigned to this role.' }}" data-privileged="{{ in_array($role->name, ['admin', 'superadmin']) ? 'true' : 'false' }}" @selected(old('role', $editing ? $user->getRoleNames()->first() : '') === $role->name)>{{ \App\Http\Controllers\RolePermissionController::displayName($role->name) }}</option>

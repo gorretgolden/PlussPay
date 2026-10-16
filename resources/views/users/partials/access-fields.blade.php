@@ -19,8 +19,8 @@
             <p id="error-days" data-field-error="days" class="user-error">@error('days'){{ $message }}@enderror</p>
         </fieldset>
         <div class="user-grid mt-4">
-            <div class="user-field"><label for="allowed_from">From</label><input id="allowed_from" name="allowed_from" type="time" value="{{ $allowedFrom }}" aria-describedby="error-allowed_from"><p id="error-allowed_from" data-field-error="allowed_from" class="user-error">@error('allowed_from'){{ $message }}@enderror</p></div>
-            <div class="user-field"><label for="allowed_to">To</label><input id="allowed_to" name="allowed_to" type="time" value="{{ $allowedTo }}" aria-describedby="error-allowed_to"><p id="error-allowed_to" data-field-error="allowed_to" class="user-error">@error('allowed_to'){{ $message }}@enderror</p></div>
+            <div class="user-field"><label for="allowed_from">From</label><input id="allowed_from" name="allowed_from" type="time" class="user-control" value="{{ $allowedFrom }}" aria-describedby="error-allowed_from"><p id="error-allowed_from" data-field-error="allowed_from" class="user-error">@error('allowed_from'){{ $message }}@enderror</p></div>
+            <div class="user-field"><label for="allowed_to">To</label><input id="allowed_to" name="allowed_to" type="time" class="user-control" value="{{ $allowedTo }}" aria-describedby="error-allowed_to"><p id="error-allowed_to" data-field-error="allowed_to" class="user-error">@error('allowed_to'){{ $message }}@enderror</p></div>
         </div>
         <p class="user-help">Account’s local time. Overnight windows are supported.</p>
     </div>

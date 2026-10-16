@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>Set password · PlusPay</title><link rel="stylesheet" href="{{ asset('user-management.css') }}"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>Set password · PlusPay</title><link rel="stylesheet" href="{{ asset('user-management.css') }}?v={{ @filemtime(public_path('user-management.css')) ?: 1 }}"></head>
 <body class="user-enroll">
 <main class="user-management user-enroll-card">
     <h1>Set your password</h1><p>Choose a password only you know.</p>
@@ -15,5 +15,5 @@
         <a href="{{ route('login') }}">Back to sign in</a>
     </form>
 </main>
-<script src="{{ asset('user-management.js') }}" defer></script>
+<script src="{{ asset('user-management.js') }}?v={{ @filemtime(public_path('user-management.js')) ?: 1 }}" defer></script>
 </body></html>

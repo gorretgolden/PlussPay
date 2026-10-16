@@ -32,5 +32,5 @@
     <div id="users-results" aria-live="polite">@include('users.partials.table')</div>
 </div>
 @endsection
-@push('styles')<link rel="stylesheet" href="{{ asset('user-management.css') }}">@endpush
-@push('scripts')<script src="{{ asset('user-management.js') }}" defer></script>@endpush
+@push('styles')<link rel="stylesheet" href="{{ asset('user-management.css') }}?v={{ @filemtime(public_path('user-management.css')) ?: 1 }}">@endpush
+@push('scripts')<script src="{{ asset('user-management.js') }}?v={{ @filemtime(public_path('user-management.js')) ?: 1 }}" defer></script>@endpush

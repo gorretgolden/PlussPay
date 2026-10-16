@@ -10,7 +10,7 @@
         <label for="country">Country</label>
         <span class="user-tooltip"><button type="button" aria-label="About country" aria-describedby="country-tip">?</button><span role="tooltip" id="country-tip">Which desk this account works from. Uganda uses shilling and dollar wallets; China uses yuan and dollar wallets.</span></span>
     </div>
-    <select id="country" name="country" data-country-zones='@json(\App\Models\User::COUNTRY_TIMEZONES)' aria-describedby="error-country">
+    <select id="country" name="country" class="user-control" data-country-zones='@json(\App\Models\User::COUNTRY_TIMEZONES)' aria-describedby="error-country">
         @foreach(\App\Models\User::COUNTRIES as $code => $label)<option value="{{ $code }}" @selected($currentCountry === $code)>{{ $label }}</option>@endforeach
     </select>
     <p class="user-help">Sets the desk’s wallets and default clock.</p>
@@ -21,9 +21,9 @@
         <label for="timezone">Time zone</label>
         <span class="user-tooltip"><button type="button" aria-label="About time zone" aria-describedby="timezone-tip">?</button><span role="tooltip" id="timezone-tip">Sign-in hours use this account’s local time zone. Country selects the default; Change allows an override.</span></span>
     </div>
-    <div class="flex items-center justify-between gap-2 mb-2"><span id="timezone-label" class="text-sm text-gray-600">{{ $currentTimezone }}</span><button type="button" id="change-timezone" aria-controls="timezone-control" aria-expanded="false" class="text-sm text-green-800 underline">Change</button></div>
+    <div class="user-control user-value-box mb-2"><span id="timezone-label">{{ $currentTimezone }}</span><button type="button" id="change-timezone" aria-controls="timezone-control" aria-expanded="false" class="user-link">Change</button></div>
     <div id="timezone-control" hidden>
-        <select id="timezone" name="timezone" aria-describedby="error-timezone">
+        <select id="timezone" name="timezone" class="user-control" aria-describedby="error-timezone">
             @foreach(\App\Models\Setting::TIMEZONES as $zone => $label)<option value="{{ $zone }}" @selected($currentTimezone === $zone)>{{ $label }}</option>@endforeach
         </select>
     </div>
