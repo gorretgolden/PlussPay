@@ -73,6 +73,7 @@ class DashboardController extends Controller
         $profit = $seesProfit ? $this->profitWindows($user, $usdToUgx) : [];
 
         $wallets = Account::walletsFor($user);
+        $handedIn = AccountEntry::handedInFor($wallets);
 
         // Commission only ever lands in a shilling wallet, whoever booked the transfer, so it is
         // read from that account directly rather than from the wallets this person is shown.
@@ -101,7 +102,7 @@ class DashboardController extends Controller
             }
         }
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'commissionMonth', 'profit', 'windows', 'logAlerts'));
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts'));
     }
 
     private function usdToUgxRate(): ?float

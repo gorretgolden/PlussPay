@@ -164,6 +164,14 @@
         @if($currency === 'UGX')
         <div class="text-xs text-gray-500 mt-2">Charge kept this month: UGX {{ number_format($commissionMonth) }}</div>
         @endif
+        @if(auth()->user()->hasRole('agent'))
+        <div class="text-xs text-gray-500 mt-1">
+            In your hand until you hand it in.
+            @if(bccomp((string) ($handedIn[$account->id] ?? '0'), '0', 2) > 0)
+                Handed in so far: {{ \App\Models\Account::format($currency, $handedIn[$account->id]) }}.
+            @endif
+        </div>
+        @endif
         @if($balance <= 0)
         <div class="text-xs text-gray-500 mt-1">No balance yet. @can('adjust-wallets')<span class="font-semibold text-gray-700 underline">Add money</span>@endcan</div>
         @endif

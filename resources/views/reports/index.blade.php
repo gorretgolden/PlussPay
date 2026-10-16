@@ -144,7 +144,7 @@
     <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold text-gray-900">{{ $commission['everyone'] ? 'Commissions Earned' : 'My Commission' }}</h3>
-            <p class="text-sm text-gray-500">{{ $commission['everyone'] ? 'The service fee each person collected on the transfers they booked.' : 'The service fee you collected on the transfers you booked.' }} Read from the wallet ledger, so a cancelled transfer gives its commission back here exactly as it does in the wallet.</p>
+            <p class="text-sm text-gray-500">{{ $commission['everyone'] ? 'The service fee each agent kept from the cash they collected. A charge taken at the office desk stays in the till, so it is not listed here.' : 'The service fee you kept from the cash you collected.' }} Read from the wallet ledger, so a cancelled transfer gives its commission back here exactly as it does in the wallet.</p>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">

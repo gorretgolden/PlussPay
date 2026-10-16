@@ -91,6 +91,66 @@ class AccountEntry extends Model
         return self::TYPES[$type]['label'] ?? (string) $type;
     }
 
+    /**
+     * On the account pages a line is named by what it did to the books, so a hand-in reads as
+     * "Sent to another account". Nobody stands at a counter thinking in accounts. A wallet line
+     * gets the words the person holding the cash would use.
+     */
+    public static function walletLabel(?string $type): string
+    {
+        return match ($type) {
+            'money_in' => 'Collected',
+            'money_out' => 'Paid out',
+            'agent_fee' => 'Commission',
+            'agent_fee_reversal' => 'Commission given back',
+            'transfer_out' => 'Handed in',
+            'transfer_in' => 'Received back',
+            'adjustment_in' => 'Credited by the office',
+            'adjustment_out' => 'Debited by the office',
+            'reversal' => 'Given back',
+            default => static::labelFor($type),
+        };
+    }
+
+    /**
+     * What each of these accounts has already given up to another account. One query, because the
+     * agent list shows every desk at once and a page of balances should not become a page of sums.
+     *
+     * @param  iterable<int, Account>  $accounts
+     * @return array<int, string> account id => net figure handed over
+     */
+    public static function handedInFor(iterable $accounts): array
+    {
+        $ids = [];
+        $totals = [];
+
+        foreach ($accounts as $account) {
+            $ids[] = $account->id;
+            $totals[$account->id] = '0.00';
+        }
+
+        if ($ids === []) {
+            return $totals;
+        }
+
+        $rows = static::whereIn('account_id', $ids)
+            ->whereIn('type', ['transfer_out', 'transfer_in'])
+            ->selectRaw('account_id, type, COALESCE(SUM(amount), 0) as total')
+            ->groupBy('account_id', 'type')
+            ->get();
+
+        foreach ($rows as $row) {
+            $sign = $row->type === 'transfer_out' ? 1 : -1;
+            $totals[$row->account_id] = bcadd(
+                $totals[$row->account_id] ?? '0.00',
+                bcmul((string) $row->total, (string) $sign, 2),
+                2,
+            );
+        }
+
+        return $totals;
+    }
+
     public function scopeFiltered(Builder $query, Request $request): Builder
     {
         if ($request->filled('search')) {

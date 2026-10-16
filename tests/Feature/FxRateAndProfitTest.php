@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\AccountEntry;
 use App\Models\ExchangeRate;
 use App\Models\Setting;
 use App\Models\Transaction;
@@ -133,9 +134,14 @@ class FxRateAndProfitTest extends TestCase
         $this->assertSame('3.32', (string) $transaction->charge_amount);
         $this->assertSame('22500.000000', (string) $transaction->total_profit_ugx);
 
-        // The agent's own commission is the figure they typed, not one worked out for them.
+        // The agent's own commission is the figure they typed, not one worked out for them. It sits
+        // in the wallet beside the shillings they are holding for the office, so the two lines add
+        // back to the cash that actually left the customer's hand.
         $wallet = Account::walletFor($agent, 'UGX');
-        $this->assertSame('12500.00', $wallet->balance());
+        $this->assertSame('12500.00', (string) AccountEntry::where('account_id', $wallet->id)
+            ->where('type', 'agent_fee')
+            ->value('amount'));
+        $this->assertSame('3772500.00', $wallet->balance());
     }
 
     public function test_the_booking_form_labels_the_money_differently_for_each_flow(): void

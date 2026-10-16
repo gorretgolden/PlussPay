@@ -103,6 +103,34 @@ class AccountLedger
     }
 
     /**
+     * Cash an agent collected leaves their hand and enters the office till, which is the only moment
+     * the till gains money a booking brought in. One movement, two lines, the same currency and the
+     * same figure on both, so the total the business holds never changes and whatever is left in the
+     * agent's wallet is always the cash still in their drawer.
+     *
+     * @return array{0: AccountEntry, 1: AccountEntry}
+     */
+    public static function handInCash(User $agent, string $currency, string $amount, ?string $note = null, ?string $date = null): array
+    {
+        $currency = strtoupper($currency);
+        $chineseDesk = ($agent->country ?: User::DEFAULT_COUNTRY) === 'CN';
+
+        $till = Account::byCode(match (true) {
+            $currency === 'USD' => $chineseDesk ? Account::USD_CHINA : Account::USD_UGANDA,
+            $chineseDesk => Account::RMB_CHINA,
+            default => Account::UGX_UGANDA,
+        });
+
+        return static::transfer(
+            Account::walletFor($agent, $currency),
+            $till,
+            $amount,
+            'Cash handed in by '.$agent->name.': '.Account::format($currency, $amount).($note ? '. '.$note : ''),
+            $date,
+        );
+    }
+
+    /**
      * One currency given up and another taken in, which is how dollars bought in Uganda and
      * RMB handed over in China are recorded. The rate is stored so the deal can be re-checked.
      *
@@ -125,12 +153,32 @@ class AccountLedger
     }
 
     /**
-     * A completed transfer means the cash is in the till, so the matching account gains it on the
-     * day the transfer was made.
+     * The agent who physically holds a booking's cash, or null when the booking was taken at the
+     * office desk. Only the agent role keeps money in a wallet, because everyone else books from
+     * behind the counter, where the till is in the same room.
+     */
+    private static function cashHeldBy(Transaction $transaction): ?User
+    {
+        if (! $transaction->created_by) {
+            return null;
+        }
+
+        $collector = User::find($transaction->created_by);
+
+        return $collector && $collector->hasRole('agent') ? $collector : null;
+    }
+
+    /**
+     * Where collected cash belongs depends on who took it. An agent stands beside the customer and
+     * holds that money in their own hand until it is handed in, so the collection credits the agent's
+     * wallet and the office till only grows when the cash actually arrives. A booking taken at the
+     * office desk is office money from the start, so it goes straight into the till as it always did.
      *
-     * A customer who pays shillings hands over one sum that already contains the charge. A customer
-     * who hands over dollars forwards the dollars whole and adds the charge in shillings on top, so
-     * that deal lands in two tills at once and each account only gains money it actually holds.
+     * A customer who pays shillings hands over one sum that already contains the charge, so the
+     * principal and the charge are two lines that add back to what was handed over: the principal is
+     * money held for the office, the charge is the collector's own earnings. A customer who hands
+     * over dollars forwards the dollars whole and adds the charge in shillings on top, so the deal
+     * lands in two accounts and each gains only the money it actually holds.
      */
     public static function postCompletedTransfer(Transaction $transaction): void
     {
@@ -144,6 +192,20 @@ class AccountLedger
 
         $date = $transaction->created_at?->toDateString();
         $fee = (string) $transaction->charge_ugx;
+
+        if ($holder = static::cashHeldBy($transaction)) {
+            static::record(
+                Account::walletFor($holder, $transaction->currency),
+                'money_in',
+                (string) $transaction->amount,
+                "Transfer {$transaction->receipt_number} collected in {$transaction->currency} from {$transaction->sender_name}, held by {$holder->name} until handed in",
+                $date,
+                $transaction->receipt_number,
+                $transaction->id,
+            );
+
+            return;
+        }
 
         if ($transaction->currency === 'USD') {
             static::record(
@@ -184,7 +246,10 @@ class AccountLedger
     }
 
     /**
-     * The agent who created the transfer earns the service fee in their UGX wallet.
+     * The agent who collected a transfer keeps its charge as their own commission, in the same hand
+     * that holds the principal. A booking taken at the office desk has no collector to pay, and its
+     * charge was posted into the till with the rest of the cash, so writing a commission line for it
+     * as well would count the same money twice.
      */
     public static function postAgentFee(Transaction $transaction): void
     {
@@ -206,7 +271,7 @@ class AccountLedger
             return;
         }
 
-        $agent = User::find($transaction->created_by);
+        $agent = static::cashHeldBy($transaction);
 
         if (! $agent) {
             return;

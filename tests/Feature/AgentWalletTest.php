@@ -189,7 +189,7 @@ class AgentWalletTest extends TestCase
         $response->assertSee($agent->name);
         // The country is on the row so an empty yuan column reads as "not their currency".
         $response->assertSee('Uganda');
-        $response->assertSee('RMB Balance');
+        $response->assertSee('RMB in hand');
         // The yuan cell is a dash, not a zero balance, because this desk holds no yuan.
         $this->assertStringNotContainsString('&yen;', $response->getContent());
     }
@@ -261,7 +261,7 @@ class AgentWalletTest extends TestCase
         ]);
     }
 
-    public function test_the_commission_report_lists_every_earner_for_an_admin(): void
+    public function test_the_commission_report_lists_who_kept_a_commission(): void
     {
         $agent = $this->namedAgent('Sarah Nalin');
         $staff = User::create([
@@ -272,19 +272,29 @@ class AgentWalletTest extends TestCase
         ]);
         $staff->assignRole('staff');
 
-        // The wallet page only ever lists the agent role, so a staff booking was invisible
-        // to her. The report reads the ledger instead, so whoever earned shows up.
+        // The agent held that 7,520 in their own hand, so it is a commission line in a wallet and the
+        // report reads it from the ledger. The charge on the desk booking went into the till with the
+        // rest of the cash the customer handed over, so it is office revenue and nobody's commission.
         $this->booking($agent, 'COM-001', '7520');
         $this->booking($staff, 'COM-002', '15040');
 
-        $this->actingAs($this->admin())
+        $page = $this->actingAs($this->admin())
             ->get('/reports?type=commission')
             ->assertOk()
-            ->assertSee('Commissions Earned')
-            ->assertSee('Given Back (UGX)')
-            ->assertSee('Sarah Nalin')
-            ->assertSee('Desk Staff')
-            ->assertSee('Staff');
+            ->getContent();
+
+        // Every section lives on the one page, so the proof has to read the commission table itself
+        // rather than search the whole document for a figure another table also carries.
+        $from = strpos($page, 'id="section-commission"');
+        $to = strpos($page, 'id="section-', $from + 20);
+        $commission = substr($page, $from, $to - $from);
+
+        $this->assertStringContainsString('Commissions Earned', $commission);
+        $this->assertStringContainsString('Given Back (UGX)', $commission);
+        $this->assertStringContainsString('Sarah Nalin', $commission);
+        $this->assertStringContainsString('7,520', $commission);
+        $this->assertStringNotContainsString('Desk Staff', $commission);
+        $this->assertStringNotContainsString('15,040', $commission);
     }
 
     public function test_an_agent_opening_the_commission_report_sees_only_their_own(): void

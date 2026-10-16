@@ -37,6 +37,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('can:view-dashboard')->name('dashboard');
     Route::get('/wallet', [WalletController::class, 'index'])->middleware('can:view-wallets')->name('wallet.index');
     Route::post('/wallets/adjust', [WalletController::class, 'storeAdjustment'])->middleware(['can:view-wallets', 'can:adjust-wallets'])->name('wallets.adjust');
+    Route::post('/wallets/hand-in', [WalletController::class, 'handIn'])->middleware('can:view-wallets')->name('wallets.hand-in');
 
     Route::middleware('can:view-transactions')->group(function () {
         Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
