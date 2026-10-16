@@ -72,10 +72,10 @@ class TransactionController extends Controller
     }
 
     /**
-     * The hands an office booking can be put into. Only a person who sees the whole book may book
-     * into somebody else's name, and only the desks in Uganda hold this kind of cash: a desk in
-     * China is paid out in yuan and gets its dollars through the send-to-China list, never through
-     * a transfer typed up at this counter.
+     * The hands an office booking can be put into: everybody the book keeps as an agent, on either
+     * desk, because the office is the one place that sees both. Only a person who sees the whole
+     * book may book into somebody else's name, and a closed account is not a hand anyone can put
+     * money into. The desk travels with the name so the two are never confused on the way past.
      *
      * @return \Illuminate\Support\Collection<int, User>
      */
@@ -89,10 +89,9 @@ class TransactionController extends Controller
 
         return User::query()
             ->where('is_active', true)
-            ->where(fn ($query) => $query->where('country', User::DEFAULT_COUNTRY)->orWhereNull('country'))
             ->role('agent')
-            ->orderBy('name')
-            ->get(['id', 'name']);
+            ->orderByRaw('coalesce(country, ?) = ? desc, name asc', [User::DEFAULT_COUNTRY, User::DEFAULT_COUNTRY])
+            ->get(['id', 'name', 'country']);
     }
 
     public function store(Request $request)
@@ -155,7 +154,7 @@ class TransactionController extends Controller
 
             if (! $holder) {
                 return back()->withErrors([
-                    'agent_id' => 'No such agent to book for. Only an active agent on the Uganda desk can be chosen, and only by someone who sees every desk\'s bookings.',
+                    'agent_id' => 'No such agent to book for. Only an open agent on either desk can be chosen, and only by someone who sees every desk\'s bookings.',
                 ])->withInput();
             }
         }

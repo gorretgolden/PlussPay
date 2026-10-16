@@ -173,11 +173,11 @@ class OfficeBookedForAgentTest extends TestCase
 
         $html = $this->actingAs($admin)->get('/transactions/create')->assertOk()->getContent();
 
-        $this->assertStringContainsString('There is no open agent on the Uganda desk to book for', $html);
+        $this->assertStringContainsString('There is no open agent on either desk to book for', $html);
         $this->assertStringNotContainsString('name="agent_id"', $html);
     }
 
-    public function test_the_picker_offers_only_open_agents_on_the_uganda_desk(): void
+    public function test_the_picker_offers_every_open_agent_on_either_desk(): void
     {
         $admin = $this->user('admin', 'Desk Admin');
         $uganda = $this->user('agent', 'Sarah Nalin');
@@ -188,10 +188,31 @@ class OfficeBookedForAgentTest extends TestCase
         $html = $this->actingAs($admin)->get('/transactions/create')->assertOk()->getContent();
 
         $this->assertStringContainsString('Which agent took this money?', $html);
-        $this->assertStringContainsString('<option value="'.$uganda->id.'"', $html);
-        $this->assertStringNotContainsString('<option value="'.$china->id.'"', $html);
+        // The desk travels with the name, because two agents on two desks are not the same hand.
+        $this->assertStringContainsString('Sarah Nalin (Uganda)</option>', $html);
+        $this->assertStringContainsString('Mei Lin (China)</option>', $html);
         $this->assertStringNotContainsString('<option value="'.$closed->id.'"', $html);
         $this->assertStringNotContainsString('<option value="'.$bookkeeper->id.'"', $html);
+
+        // The home desk leads the list, so the agents an office books for most often come first.
+        $ugandaAt = strpos($html, 'Sarah Nalin (Uganda)');
+        $chinaAt = strpos($html, 'Mei Lin (China)');
+        $this->assertLessThan($chinaAt, $ugandaAt);
+    }
+
+    public function test_the_office_can_book_a_collection_into_an_agent_on_the_china_desk(): void
+    {
+        $admin = $this->user('admin', 'Desk Admin');
+        $agent = $this->user('agent', 'Mei Lin', 'CN');
+
+        $transaction = $this->book($admin, ['agent_id' => $agent->id]);
+
+        $this->assertSame($agent->id, $transaction->created_by);
+        $this->assertSame([
+            'money_in:W-UGX-'.$agent->id => '480000.00',
+            'agent_fee:W-UGX-'.$agent->id => '20000.00',
+        ], $this->lines($transaction->id));
+        $this->assertSame('500000.00', Account::walletFor($agent, 'UGX')->balance());
     }
 
     public function test_a_super_admin_sees_the_same_picker_because_the_book_is_open_to_them(): void
@@ -218,11 +239,10 @@ class OfficeBookedForAgentTest extends TestCase
         $this->assertSame(0, Transaction::count());
     }
 
-    public function test_a_name_that_is_not_an_open_uganda_agent_is_refused(): void
+    public function test_a_name_that_is_not_an_open_agent_is_refused(): void
     {
         $admin = $this->user('admin', 'Desk Admin');
         $refused = collect([
-            $this->user('agent', 'Mei Lin', 'CN')->id,
             $this->user('agent', 'Tom Kato', 'UG', false)->id,
             $this->user('accountant', 'Jane Books')->id,
             9999,

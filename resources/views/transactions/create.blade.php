@@ -89,7 +89,7 @@
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
                         <option value="" disabled {{ old('agent_id') === null ? 'selected' : '' }}>Agent or the counter</option>
                         @foreach ($agents as $agent)
-                            <option value="{{ $agent->id }}" {{ (string) old('agent_id') === (string) $agent->id ? 'selected' : '' }}>{{ $agent->name }}</option>
+                            <option value="{{ $agent->id }}" {{ (string) old('agent_id') === (string) $agent->id ? 'selected' : '' }}>{{ $agent->name }} ({{ $agent->countryLabel() ?: 'Uganda' }})</option>
                         @endforeach
                         <option value="counter" {{ old('agent_id') === 'counter' ? 'selected' : '' }}>the office counter</option>
                     </select>
@@ -97,7 +97,7 @@
                 </div>
             @elseif (auth()->user()->can('view-all-transactions'))
                 <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-                    There is no open agent on the Uganda desk to book for, and every transfer has to
+                    There is no open agent on either desk to book for, and every transfer has to
                     belong to one.
                     @can('view-users')
                     Open <a href="{{ route('users.index') }}" class="underline font-medium">User Management</a>
