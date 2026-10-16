@@ -9,9 +9,8 @@
     $companyEmail = \App\Models\Setting::get('company_email');
     $companyAddress = \App\Models\Setting::get('company_address');
     $companyWebsite = \App\Models\Setting::get('company_website');
-    // The Plus Save artwork is not in the project yet. The header leads with the PlusPay mark,
-    // which is the name the customer knows, and the company that signs the slip is named where it
-    // signs. Dropping public/plussave-logo.png in adds the second corner without a code change.
+    // PlusPay leads the header and the company that signs it holds the right corner. The artwork is
+    // read from public/plussave-logo.png, so a rebrand is a file swap and not a code change.
     $companyLogo = is_file(public_path('plussave-logo.png'));
     $usdRate = $transaction->shillingRateCell();
     $rmbRate = $transaction->yuanRateCell();
@@ -52,7 +51,9 @@
         <div class="flex items-start justify-between gap-4">
             <img src="{{ asset('logo.webp') }}" alt="PlusPay" width="640" height="232" class="h-10 w-auto sm:h-12">
             @if($companyLogo)
-                <img src="{{ asset('plussave-logo.png') }}" alt="{{ $companyName }}" class="h-10 w-auto sm:h-12">
+                {{-- The artwork is a square badge, so it is drawn taller than the wide PlusPay mark to
+                     keep the words inside it readable. --}}
+                <img src="{{ asset('plussave-logo.png') }}" alt="{{ $companyName }}" width="447" height="447" class="h-14 w-auto sm:h-16">
             @endif
         </div>
         <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
@@ -87,11 +88,6 @@
     </div>
     @endif
 
-    {{-- Title --}}
-    <div class="text-center mb-6">
-        <h3 class="text-lg font-bold text-gray-800 tracking-wide">SEND MONEY TO CHINA</h3>
-    </div>
-
     {{-- Sender / Receiver --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4">
         <div>
@@ -118,27 +114,32 @@
         @endif
     </div>
 
-    {{-- Money, one figure to a line --}}
-    <table class="w-full border-collapse text-sm mb-2">
-        <tbody>
-            <tr class="receipt-line border-b border-gray-200">
-                <td class="py-2 text-gray-600">Amount sent</td>
-                <td class="py-2 text-right font-medium text-gray-900 whitespace-nowrap">{{ $transaction->principalLabel() }}</td>
-            </tr>
-            <tr class="receipt-line border-b border-gray-200">
-                <td class="py-2 text-gray-600">Sending charge</td>
-                <td class="py-2 text-right font-medium text-gray-900 whitespace-nowrap">{{ $transaction->feeLabel() }}</td>
-            </tr>
-            <tr class="receipt-line bg-green-50">
-                <td class="py-3 pl-2 text-sm font-semibold text-green-900">Total handed over</td>
-                <td class="py-3 pr-2 text-right text-xl font-bold text-green-900 whitespace-nowrap">{{ $transaction->collectedAmount() }}</td>
-            </tr>
-            <tr class="receipt-line">
-                <td class="py-3 pl-2 text-sm font-semibold text-gray-700">Paid out in China</td>
-                <td class="py-3 pr-2 text-right text-lg font-semibold text-gray-900 whitespace-nowrap">¥{{ number_format($transaction->rmb_amount, 1) }} RMB</td>
-            </tr>
-        </tbody>
-    </table>
+    {{-- Money, one figure to a line. The PlusPay mark sits behind it as the watermark a customer
+         reads as part of the paper rather than a picture on it. --}}
+    <div class="relative mb-2 overflow-hidden">
+        <img src="{{ asset('logo.webp') }}" alt="" aria-hidden="true" width="640" height="232"
+            class="pointer-events-none absolute left-1/2 top-1/2 w-56 max-w-full -translate-x-1/2 -translate-y-1/2 opacity-[0.06] sm:w-72">
+        <table class="relative w-full border-collapse text-sm">
+            <tbody>
+                <tr class="receipt-line border-b border-gray-200">
+                    <td class="py-2 text-gray-600">Sending money to China</td>
+                    <td class="py-2 text-right font-medium text-gray-900 whitespace-nowrap">{{ $transaction->principalLabel() }}</td>
+                </tr>
+                <tr class="receipt-line border-b border-gray-200">
+                    <td class="py-2 text-gray-600">Sending charge</td>
+                    <td class="py-2 text-right font-medium text-gray-900 whitespace-nowrap">{{ $transaction->feeLabel() }}</td>
+                </tr>
+                <tr class="receipt-line bg-green-50">
+                    <td class="py-3 pl-2 text-sm font-semibold text-green-900">Total handed over</td>
+                    <td class="py-3 pr-2 text-right text-xl font-bold text-green-900 whitespace-nowrap">{{ $transaction->collectedAmount() }}</td>
+                </tr>
+                <tr class="receipt-line">
+                    <td class="py-3 pl-2 text-sm font-semibold text-gray-700">Paid out in China</td>
+                    <td class="py-3 pr-2 text-right text-lg font-semibold text-gray-900 whitespace-nowrap">¥{{ number_format($transaction->rmb_amount, 1) }} RMB</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 
     {{-- The two selling prices this booking was quoted at --}}
     <p class="mt-4 mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Prices used on this booking</p>

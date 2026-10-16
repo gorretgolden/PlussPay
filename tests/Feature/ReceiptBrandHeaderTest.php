@@ -11,16 +11,18 @@ use Tests\TestCase;
 
 /**
  * The customer copy of a booking is led by the PlusPay mark, which is the name the customer knows,
- * and the company that signs it is named where it signs rather than across the header. The signing
- * line has to follow System Settings, because the same slip is printed by whichever office name is
- * saved there, and the second corner has to swap to the Plus Save artwork the moment that file is
- * dropped into public/.
+ * and the company that signs it holds the right corner. The signed corner is drawn from the artwork
+ * at public/plussave-logo.png, so the tests have to cover both states of that file: present, which
+ * is how the repository ships it, and taken away, which is what a fresh checkout without the artwork
+ * looks like. The name the desk saves in System Settings has to reach the signing line either way,
+ * because the same slip is printed by whichever office is saved there.
  */
 class ReceiptBrandHeaderTest extends TestCase
 {
     use RefreshDatabase;
 
     private string $logoPath;
+    private string $stash;
 
     protected function setUp(): void
     {
@@ -55,13 +57,26 @@ class ReceiptBrandHeaderTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
+        // The real artwork is put away for the run so no test can overwrite it, and every case
+        // starts from the state it names rather than the state the last test left behind.
         $this->logoPath = public_path('plussave-logo.png');
+        $this->stash = sys_get_temp_dir().'/plussave-logo-stash.png';
+
+        if (is_file($this->logoPath)) {
+            copy($this->logoPath, $this->stash);
+            unlink($this->logoPath);
+        }
     }
 
     protected function tearDown(): void
     {
         if (is_file($this->logoPath)) {
             unlink($this->logoPath);
+        }
+
+        if (is_file($this->stash)) {
+            copy($this->stash, $this->logoPath);
+            unlink($this->stash);
         }
 
         parent::tearDown();
@@ -79,12 +94,36 @@ class ReceiptBrandHeaderTest extends TestCase
             ->get('/receipts/PS-BRAND-1/print')->assertOk()->getContent();
     }
 
-    public function test_both_copies_carry_pluspay_and_the_saved_company_name(): void
+    /**
+     * Put the shipped artwork back and hand round the copies that read it.
+     */
+    private function withArtwork(): array
     {
-        foreach ([$this->screen(), $this->slip()] as $index => $html) {
-            $this->assertStringContainsString('logo.webp', $html, 'copy ' . $index);
-            $this->assertStringContainsString('alt="PlusPay"', $html, 'copy ' . $index);
-            $this->assertStringContainsString('Plus Save Financial Solutions', $html, 'copy ' . $index);
+        $this->assertFileExists($this->stash, 'the Plus Save artwork is not in the repository');
+        copy($this->stash, $this->logoPath);
+
+        return [$this->screen(), $this->slip()];
+    }
+
+    public function test_the_shipped_artwork_is_a_picture_the_receipt_can_draw(): void
+    {
+        $this->assertFileExists($this->stash, 'public/plussave-logo.png is missing from the repository');
+        $this->assertGreaterThan(400, imagesx(imagecreatefromstring(file_get_contents($this->stash))));
+    }
+
+    public function test_both_copies_lead_with_pluspay_and_hold_the_signed_corner_on_the_right(): void
+    {
+        foreach ($this->withArtwork() as $html) {
+            $this->assertStringContainsString('alt="PlusPay"', $html);
+            $this->assertStringContainsString('plussave-logo.png', $html);
+            $this->assertStringContainsString('alt="Plus Save Financial Solutions"', $html);
+
+            // The company mark is read after the PlusPay mark, which is the left corner.
+            $this->assertLessThan(
+                strpos($html, 'plussave-logo.png'),
+                strpos($html, 'alt="PlusPay"'),
+                'PlusPay does not lead the header'
+            );
         }
     }
 
@@ -97,7 +136,7 @@ class ReceiptBrandHeaderTest extends TestCase
         }
     }
 
-    public function test_neither_copy_puts_the_company_name_in_the_header(): void
+    public function test_neither_copy_writes_the_company_name_across_the_header(): void
     {
         foreach ([$this->screen(), $this->slip()] as $html) {
             $this->assertStringNotContainsString('class="company"', $html);
@@ -105,39 +144,27 @@ class ReceiptBrandHeaderTest extends TestCase
         }
     }
 
-    public function test_the_saved_company_name_is_used_until_the_artwork_arrives(): void
+    public function test_the_signed_corner_stays_empty_while_the_artwork_is_absent(): void
     {
         $this->assertFileDoesNotExist($this->logoPath);
 
         foreach ([$this->screen(), $this->slip()] as $html) {
-            $this->assertStringNotContainsString('plussave-logo.png', $this->headerOf($html), 'the second corner stayed empty');
-            $this->assertStringContainsString('Plus Save Financial Solutions', $html, 'the signing line lost its name');
-        }
-    }
-
-    public function test_the_company_logo_replaces_the_empty_corner_in_both_copies(): void
-    {
-        copy(base_path('public/logo.webp'), $this->logoPath);
-
-        foreach ([$this->screen(), $this->slip()] as $html) {
-            $this->assertStringContainsString('plussave-logo.png', $this->headerOf($html));
-            $this->assertStringContainsString('alt="Plus Save Financial Solutions"', $html);
+            $this->assertStringNotContainsString('plussave-logo.png', $html, 'a broken corner was drawn');
             $this->assertStringContainsString('Signature and name, for Plus Save Financial Solutions', $html);
         }
     }
 
     /**
-     * What the customer sees above the corridor title is the header, which is the part that carries
-     * the brands. The page title is cut out of it because the browser tab names the company too.
-     * A name anywhere below the header belongs to the signing line and does not count.
+     * What the customer sees above the money is the header, the part that carries the brands. The
+     * browser tab names the company too, so the page head is cut out of it.
      */
     private function headerOf(string $html): string
     {
         $body = stripos($html, '<body');
         $this->assertNotFalse($body, 'no body to read the header from');
 
-        $end = strpos($html, 'SEND MONEY TO CHINA', $body);
-        $this->assertNotFalse($end, 'no corridor title to cut the header at');
+        $end = strpos($html, 'Money taken by', $body);
+        $this->assertNotFalse($end, 'no money line to cut the header at');
 
         return substr($html, $body, $end - $body);
     }

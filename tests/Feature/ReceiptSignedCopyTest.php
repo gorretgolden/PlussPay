@@ -128,7 +128,7 @@ class ReceiptSignedCopyTest extends TestCase
     public function test_the_money_reads_as_one_figure_to_a_line(): void
     {
         foreach ([$this->screen(), $this->slip()] as $html) {
-            $labels = ['AMOUNT SENT', 'SENDING CHARGE', 'TOTAL HANDED OVER', 'PAID OUT IN CHINA'];
+            $labels = ['SENDING MONEY TO CHINA', 'SENDING CHARGE', 'TOTAL HANDED OVER', 'PAID OUT IN CHINA'];
             $found = 0;
 
             foreach ($labels as $label) {

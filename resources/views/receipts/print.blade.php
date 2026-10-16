@@ -4,9 +4,8 @@
     $companyEmail = \App\Models\Setting::get('company_email');
     $companyAddress = \App\Models\Setting::get('company_address');
     $companyWebsite = \App\Models\Setting::get('company_website');
-    // The Plus Save artwork is not in the project yet. The slip leads with the PlusPay mark and the
-    // company that signs it is named on the signature line. Dropping public/plussave-logo.png in
-    // adds the second corner without a code change.
+    // PlusPay leads the slip and the company that signs it holds the right corner. The artwork is
+    // read from public/plussave-logo.png, so a rebrand is a file swap and not a code change.
     $companyLogo = is_file(public_path('plussave-logo.png'));
     // Whoever the booking was written into is who took the money, and that name is saved on it.
     $issuedBy = $transaction->creator?->name ?: 'The office';
@@ -30,8 +29,10 @@
             color: #000;
         }
         .header { text-align: center; margin-bottom: 8px; }
-        .header .brand { display: flex; justify-content: center; align-items: center; gap: 6mm; margin-bottom: 6px; }
+        .header .brand { display: flex; justify-content: space-between; align-items: center; gap: 4mm; margin-bottom: 6px; }
         .header .brand img { height: 9mm; width: auto; }
+        /* The company artwork is a square badge, so it is drawn taller to keep its words readable. */
+        .header .brand img.signed { height: 12mm; }
         .header .title { font-size: 13px; font-weight: bold; margin: 6px 0; border: 1px solid #000; display: inline-block; padding: 2px 12px; }
         .header .receipt-no { font-size: 14px; font-weight: bold; margin-top: 4px; }
         .info-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
@@ -54,16 +55,18 @@
         .sig-block .sig-label { font-size: 9px; color: #555; }
         .footer { margin-top: 12px; padding-top: 6px; border-top: 2px solid #000; font-size: 9px; text-align: center; }
         .footer p { margin-bottom: 2px; }
-        .watermark {
-            position: fixed;
+        /* The PlusPay mark sits behind the money, the way it sits behind the paper copy. */
+        .money { position: relative; }
+        .money table { position: relative; z-index: 1; }
+        .money .mark {
+            position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 40px;
-            color: rgba(0,0,0,0.04);
-            font-weight: bold;
+            width: 46mm;
+            max-width: 100%;
+            opacity: 0.08;
             pointer-events: none;
-            z-index: 0;
         }
         @media print {
             body { width: 100%; padding: 0; }
@@ -73,21 +76,17 @@
     </style>
 </head>
 <body>
-    <div class="watermark">PLUS SAVE</div>
-
     <div class="header">
         <div class="brand">
             <img src="{{ asset('logo.webp') }}" alt="PlusPay">
             @if($companyLogo)
-                <img src="{{ asset('plussave-logo.png') }}" alt="{{ $companyName }}">
+                <img class="signed" src="{{ asset('plussave-logo.png') }}" alt="{{ $companyName }}">
             @endif
         </div>
         <div class="title">RECEIPT</div>
         <div class="receipt-no">No: {{ $transaction->receipt_number }}</div>
         <div style="font-size:10px;">{{ $transaction->created_at->format('M d, Y h:i A') }} &nbsp;|&nbsp; {{ strtoupper($transaction->status) }}</div>
     </div>
-
-    <div class="section-title">SEND MONEY TO CHINA</div>
 
     <div class="field">
         <span class="label">Sender's Name:</span>
@@ -116,26 +115,29 @@
     </div>
     @endif
 
-    <table>
-        <tbody>
-            <tr>
-                <td>AMOUNT SENT</td>
-                <td class="amount-cell">{{ $transaction->principalLabel() }}</td>
-            </tr>
-            <tr>
-                <td>SENDING CHARGE</td>
-                <td class="amount-cell">{{ $transaction->feeLabel() }}</td>
-            </tr>
-            <tr class="total">
-                <td>TOTAL HANDED OVER</td>
-                <td class="amount-cell">{{ $transaction->collectedAmount() }}</td>
-            </tr>
-            <tr>
-                <td>PAID OUT IN CHINA</td>
-                <td class="amount-cell">¥{{ number_format($transaction->rmb_amount, 1) }} RMB</td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="money">
+        <img class="mark" src="{{ asset('logo.webp') }}" alt="">
+        <table>
+            <tbody>
+                <tr>
+                    <td>SENDING MONEY TO CHINA</td>
+                    <td class="amount-cell">{{ $transaction->principalLabel() }}</td>
+                </tr>
+                <tr>
+                    <td>SENDING CHARGE</td>
+                    <td class="amount-cell">{{ $transaction->feeLabel() }}</td>
+                </tr>
+                <tr class="total">
+                    <td>TOTAL HANDED OVER</td>
+                    <td class="amount-cell">{{ $transaction->collectedAmount() }}</td>
+                </tr>
+                <tr>
+                    <td>PAID OUT IN CHINA</td>
+                    <td class="amount-cell">¥{{ number_format($transaction->rmb_amount, 1) }} RMB</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 
     <div class="section-title">PRICES PER 1 USD</div>
     <table class="prices">
