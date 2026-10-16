@@ -260,7 +260,7 @@
                     <tr class="border-b">
                         <td class="py-2 font-medium">{{ $currency }}</td>
                         <td class="py-2 text-right">{{ $data['count'] }}</td>
-                        <td class="py-2 text-right">{{ $currency }} {{ number_format($data['total'], 1) }}</td>
+                        <td class="py-2 text-right">{{ $currency }} {{ number_format($data['total'], \App\Models\Transaction::amountDecimals($currency)) }}</td>
                         <td class="py-2 text-right">${{ number_format($data['usd_equivalent'], 1) }}</td>
                     </tr>
                     @endforeach

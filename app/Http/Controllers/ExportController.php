@@ -67,11 +67,15 @@ class ExportController extends Controller
                     $t->receiver_name,
                     $t->receiver_contact,
                     $t->collectedAmount(),
-                    $t->currency . ' ' . number_format((float) $t->amount, 1),
+                    $t->principalLabel(),
                     $this->ugx((float) $t->total_usd_equivalent),
                     '¥' . number_format((float) $t->rmb_amount, 1),
                     'UGX ' . number_format((float) $t->charge_ugx),
                     'USD ' . number_format((float) $t->charge_amount, 1),
+                    $this->rate($t->rate_buy_ugx),
+                    $this->rate($t->rate_sell_ugx),
+                    $this->rate($t->rmb_buying_rate),
+                    $this->rate($t->exchange_rate),
                     $labels['exchange']['text'],
                     $labels['total']['text'],
                     $signed($totalUsd, 1, 'USD '),
@@ -85,12 +89,15 @@ class ExportController extends Controller
         $headers = [
             'Receipt #', 'Date', 'Sender', 'Sender Contact', 'Receiver', 'Receiver Contact',
             'Money Handed Over', 'Amount Sent', 'UGX Equivalent', 'RMB', 'Charge (UGX)', 'Charge (USD)',
+            'UGX Bought At (per USD)', 'UGX Sent At (per USD)', 'RMB Bought At (per USD)', 'RMB Sent At (per USD)',
             'Exchange Profit (UGX)', 'Overall Profit (UGX)', 'Overall Profit (USD)',
             'Purpose', 'Status', 'Booked By',
         ];
         if (!$request->user()->can('view-profit')) {
-            array_splice($headers, 12, 3);
-            $rows = array_map(function ($row) { array_splice($row, 12, 3); return $row; }, $rows);
+            // The four booked prices and the three profit figures are the desk's own numbers,
+            // so a teller's download keeps the customer's side of the row and nothing else.
+            array_splice($headers, 12, 7);
+            $rows = array_map(function ($row) { array_splice($row, 12, 7); return $row; }, $rows);
         }
         return $this->download('transactions', $headers, $rows);
     }
@@ -106,7 +113,7 @@ class ExportController extends Controller
                 $t->created_at->format('Y-m-d h:i A'),
                 $t->sender_name,
                 $t->receiver_name,
-                $t->currency . ' ' . number_format((float) $t->amount, 1),
+                $t->principalLabel(),
                 '¥' . number_format((float) $t->rmb_amount, 1),
                 'UGX ' . number_format((float) $t->charge_ugx),
                 $this->bookedBy($t),
@@ -553,6 +560,17 @@ class ExportController extends Controller
         return Transaction::with('creator')
             ->visibleTo($request->user())
             ->filtered($request);
+    }
+
+    /**
+     * A booked price as the accountant reads it: exact to four places with the trailing zeros
+     * cut, and n/a where a transfer predates the prices being stored.
+     */
+    private function rate(?string $price): string
+    {
+        return $price === null || (float) $price === 0.0
+            ? 'n/a'
+            : rtrim(rtrim(number_format((float) $price, 4, '.', ''), '0'), '.');
     }
 
     private function ugx(float $usd): string

@@ -39,7 +39,17 @@ class TransactionController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('transactions.index', compact('transactions', 'creators'));
+        // The price dropdowns list only the figures this desk has really booked at, newest
+        // price first, so a set-aside rate cannot offer a page of empty results. A viewer who
+        // cannot see profit never sees the desk's prices either, and never pays for the queries.
+        $usdPrices = $rmbPrices = [];
+
+        if ($viewer->can('view-profit')) {
+            $usdPrices = Transaction::bookedPrices($viewer, ['rate_buy_ugx', 'rate_sell_ugx']);
+            $rmbPrices = Transaction::bookedPrices($viewer, ['rmb_buying_rate', 'exchange_rate']);
+        }
+
+        return view('transactions.index', compact('transactions', 'creators', 'usdPrices', 'rmbPrices'));
     }
 
     public function create()

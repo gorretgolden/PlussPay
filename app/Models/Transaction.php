@@ -126,7 +126,7 @@ class Transaction extends Model
     {
         return $this->currency === 'USD'
             ? 'USD ' . number_format((float) $this->amount, 1) . ' plus ' . $this->feeLabel()
-            : 'UGX ' . number_format((float) $this->cashReceived(), 1);
+            : 'UGX ' . number_format((float) $this->cashReceived());
     }
 
     /**
@@ -139,9 +139,18 @@ class Transaction extends Model
         return 'UGX ' . number_format((float) $this->charge_ugx);
     }
 
+    /**
+     * Shillings are handed over in notes, so a UGX figure is a flat whole number. Dollars and
+     * yuan are cut by a rate, so they keep the one decimal that fraction lands in.
+     */
+    public static function amountDecimals(string $currency): int
+    {
+        return strtoupper($currency) === 'UGX' ? 0 : 1;
+    }
+
     public function principalLabel(): string
     {
-        return $this->currency . ' ' . number_format((float) $this->amount, 1);
+        return $this->currency . ' ' . number_format((float) $this->amount, static::amountDecimals($this->currency));
     }
 
     /**
@@ -247,6 +256,44 @@ class Transaction extends Model
             : ['text' => 'UGX '.number_format($value, $decimals), 'tone' => 'plain'];
     }
 
+    /**
+     * One booked price pair as the book shows it: what the desk pays for a dollar, then the
+     * price the money goes out at. A row booked before the prices were snapshotted has nothing
+     * to show, so it reads n/a instead of borrowing whatever stands on the rate sheet today.
+     *
+     * @return array{text: string, tone: string, title: string}
+     */
+    private function rateCell(?string $buy, ?string $sell, string $unit): array
+    {
+        if (empty($buy) || empty($sell)) {
+            return ['text' => 'n/a', 'tone' => 'muted', 'title' => 'No price was recorded on this transfer'];
+        }
+
+        $trim = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.');
+
+        return [
+            'text' => $trim($buy).' / '.$trim($sell),
+            'tone' => 'plain',
+            'title' => 'Bought at '.$trim($buy).' and sent at '.$trim($sell).' '.$unit.' per 1 USD',
+        ];
+    }
+
+    /**
+     * @return array{text: string, tone: string, title: string}
+     */
+    public function shillingRateCell(): array
+    {
+        return $this->rateCell($this->rate_buy_ugx, $this->rate_sell_ugx, 'UGX');
+    }
+
+    /**
+     * @return array{text: string, tone: string, title: string}
+     */
+    public function yuanRateCell(): array
+    {
+        return $this->rateCell($this->rmb_buying_rate, $this->exchange_rate, 'RMB');
+    }
+
     public function yuanLabel(): string
     {
         return '¥'.number_format((float) $this->rmb_amount, 1);
@@ -271,6 +318,21 @@ class Transaction extends Model
             }
         }
 
+        // Which price a transfer was booked at, on either side of the pair. A transfer touched
+        // by a price counts as using it, so the buying price of the day and the price the money
+        // went out at both find their own rows. The figure is cut to the scale the column stores
+        // at, which keeps the comparison on the index instead of wrapping the column in a cast.
+        // Only a viewer who may see profit may narrow the book by price, because narrowing by a
+        // price reveals it.
+        if ($request->user()?->can('view-profit')) {
+            foreach (['usd_rate' => ['rate_buy_ugx', 'rate_sell_ugx'], 'rmb_rate' => ['rmb_buying_rate', 'exchange_rate']] as $filter => $columns) {
+                if ($request->filled($filter) && is_numeric($request->input($filter))) {
+                    $price = number_format((float) $request->input($filter), 6, '.', '');
+                    $query->where(fn ($q) => $q->where($columns[0], $price)->orWhere($columns[1], $price));
+                }
+            }
+        }
+
         if ($request->filled('date_from')) {
             $query->whereDate('created_at', '>=', $request->date_from);
         }
@@ -280,6 +342,36 @@ class Transaction extends Model
         }
 
         return $query;
+    }
+
+    /**
+     * The distinct prices recorded against the transfers a viewer may see, on either side of
+     * one pair, newest price first. Trimmed to the shortest form that reads the same figure,
+     * because the columns store six decimal places and 3760.000000 is not worth showing.
+     *
+     * @param  array<int, string>  $columns
+     * @return array<int, string>
+     */
+    public static function bookedPrices(User $viewer, array $columns): array
+    {
+        $prices = collect();
+
+        foreach ($columns as $column) {
+            $prices = $prices->merge(
+                static::visibleTo($viewer)
+                    ->whereNotNull($column)
+                    ->distinct()
+                    ->limit(50)
+                    ->pluck($column)
+            );
+        }
+
+        return $prices
+            ->map(fn ($price) => rtrim(rtrim(number_format((float) $price, 6, '.', ''), '0'), '.'))
+            ->unique()
+            ->sortByDesc(fn ($price) => (float) $price)
+            ->values()
+            ->all();
     }
 
     public static function generateReceiptNumber(): string

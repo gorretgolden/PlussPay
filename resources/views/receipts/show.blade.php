@@ -82,7 +82,7 @@
                 <td class="border border-gray-300 px-4 py-3 text-sm">{{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</td>
                 <td class="border border-gray-300 px-4 py-3 text-sm">UGX {{ number_format((float) $transaction->charge_ugx) }}</td>
                 <td class="border border-gray-300 px-4 py-3 text-sm">
-                    {{ $transaction->currency }} {{ number_format($transaction->amount, 1) }}<br>
+                    {{ $transaction->principalLabel() }}<br>
                     ¥{{ number_format($transaction->rmb_amount, 1) }} RMB
                 </td>
             </tr>

@@ -196,19 +196,29 @@ class TransactionProfitTableTest extends TestCase
             ->get('/export/transactions')
             ->streamedContent());
 
-        foreach (['Money Handed Over', 'Charge (UGX)', 'Exchange Profit (UGX)', 'Overall Profit (UGX)', 'Overall Profit (USD)'] as $header) {
+        foreach (['Money Handed Over', 'Charge (UGX)', 'UGX Bought At (per USD)', 'UGX Sent At (per USD)',
+            'RMB Bought At (per USD)', 'RMB Sent At (per USD)', 'Exchange Profit (UGX)',
+            'Overall Profit (UGX)', 'Overall Profit (USD)'] as $header) {
             $this->assertContains($header, $rows[5]);
         }
 
-        // The customer handed over the full UGX 3,780,000 and UGX 3,760,000 of it travelled.
-        $this->assertSame('UGX 3,780,000.0', $rows[6][6]);
-        $this->assertSame('UGX 3,760,000.0', $rows[6][7]);
+        // The customer handed over the full UGX 3,780,000 and UGX 3,760,000 of it travelled,
+        // both as flat shillings because that is how they were counted out on the counter.
+        $this->assertSame('UGX 3,780,000', $rows[6][6]);
+        $this->assertSame('UGX 3,760,000', $rows[6][7]);
         $this->assertSame('UGX 20,000', $rows[6][10]);
-        $this->assertSame('Loss UGX 150,714.3', $rows[6][12]);
-        $this->assertSame('Loss UGX 130,714.3', $rows[6][13]);
+
+        // The four prices the profit was cut from, so the accountant can rebuild either leg.
+        $this->assertSame('3750', $rows[6][12]);
+        $this->assertSame('3760', $rows[6][13]);
+        $this->assertSame('7', $rows[6][14]);
+        $this->assertSame('7.3', $rows[6][15]);
+
+        $this->assertSame('Loss UGX 150,714.3', $rows[6][16]);
+        $this->assertSame('Loss UGX 130,714.3', $rows[6][17]);
         // The same loss in dollars, at the 7.30 those dollars were delivered at.
-        $this->assertMatchesRegularExpression('/^Loss USD \d/', $rows[6][14]);
-        $this->assertSame('Completed', $rows[6][16]);
+        $this->assertMatchesRegularExpression('/^Loss USD \d/', $rows[6][18]);
+        $this->assertSame('Completed', $rows[6][20]);
 
         foreach (['Yuan Leg (CNY)', 'Yuan Leg (UGX)', 'Yuan Leg (USD)', 'Dollar Margin (UGX)'] as $gone) {
             $this->assertNotContains($gone, $rows[5]);
@@ -233,9 +243,14 @@ class TransactionProfitTableTest extends TestCase
             ->streamedContent());
 
         // The charge the customer paid is still known, so it downloads as a figure. Everything
-        // built from the missing rates says n/a rather than pretending to be zero.
+        // built from the missing rates says n/a rather than pretending to be zero. The yuan
+        // selling price survives on the row, so it is the only one of the four still printed.
         $this->assertSame('UGX 20,000', $rows[6][10]);
         foreach ([12, 13, 14] as $column) {
+            $this->assertSame('n/a', $rows[6][$column]);
+        }
+        $this->assertSame('7.24', $rows[6][15]);
+        foreach ([16, 17, 18] as $column) {
             $this->assertSame('n/a', $rows[6][$column]);
         }
     }
@@ -255,7 +270,7 @@ class TransactionProfitTableTest extends TestCase
 
         $rows = [];
         foreach (range(1, 7) as $row) {
-            foreach (range('A', 'R') as $column) {
+            foreach (range('A', 'V') as $column) {
                 $rows[$row][] = (string) $sheet->getCell($column.$row)->getValue();
             }
         }

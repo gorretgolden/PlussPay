@@ -55,7 +55,7 @@
                 <td class="px-6 py-4 text-sm font-medium text-green-800">{{ $r->receipt_number }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $r->sender_name }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $r->receiver_name }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">{{ $r->currency }} {{ number_format($r->amount, 1) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">{{ $r->principalLabel() }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($r->rmb_amount, 1) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">UGX {{ number_format((float) $r->charge_ugx) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $r->created_at->format('Y-m-d h:i A') }}</td>

@@ -328,7 +328,7 @@
                     </td>
                     <td class="px-4 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
                     <td class="px-4 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">{{ $t->currency }} {{ number_format($t->amount, 1) }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">{{ $t->principalLabel() }}</td>
                     <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">¥{{ number_format($t->rmb_amount, 1) }}</td>
                     <td class="px-4 py-4">
                         <span class="px-2 py-1 text-xs rounded-full whitespace-nowrap

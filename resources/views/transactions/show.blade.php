@@ -35,7 +35,7 @@
             <div><span class="text-gray-500">Currency:</span> {{ $transaction->currency }}</div>
             <div><span class="text-gray-500">Money Handed Over:</span> {{ $transaction->collectedAmount() }}</div>
             <div><span class="text-gray-500">Charge Taken Out:</span> UGX {{ number_format((float) $transaction->charge_ugx) }}</div>
-            <div><span class="text-gray-500">Money That Travels:</span> {{ $transaction->currency }} {{ number_format($transaction->amount, 1) }}</div>
+            <div><span class="text-gray-500">Money That Travels:</span> {{ $transaction->principalLabel() }}</div>
             <div><span class="text-gray-500">Exchange Rate:</span> {{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</div>
             <div><span class="text-gray-500">RMB Amount:</span> ¥{{ number_format($transaction->rmb_amount, 1) }}</div>
             <div><span class="text-gray-500">Dollars Credited:</span> ${{ number_format($transaction->total_usd_equivalent, 1) }}</div>
@@ -115,17 +115,22 @@
 
     @can('view-profit')
     @php
+        // A transfer booked before its prices were stored says so out loud instead of printing a
+        // zero rate, which would read as a dollar bought for nothing.
         $trim = fn ($v) => rtrim(rtrim(number_format((float) $v, 4, '.', ''), '0'), '.');
+        $price = fn ($value, string $unit = '') => (float) $value === 0.0
+            ? 'not recorded'
+            : trim($unit.' '.$trim($value)).' per 1 USD';
         $profit = $transaction->profitLabels();
         $toneClass = ['plain' => 'text-gray-900', 'loss' => 'text-red-600', 'muted' => 'text-gray-400'];
     @endphp
     <div class="border-t pt-4 mb-6">
         <h3 class="text-sm font-medium text-gray-500 mb-3">Profit (admin only, never shown on a receipt)</h3>
         <div class="grid grid-cols-2 gap-4 text-sm">
-            <div><span class="text-gray-500">Selling rate used:</span> UGX {{ $trim($transaction->rate_sell_ugx) }} per 1 USD</div>
-            <div><span class="text-gray-500">Buying rate:</span> UGX {{ $trim($transaction->rate_buy_ugx) }} per 1 USD</div>
-            <div><span class="text-gray-500">Yuan selling rate:</span> {{ $trim($transaction->exchange_rate) }} per 1 USD</div>
-            <div><span class="text-gray-500">Yuan buying rate:</span> {{ $trim($transaction->rmb_buying_rate) }} per 1 USD</div>
+            <div><span class="text-gray-500">Shillings bought at:</span> {{ $price($transaction->rate_buy_ugx, 'UGX') }}</div>
+            <div><span class="text-gray-500">Shillings sent at:</span> {{ $price($transaction->rate_sell_ugx, 'UGX') }}</div>
+            <div><span class="text-gray-500">Yuan bought at:</span> {{ $price($transaction->rmb_buying_rate) }}</div>
+            <div><span class="text-gray-500">Yuan sent at:</span> {{ $price($transaction->exchange_rate) }}</div>
             <div><span class="text-gray-500">Dollars credited:</span> ${{ number_format($transaction->total_usd_equivalent, 1) }}</div>
             <div><span class="text-gray-500">Yuan paid out:</span> &yen;{{ number_format($transaction->rmb_amount, 1) }}</div>
             <div><span class="text-gray-500">Foreign exchange profit:</span> <span class="{{ $toneClass[$profit['exchange']['tone']] }}">{{ $profit['exchange']['text'] }}</span></div>

@@ -40,6 +40,26 @@
                 <option value="USD" {{ request('currency') === 'USD' ? 'selected' : '' }}>USD</option>
             </select>
         </div>
+        @can('view-profit')
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">UGX Rate</label>
+            <select name="usd_rate" title="The shilling price a dollar was bought at, or the price the money went out at" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">All</option>
+                @foreach($usdPrices as $price)
+                <option value="{{ $price }}" {{ request('usd_rate') === $price ? 'selected' : '' }}>{{ $price }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">RMB Rate</label>
+            <select name="rmb_rate" title="The yuan price a dollar was bought at, or the price the money went out at" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">All</option>
+                @foreach($rmbPrices as $price)
+                <option value="{{ $price }}" {{ request('rmb_rate') === $price ? 'selected' : '' }}>{{ $price }}</option>
+                @endforeach
+            </select>
+        </div>
+        @endcan
         <div>
             <label class="block text-sm text-gray-600 mb-1">Created By</label>
             <select name="created_by" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
@@ -66,7 +86,7 @@
     </form>
     <div class="flex gap-2 mt-3 pt-3 border-t border-gray-200">
         @php
-            $quickBase = array_filter(request()->only(['search', 'status', 'currency', 'created_by']), fn($v) => $v !== '');
+            $quickBase = array_filter(request()->only(['search', 'status', 'currency', 'created_by', 'usd_rate', 'rmb_rate']), fn($v) => $v !== '');
             $ranges = [
                 'Today' => [today()->toDateString(), today()->toDateString()],
                 'Yesterday' => [today()->subDay()->toDateString(), today()->subDay()->toDateString()],
@@ -101,6 +121,9 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exchange Profit</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Overall Profit</th>
                 @endcan
+    @can('view-profit')
+    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rates Used<br><span class="font-normal normal-case text-gray-400">bought / sent</span></th>
+    @endcan
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                 @can('view-profit')
@@ -118,12 +141,19 @@
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">{{ $t->currency }} {{ number_format($t->amount, 1) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">{{ $t->principalLabel() }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($t->rmb_amount, 1) }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">UGX {{ number_format((float) $t->charge_ugx) }}</td>
                 @can('view-profit')
                 <td class="px-6 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['exchange']['tone']] }}">{{ $profit['exchange']['text'] }}</td>
                 <td class="px-6 py-4 text-sm font-medium whitespace-nowrap {{ $toneClass[$profit['total']['tone']] }}">{{ $profit['total']['text'] }}</td>
+                @endcan
+                @can('view-profit')
+                @php $usdRate = $t->shillingRateCell(); $rmbRate = $t->yuanRateCell(); @endphp
+                <td class="px-3 py-4 text-xs whitespace-nowrap tabular-nums leading-5">
+                    <div class="{{ $toneClass[$usdRate['tone']] }}" title="{{ $usdRate['title'] }}">UGX {{ $usdRate['text'] }}</div>
+                    <div class="{{ $toneClass[$rmbRate['tone']] }}" title="{{ $rmbRate['title'] }}">RMB {{ $rmbRate['text'] }}</div>
+                </td>
                 @endcan
                 <td class="px-6 py-4">
                     <span class="px-2 py-1 text-xs rounded-full
@@ -177,13 +207,13 @@
             </tr>
             @empty
             <tr>
-                <td colspan="{{ auth()->user()->can('view-profit') ? 12 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
+                <td colspan="{{ auth()->user()->can('view-profit') ? 13 : 9 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
             </tr>
             @endforelse
         </tbody>
     </table>
     @can('view-profit')
-    <p class="px-6 py-3 text-xs text-gray-500 border-t">The exchange profit is what the rates came to on the money that travelled, and the overall profit adds the charge to it. Only a completed transfer counts toward profit, and one booked before its rates were stored shows n/a instead of a zero that would read as break-even.</p>
+    <p class="px-6 py-3 text-xs text-gray-500 border-t">The exchange profit is what the rates came to on the money that travelled, and the overall profit adds the charge to it. Only a completed transfer counts toward profit, and one booked before its rates were stored shows n/a instead of a zero that would read as break-even. Each transfer also carries the price a dollar was bought at and the price the money went out at, in shillings and in yuan, so either profit leg can be checked against the day it happened.</p>
     @endcan
 </div>
 

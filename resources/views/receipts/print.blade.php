@@ -106,7 +106,7 @@
                 <td class="amount-cell">{{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</td>
                 <td class="amount-cell">UGX {{ number_format((float) $transaction->charge_ugx) }}</td>
                 <td class="amount-cell">
-                    {{ $transaction->currency }} {{ number_format($transaction->amount, 1) }}<br>
+                    {{ $transaction->principalLabel() }}<br>
                     ¥{{ number_format($transaction->rmb_amount, 1) }} RMB
                 </td>
             </tr>
