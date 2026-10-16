@@ -164,7 +164,16 @@ class OfficeBookedForAgentTest extends TestCase
             '/<option value=""[^>]*selected[^>]*>Agent or the counter<\/option>/',
             $html
         );
-        $this->assertStringContainsString('<option value="counter"', $html);
+        $this->assertMatchesRegularExpression('/<option value="counter"[^>]*>The office counter<\/option>/', $html);
+        // The reasoning belongs to the question mark beside the label. The line under the box stays
+        // short, and so does the box itself, because a select truncates rather than wraps.
+        $this->assertStringContainsString('Choose who holds the cash.', $html);
+        $this->assertStringNotContainsString('before the form moves on', $html);
+
+        // A step that refuses to move names the box it is waiting on rather than only flashing red.
+        $this->assertSame(2, substr_count($html, 'data-step-hint role="status"'));
+        $this->assertStringContainsString('Select who took this money.', $html);
+        $this->assertStringContainsString("Enter the sender's name.", $html);
     }
 
     public function test_the_office_is_told_there_is_no_agent_to_book_for(): void

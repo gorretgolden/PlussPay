@@ -91,9 +91,9 @@
                         @foreach ($agents as $agent)
                             <option value="{{ $agent->id }}" {{ (string) old('agent_id') === (string) $agent->id ? 'selected' : '' }}>{{ $agent->name }} ({{ $agent->countryLabel() ?: 'Uganda' }})</option>
                         @endforeach
-                        <option value="counter" {{ old('agent_id') === 'counter' ? 'selected' : '' }}>the office counter</option>
+                        <option value="counter" {{ old('agent_id') === 'counter' ? 'selected' : '' }}>The office counter</option>
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">Every transfer belongs to whoever holds the cash, so this has to be answered before the form moves on.</p>
+                    <p class="text-xs text-gray-500 mt-1">Choose who holds the cash.</p>
                 </div>
             @elseif (auth()->user()->can('view-all-transactions'))
                 <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
@@ -108,7 +108,8 @@
                     then start this booking again.
                 </div>
             @endif
-            <div class="flex justify-end mt-8">
+            <div class="mt-6 min-h-[20px] text-right text-sm text-red-700" data-step-hint role="status"></div>
+            <div class="flex justify-end mt-2">
                 <button type="button" onclick="nextStep(1)" class="bg-green-800 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium">
                     Next: Receiver →
                 </button>
@@ -136,7 +137,8 @@
                     <input type="hidden" name="receiver_full_contact" id="receiver_full_contact">
                 </div>
             </div>
-            <div class="flex justify-between mt-8">
+            <div class="mt-6 min-h-[20px] text-right text-sm text-red-700" data-step-hint role="status"></div>
+            <div class="flex justify-between mt-2">
                 <button type="button" onclick="prevStep(2)" class="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 font-medium">
                     ← Back
                 </button>
@@ -395,19 +397,31 @@ function syncPurposeOther() {
 purposeSelect.addEventListener('change', syncPurposeOther);
 syncPurposeOther();
 
+// A step that refuses to move has to say which box it is waiting on, in the words that box uses,
+// because a red flash alone leaves her hunting for what went wrong.
+const STEP_HINTS = {
+    sender_name: "Enter the sender's name.",
+    receiver_name: "Enter the receiver's name.",
+    agent_id: 'Select who took this money.',
+};
+
 function validateStep(step) {
     const el = document.getElementById('step-' + step);
-    const inputs = el.querySelectorAll('[required]');
-    for (const input of inputs) {
-        if (!input.value.trim()) {
-            input.focus();
-            // The searchable select mirrors these onto the box on screen, and its border is what
-            // actually reads as wrong once the focus glow is on the same element.
-            input.classList.add('field-invalid', 'ring-2', 'ring-red-400');
-            setTimeout(() => input.classList.remove('field-invalid', 'ring-2', 'ring-red-400'), 2000);
-            return false;
+    const hint = el.querySelector('[data-step-hint]');
+    for (const input of el.querySelectorAll('[required]')) {
+        if (input.value.trim()) continue;
+        input.focus();
+        // The searchable select mirrors these onto the box on screen, and its border is what
+        // actually reads as wrong once the focus glow is on the same element.
+        input.classList.add('field-invalid', 'ring-2', 'ring-red-400');
+        setTimeout(() => input.classList.remove('field-invalid', 'ring-2', 'ring-red-400'), 2000);
+        if (hint) {
+            const label = input.labels?.[0]?.textContent.replace(/[*?]/g, '').trim();
+            hint.textContent = STEP_HINTS[input.name] || (label ? 'Answer ' + label + '.' : 'Answer this before continuing.');
         }
+        return false;
     }
+    if (hint) hint.textContent = '';
     return true;
 }
 
