@@ -45,6 +45,8 @@
         ],
         'site' => [
             'site_mode' => ['label' => 'Mode', 'type' => 'select', 'default' => 'testing', 'options' => ['production' => 'Production', 'testing' => 'Testing'], 'helper' => 'Only superadmins can change this.'],
+            'demo_login_autofill' => ['label' => 'Demo button autofill', 'type' => 'select', 'default' => 'off', 'options' => ['off' => 'Off', 'on' => 'On'], 'helper' => 'On: each demo button fills the password as well as the email, so one click signs a tester straight in. The password then travels to every browser that opens the sign-in page, so anyone who looks at the page source can read it. Turn this off before real customers arrive.'],
+            'demo_password' => ['label' => 'Demo password', 'default' => '', 'maxlength' => 60, 'helper' => 'One password for all five demo accounts. Saving it resets those five sign-ins and nothing else.'],
         ],
     ];
 @endphp

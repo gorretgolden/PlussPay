@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Models\Setting;
+use App\Models\User;
+use Database\Seeders\RoleAndUserSeeder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -16,8 +19,18 @@ class SettingController extends Controller
         'transactions' => ['min_transaction_amount', 'max_transaction_amount', 'receipt_prefix', 'default_charge_ugx'],
         'company' => ['company_name', 'company_address', 'company_phone', 'company_email', 'company_website'],
         'datetime' => ['timezone'],
-        'site' => ['site_mode'],
+        'site' => ['site_mode', 'demo_login_autofill', 'demo_password'],
     ];
+
+    /**
+     * The sign-in page fills these accounts, so saving a demo password has to move the
+     * accounts themselves or the button offers a password that no longer signs anyone in.
+     * Same list the seeder builds from, so the two can never drift apart.
+     */
+    private function demoEmails(): array
+    {
+        return array_column(RoleAndUserSeeder::DEMO_ACCOUNTS, 'email');
+    }
 
     public function index(Request $request)
     {
@@ -57,6 +70,8 @@ class SettingController extends Controller
             'usd_rmb_buying' => 'nullable|numeric|min:0.000001|max:999999.999999',
             'usd_rmb_selling' => 'nullable|numeric|min:0.000001|max:999999.999999',
             'site_mode' => ['sometimes', 'required', 'in:testing,production'],
+            'demo_login_autofill' => ['nullable', 'in:on,off'],
+            'demo_password' => 'nullable|string|min:4|max:60',
             'timezone' => ['nullable', Rule::in(array_keys(Setting::TIMEZONES))],
         ];
         // Older callers may omit a tab; tabbed forms can only save their own fields.
@@ -68,6 +83,9 @@ class SettingController extends Controller
             'default_charge_ugx.numeric' => 'The default charge must be a number in shillings, e.g. 2000.',
             'default_charge_ugx.min' => 'The default charge cannot be negative.',
             'site_mode.in' => 'Site mode must be Testing or Production.',
+            'demo_login_autofill.in' => 'Demo button autofill must be On or Off.',
+            'demo_password.min' => 'The demo password needs at least 4 characters.',
+            'demo_password.max' => 'The demo password can be at most 60 characters.',
             'timezone.in' => 'Please choose one of the listed time zones.',
             'usd_ugx_buying.numeric' => 'The UGX buying rate must be a number, e.g. 3750.',
             'usd_ugx_selling.numeric' => 'The UGX selling rate must be a number, e.g. 3760.',
@@ -93,7 +111,7 @@ class SettingController extends Controller
         // Site mode decides whether the sign-in page prints the real admin emails,
         // so it stays a Super Admin decision even though Admins can edit other settings.
         if (! $request->user()->hasRole('superadmin')) {
-            unset($validated['site_mode']);
+            unset($validated['site_mode'], $validated['demo_login_autofill'], $validated['demo_password']);
         }
         // Reject before any writes, even if a forged request bypasses the disabled option.
         if (($validated['site_mode'] ?? null) === 'testing' && self::testingModeBlocked($request)) {
@@ -109,7 +127,7 @@ class SettingController extends Controller
         foreach ($validated as $key => $value) {
             $type = in_array($key, ['min_transaction_amount', 'max_transaction_amount', 'default_charge_ugx'], true) ? 'float' : 'string';
             $group = match (true) {
-                in_array($key, ['site_mode', 'timezone'], true) => 'display',
+                in_array($key, ['site_mode', 'timezone', 'demo_login_autofill', 'demo_password'], true) => 'display',
                 str_starts_with($key, 'company_') => 'company',
                 default => 'transaction',
             };
@@ -123,9 +141,27 @@ class SettingController extends Controller
             }
 
             Setting::set($key, $value, $type, $group);
+
+            if ($key === 'demo_password') {
+                // The audit trail is readable by every role with log access, so it records
+                // that the demo password moved without carrying the value itself.
+                $changes[] = 'Demo password ' . ($previous === null ? 'set' : 'changed');
+                $oldValues[$key] = '[hidden]';
+                $newValues[$key] = '[hidden]';
+                continue;
+            }
+
             $changes[] = "{$key} changed from ".($previous ?? 'unset').' to '.($value ?? 'blank');
             $oldValues[$key] = $previous;
             $newValues[$key] = $value;
+        }
+
+        // A blank box leaves the accounts alone; anything typed becomes the sign-in for all five.
+        if (($validated['demo_password'] ?? null) !== null && $validated['demo_password'] !== '') {
+            User::whereIn('email', $this->demoEmails())->update([
+                'password' => Hash::make($validated['demo_password']),
+                'must_change_password' => false,
+            ]);
         }
 
         if ($ugxSell !== null) {

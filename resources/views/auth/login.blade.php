@@ -82,14 +82,22 @@
             </div>
             <div class="grid grid-cols-2 gap-3">
                 @php
-                    // The SEED_*_PASSWORD values are only ever printed where the machine is the
-                    // developer's own. On a public host the page stays silent about passwords.
-                    $printPasswords = ! \App\Http\Controllers\SettingController::testingModeBlocked(request());
-                    $demoPasswords = config('demo.accounts', []);
+                    // On a machine of the developer's own the SEED_*_PASSWORD values still win.
+                    // Anywhere else the buttons carry the single shared demo password from System
+                    // Settings, and only while she has switched demo autofill on.
+                    $localMachine = ! \App\Http\Controllers\SettingController::testingModeBlocked(request());
+                    $envPasswords = config('demo.accounts', []);
+                    $autofillOn = \App\Models\Setting::get('demo_login_autofill', 'off') === 'on';
+                    $sharedPassword = \App\Models\Setting::get('demo_password');
                 @endphp
                 @foreach (\Database\Seeders\RoleAndUserSeeder::DEMO_ACCOUNTS as $account)
-                    @php $demoEmail = $account['email']; @endphp
-                    <button type="button" data-demo-email="{{ $demoEmail }}"@if($printPasswords && ! empty($demoPasswords[$demoEmail])) data-demo-password="{{ $demoPasswords[$demoEmail] }}"@endif
+                    @php
+                        $demoEmail = $account['email'];
+                        $demoPassword = $localMachine && ! empty($envPasswords[$demoEmail])
+                            ? $envPasswords[$demoEmail]
+                            : ($autofillOn && $sharedPassword ? $sharedPassword : null);
+                    @endphp
+                    <button type="button" data-demo-email="{{ $demoEmail }}"@if($demoPassword) data-demo-password="{{ $demoPassword }}"@endif
                         class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition last:col-span-2">
                         {{ $account['button'] }}
                     </button>
@@ -159,7 +167,13 @@
             buttons.forEach(function (button) {
                 button.addEventListener('click', function () {
                     const email = button.dataset.demoEmail;
-                    fill(email, button.dataset.demoPassword || saved()[email] || '');
+                    const password = button.dataset.demoPassword || saved()[email] || '';
+                    fill(email, password);
+                    if (password) {
+                        // Hold the filled boxes on screen briefly so it is obvious which account
+                        // was chosen, then submit it the same way typing the form would.
+                        setTimeout(function () { form.requestSubmit(); }, 450);
+                    }
                 });
             });
 
