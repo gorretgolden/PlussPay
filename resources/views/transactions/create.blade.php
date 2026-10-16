@@ -75,6 +75,26 @@
                     <input type="hidden" name="sender_full_contact" id="sender_full_contact">
                 </div>
             </div>
+
+            @if ($agents->isNotEmpty())
+                <div class="mt-6 rounded-lg border border-green-200 bg-green-50/50 p-6">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label class="block text-sm font-medium text-gray-700" for="agent_id">Which agent took this money?</label>
+                        @include('transactions.partials.field-tip', [
+                            'id' => 'agent-help-tip',
+                            'text' => 'An agent standing beside the customer holds that cash in their own hand, so the transfer, the money and the commission are all written in their name. Leave the office desk when the money came over the counter, because then it is till money from the start.',
+                        ])
+                    </div>
+                    <select name="agent_id" id="agent_id"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <option value="" {{ old('agent_id') ? '' : 'selected' }}>Office desk</option>
+                        @foreach ($agents as $agent)
+                            <option value="{{ $agent->id }}" {{ (int) old('agent_id') === $agent->id ? 'selected' : '' }}>{{ $agent->name }}</option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Choosing an agent puts the booking, the cash in hand and the commission in their name. The trail still shows you typed it up.</p>
+                </div>
+            @endif
             <div class="flex justify-end mt-8">
                 <button type="button" onclick="nextStep(1)" class="bg-green-800 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium">
                     Next: Receiver →
@@ -225,6 +245,9 @@
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Sender</h3>
                     <p class="mt-2 text-lg font-medium text-gray-900" id="rev_sender_name">-</p>
                     <p class="mt-1 text-sm text-gray-600 tabular-nums" id="rev_sender_contact_row"><span class="text-gray-400">Phone</span> <span id="rev_sender_contact">-</span></p>
+                    @if ($agents->isNotEmpty())
+                        <p class="mt-1 text-sm text-gray-600"><span class="text-gray-400">Held by</span> <span id="rev_holder">the office desk</span></p>
+                    @endif
                 </div>
                 <div class="rounded-lg border border-gray-200 p-5">
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Receiver</h3>
@@ -655,6 +678,15 @@ function populateReview() {
     purposeRow.classList.toggle('hidden', purpose === '');
     purposeRow.textContent = purpose ? 'Purpose: ' + purpose : '';
 
+    // The review names the hand the cash is in, read off the chosen option rather than the id
+    // the form carries.
+    const holder = document.getElementById('rev_holder');
+    if (holder) {
+        const picked = document.getElementById('agent_id');
+        const opt = picked.options[picked.selectedIndex];
+        holder.textContent = picked.value && opt ? opt.textContent.trim() : 'the office desk';
+    }
+
     // The summary is the same card the Payment step fills, so it is repainted rather than
     // rebuilt here and the two cannot end up showing different figures.
     calculate();
@@ -691,7 +723,7 @@ const DRAFT_KEY = @json($draftKey);
 const KEEP_KEY = @json($keepKey);
 localStorage.removeItem('pluspay_send_draft');
 localStorage.removeItem('pluspay_keep_draft');
-const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'amount', 'charge_ugx', 'purpose', 'purpose_other', 'notes'];
+const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'amount', 'charge_ugx', 'purpose', 'purpose_other', 'notes', 'agent_id'];
 let draftCleared = false;
 
 function collectDraft() {

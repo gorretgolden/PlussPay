@@ -66,7 +66,33 @@ class TransactionController extends Controller
         $default = (float) \App\Models\Setting::get('default_charge_ugx', 0);
         $defaultCharge = $default > 0 ? rtrim(rtrim(number_format($default, 2, '.', ''), '0'), '.') : '';
 
-        return view('transactions.create', compact('usdUgx', 'usdRmb', 'formId', 'defaultCharge'));
+        return view('transactions.create', compact('usdUgx', 'usdRmb', 'formId', 'defaultCharge') + [
+            'agents' => $this->bookingAgents(),
+        ]);
+    }
+
+    /**
+     * The hands an office booking can be put into. Only a person who sees the whole book may book
+     * into somebody else's name, and only the desks in Uganda hold this kind of cash: a desk in
+     * China is paid out in yuan and gets its dollars through the send-to-China list, never through
+     * a transfer typed up at this counter.
+     *
+     * @return \Illuminate\Support\Collection<int, User>
+     */
+    private function bookingAgents(): \Illuminate\Support\Collection
+    {
+        $viewer = auth()->user();
+
+        if (! $viewer || ! $viewer->can('view-all-transactions')) {
+            return collect();
+        }
+
+        return User::query()
+            ->where('is_active', true)
+            ->where(fn ($query) => $query->where('country', User::DEFAULT_COUNTRY)->orWhereNull('country'))
+            ->role('agent')
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     public function store(Request $request)
@@ -86,8 +112,10 @@ class TransactionController extends Controller
             'purpose' => 'nullable|string|max:100',
             'purpose_other' => 'required_if:purpose,Other|nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
+            'agent_id' => 'nullable|integer',
         ], [
             'form_id.required' => 'This form has expired. Please reload the page and try again.',
+            'agent_id.integer' => 'Choose an agent from the list, or leave the booking on the office desk.',
             'amount.min' => "Minimum amount is {$minAmount}.",
             'amount.max' => "Maximum amount is ".number_format($maxAmount).".",
             'amount.decimal' => 'Amount cannot have more than 2 decimal places.',
@@ -106,6 +134,22 @@ class TransactionController extends Controller
 
         if (! hash_equals((string) session('transaction_form_id', ''), $validated['form_id'])) {
             return back()->withErrors(['form_id' => 'This transaction was already submitted. Start a new form to send another.']);
+        }
+
+        // Whichever agent is named here is the one the books are written into: the transfer shows
+        // on their own list, their wallet holds the cash until it is handed in, and the charge is
+        // their commission. A name that is not on this desk, or one replayed by somebody who may
+        // not see the whole book, is refused here rather than quietly accepted from the page.
+        $holder = null;
+
+        if (! empty($validated['agent_id'])) {
+            $holder = $this->bookingAgents()->firstWhere('id', (int) $validated['agent_id']);
+
+            if (! $holder) {
+                return back()->withErrors([
+                    'agent_id' => 'No such agent to book for. Only an active agent on the Uganda desk can be chosen, and only by someone who sees every desk\'s bookings.',
+                ])->withInput();
+            }
         }
 
         if (! ExchangeRate::getActiveRate('USD', 'RMB')) {
@@ -138,7 +182,7 @@ class TransactionController extends Controller
             'receiver_contact' => trim($validated['receiver_contact'] ?? ''),
             'currency' => $validated['currency'],
             'status' => 'completed',
-            'created_by' => auth()->id(),
+            'created_by' => $holder?->id ?? auth()->id(),
             'purpose' => $purpose ? trim($purpose) : null,
             'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
         ], $quote)));
@@ -149,12 +193,15 @@ class TransactionController extends Controller
             'transaction_id' => $transaction->id,
             'user_id' => auth()->id(),
             'action' => 'created',
-            'description' => 'Transaction created',
+            'description' => $holder
+                ? 'Transaction created for '.$holder->name.', booked by '.(auth()->user()->name ?? 'the office')
+                : 'Transaction created',
             'new_value' => $transaction->status,
         ]);
 
         return redirect()->route('receipts.show', $transaction->receipt_number)
-            ->with('success', $this->statusFlash($transaction->status, $transaction));
+            ->with('success', $this->statusFlash($transaction->status, $transaction)
+                .($holder ? ' Booked in the name of '.$holder->name.'.' : ''));
     }
 
     public function show(Request $request, Transaction $transaction)
