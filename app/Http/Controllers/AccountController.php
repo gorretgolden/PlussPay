@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\ActivityLog;
@@ -132,6 +133,8 @@ class AccountController extends Controller
                 'exchange' => AccountLedger::exchange($account, $counterparty, (string) $validated['amount'], (string) $validated['second_amount'], $validated['description'], $date, $validated['reference'] ?? null),
                 default => AccountLedger::record($account, $validated['kind'], (string) $validated['amount'], $validated['description'], $date, $validated['reference'] ?? null),
             };
+        } catch (InsufficientFundsException $e) {
+            return back()->withErrors(['amount' => $e->getMessage()])->withInput();
         } catch (\InvalidArgumentException $e) {
             return back()->withErrors(['kind' => $e->getMessage()])->withInput();
         }

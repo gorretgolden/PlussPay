@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
 use App\Models\CurrencyExchange;
 use App\Models\Customer;
@@ -113,21 +114,25 @@ class CurrencyExchangeController extends Controller
         $outAmount = number_format((float) $validated['out_amount'], 2, '.', '');
         $card = ExchangeCalculator::card();
 
-        $exchange = CurrencyExchange::record([
-            'exchange_date' => $validated['exchange_date'],
-            'customer_id' => $customer?->id,
-            'person_name' => $person,
-            'in_currency' => $inCurrency,
-            'in_amount' => $inAmount,
-            'in_account_id' => $inAccount->id,
-            'out_currency' => $outCurrency,
-            'out_amount' => $outAmount,
-            'out_account_id' => $outAccount->id,
-            'rate' => $this->unitRate($inAmount, $outAmount),
-            'margin_ugx' => ExchangeCalculator::margin($card, $inCurrency, $inAmount, $outCurrency, $outAmount),
-            'notes' => $validated['notes'] ?? null,
-            'created_by' => auth()->id(),
-        ]);
+        try {
+            $exchange = CurrencyExchange::record([
+                'exchange_date' => $validated['exchange_date'],
+                'customer_id' => $customer?->id,
+                'person_name' => $person,
+                'in_currency' => $inCurrency,
+                'in_amount' => $inAmount,
+                'in_account_id' => $inAccount->id,
+                'out_currency' => $outCurrency,
+                'out_amount' => $outAmount,
+                'out_account_id' => $outAccount->id,
+                'rate' => $this->unitRate($inAmount, $outAmount),
+                'margin_ugx' => ExchangeCalculator::margin($card, $inCurrency, $inAmount, $outCurrency, $outAmount),
+                'notes' => $validated['notes'] ?? null,
+                'created_by' => auth()->id(),
+            ]);
+        } catch (InsufficientFundsException $e) {
+            return back()->withErrors(['out_amount' => $e->getMessage()])->withInput();
+        }
 
         return redirect()->route('exchanges.show', $exchange)->with('success', $exchange->reference
             .' saved: '.Account::format($inCurrency, $inAmount).' taken in and '

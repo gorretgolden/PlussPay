@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\CurrencyExchange;
@@ -32,19 +33,53 @@ class AccountLedger
             throw new InvalidArgumentException('A ledger entry needs an amount greater than zero.');
         }
 
-        return AccountEntry::create([
-            'account_id' => $account->id,
-            'counterparty_account_id' => $counterparty?->id,
-            'transaction_id' => $transactionId,
-            'entry_date' => $date ?? now()->toDateString(),
-            'type' => $type,
-            'direction' => AccountEntry::directionFor($type),
-            'amount' => $amount,
-            'rate' => $rate,
-            'reference' => $reference,
-            'description' => $description,
-            'created_by' => auth()->id(),
-        ]);
+        return DB::transaction(function () use ($account, $type, $amount, $description, $date, $reference, $transactionId, $counterparty, $rate) {
+            static::guardAgainstOverdraft($account, $type, $amount);
+
+            return AccountEntry::create([
+                'account_id' => $account->id,
+                'counterparty_account_id' => $counterparty?->id,
+                'transaction_id' => $transactionId,
+                'entry_date' => $date ?? now()->toDateString(),
+                'type' => $type,
+                'direction' => AccountEntry::directionFor($type),
+                'amount' => $amount,
+                'rate' => $rate,
+                'reference' => $reference,
+                'description' => $description,
+                'created_by' => auth()->id(),
+            ]);
+        });
+    }
+
+    /**
+     * Money cannot leave a Uganda till that does not hold it, because that cash belongs to the
+     * customers whose transfers have not landed yet, so the balance is read and checked before the
+     * line is written. The account row itself is locked for the length of the transaction: two
+     * deals booked on the same wallet at the same moment then queue instead of both spending the
+     * same cash, which is the only way the overdraft check means anything.
+     *
+     * The China accounts are deliberately left free to go below zero. That side pays the receiver
+     * in yuan out of its own float before Uganda settles the rouble of the deal across, so a
+     * negative there is the honest picture of who is owed what rather than a missing payment.
+     */
+    private static function guardAgainstOverdraft(Account $account, string $type, string $amount): void
+    {
+        if (AccountEntry::directionFor($type) !== 'out' || AccountEntry::isCorrective($type)) {
+            return;
+        }
+
+        $locked = Account::whereKey($account->id)->lockForUpdate()->first() ?? $account;
+
+        if ($locked->country !== 'UG') {
+            return;
+        }
+
+        $available = $locked->balance();
+
+        if (bccomp($available, $amount, 2) < 0) {
+            throw new InsufficientFundsException($locked, $amount, $available);
+        }
     }
 
     /**

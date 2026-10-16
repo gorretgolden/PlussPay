@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
 use App\Models\Expense;
 use Illuminate\Http\Request;
@@ -74,17 +75,21 @@ class ExpenseController extends Controller
         $account = Account::findOrFail($validated['account_id']);
         $amount = number_format((float) $validated['amount'], 2, '.', '');
 
-        $expense = Expense::record([
-            'expense_date' => $validated['expense_date'],
-            'category' => $validated['category'],
-            'description' => trim($validated['description']),
-            'currency' => $account->currency,
-            'amount' => $amount,
-            'account_id' => $account->id,
-            'paid_via' => $validated['paid_via'] ?? null,
-            'notes' => $validated['notes'] ?? null,
-            'created_by' => auth()->id(),
-        ]);
+        try {
+            $expense = Expense::record([
+                'expense_date' => $validated['expense_date'],
+                'category' => $validated['category'],
+                'description' => trim($validated['description']),
+                'currency' => $account->currency,
+                'amount' => $amount,
+                'account_id' => $account->id,
+                'paid_via' => $validated['paid_via'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+                'created_by' => auth()->id(),
+            ]);
+        } catch (InsufficientFundsException $e) {
+            return back()->withErrors(['amount' => $e->getMessage()])->withInput();
+        }
 
         return redirect()->route('expenses.index')
             ->with('success', $expense->reference.' saved: '.Account::format($account->currency, $amount)

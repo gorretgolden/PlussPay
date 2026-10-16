@@ -21,13 +21,13 @@ class AccountEntry extends Model
         'exchange_in' => ['label' => 'Bought into this account', 'direction' => 'in', 'group' => 'exchange'],
         'exchange_out' => ['label' => 'Sold out of this account', 'direction' => 'out', 'group' => 'exchange'],
         'exchange_back_in' => ['label' => 'Handed back (deal cancelled)', 'direction' => 'in', 'group' => 'exchange'],
-        'exchange_back_out' => ['label' => 'Taken back (deal cancelled)', 'direction' => 'out', 'group' => 'exchange'],
+        'exchange_back_out' => ['label' => 'Taken back (deal cancelled)', 'direction' => 'out', 'group' => 'exchange', 'corrective' => true],
         'opening_balance' => ['label' => 'Opening balance', 'direction' => 'in', 'group' => 'single'],
         'adjustment_in' => ['label' => 'Correction (adds money)', 'direction' => 'in', 'group' => 'single'],
         'adjustment_out' => ['label' => 'Correction (removes money)', 'direction' => 'out', 'group' => 'single'],
-        'reversal' => ['label' => 'Cancelled transfer', 'direction' => 'out', 'group' => 'single'],
+        'reversal' => ['label' => 'Cancelled transfer', 'direction' => 'out', 'group' => 'single', 'corrective' => true],
         'agent_fee' => ['label' => 'Agent commission', 'direction' => 'in', 'group' => 'single'],
-        'agent_fee_reversal' => ['label' => 'Reversed agent commission', 'direction' => 'out', 'group' => 'single'],
+        'agent_fee_reversal' => ['label' => 'Reversed agent commission', 'direction' => 'out', 'group' => 'single', 'corrective' => true],
     ];
 
     protected $fillable = [
@@ -73,6 +73,16 @@ class AccountEntry extends Model
     public static function directionFor(string $type): string
     {
         return self::TYPES[$type]['direction'] ?? 'in';
+    }
+
+    /**
+     * An undo is never refused for want of cash. If a deal has to be called back, the refund goes
+     * through even when the account has since spent the money, because blocking it would leave the
+     * mistake standing and the books worse than the error they correct.
+     */
+    public static function isCorrective(string $type): bool
+    {
+        return (bool) (self::TYPES[$type]['corrective'] ?? false);
     }
 
     public static function labelFor(?string $type): string

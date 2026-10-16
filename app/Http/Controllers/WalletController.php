@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
 use App\Models\ActivityLog;
 use App\Models\User;
@@ -63,6 +64,8 @@ class WalletController extends Controller
                 (string) $validated['amount'],
                 $validated['description'],
             );
+        } catch (InsufficientFundsException $e) {
+            return back()->withErrors(['amount' => $e->getMessage()])->withInput();
         } catch (\InvalidArgumentException $e) {
             return back()->withErrors(['amount' => $e->getMessage()])->withInput();
         }
