@@ -29,7 +29,7 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" name="email" id="email" value="{{ old('email') }}" required autofocus
+                <input type="email" name="email" id="email" value="{{ old('email') }}" autocomplete="username" required autofocus
                     class="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition @error('email') border-red-500 @enderror">
                 @error('email')
                     <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
@@ -39,7 +39,7 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
                 <div class="relative">
-                    <input id="password" type="password" name="password" required placeholder="••••••••"
+                    <input id="password" type="password" name="password" autocomplete="current-password" required placeholder="••••••••"
                         class="w-full rounded-lg border border-gray-300 px-4 py-3 pr-12 text-gray-900 focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition">
                     <button type="button" onclick="togglePassword()"
                         class="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600 text-sm">
@@ -79,23 +79,14 @@
                 <div class="flex-1 h-px bg-gray-200"></div>
             </div>
             <div class="grid grid-cols-2 gap-3">
-                <button type="button" onclick="fillEmail('admin@plussave.com')"
-                    class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
-                    Admin
-                </button>
-                <button type="button" onclick="fillEmail('superadmin@plussave.com')"
-                    class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
-                    Superadmin
-                </button>
-                <button type="button" onclick="fillEmail('agent@plussave.com')"
-                    class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
-                    Agent
-                </button>
-                <button type="button" onclick="fillEmail('accountant@plussave.com')"
-                    class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
-                    Accountant
-                </button>
+                @foreach (['Admin' => 'admin@plussave.com', 'Superadmin' => 'superadmin@plussave.com', 'Agent' => 'agent@plussave.com', 'Accountant' => 'accountant@plussave.com'] as $label => $demoEmail)
+                    <button type="button" data-demo-email="{{ $demoEmail }}"
+                        class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
+                        {{ $label }}
+                    </button>
+                @endforeach
             </div>
+            <p id="demoHint" class="mt-2 text-center text-xs text-gray-500 hidden">Sign in once and the password is kept in this browser for these buttons.</p>
         </div>
         @endif
     </div>
@@ -109,10 +100,46 @@
             }
         })();
 
-        function fillEmail(email) {
-            document.getElementById('email').value = email;
-            document.getElementById('password').focus();
-        }
+        // The demo buttons only exist while Site Mode is Testing, so the password typed for one of
+        // them is kept in this browser and refilled on the next click. Nothing is sent anywhere.
+        (function() {
+            const STORE = 'plussave.demoPasswords';
+            const emailBox = document.getElementById('email');
+            const passwordBox = document.getElementById('password');
+            const form = document.getElementById('loginForm');
+            const buttons = Array.from(document.querySelectorAll('[data-demo-email]'));
+
+            if (!buttons.length) return;
+
+            const accounts = buttons.map(function (button) { return button.dataset.demoEmail; });
+
+            function saved() {
+                try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; }
+            }
+
+            buttons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    emailBox.value = button.dataset.demoEmail;
+                    const password = saved()[button.dataset.demoEmail];
+                    if (password) {
+                        passwordBox.value = password;
+                    }
+                    passwordBox.focus();
+                    document.getElementById('demoHint').classList.toggle('hidden', !!password);
+                });
+            });
+
+            form.addEventListener('submit', function () {
+                const email = emailBox.value.trim().toLowerCase();
+                const password = passwordBox.value;
+
+                if (accounts.includes(email) && password) {
+                    const store = saved();
+                    store[email] = password;
+                    try { localStorage.setItem(STORE, JSON.stringify(store)); } catch (e) {}
+                }
+            });
+        })();
 
         function togglePassword() {
             const p = document.getElementById('password');

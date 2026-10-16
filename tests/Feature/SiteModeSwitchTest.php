@@ -52,6 +52,25 @@ class SiteModeSwitchTest extends TestCase
         $this->assertTrue($this->loginPageHasDemoButtons());
     }
 
+    public function test_each_button_carries_the_email_the_password_is_refilled_for(): void
+    {
+        auth()->logout();
+
+        $html = $this->get('/admin/login')->assertOk()->getContent();
+
+        // The click handler reads these to refill the sign-in box, so a button without its email
+        // would quietly go back to filling nothing.
+        foreach (['admin', 'superadmin', 'agent', 'accountant'] as $role) {
+            $this->assertStringContainsString(
+                'data-demo-email="'.$role.'@plussave.com"',
+                $html,
+                'Missing the demo button for '.$role
+            );
+        }
+
+        $this->assertStringContainsString('plussave.demoPasswords', $html);
+    }
+
     public function test_a_super_admin_can_switch_the_site_to_production(): void
     {
         $this->actingAs($this->user('superadmin'))
