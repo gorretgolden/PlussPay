@@ -137,4 +137,17 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertSame(1, substr_count($html, '>Record Exchange</span>'));
         $this->assertStringNotContainsString('New Transaction', $html);
     }
+
+    public function test_the_shortcuts_open_the_page_ahead_of_the_balances(): void
+    {
+        $html = $this->html($this->user('agent', 'Amina Nabukenya'));
+
+        // The desk books first and reads the till afterwards, so the shortcuts are the top card.
+        $actions = strpos($html, '>Quick Actions</h2>');
+        $wallets = strpos($html, 'Wallet</div>');
+
+        $this->assertIsInt($actions);
+        $this->assertIsInt($wallets);
+        $this->assertLessThan($wallets, $actions, 'Quick Actions renders above the wallet cards.');
+    }
 }

@@ -95,39 +95,13 @@
     .stat-value { font-size: 1.5rem; font-size: clamp(.875rem, calc(100cqi / (var(--len) * .52)), 1.5rem); }
 </style>
 
-{{-- Account::currenciesFor() orders the wallets by the desk's country, so the local currency is always the first card. --}}
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-    @foreach($wallets as $currency => $account)
-    @php
-        $balance = (float) $account->balance();
-        $glyph = ['UGX' => 'USh', 'RMB' => '¥', 'USD' => '$'][$currency] ?? $currency;
-        $shown = $currency === 'UGX'
-            ? 'UGX ' . number_format($balance, 0)
-            : $glyph . number_format($balance, 2);
-    @endphp
-    <a href="{{ route('wallet.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow transition-shadow block">
-        <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $currency }} Wallet</div>
-                <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums whitespace-nowrap">{{ $shown }}</div>
-            </div>
-            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center text-sm font-bold">{{ $glyph }}</span>
-        </div>
-        @if($currency === 'UGX')
-        <div class="text-xs text-gray-500 mt-2">Charge kept this month: UGX {{ number_format($commissionMonth) }}</div>
-        @endif
-        @if($balance <= 0)
-        <div class="text-xs text-gray-500 mt-1">No balance yet. @can('adjust-wallets')<span class="font-semibold text-gray-700 underline">Add money</span>@endcan</div>
-        @endif
-    </a>
-    @endforeach
-</div>
-
 @php
-    // Shortcuts to the work people come here to do. Each one is dropped when its ability is
-    // missing, so nobody is handed a button that bounces back with a permission error, and a
-    // role that books nothing at all gets no card rather than a row of dead links. Every label
-    // is the words the screen it opens uses, so one thing never carries two names.
+    // Shortcuts to the work people come here to do, set at the top of the page because booking is
+    // the reason the desk opens it; the balances are read after the work is entered. Each one is
+    // dropped when its ability is missing, so nobody is handed a button that bounces back with a
+    // permission error, and a role that books nothing at all gets no card rather than a row of
+    // dead links. Every label is the words the screen it opens uses, so one thing never carries
+    // two names.
     $quickActions = array_values(array_filter([
         ['create-transaction', 'Send Money', 'Book a transfer', 'transactions.create', 'M12 4v16m8-8H4'],
         ['create-exchange', 'Record Exchange', 'Buy or sell notes', 'exchanges.create', 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4'],
@@ -155,6 +129,34 @@
     </div>
 </div>
 @endif
+
+{{-- Account::currenciesFor() orders the wallets by the desk's country, so the local currency is always the first card. --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+    @foreach($wallets as $currency => $account)
+    @php
+        $balance = (float) $account->balance();
+        $glyph = ['UGX' => 'USh', 'RMB' => '¥', 'USD' => '$'][$currency] ?? $currency;
+        $shown = $currency === 'UGX'
+            ? 'UGX ' . number_format($balance, 0)
+            : $glyph . number_format($balance, 2);
+    @endphp
+    <a href="{{ route('wallet.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow transition-shadow block">
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $currency }} Wallet</div>
+                <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums whitespace-nowrap">{{ $shown }}</div>
+            </div>
+            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center text-sm font-bold">{{ $glyph }}</span>
+        </div>
+        @if($currency === 'UGX')
+        <div class="text-xs text-gray-500 mt-2">Charge kept this month: UGX {{ number_format($commissionMonth) }}</div>
+        @endif
+        @if($balance <= 0)
+        <div class="text-xs text-gray-500 mt-1">No balance yet. @can('adjust-wallets')<span class="font-semibold text-gray-700 underline">Add money</span>@endcan</div>
+        @endif
+    </a>
+    @endforeach
+</div>
 
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
