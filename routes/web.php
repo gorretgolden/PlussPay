@@ -9,6 +9,7 @@ use App\Http\Controllers\CurrencyExchangeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExchangeRateController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\ReportsController;
@@ -83,6 +84,10 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::get('/export/movements', [ExportController::class, 'movements'])->middleware('can:export-accounts')->name('export.movements');
     });
     Route::middleware('can:view-expenses')->group(function () {
+        // Named ahead of any /expenses/{expense} so the word categories is never read as a record.
+        Route::get('/expenses/categories', [ExpenseCategoryController::class, 'index'])->middleware('can:manage-expense-categories')->name('expense-categories.index');
+        Route::post('/expenses/categories', [ExpenseCategoryController::class, 'store'])->middleware('can:manage-expense-categories')->name('expense-categories.store');
+        Route::put('/expenses/categories/{category}', [ExpenseCategoryController::class, 'update'])->middleware('can:manage-expense-categories')->name('expense-categories.update');
         Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
         Route::get('/expenses/create', [ExpenseController::class, 'create'])->middleware('can:create-expense')->name('expenses.create');
         Route::post('/expenses', [ExpenseController::class, 'store'])->middleware('can:create-expense')->name('expenses.store');

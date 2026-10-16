@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\Rule;
@@ -13,7 +14,7 @@ class ExpenseController extends Controller
 {
     public function index(Request $request)
     {
-        $rows = Expense::with(['account', 'creator'])
+        $rows = Expense::with(['account', 'creator', 'categoryGroup'])
             ->filtered($request)
             ->get()
             ->sortByDesc('id')
@@ -36,7 +37,7 @@ class ExpenseController extends Controller
                 ->all(),
             'liveCount' => $live->count(),
             'voidCount' => $rows->count() - $live->count(),
-            'categories' => Expense::CATEGORIES,
+            'categories' => ExpenseCategory::orderBy('name')->pluck('name')->all(),
         ]);
     }
 
@@ -50,7 +51,8 @@ class ExpenseController extends Controller
         return view('expenses.create', [
             'accounts' => $accounts,
             'defaultAccountId' => collect($accounts)->firstWhere('code', $default)?->id,
-            'categories' => Expense::CATEGORIES,
+            'categories' => $options = ExpenseCategory::options(),
+            'defaultCategoryId' => array_search('Rent', $options, true) ?: array_key_first($options),
             'paidVia' => Expense::PAID_VIA,
         ]);
     }
@@ -58,7 +60,7 @@ class ExpenseController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'category' => ['required', 'string', 'max:60'],
+            'category_id' => ['required', 'integer', Rule::exists('expense_categories', 'id')->where('is_active', true)],
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'account_id' => ['required', 'integer', 'exists:accounts,id'],
@@ -66,7 +68,7 @@ class ExpenseController extends Controller
             'paid_via' => ['nullable', Rule::in(Expense::PAID_VIA)],
             'notes' => ['nullable', 'string', 'max:500'],
         ], [
-            'category.required' => 'Choose what kind of spending this was.',
+            'category_id.required' => 'Choose what kind of spending this was.',
             'description.required' => 'Say what the money was spent on.',
             'amount.min' => 'Enter how much was paid out.',
             'account_id.required' => 'Choose which account paid for it.',
@@ -74,11 +76,13 @@ class ExpenseController extends Controller
 
         $account = Account::findOrFail($validated['account_id']);
         $amount = number_format((float) $validated['amount'], 2, '.', '');
+        $head = ExpenseCategory::findOrFail($validated['category_id']);
 
         try {
             $expense = Expense::record([
                 'expense_date' => $validated['expense_date'],
-                'category' => $validated['category'],
+                'category_id' => $head->id,
+                'category' => $head->name,
                 'description' => trim($validated['description']),
                 'currency' => $account->currency,
                 'amount' => $amount,

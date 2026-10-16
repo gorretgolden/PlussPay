@@ -20,7 +20,7 @@ final class PermissionCatalog
         'Settings' => ['view-settings', 'manage-settings', 'manage-system-settings'],
         'Customers' => ['view-customers', 'create-customer', 'edit-customer', 'delete-customer', 'export-customers'],
         'Accounts' => ['view-accounts', 'create-account-entry', 'export-accounts'],
-        'Expenses' => ['view-expenses', 'create-expense', 'void-expense', 'export-expenses'],
+        'Expenses' => ['view-expenses', 'create-expense', 'void-expense', 'export-expenses', 'manage-expense-categories'],
         'Logs' => ['view-activity-logs', 'view-login-logs', 'export-logs', 'view-system-logs', 'resolve-system-logs', 'export-system-logs'],
     ];
 

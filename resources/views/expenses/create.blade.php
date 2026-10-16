@@ -21,13 +21,13 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1" for="category">What was it spent on? *</label>
-                    <select name="category" id="category" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                        @foreach($categories as $category)
-                            <option value="{{ $category }}" @selected(old('category', 'Rent') === $category)>{{ $category }}</option>
+                    <label class="block text-sm font-medium text-gray-700 mb-1" for="category_id">What was it spent on? *</label>
+                    <select name="category_id" id="category_id" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                        @foreach($categories as $id => $name)
+                            <option value="{{ $id }}" @selected((int) old('category_id', $defaultCategoryId) === (int) $id)>{{ $name }}</option>
                         @endforeach
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">Pick the head it falls under. Anything that does not fit goes under Other with the detail in the description.</p>
+                    <p class="text-xs text-gray-500 mt-1">Pick the head it falls under. Anything that does not fit goes under Other with the detail in the description. @can('manage-expense-categories')<a href="{{ route('expense-categories.index') }}" class="underline hover:text-gray-700">Manage the heads</a>@endcan</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1" for="expense_date">Date paid *</label>

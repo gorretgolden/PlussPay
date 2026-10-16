@@ -18,8 +18,9 @@ class Expense extends Model
     public const VOID = 'void';
 
     /**
-     * The heads she keeps her spending under. Free text is allowed for the rare one that does
-     * not fit, which keeps the list short instead of growing a category for everything.
+     * The heads she keeps her spending under. These seed the editable list in
+     * expense_categories; the copy here stays so a fresh install and a migration agree on
+     * what the starting heads are.
      */
     public const CATEGORIES = [
         'Rent',
@@ -40,6 +41,7 @@ class Expense extends Model
     protected $fillable = [
         'reference',
         'expense_date',
+        'category_id',
         'category',
         'description',
         'currency',
@@ -59,6 +61,20 @@ class Expense extends Model
     public function account(): BelongsTo
     {
         return $this->belongsTo(Account::class);
+    }
+
+    public function categoryGroup(): BelongsTo
+    {
+        return $this->belongsTo(ExpenseCategory::class, 'category_id');
+    }
+
+    /**
+     * The head this spending is filed under now. Older rows carry the name as text from before
+     * the list was editable, so the text is the fallback rather than a second source of truth.
+     */
+    public function getCategoryNameAttribute(): string
+    {
+        return $this->categoryGroup?->name ?: $this->category;
     }
 
     public function creator(): BelongsTo
@@ -91,10 +107,24 @@ class Expense extends Model
             });
         }
 
-        foreach (['category', 'paid_via', 'status'] as $filter) {
+        foreach (['paid_via', 'status'] as $filter) {
             if ($request->filled($filter)) {
                 $query->where($filter, $request->input($filter));
             }
+        }
+
+        if ($request->filled('category')) {
+            $head = ExpenseCategory::where('name', $request->input('category'))->first();
+
+            // Match the head by its id so a rename follows the history, and fall back to the
+            // name on rows recorded before the list was editable.
+            $query->where(function (Builder $q) use ($head, $request) {
+                $q->where('category', $request->input('category'));
+
+                if ($head) {
+                    $q->orWhere('category_id', $head->id);
+                }
+            });
         }
 
         if ($request->filled('account_id')) {

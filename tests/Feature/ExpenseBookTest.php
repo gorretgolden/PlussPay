@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\User;
 use App\Services\AccountLedger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -55,6 +56,12 @@ class ExpenseBookTest extends TestCase
         return $account;
     }
 
+    /** The heads come from the migration, the same list the expense form is built from. */
+    private function headId(string $name): int
+    {
+        return ExpenseCategory::where('name', $name)->value('id');
+    }
+
     private function expense(Account $account, array $overrides = []): Expense
     {
         return Expense::record(array_merge([
@@ -75,7 +82,7 @@ class ExpenseBookTest extends TestCase
 
         $this->actingAs($this->admin)->post('/expenses', [
             'expense_date' => '2026-09-01',
-            'category' => 'Rent',
+            'category_id' => $this->headId('Rent'),
             'description' => 'Kampala office, October',
             'amount' => '1200000',
             'account_id' => $till->id,
@@ -115,7 +122,7 @@ class ExpenseBookTest extends TestCase
 
         $this->actingAs($this->admin)->post('/expenses', [
             'expense_date' => now()->toDateString(),
-            'category' => 'Transport',
+            'category_id' => $this->headId('Transport'),
             'description' => 'Courier to the Guangzhou office',
             'amount' => '650',
             'account_id' => $yuan->id,
@@ -189,7 +196,7 @@ class ExpenseBookTest extends TestCase
 
         $this->actingAs($this->admin)->post('/expenses', [
             'expense_date' => now()->toDateString(),
-            'category' => 'Supplies',
+            'category_id' => $this->headId('Supplies'),
             'description' => '',
             'amount' => '0',
             'account_id' => $till->id,

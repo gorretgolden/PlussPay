@@ -15,6 +15,9 @@
     </div>
     <div class="flex gap-2">
         <a href="{{ route('expenses.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Record Expense</a>
+        @can('manage-expense-categories')
+        <a href="{{ route('expense-categories.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Spending Heads</a>
+        @endcan
         <a href="{{ route('export.expenses', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
     </div>
 </div>
@@ -112,7 +115,7 @@
                         <span class="ml-1 px-2 py-0.5 text-xs rounded-full bg-red-50 text-red-700">Cancelled</span>
                     @endif
                 </td>
-                <td class="px-4 py-3 text-sm text-gray-900">{{ $expense->category }}</td>
+                <td class="px-4 py-3 text-sm text-gray-900">{{ $expense->category_name }}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">
                     {{ $expense->description }}
                     @if($expense->notes)
@@ -131,7 +134,7 @@
                         @if(! $expense->isVoid())
                         <button type="button" onclick="openVoidModal(this)"
                             data-action="{{ route('expenses.void', $expense) }}"
-                            data-deal="{{ $expense->reference }} &middot; {{ $expense->category }}"
+                            data-deal="{{ $expense->reference }} &middot; {{ $expense->category_name }}"
                             data-first="{{ \App\Models\Account::format($expense->currency, $expense->amount) }}"
                             class="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50">Cancel entry</button>
                         @endif

@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\CurrencyExchange;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\User;
 use App\Services\AccountLedger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,7 +61,7 @@ class WalletOverdraftGuardTest extends TestCase
 
         $this->actingAs($this->admin)->post('/expenses', [
             'expense_date' => now()->toDateString(),
-            'category' => 'Rent',
+            'category_id' => ExpenseCategory::where('name', 'Rent')->value('id'),
             'description' => 'Kampala office',
             'amount' => '1500000',
             'account_id' => $till->id,
@@ -121,7 +122,7 @@ class WalletOverdraftGuardTest extends TestCase
 
         $this->actingAs($this->admin)->post('/expenses', [
             'expense_date' => now()->toDateString(),
-            'category' => 'Supplies',
+            'category_id' => ExpenseCategory::where('name', 'Supplies')->value('id'),
             'description' => 'First round',
             'amount' => '600000',
             'account_id' => $till->id,
@@ -130,7 +131,7 @@ class WalletOverdraftGuardTest extends TestCase
 
         $this->actingAs($this->admin)->post('/expenses', [
             'expense_date' => now()->toDateString(),
-            'category' => 'Supplies',
+            'category_id' => ExpenseCategory::where('name', 'Supplies')->value('id'),
             'description' => 'Second round',
             'amount' => '600000',
             'account_id' => $till->id,

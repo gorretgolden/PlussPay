@@ -338,14 +338,14 @@ class ExportController extends Controller
 
     public function expenses(Request $request)
     {
-        $rows = Expense::with(['account', 'creator'])->filtered($request)
+        $rows = Expense::with(['account', 'creator', 'categoryGroup'])->filtered($request)
             ->get()
             ->sortByDesc('id')
             ->sortByDesc('expense_date')
             ->map(fn (Expense $e) => [
                 $e->expense_date->format('Y-m-d'),
                 $e->reference,
-                $e->category,
+                $e->category_name,
                 $e->description,
                 Account::format($e->currency, $e->amount),
                 $e->account?->name ?? '-',
