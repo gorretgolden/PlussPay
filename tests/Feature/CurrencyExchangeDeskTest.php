@@ -366,6 +366,7 @@ class CurrencyExchangeDeskTest extends TestCase
         $this->actingAs($this->admin)->get('/transactions/create');
         $this->actingAs($this->admin)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Okello John',
             'receiver_name' => 'Li Na',
             'currency' => 'UGX',

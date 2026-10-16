@@ -54,6 +54,7 @@ class TransferFlowTest extends TestCase
         $this->actingAs($booker)->get('/transactions/create');
         $this->actingAs($booker)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Flow Sender',
             'receiver_name' => 'Flow Receiver',
             'currency' => 'UGX',

@@ -61,6 +61,7 @@ class TransactionRateColumnsTest extends TestCase
         $this->actingAs($by)->get('/transactions/create');
         $this->actingAs($by)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Rates Sender',
             'receiver_name' => 'Rates Receiver',
             'currency' => 'UGX',
@@ -295,6 +296,7 @@ class TransactionRateColumnsTest extends TestCase
         $this->actingAs($by)->get('/transactions/create');
         $this->actingAs($by)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Dollar Sender',
             'receiver_name' => 'Rates Receiver',
             'currency' => 'USD',

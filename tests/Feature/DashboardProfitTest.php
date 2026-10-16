@@ -56,6 +56,7 @@ class DashboardProfitTest extends TestCase
         $this->actingAs($booker)->get('/transactions/create');
         $this->actingAs($booker)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Board Sender',
             'receiver_name' => 'Board Receiver',
             'currency' => 'UGX',

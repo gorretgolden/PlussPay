@@ -79,20 +79,33 @@
             @if ($agents->isNotEmpty())
                 <div class="mt-6 rounded-lg border border-green-200 bg-green-50/50 p-6">
                     <div class="flex items-center justify-between gap-2 mb-1">
-                        <label class="block text-sm font-medium text-gray-700" for="agent_id">Which agent took this money?</label>
+                        <label class="block text-sm font-medium text-gray-700" for="agent_id">Which agent took this money? *</label>
                         @include('transactions.partials.field-tip', [
                             'id' => 'agent-help-tip',
-                            'text' => 'An agent standing beside the customer holds that cash in their own hand, so the transfer, the money and the commission are all written in their name. Leave the office desk when the money came over the counter, because then it is till money from the start.',
+                            'text' => 'An agent standing beside the customer holds that cash in their own hand, so the transfer, the money and the commission are all written in their name. Pick the office counter only when the money came over the till, because then it is till money from the start.',
                         ])
                     </div>
-                    <select name="agent_id" id="agent_id"
+                    <select name="agent_id" id="agent_id" required
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                        <option value="" {{ old('agent_id') ? '' : 'selected' }}>Office desk</option>
+                        <option value="" disabled {{ old('agent_id') === null ? 'selected' : '' }}>Agent or the counter</option>
                         @foreach ($agents as $agent)
-                            <option value="{{ $agent->id }}" {{ (int) old('agent_id') === $agent->id ? 'selected' : '' }}>{{ $agent->name }}</option>
+                            <option value="{{ $agent->id }}" {{ (string) old('agent_id') === (string) $agent->id ? 'selected' : '' }}>{{ $agent->name }}</option>
                         @endforeach
+                        <option value="counter" {{ old('agent_id') === 'counter' ? 'selected' : '' }}>the office counter</option>
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">Choosing an agent puts the booking, the cash in hand and the commission in their name. The trail still shows you typed it up.</p>
+                    <p class="text-xs text-gray-500 mt-1">Every transfer belongs to whoever holds the cash, so this has to be answered before the form moves on.</p>
+                </div>
+            @elseif (auth()->user()->can('view-all-transactions'))
+                <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+                    There is no open agent on the Uganda desk to book for, and every transfer has to
+                    belong to one.
+                    @can('view-users')
+                    Open <a href="{{ route('users.index') }}" class="underline font-medium">User Management</a>
+                    and add an agent, or bring one back on,
+                    @else
+                    Ask the office to add an agent, or bring one back on,
+                    @endcan
+                    then start this booking again.
                 </div>
             @endif
             <div class="flex justify-end mt-8">
@@ -388,8 +401,10 @@ function validateStep(step) {
     for (const input of inputs) {
         if (!input.value.trim()) {
             input.focus();
-            input.classList.add('ring-2', 'ring-red-400');
-            setTimeout(() => input.classList.remove('ring-2', 'ring-red-400'), 2000);
+            // The searchable select mirrors these onto the box on screen, and its border is what
+            // actually reads as wrong once the focus glow is on the same element.
+            input.classList.add('field-invalid', 'ring-2', 'ring-red-400');
+            setTimeout(() => input.classList.remove('field-invalid', 'ring-2', 'ring-red-400'), 2000);
             return false;
         }
     }

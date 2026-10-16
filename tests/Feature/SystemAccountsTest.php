@@ -65,6 +65,7 @@ class SystemAccountsTest extends TestCase
         $this->actingAs($admin)->get('/transactions/create');
         $this->actingAs($admin)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Books Sender',
             'receiver_name' => 'Books Receiver',
             'currency' => 'UGX',
@@ -95,6 +96,7 @@ class SystemAccountsTest extends TestCase
         $this->actingAs($admin)->get('/transactions/create');
         $this->actingAs($admin)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Dollar Sender',
             'receiver_name' => 'Books Receiver',
             'currency' => 'USD',
@@ -142,6 +144,7 @@ class SystemAccountsTest extends TestCase
         $this->actingAs($admin)->get('/transactions/create');
         $this->actingAs($admin)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Books Sender',
             'receiver_name' => 'Books Receiver',
             'currency' => 'UGX',

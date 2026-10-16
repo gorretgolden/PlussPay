@@ -100,6 +100,12 @@ class TransactionController extends Controller
         $minAmount = (float) \App\Models\Setting::get('min_transaction_amount', 100);
         $maxAmount = (float) \App\Models\Setting::get('max_transaction_amount', 100000000);
 
+        // Only an agent's hand holds this kind of cash, so a transfer is always written in an
+        // agent's name. Somebody signing in at their own desk is their own agent; anyone who can
+        // see the whole book is standing at a counter taking money for other people, so they have
+        // to say whose before the booking will save.
+        $mustNameHolder = (bool) auth()->user()?->can('view-all-transactions');
+
         $validated = $request->validate([
             'form_id' => 'required|string',
             'sender_name' => 'required|string|max:100|min:2',
@@ -112,10 +118,10 @@ class TransactionController extends Controller
             'purpose' => 'nullable|string|max:100',
             'purpose_other' => 'required_if:purpose,Other|nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
-            'agent_id' => 'nullable|integer',
+            'agent_id' => $mustNameHolder ? 'required' : 'nullable',
         ], [
             'form_id.required' => 'This form has expired. Please reload the page and try again.',
-            'agent_id.integer' => 'Choose an agent from the list, or leave the booking on the office desk.',
+            'agent_id.required' => 'Say which agent took this money. A transfer always belongs to the agent holding the cash, so the office has to name them before it books.',
             'amount.min' => "Minimum amount is {$minAmount}.",
             'amount.max' => "Maximum amount is ".number_format($maxAmount).".",
             'amount.decimal' => 'Amount cannot have more than 2 decimal places.',
@@ -140,10 +146,12 @@ class TransactionController extends Controller
         // on their own list, their wallet holds the cash until it is handed in, and the charge is
         // their commission. A name that is not on this desk, or one replayed by somebody who may
         // not see the whole book, is refused here rather than quietly accepted from the page.
+        // The office counter is the one answer that is not a person: the till holds that money.
         $holder = null;
+        $choice = (string) ($validated['agent_id'] ?? '');
 
-        if (! empty($validated['agent_id'])) {
-            $holder = $this->bookingAgents()->firstWhere('id', (int) $validated['agent_id']);
+        if ($choice !== '' && $choice !== 'counter') {
+            $holder = $this->bookingAgents()->firstWhere('id', (int) $choice);
 
             if (! $holder) {
                 return back()->withErrors([

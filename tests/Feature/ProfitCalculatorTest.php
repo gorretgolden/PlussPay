@@ -172,6 +172,7 @@ class ProfitCalculatorTest extends TestCase
         $this->actingAs($admin)->get('/transactions/create');
         $this->actingAs($admin)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Asuma Aggrey',
             'receiver_name' => 'Wei Ming',
             'currency' => 'UGX',

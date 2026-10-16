@@ -118,6 +118,7 @@ class FxRateAndProfitTest extends TestCase
         // $1,000.0 at the selling rate. The 12,500 is what the desk agreed with the customer.
         $this->actingAs($agent)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Agent Sender',
             'receiver_name' => 'Agent Receiver',
             'currency' => 'UGX',
@@ -163,6 +164,7 @@ class FxRateAndProfitTest extends TestCase
 
         $this->actingAs($this->admin())->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Test Sender',
             'receiver_name' => 'Test Receiver',
             'currency' => 'UGX',
@@ -351,6 +353,7 @@ class FxRateAndProfitTest extends TestCase
 
         $this->actingAs($admin)->post('/transactions', [
             'form_id' => session('transaction_form_id'),
+            'agent_id' => 'counter',
             'sender_name' => 'Test Sender',
             'receiver_name' => 'Test Receiver',
             'currency' => 'UGX',

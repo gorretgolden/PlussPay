@@ -125,11 +125,56 @@ class OfficeBookedForAgentTest extends TestCase
     {
         $admin = $this->user('admin', 'Desk Admin');
 
-        $transaction = $this->book($admin, ['agent_id' => '']);
+        $transaction = $this->book($admin, ['agent_id' => 'counter']);
 
         $this->assertSame($admin->id, $transaction->created_by);
         $this->assertSame(['money_in:UGX-UG' => '500000.00'], $this->lines($transaction->id));
         $this->assertStringNotContainsString('Booked in the name of', (string) session('success'));
+    }
+
+    public function test_the_office_cannot_book_until_it_says_whose_money_it_is(): void
+    {
+        $admin = $this->user('admin', 'Desk Admin');
+        $this->user('agent', 'Sarah Nalin');
+
+        $this->actingAs($admin)->get('/transactions/create');
+
+        // Leaving the question out altogether and leaving the box blank are both refusals: the
+        // counter only holds money when the office picks it on purpose.
+        foreach ([[], ['agent_id' => '']] as $extra) {
+            $this->actingAs($admin)->post('/transactions', $this->payload($extra))
+                ->assertSessionHasErrors('agent_id');
+        }
+
+        $this->assertSame(0, Transaction::count());
+        $this->assertSame(0, AccountEntry::count());
+    }
+
+    public function test_the_answer_has_to_be_given_before_the_wizard_moves_on(): void
+    {
+        $admin = $this->user('admin', 'Desk Admin');
+        $this->user('agent', 'Sarah Nalin');
+
+        $html = $this->actingAs($admin)->get('/transactions/create')->assertOk()->getContent();
+
+        // Opening on a name would book the money in that agent's hand before anyone read the question.
+        $this->assertStringContainsString('Which agent took this money? *', $html);
+        $this->assertStringContainsString('name="agent_id" id="agent_id" required', $html);
+        $this->assertMatchesRegularExpression(
+            '/<option value=""[^>]*selected[^>]*>Agent or the counter<\/option>/',
+            $html
+        );
+        $this->assertStringContainsString('<option value="counter"', $html);
+    }
+
+    public function test_the_office_is_told_there_is_no_agent_to_book_for(): void
+    {
+        $admin = $this->user('admin', 'Desk Admin');
+
+        $html = $this->actingAs($admin)->get('/transactions/create')->assertOk()->getContent();
+
+        $this->assertStringContainsString('There is no open agent on the Uganda desk to book for', $html);
+        $this->assertStringNotContainsString('name="agent_id"', $html);
     }
 
     public function test_the_picker_offers_only_open_agents_on_the_uganda_desk(): void
