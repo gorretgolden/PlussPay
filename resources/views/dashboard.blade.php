@@ -123,6 +123,39 @@
     @endforeach
 </div>
 
+@php
+    // Shortcuts to the work people come here to do. Each one is dropped when its ability is
+    // missing, so nobody is handed a button that bounces back with a permission error, and a
+    // role that books nothing at all gets no card rather than a row of dead links. Every label
+    // is the words the screen it opens uses, so one thing never carries two names.
+    $quickActions = array_values(array_filter([
+        ['create-transaction', 'Send Money', 'Book a transfer', 'transactions.create', 'M12 4v16m8-8H4'],
+        ['create-exchange', 'Record Exchange', 'Buy or sell notes', 'exchanges.create', 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4'],
+        ['create-expense', 'Record Expense', 'Money spent here', 'expenses.create', 'M12 3v11m0 0l-4-4m4 4l4-4M4 20h16'],
+        ['view-expenses', 'Expenses', 'Every expense logged', 'expenses.index', 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
+        ['view-exchange-rates', 'Exchange Rates', "Today's prices", 'exchange-rates.index', 'M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2zm3-14h4m-4 4h4m-4 4h4'],
+        ['create-customer', 'Add Customer', 'Save a person', 'customers.create', 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
+    ], fn (array $a) => $me->can($a[0])));
+@endphp
+@if($quickActions !== [])
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        @foreach($quickActions as [$ability, $label, $hint, $route, $glyph])
+        <a href="{{ route($route) }}" class="flex items-center gap-3 min-w-0 rounded-lg border border-gray-200 p-3 hover:border-green-300 hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+            <span aria-hidden="true" class="w-9 h-9 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $glyph }}"/></svg>
+            </span>
+            <span class="min-w-0">
+                <span class="block text-sm font-semibold text-gray-900">{{ $label }}</span>
+                <span class="block text-xs text-gray-500 truncate">{{ $hint }}</span>
+            </span>
+        </a>
+        @endforeach
+    </div>
+</div>
+@endif
+
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -245,10 +278,9 @@
 
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
     <div class="px-4 sm:px-6 py-4 border-b border-gray-200 flex flex-wrap justify-between items-center gap-3">
+        {{-- The button that used to sit here booked the same thing as Send Money in Quick
+             Actions above, under a second name. One call per action per page. --}}
         <h2 class="text-lg font-semibold text-gray-900">Recent Transactions</h2>
-        @can('create-transaction')
-        <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">New Transaction</a>
-        @endcan
     </div>
     <div class="overflow-x-auto">
         <table class="w-full min-w-[760px] divide-y divide-gray-200">

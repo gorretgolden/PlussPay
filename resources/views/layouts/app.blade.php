@@ -86,17 +86,26 @@
                 </a>
                 @endcan
 
+                {{-- Read as "money out": an arrow leaving the wallet. The wallet glyph is taken
+                     by My Wallet and the banknote one by the Accounts group. --}}
+                @can('view-expenses')
+                <a href="{{ route('expenses.index') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('expenses.*') ? 'active' : '' }}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v11m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
+                    Expenses
+                </a>
+                @endcan
+
                 {{-- Accounts Group --}}
                 @can('view-accounts')
                 <div>
-                    <button type="button" onclick="toggleAccountsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.*') || request()->routeIs('expenses.*') ? 'bg-green-800' : '' }}">
+                    <button type="button" onclick="toggleAccountsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.*') ? 'bg-green-800' : '' }}">
                         <span class="flex items-center">
                             <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
                             Accounts
                         </span>
-                        <svg id="accountsChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('accounts.*') || request()->routeIs('expenses.*') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        <svg id="accountsChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('accounts.*') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
-                    <div id="accountsGroup" class="{{ request()->routeIs('accounts.*') || request()->routeIs('expenses.*') ? '' : 'hidden' }}">
+                    <div id="accountsGroup" class="{{ request()->routeIs('accounts.*') ? '' : 'hidden' }}">
                         <a href="{{ route('accounts.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.index') ? 'active' : '' }}">
                             Balances
                         </a>
@@ -111,11 +120,6 @@
                         <a href="{{ route('accounts.daily-balances') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.daily-balances') ? 'active' : '' }}">
                             Daily Balances
                         </a>
-                        @can('view-expenses')
-                        <a href="{{ route('expenses.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('expenses.*') ? 'active' : '' }}">
-                            Expenses
-                        </a>
-                        @endcan
                     </div>
                 </div>
                 @endcan
@@ -202,16 +206,16 @@
                 @endcanany
 
                 {{-- Settings Group --}}
-                @canany(['view-settings', 'view-exchange-rates'])
+                @canany(['view-settings', 'view-exchange-rates', 'manage-expense-categories'])
                 <div>
-                    <button type="button" onclick="toggleSettingsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('settings.*') || request()->routeIs('exchange-rates.*') ? 'bg-green-800' : '' }}">
+                    <button type="button" onclick="toggleSettingsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('settings.*') || request()->routeIs('exchange-rates.*') || request()->routeIs('expense-categories.*') ? 'bg-green-800' : '' }}">
                         <span class="flex items-center">
                             <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                             Settings
                         </span>
-                        <svg id="settingsChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('settings.*') || request()->routeIs('exchange-rates.*') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        <svg id="settingsChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('settings.*') || request()->routeIs('exchange-rates.*') || request()->routeIs('expense-categories.*') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
-                    <div id="settingsGroup" class="{{ request()->routeIs('settings.*') || request()->routeIs('exchange-rates.*') ? '' : 'hidden' }}">
+                    <div id="settingsGroup" class="{{ request()->routeIs('settings.*') || request()->routeIs('exchange-rates.*') || request()->routeIs('expense-categories.*') ? '' : 'hidden' }}">
                         @can('view-settings')
                         <a href="{{ route('settings.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('settings.*') ? 'active' : '' }}">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
@@ -222,6 +226,14 @@
                         <a href="{{ route('exchange-rates.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('exchange-rates.*') ? 'active' : '' }}">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                             Exchange Rates
+                        </a>
+                        @endcan
+                        {{-- The heads are the list an expense has to fall under, so it is set up
+                             here once by an admin rather than typed at every booking. --}}
+                        @can('manage-expense-categories')
+                        <a href="{{ route('expense-categories.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('expense-categories.*') ? 'active' : '' }}">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
+                            Spending Heads
                         </a>
                         @endcan
                     </div>
