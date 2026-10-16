@@ -193,7 +193,10 @@
                             <p data-field-error="history_ok" class="mt-1 text-sm text-red-700">@if($editing === $rate->id){{ $errors->first('history_ok') }}@endif</p>
                         </div>
                         @endif
-                        <div class="flex items-center gap-3">
+                        {{-- 24px is the label line (20px) plus its margin (4px), which drops the buttons
+                             onto the same line as the two inputs and keeps them there when an error
+                             message opens up underneath one. --}}
+                        <div class="flex items-center gap-3 mt-6">
                             <button type="submit" class="rounded-md bg-green-800 px-4 py-2 text-sm text-white hover:bg-green-700">Save</button>
                             <button type="button" onclick="toggleRateEdit({{ $rate->id }}, true)" class="rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-200">Cancel</button>
                         </div>
