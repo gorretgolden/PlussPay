@@ -328,7 +328,8 @@
                 const open = trigger.getAttribute('aria-expanded') !== 'true'; closeMenus(); if (!open) return;
                 const menu = document.getElementById(trigger.dataset.userMenu); menu.hidden = false;
                 const rect = trigger.getBoundingClientRect();
-                menu.style.left = `${Math.max(8, Math.min(innerWidth - 208, rect.right - 200))}px`;
+                const menuWidth = menu.offsetWidth;
+                menu.style.left = `${Math.max(8, Math.min(innerWidth - menuWidth - 8, rect.right - menuWidth))}px`;
                 menu.style.top = `${Math.max(8, Math.min(innerHeight - menu.offsetHeight - 8, rect.bottom + 4))}px`;
                 trigger.setAttribute('aria-expanded', 'true'); one('a,button', menu)?.focus();
             }
