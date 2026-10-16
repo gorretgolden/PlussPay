@@ -181,4 +181,18 @@ class TransferFlowTest extends TestCase
                 && $w['today']['cancelled'] === 1
                 && $w['all']['cancelled'] === 1);
     }
+
+    public function test_the_booking_form_opens_with_the_note_already_typed_in(): void
+    {
+        $html = $this->actingAs($this->user('superadmin'))
+            ->get('/transactions/create')->assertOk()->getContent();
+
+        // Grey hint text is not an answer: it vanishes the moment you click into the box and the
+        // transfer is saved without it. The note has to be in the field as real text.
+        $this->assertMatchesRegularExpression(
+            '/<input[^>]*name="notes"[^>]*value="Sending money to China"/',
+            $html
+        );
+        $this->assertStringNotContainsString('placeholder="Sending money to China"', $html);
+    }
 }
