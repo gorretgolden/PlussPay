@@ -68,8 +68,46 @@ class SettingsTabsTest extends TestCase
         $this->assertStringContainsString('Selling rate <span class="text-gray-500">(RMB/USD)</span>', $html);
         $this->assertStringNotContainsString('id="unit-usd_ugx_buying"', $html);
         $this->assertStringNotContainsString('aria-describedby="unit-', $html);
-        $this->assertStringContainsString('A positive margin means buying shillings cheap', $html);
-        $this->assertStringContainsString('A positive margin means crediting the receiver at the selling price', $html);
+        // One short line per card, and the two opposite rules named side by side.
+        $this->assertStringContainsString('Selling must be higher than buying.', $html);
+        $this->assertStringContainsString('For yuan payouts, buying must be higher than selling.', $html);
+        $this->assertStringNotContainsString('A positive margin means', $html);
+    }
+
+    public function test_each_card_describes_the_direction_it_prices_and_holds_its_detail_behind_a_question_mark(): void
+    {
+        $html = $this->get('/settings')->assertOk()->getContent();
+        $this->assertStringContainsString('Dollars to shillings.', $html);
+        $this->assertStringContainsString('Dollars to yuan for China payouts.', $html);
+        $this->assertStringNotContainsString('Convert shillings into dollars', $html);
+        $this->assertStringNotContainsString('Price RMB payouts to China.', $html);
+
+        // The working belongs in the tooltip, so each explanation appears exactly once on the page.
+        $this->assertSame(1, substr_count($html, 'Margin = selling - buying'));
+        $this->assertSame(1, substr_count($html, 'Margin = buying - selling'));
+        $this->assertStringContainsString('<summary aria-label="How the UGX margin is worked out"', $html);
+        $this->assertStringContainsString('<summary aria-label="How the RMB margin is worked out"', $html);
+    }
+
+    public function test_each_card_names_the_price_in_use_and_who_last_set_it(): void
+    {
+        $live = ExchangeRate::getActiveRate('USD', 'UGX');
+
+        // A row nobody has corrected yet is still traceable to the person who put it in.
+        $live->forceFill(['updated_by' => null])->save();
+        $html = $this->get('/settings')->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/Updated <time[^>]*>\w{3} \d{2}, \d{4} \d{2}:\d{2} [AP]M<\/time> by '.preg_quote($live->creator->name, '/').'/', $html);
+
+        $editor = User::create([
+            'name' => 'Ruth Backoffice', 'email' => 'ruth@example.test',
+            'password' => 'Password123', 'is_active' => true,
+        ]);
+        $live->forceFill(['updated_by' => $editor->id])->save();
+        $this->get('/settings')->assertOk()->assertSee('by '.$editor->fresh()->name.'.', false);
+
+        ExchangeRate::where('from_currency', 'USD')->where('to_currency', 'RMB')->update(['is_active' => false]);
+        $this->get('/settings')->assertOk()->assertSee('No price is in use for USD to RMB.')
+            ->assertSee('Rate history');
     }
 
     public function test_company_save_cannot_overwrite_other_tabs_even_with_extra_payload_fields(): void

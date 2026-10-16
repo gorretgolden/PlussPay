@@ -22,17 +22,17 @@ class SettingController extends Controller
     public function index(Request $request)
     {
         $settings = Setting::all()->groupBy('group');
-        $usdToUgx = ExchangeRate::usdToUgx();
+        $usdUgxRow = ExchangeRate::getActiveRate('USD', 'UGX');
+        $usdRmbRow = ExchangeRate::getActiveRate('USD', 'RMB');
         $usdUgxPair = ExchangeRate::usdUgxPair();
-        $usdToRmb = ExchangeRate::getActiveRate('USD', 'RMB');
         $usdRmbPair = ExchangeRate::pair('USD', 'RMB');
         $testingModeBlocked = self::testingModeBlocked($request);
 
         return view('settings.index', compact(
             'settings',
-            'usdToUgx',
+            'usdUgxRow',
+            'usdRmbRow',
             'usdUgxPair',
-            'usdToRmb',
             'usdRmbPair',
             'testingModeBlocked'
         ));

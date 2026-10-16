@@ -40,15 +40,67 @@
         return { buy, sell, buyField, sellField, margin: currency === 'ugx' ? sell - buy : buy - sell };
     }
 
+    // The two pairs earn in opposite directions: shillings on the way in, yuan on the way out to
+    // China, so each card names the side that has to carry the higher figure.
+    function pairProblems(currency) {
+        const buyField = page.querySelector(`#usd_${currency}_buying`);
+        const sellField = page.querySelector(`#usd_${currency}_selling`);
+        const buy = raw(buyField.value);
+        const sell = raw(sellField.value);
+        if (buy && !sell) {
+            return [[sellField, 'Enter a selling rate, or clear the buying rate to leave it unchanged.']];
+        }
+        if (!buy || !sell) return [];
+        const inverted = currency === 'ugx' ? Number(sell) <= Number(buy) : Number(buy) <= Number(sell);
+        if (!inverted) return [];
+        // The card line below the margin already states the rule, so the field says what to type.
+        const side = currency === 'ugx' ? 'Selling' : 'Buying';
+        const floor = currency === 'ugx' ? format(buy) : format(sell);
+        return [[currency === 'ugx' ? sellField : buyField, `${side} must be more than ${floor}.`]];
+    }
+
+    const appliedPairErrors = new Map();
+    function applyPairError(field, message) {
+        if (!message && !appliedPairErrors.has(field)) return 0;
+        if (message) {
+            window.formValidation?.setError(field, message);
+            appliedPairErrors.set(field, message);
+            return 1;
+        }
+        window.formValidation?.clearError(field);
+        appliedPairErrors.delete(field);
+        return 0;
+    }
+
+    function showPairErrors() {
+        let blocked = 0;
+        ['ugx', 'rmb'].forEach((currency) => {
+            const problems = pairProblems(currency);
+            const expected = new Map(problems);
+            [page.querySelector(`#usd_${currency}_buying`), page.querySelector(`#usd_${currency}_selling`)].forEach((field) => {
+                blocked += applyPairError(field, expected.get(field) || '');
+            });
+        });
+        return blocked;
+    }
+
     function updatePreviews() {
         ['ugx', 'rmb'].forEach((currency) => {
+            const card = page.querySelector(`[data-rate-pair="${currency}"]`);
             const pair = effectivePair(currency);
-            const output = page.querySelector(`[data-rate-pair="${currency}"] [data-margin]`);
+            const output = card.querySelector('[data-margin]');
+            const rule = card.querySelector('[data-margin-rule]');
             const margin = pair ? Number(pair.margin.toFixed(6)) : null;
+            const short = margin !== null && margin <= 0;
             output.textContent = margin === null ? 'Margin: Enter a selling rate' : `Margin: ${margin > 0 ? '+' : ''}${format(margin)} ${currency.toUpperCase()}/USD`;
-            output.classList.toggle('text-red-700', margin !== null && margin < 0);
-            output.classList.toggle('text-green-800', margin !== null && margin >= 0);
+            output.classList.toggle('text-red-700', short);
+            output.classList.toggle('text-green-800', !short);
+            rule.textContent = short ? card.dataset.marginWarn : rule.dataset.ok;
+            rule.classList.toggle('text-red-700', short);
+            rule.classList.toggle('font-medium', short);
+            rule.classList.toggle('text-gray-500', !short);
         });
+        showPairErrors();
         const preview = page.querySelector('#receipt-preview');
         preview.textContent = `${page.querySelector('#receipt_prefix').value.trim() || 'PS'}-${preview.dataset.date}-0001`;
         const siteMode = page.querySelector('#site_mode');
@@ -57,8 +109,12 @@
 
     function update(form, edited = false) {
         const isDirty = dirty(form);
+        const status = form.querySelector('[data-save-status]');
         form.querySelector('[data-save]').disabled = !isDirty;
-        if (edited || isDirty) form.querySelector('[data-save-status]').textContent = isDirty ? 'Unsaved changes' : 'No unsaved changes';
+        if (edited || isDirty) status.textContent = isDirty ? 'Unsaved changes' : 'No unsaved changes';
+        status.classList.toggle('text-amber-700', isDirty);
+        status.classList.toggle('font-medium', isDirty);
+        status.classList.toggle('text-gray-500', !isDirty);
         updatePreviews();
     }
 
@@ -78,7 +134,12 @@
                     warnings.push(`${field.dataset.label} changes by more than 5%.`);
                 }
             });
-            if (pairChanged && pair.margin < 0) warnings.push(`${currency.toUpperCase()} margin is negative (${format(Number(pair.margin.toFixed(6)))} ${currency.toUpperCase()}/USD). This pair would lose money.`);
+            if (pairChanged && pair.margin <= 0) {
+                const figure = `${format(Number(pair.margin.toFixed(6)))} ${currency.toUpperCase()}/USD`;
+                warnings.push(pair.margin < 0
+                    ? `${currency.toUpperCase()} margin is negative (${figure}). This pair would lose money.`
+                    : `${currency.toUpperCase()} margin is zero. Both prices are the same, so this pair earns nothing.`);
+            }
         });
         return { message: [...lines, ...warnings].join('\n'), danger: warnings.length > 0 };
     }
@@ -131,6 +192,7 @@
         const message = validateMoney(field);
         if (!message) field.value = format(field.value);
         if (message) window.formValidation?.setError(field, message);
+        updatePreviews();
     });
 
     forms.forEach((form) => {
@@ -153,8 +215,9 @@
                 const message = validateMoney(field);
                 if (message) { valid = false; window.formValidation?.setError(field, message); }
             });
-            if (!valid || !form.reportValidity()) {
-                controls(form).find((field) => !field.validity.valid)?.focus();
+            const blockedPairs = form.dataset.settingsForm === 'rates' ? showPairErrors() : 0;
+            if (!valid || blockedPairs || !form.reportValidity()) {
+                controls(form).find((field) => !field.validity.valid || field.getAttribute('aria-invalid') === 'true')?.focus();
                 return;
             }
             const before = snapshot(form);

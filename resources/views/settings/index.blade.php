@@ -11,8 +11,20 @@
     if (!isset($tabs[$activeTab])) $activeTab = 'rates';
     $trimRate = fn ($value) => $value === null ? '' : rtrim(rtrim(number_format((float) $value, 6, '.', ''), '0'), '.');
     $pairs = [
-        'ugx' => ['unit' => 'UGX', 'pair' => $usdUgxPair, 'min' => '0.01', 'max' => '999999.99', 'helper' => 'Convert shillings into dollars.', 'rule' => 'buying shillings cheap and selling them dear, so the selling price must be the higher one'],
-        'rmb' => ['unit' => 'RMB', 'pair' => $usdRmbPair, 'min' => '0.000001', 'max' => '999999.999999', 'helper' => 'Price RMB payouts to China.', 'rule' => 'crediting the receiver at the selling price and settling with the China side at the buying price, so the buying price must be the higher one'],
+        'ugx' => [
+            'unit' => 'UGX', 'pair' => $usdUgxPair, 'row' => $usdUgxRow, 'min' => '0.01', 'max' => '999999.99',
+            'helper' => 'Dollars to shillings.',
+            'rule' => 'Selling must be higher than buying.',
+            'warn' => 'Selling rate must be higher than buying rate.',
+            'more' => 'Buying is the shilling cost of a dollar. Selling is the shillings a customer hands over for one. Margin = selling - buying, so a positive margin means shillings were bought cheap and sold dear.',
+        ],
+        'rmb' => [
+            'unit' => 'RMB', 'pair' => $usdRmbPair, 'row' => $usdRmbRow, 'min' => '0.000001', 'max' => '999999.999999',
+            'helper' => 'Dollars to yuan for China payouts.',
+            'rule' => 'For yuan payouts, buying must be higher than selling.',
+            'warn' => 'Buying rate must be higher than selling rate.',
+            'more' => 'Selling prices what the receiver is credited. Buying is what the yuan cost on the China side. Margin = buying - selling, the reverse of the shilling card, so a positive margin means the payout was priced below the settlement.',
+        ],
     ];
     $fields = [
         'transactions' => [
@@ -36,7 +48,7 @@
         ],
     ];
 @endphp
-<div id="settings-page" class="max-w-5xl mx-auto" data-active-tab="{{ $activeTab }}">
+<div id="settings-page" class="mx-auto max-w-5xl pb-10" data-active-tab="{{ $activeTab }}">
     <header class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
         <p class="mt-1 text-sm text-gray-600">Manage one section at a time.</p>
@@ -61,12 +73,7 @@
                 @method('PUT')
                 <input type="hidden" name="settings_tab" value="{{ $tab }}">
                 <div class="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-                    <div class="flex items-center justify-between gap-3 mb-5">
-                        <h2 class="text-lg font-semibold text-gray-900">{{ $label }}</h2>
-                        @if ($tab === 'rates')
-                            <a href="{{ route('exchange-rates.index') }}" class="text-sm font-medium text-green-800 underline underline-offset-4">Rate history</a>
-                        @endif
-                    </div>
+                    <h2 class="mb-5 text-lg font-semibold text-gray-900">{{ $label }}</h2>
 
                     @if ($tab === 'rates')
                         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -75,7 +82,7 @@
                                     $pair = $rate['pair'];
                                     $margin = $pair ? ($currency === 'ugx' ? $pair['sell'] - $pair['buy'] : $pair['buy'] - $pair['sell']) : null;
                                 @endphp
-                                <fieldset class="min-w-0 rounded-lg border border-gray-200 p-4" data-rate-pair="{{ $currency }}">
+                                <fieldset class="min-w-0 rounded-lg border border-gray-200 p-4" data-rate-pair="{{ $currency }}" data-margin-warn="{{ $rate['warn'] }}">
                                     <legend class="px-1 text-base font-semibold text-gray-900">USD → {{ $rate['unit'] }}</legend>
                                     <p class="mb-4 text-xs text-gray-500">{{ $rate['helper'] }}</p>
                                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -87,22 +94,36 @@
                                             <div class="min-w-0">
                                                 <label for="{{ $key }}" class="block text-sm font-medium text-gray-700 mb-1">{{ $rateLabel }} <span class="text-gray-500">({{ $rate['unit'] }}/USD)</span></label>
                                                 <div class="flex items-center rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-green-600">
-                                                    <input id="{{ $key }}" name="{{ $key }}" type="text" inputmode="decimal" pattern="(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?" data-money data-min="{{ $rate['min'] }}" data-max="{{ $rate['max'] }}" data-original="{{ $saved }}" data-label="{{ $rate['unit'] }} {{ strtolower($rateLabel) }}" value="{{ old($key, $saved) }}" aria-describedby="error-{{ $key }}" @if ($errors->has($key)) aria-invalid="true" @endif class="min-w-0 w-full bg-transparent px-3 py-2 outline-none tabular-nums">
+                                                    <input id="{{ $key }}" name="{{ $key }}" type="text" inputmode="decimal" pattern="(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?" data-validation-message="Numbers only, with commas between thousands." data-money data-min="{{ $rate['min'] }}" data-max="{{ $rate['max'] }}" data-original="{{ $saved }}" data-label="{{ $rate['unit'] }} {{ strtolower($rateLabel) }}" value="{{ old($key, $saved) }}" aria-describedby="error-{{ $key }}" @if ($errors->has($key)) aria-invalid="true" @endif class="min-w-0 w-full bg-transparent px-3 py-2 outline-none tabular-nums">
                                                 </div>
                                                 <p id="error-{{ $key }}" data-field-error="{{ $key }}" class="mt-1 text-xs text-red-700">@error($key){{ $message }}@enderror</p>
                                             </div>
                                         @endforeach
                                     </div>
-                                    <p data-margin class="mt-4 rounded-md bg-gray-50 px-3 py-2 text-sm font-medium tabular-nums {{ $margin !== null && $margin < 0 ? 'text-red-700' : 'text-green-800' }}" aria-live="polite">Margin: {{ $margin === null ? 'Not set' : ($margin > 0 ? '+' : '').$trimRate($margin).' '.$rate['unit'].'/USD' }}</p>
-                                    <p class="mt-1 text-xs text-gray-500">A positive margin means {{ $rate['rule'] }}.</p>
+                                    <div class="mt-4 flex items-center gap-2">
+                                        <p data-margin class="min-w-0 flex-1 rounded-md bg-gray-50 px-3 py-2 text-sm font-medium tabular-nums {{ $margin === null || $margin > 0 ? 'text-green-800' : 'text-red-700' }}" aria-live="polite">Margin: {{ $margin === null ? 'Enter a selling rate' : ($margin > 0 ? '+' : '').$trimRate($margin).' '.$rate['unit'].'/USD' }}</p>
+                                        <details class="relative shrink-0">
+                                            <summary aria-label="How the {{ $rate['unit'] }} margin is worked out" class="list-none h-5 w-5 cursor-pointer rounded-full border border-gray-400 text-center text-xs leading-4 text-gray-600 hover:border-green-700 hover:text-green-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-700">?</summary>
+                                            <p class="absolute right-0 top-7 z-20 w-64 rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-700 shadow-lg">{{ $rate['more'] }}</p>
+                                        </details>
+                                    </div>
+                                    <p data-margin-rule data-ok="{{ $rate['rule'] }}" class="mt-1 text-xs {{ $margin === null || $margin > 0 ? 'text-gray-500' : 'text-red-700 font-medium' }}">{{ $margin === null || $margin > 0 ? $rate['rule'] : $rate['warn'] }}</p>
+                                    <p class="mt-3 text-xs text-gray-500">
+                                        @if ($rate['row'])
+                                            Updated <time datetime="{{ $rate['row']->updated_at->toIso8601String() }}" class="tabular-nums">{{ $rate['row']->updated_at->format('M d, Y h:i A') }}</time> by {{ $rate['row']->editor?->name ?? $rate['row']->creator?->name ?? 'nobody' }}.
+                                        @else
+                                            No price is in use for USD to {{ $rate['unit'] }}.
+                                        @endif
+                                        <a href="{{ route('exchange-rates.index') }}" class="font-medium text-green-800 underline underline-offset-4">Rate history</a>
+                                    </p>
                                 </fieldset>
                             @endforeach
                         </div>
                         <details class="mt-5 text-sm text-gray-600">
                             <summary class="cursor-pointer font-medium text-green-800">Learn more about rates</summary>
                             <div class="mt-3 space-y-2">
-                                <p>A negative margin means a loss. Changes over 5% and negative margins need review, but are not blocked.</p>
-                                <p>Leave selling blank to skip that pair. Blank buying keeps its saved value, or uses selling for a new pair. Previous rates remain in history.</p>
+                                <p>A blank selling rate leaves its pair unchanged. A blank buying rate keeps the saved one.</p>
+                                <p>Changes over 5% need review, but are not blocked. Previous rates stay in the history.</p>
                             </div>
                         </details>
                     @else
