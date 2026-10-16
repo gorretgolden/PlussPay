@@ -6,7 +6,14 @@
 @php
     $me = auth()->user();
     $hour = (int) now()->format('G');
-    $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
+    // Kampala hours: the small band is the night, and a 3 AM reader is not being wished
+    // a morning. The hour comes from the app time zone, so only these thresholds matter.
+    $greeting = match (true) {
+        $hour >= 5 && $hour < 12 => 'Good morning',
+        $hour >= 12 && $hour < 18 => 'Good afternoon',
+        $hour >= 18 => 'Good evening',
+        default => 'Hello',
+    };
     $desk = $me->countryLabel();
 
     // Stored UGX, not a fresh conversion, so these match the Reports page. A charge or a profit
@@ -51,10 +58,17 @@
     $hasTransfers = array_sum($chartData['transactions']) > 0;
     $hasCharge = array_sum($chartData['revenue_ugx']) > 0;
     $hasExchange = isset($chartData['exchange_ugx']) && array_sum($chartData['exchange_ugx']) > 0;
+
+    // The shared Super Admin account is named after its own role, so its first word ("Super")
+    // is not a person. When the name only repeats the role, the greeting is left without one.
+    $firstName = trim(Str::before($me->name, ' '));
+    $who = $firstName === '' || strcasecmp($firstName, $role) === 0 || strcasecmp($firstName, trim(Str::before($role, ' '))) === 0
+        ? ''
+        : $firstName;
 @endphp
 <div class="mb-6">
     <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
-    <p class="text-gray-600 mt-1">{{ $greeting }}, {{ Str::before($me->name, ' ') }}.</p>
+    <p class="text-gray-600 mt-1">{{ $greeting }}{{ $who ? ', '.$who : '' }}.</p>
     <div class="flex flex-wrap items-center gap-3 mt-3">
         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize">{{ $role }}</span>
         {{-- No flag emoji: Windows draws them as two bare letters, which reads as a fault. --}}
@@ -103,7 +117,7 @@
         <div class="text-xs text-gray-500 mt-2">Charge kept this month: UGX {{ number_format($commissionMonth) }}</div>
         @endif
         @if($balance <= 0)
-        <div class="text-xs text-gray-500 mt-1">Nothing in this wallet yet. @can('adjust-wallets')Open it to record money in.@endcan</div>
+        <div class="text-xs text-gray-500 mt-1">No balance yet. @can('adjust-wallets')<span class="font-semibold text-gray-700 underline">Add money</span>@endcan</div>
         @endif
     </a>
     @endforeach

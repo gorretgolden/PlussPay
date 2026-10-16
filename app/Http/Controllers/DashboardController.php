@@ -18,7 +18,9 @@ class DashboardController extends Controller
     public function index()
     {
         $user = auth()->user();
-        $role = $user->getRoleNames()->first() ?? 'User';
+        // The badge is read by people, so it carries the same display name the sidebar and the
+        // Users table use instead of the raw role slug.
+        $role = RolePermissionController::displayName($user->getRoleNames()->first() ?? 'user');
         $usdToUgx = $this->usdToUgxRate();
 
         // The board prints every figure once, out of the window the reader has picked. The
