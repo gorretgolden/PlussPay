@@ -274,20 +274,43 @@ class AccountLedger
         $rate = $exchange->rate ? (string) $exchange->rate : null;
         $in = $exchange->inAccount;
         $out = $exchange->outAccount;
+        $fee = self::exchangeFee($exchange);
 
         if ($in) {
-            static::record(
-                $in,
-                'money_in',
-                (string) $exchange->in_amount,
-                'Currency exchange '.$exchange->reference.': '.Account::format($in->currency, $exchange->in_amount)
-                    .' taken in from '.$exchange->person_name,
-                $exchange->exchange_date->toDateString(),
-                $exchange->reference,
-                null,
-                $out,
-                $rate,
-            );
+            // What the customer handed over is split: the part that bought their currency and the
+            // commission the desk kept, so the money the deal earned shows as its own line instead
+            // of hiding inside the spread.
+            $bought = bcsub((string) $exchange->in_amount, $fee, 2);
+
+            if (bccomp($bought, '0.00', 2) > 0) {
+                static::record(
+                    $in,
+                    'money_in',
+                    $bought,
+                    'Currency exchange '.$exchange->reference.': '.Account::format($in->currency, $bought)
+                        .' taken in from '.$exchange->person_name,
+                    $exchange->exchange_date->toDateString(),
+                    $exchange->reference,
+                    null,
+                    $out,
+                    $rate,
+                );
+            }
+
+            if (bccomp($fee, '0.00', 2) > 0) {
+                static::record(
+                    $in,
+                    'exchange_fee',
+                    $fee,
+                    'Commission on currency exchange '.$exchange->reference.': '
+                        .Account::format($in->currency, $fee).' kept from '.$exchange->person_name,
+                    $exchange->exchange_date->toDateString(),
+                    $exchange->reference,
+                    null,
+                    null,
+                    $rate,
+                );
+            }
         }
 
         if ($out) {
@@ -304,6 +327,21 @@ class AccountLedger
                 $rate,
             );
         }
+    }
+
+    /**
+     * The commission as a plain figure, or zero. A deal recorded before the desk charged one still
+     * posts exactly the two legs it always did.
+     */
+    private static function exchangeFee(CurrencyExchange $exchange): string
+    {
+        $fee = $exchange->fee === null ? '0.00' : number_format((float) $exchange->fee, 2, '.', '');
+
+        if (bccomp($fee, '0.00', 2) <= 0 || bccomp($fee, (string) $exchange->in_amount, 2) > 0) {
+            return '0.00';
+        }
+
+        return $fee;
     }
 
     /**

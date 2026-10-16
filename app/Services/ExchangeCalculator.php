@@ -24,6 +24,13 @@ class ExchangeCalculator
     public const CURRENCIES = ['UGX', 'USD', 'RMB'];
 
     /**
+     * How many places each currency is ever written to. This is applied once, to the final figure,
+     * and never to anything on the way: rounding a shilling amount before it is divided into
+     * dollars moves the price the customer was quoted.
+     */
+    public const DECIMALS = ['UGX' => 0, 'USD' => 2, 'RMB' => 2];
+
+    /**
      * The four prices the card holds, or null when a leg cannot be priced. Nothing here is
      * guessed at when a rate is missing: the caller is told there is no quote.
      *
@@ -161,6 +168,59 @@ class ExchangeCalculator
             'RMB->USD' => "Each dollar costs {$rmbBuy} yuan, so yuan divided by {$rmbBuy} gives the dollars.",
             default => null,
         };
+    }
+
+    /**
+     * The price the money was worth outside the desk. A street price recorded on the rate card is
+     * used as saved; otherwise the middle of the two desk prices stands in, because a deal done
+     * between them sits somewhere in that gap.
+     *
+     * @return array{usd: string, rmb: string}|null
+     */
+    public static function mid(?array $card): ?array
+    {
+        if (! $card) {
+            return null;
+        }
+
+        return [
+            'usd' => ExchangeRate::marketPrice('USD', 'UGX') ?? self::middle($card['usd_buy'], $card['usd_sell']),
+            'rmb' => ExchangeRate::marketPrice('USD', 'RMB') ?? self::middle($card['rmb_buy'], $card['rmb_sell']),
+        ];
+    }
+
+    private static function middle(string $buy, string $sell): string
+    {
+        return bcdiv(bcadd($buy, $sell, 6), '2', 6);
+    }
+
+    /**
+     * The same pair priced at the street rather than at either of the desk's own prices, so a
+     * receipt can show the price given next to the price the market was at.
+     */
+    public static function market(?array $card, string $inCurrency, string $inAmount, string $outCurrency): ?string
+    {
+        $mid = self::mid($card);
+
+        if (! $mid) {
+            return null;
+        }
+
+        return self::suggest([
+            'usd_buy' => $mid['usd'],
+            'usd_sell' => $mid['usd'],
+            'rmb_buy' => $mid['rmb'],
+            'rmb_sell' => $mid['rmb'],
+        ], $inCurrency, $inAmount, $outCurrency);
+    }
+
+    /**
+     * One currency's own way of being written: shillings to the whole note, dollars and yuan to
+     * two places. Applied to the answer, never to a step on the way to it.
+     */
+    public static function settle(string $currency, string $value): string
+    {
+        return number_format((float) $value, self::DECIMALS[strtoupper($currency)] ?? 2, '.', '');
     }
 
     private static function shillings(string $rate): string

@@ -15,6 +15,8 @@ class ExchangeRate extends Model
         'rate',
         'buy_rate',
         'sell_rate',
+        'market_rate',
+        'effective_from',
         'is_active',
         'created_by',
         'updated_by',
@@ -24,6 +26,8 @@ class ExchangeRate extends Model
         'rate' => 'decimal:6',
         'buy_rate' => 'decimal:6',
         'sell_rate' => 'decimal:6',
+        'market_rate' => 'decimal:6',
+        'effective_from' => 'date',
         'is_active' => 'boolean',
     ];
 
@@ -32,6 +36,20 @@ class ExchangeRate extends Model
         static::updating(function (self $rate): void {
             if (! $rate->isDirty('updated_by') && ($editor = auth()->id())) {
                 $rate->updated_by = $editor;
+            }
+        });
+
+        // A price written today starts today, so the books can always say when a figure took effect
+        // even if the row was entered late or corrected later.
+        static::creating(function (self $rate): void {
+            $rate->effective_from ??= now()->toDateString();
+        });
+
+        // When the entry date itself moves, an import or a back-dated fix, the price starts with it.
+        // Leaving the old day on the effective date would make the row unreadable for that history.
+        static::updating(function (self $rate): void {
+            if ($rate->isDirty('created_at') && $rate->effective_from !== null) {
+                $rate->effective_from = $rate->created_at->toDateString();
             }
         });
     }
@@ -124,15 +142,32 @@ class ExchangeRate extends Model
     /**
      * The row that stood for a pair at a moment in the past. Saving a new rate retires the
      * old one but keeps its timestamp, so the live quote on any date is simply the newest row
-     * created at or before that date. Null when the pair had no rate yet.
+     * whose start date had arrived by then. A row with no recorded start date is read at the
+     * moment it was typed. Null when the pair had no rate yet.
      */
     public static function rateLiveAt(string $from, string $to, \Carbon\CarbonInterface $at): ?self
     {
+        $date = $at->toDateString();
+
         return static::where('from_currency', $from)
             ->where('to_currency', $to)
-            ->where('created_at', '<=', $at)
-            ->latest('created_at')
+            ->where(fn (Builder $q) => $q->whereDate('effective_from', '<=', $date)
+                ->orWhere(fn (Builder $inner) => $inner->whereNull('effective_from')->whereDate('created_at', '<=', $date)))
+            ->orderByRaw('COALESCE(effective_from, created_at) desc, id desc')
             ->first();
+    }
+
+    /**
+     * The street price saved against the live row of a pair, if anyone recorded one. This is the
+     * figure a slip quotes as the market on the day, and it is deliberately separate from the two
+     * desk prices: the buying and selling rates are what we deal at, the market rate is what the
+     * money was worth outside.
+     */
+    public static function marketPrice(string $from, string $to): ?string
+    {
+        $row = static::getActiveRate($from, $to);
+
+        return $row?->market_rate === null ? null : (string) $row->market_rate;
     }
 
     /**
@@ -177,8 +212,12 @@ class ExchangeRate extends Model
         return null;
     }
 
-    public static function setPair(string $from, string $to, float $rate, ?float $buy = null, ?float $sell = null): self
+    public static function setPair(string $from, string $to, float $rate, ?float $buy = null, ?float $sell = null, ?float $market = null): self
     {
+        // Read before retiring: a blank street price keeps whatever the live row carried, so a
+        // market figure recorded once does not have to be retyped every time the desk prices move.
+        $market ??= static::marketPrice($from, $to);
+
         static::retirePair($from, $to);
 
         return static::create([
@@ -187,6 +226,7 @@ class ExchangeRate extends Model
             'rate' => $rate,
             'buy_rate' => $buy,
             'sell_rate' => $sell ?? $rate,
+            'market_rate' => $market,
             'is_active' => true,
             'created_by' => auth()->id(),
         ]);

@@ -12,7 +12,7 @@ final class PermissionCatalog
         'Users' => ['view-users', 'create-user', 'edit-user', 'delete-user', 'toggle-user-status', 'reset-user-password', 'lock-user', 'manage-user-two-factor', 'assign-roles', 'export-users'],
         'Roles' => ['view-roles', 'create-role', 'edit-role', 'delete-role', 'assign-permissions', 'seed-permissions'],
         'Transactions' => ['view-dashboard', 'view-transactions', 'view-own-transactions', 'view-all-transactions', 'edit-transaction', 'delete-transaction', 'approve-transaction', 'export-transactions'],
-        'Send Money' => ['create-transaction', 'bulk-import-transactions', 'view-exchanges', 'view-all-exchanges', 'create-exchange', 'void-exchange', 'export-exchanges'],
+        'Send Money' => ['create-transaction', 'bulk-import-transactions', 'view-exchanges', 'view-all-exchanges', 'create-exchange', 'void-exchange', 'override-exchange-rate', 'export-exchanges'],
         'Exchange Rates' => ['view-exchange-rates', 'manage-exchange-rates', 'export-exchange-rates'],
         'Wallets' => ['view-wallets', 'view-all-wallets', 'adjust-wallets'],
         'Receipts' => ['view-receipts', 'print-receipt', 'export-receipts'],
@@ -58,7 +58,7 @@ final class PermissionCatalog
     {
         return in_array($name, self::RESERVED, true)
             || str_starts_with($name, 'view-all-')
-            || preg_match('/^(delete|approve|void|manage|assign|adjust|reset|lock|bulk)-/', $name)
+            || preg_match('/^(delete|approve|void|manage|assign|adjust|reset|lock|bulk|override)-/', $name)
             || $name === 'view-profit';
     }
 
@@ -85,7 +85,7 @@ final class PermissionCatalog
             ]),
             'agent' => [
                 'view-dashboard', 'create-transaction', 'view-transactions', 'view-own-transactions',
-                'export-transactions', 'view-exchanges', 'create-exchange', 'export-exchanges',
+                'export-transactions', 'view-exchanges', 'create-exchange', 'override-exchange-rate', 'export-exchanges',
                 'view-wallets', 'view-receipts', 'print-receipt', 'export-receipts', 'view-reports', 'export-reports',
             ],
             // Desk staff booked nothing under the old role gates and saw only their own records,

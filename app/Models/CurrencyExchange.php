@@ -19,6 +19,9 @@ class CurrencyExchange extends Model
     public const ACTIVE = 'active';
     public const VOID = 'void';
 
+    /** How the money physically moved across the counter. */
+    public const PAYMENT_METHODS = ['Cash', 'Mobile money', 'Bank transfer', 'Cheque'];
+
     protected $fillable = [
         'reference',
         'exchange_date',
@@ -30,7 +33,11 @@ class CurrencyExchange extends Model
         'out_currency',
         'out_amount',
         'out_account_id',
+        'fee',
+        'payment_method',
         'rate',
+        'market_rate',
+        'rate_reason',
         'margin_ugx',
         'status',
         'notes',
@@ -41,7 +48,9 @@ class CurrencyExchange extends Model
         'exchange_date' => 'date',
         'in_amount' => 'decimal:2',
         'out_amount' => 'decimal:2',
+        'fee' => 'decimal:2',
         'rate' => 'decimal:6',
+        'market_rate' => 'decimal:6',
         'margin_ugx' => 'decimal:2',
     ];
 
@@ -98,7 +107,9 @@ class CurrencyExchange extends Model
      */
     public function quotedRate(): ?string
     {
-        $in = (float) $this->in_amount;
+        // Only what the commission left behind is priced, so the slip quotes the price the customer
+        // actually got rather than a figure dragged down by what the desk kept.
+        $in = (float) $this->in_amount - (float) ($this->fee ?? 0);
         $out = (float) $this->out_amount;
 
         if ($in <= 0 || $out <= 0) {
@@ -110,6 +121,49 @@ class CurrencyExchange extends Model
             : [$in / $out, $this->in_currency.' per 1 '.$this->out_currency];
 
         return rtrim(rtrim(number_format($figure, 6, '.', ''), '0'), '.').' '.$label;
+    }
+
+    /**
+     * The street price saved on the deal on the day it was done, said the same way round as the
+     * deal's own price. It is read off the stored figure rather than the current card on purpose:
+     * a slip printed later must not move when someone updates the rates.
+     */
+    public function quotedMarketRate(): ?string
+    {
+        $in = (float) $this->in_amount - (float) ($this->fee ?? 0);
+
+        if ($this->market_rate === null || $in <= 0 || (float) $this->out_amount <= 0) {
+            return null;
+        }
+
+        $label = (float) $this->out_amount >= $in
+            ? $this->out_currency.' per 1 '.$this->in_currency
+            : $this->in_currency.' per 1 '.$this->out_currency;
+
+        return rtrim(rtrim(number_format((float) $this->market_rate, 6, '.', ''), '0'), '.').' '.$label;
+    }
+
+    /**
+     * What the commission left behind after being taken out of what the customer handed over, which
+     * is the part of the money the deal was actually priced on.
+     */
+    public function pricedAmount(): string
+    {
+        $fee = $this->fee === null ? '0.00' : (string) $this->fee;
+
+        return bccomp($fee, (string) $this->in_amount, 2) >= 0
+            ? (string) $this->in_amount
+            : bcsub((string) $this->in_amount, $fee, 2);
+    }
+
+    /**
+     * Which desk the deal was done at, read off the account that took the money in.
+     */
+    public function deskLabel(): ?string
+    {
+        $country = $this->inAccount?->country;
+
+        return $country === null ? null : (User::COUNTRIES[$country] ?? $country);
     }
 
     public function scopeVisibleTo(Builder $query, User $user): Builder

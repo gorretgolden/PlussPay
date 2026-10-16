@@ -61,6 +61,7 @@ class CurrencyExchangeController extends Controller
             'customers' => auth()->user()->can('view-customers') ? Customer::where('is_active', true)->orderBy('name')->get(['id', 'name', 'phone']) : collect(),
             'card' => ExchangeCalculator::card(),
             'currencies' => ExchangeCalculator::CURRENCIES,
+            'paymentMethods' => CurrencyExchange::PAYMENT_METHODS,
         ]);
     }
 
@@ -73,9 +74,12 @@ class CurrencyExchangeController extends Controller
             'in_currency' => ['required', Rule::in(ExchangeCalculator::CURRENCIES)],
             'in_amount' => ['required', 'numeric', 'min:0.01'],
             'in_account_id' => ['required', 'integer', 'exists:accounts,id'],
+            'fee' => ['nullable', 'numeric', 'min:0'],
             'out_currency' => ['required', 'different:in_currency', Rule::in(ExchangeCalculator::CURRENCIES)],
             'out_amount' => ['required', 'numeric', 'min:0.01'],
             'out_account_id' => ['required', 'integer', 'different:in_account_id', 'exists:accounts,id'],
+            'payment_method' => ['nullable', Rule::in(CurrencyExchange::PAYMENT_METHODS)],
+            'rate_reason' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:500'],
         ], [
             'out_currency.different' => 'The two sides have to be different currencies. Take one currency in and hand another back.',
@@ -84,6 +88,7 @@ class CurrencyExchangeController extends Controller
             'out_account_id.different' => 'The money cannot leave the account it came into.',
             'in_amount.min' => 'Enter how much they handed over.',
             'out_amount.min' => 'Enter how much you handed back.',
+            'fee.min' => 'The commission cannot be less than nothing.',
         ]);
 
         abort_if(!empty($validated['customer_id']) && !$request->user()->can('view-customers'), 403);
@@ -111,8 +116,43 @@ class CurrencyExchangeController extends Controller
         }
 
         $inAmount = number_format((float) $validated['in_amount'], 2, '.', '');
-        $outAmount = number_format((float) $validated['out_amount'], 2, '.', '');
+        $fee = empty($validated['fee'])
+            ? '0.00'
+            : number_format((float) $validated['fee'], 2, '.', '');
+
+        if (bccomp($fee, $inAmount, 2) >= 0) {
+            return back()->withErrors([
+                'fee' => 'The commission is taken out of the '.($inCurrency).' handed over, so it has to be less than '
+                    .Account::format($inCurrency, $inAmount).'.',
+            ])->withInput();
+        }
+
         $card = ExchangeCalculator::card();
+        // The price is worked out on what is left after the commission, at full precision, and only
+        // the answer is written the way that currency is written.
+        $travels = bcsub($inAmount, $fee, 2);
+        $atCard = ExchangeCalculator::suggest($card, $inCurrency, $travels, $outCurrency);
+        $priced = $atCard === null ? null : ExchangeCalculator::settle($outCurrency, $atCard);
+
+        $outAmount = ExchangeCalculator::settle($outCurrency, number_format((float) $validated['out_amount'], 2, '.', ''));
+
+        // A figure the card gives anyway is the card's price. Anything else was agreed by hand at
+        // the counter and has to say so, whoever typed it.
+        $overridden = $priced !== null && $outAmount !== $priced;
+
+        if ($overridden) {
+            abort_unless($request->user()->can('override-exchange-rate'), 403);
+
+            if (trim((string) ($validated['rate_reason'] ?? '')) === '') {
+                return back()->withErrors([
+                    'rate_reason' => 'This price is not the one on the card ('.Account::format($outCurrency, $priced)
+                        .' for '.Account::format($inCurrency, $travels).' after the commission). '
+                        .'Say what the different price was agreed on; it goes on the record.',
+                ])->withInput();
+            }
+        }
+
+        $market = ExchangeCalculator::market($card, $inCurrency, $travels, $outCurrency);
 
         try {
             $exchange = CurrencyExchange::record([
@@ -125,7 +165,11 @@ class CurrencyExchangeController extends Controller
                 'out_currency' => $outCurrency,
                 'out_amount' => $outAmount,
                 'out_account_id' => $outAccount->id,
-                'rate' => $this->unitRate($inAmount, $outAmount),
+                'fee' => $fee === '0.00' ? null : $fee,
+                'payment_method' => $validated['payment_method'] ?? null,
+                'rate' => $this->unitRate($travels, $outAmount),
+                'market_rate' => $market === null ? null : $this->unitRate($travels, $market),
+                'rate_reason' => $overridden ? trim($validated['rate_reason']) : null,
                 'margin_ugx' => ExchangeCalculator::margin($card, $inCurrency, $inAmount, $outCurrency, $outAmount),
                 'notes' => $validated['notes'] ?? null,
                 'created_by' => auth()->id(),
@@ -162,6 +206,19 @@ class CurrencyExchangeController extends Controller
             'legs' => $exchange->legs(),
             'rule' => ExchangeCalculator::rule(ExchangeCalculator::card(), $exchange->in_currency, $exchange->out_currency),
         ]);
+    }
+
+    /**
+     * The slip handed across the counter. Every figure on it comes off the deal's own saved
+     * prices rather than the current card, so a reprint a year later still says what the customer
+     * was actually given that day.
+     */
+    public function receipt(CurrencyExchange $exchange)
+    {
+        abort_unless(CurrencyExchange::visibleTo(auth()->user())->whereKey($exchange->id)->exists(), 404);
+        $exchange->load('inAccount');
+
+        return view('exchanges.receipt', ['exchange' => $exchange]);
     }
 
     public function void(Request $request, CurrencyExchange $exchange)

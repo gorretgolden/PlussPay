@@ -121,8 +121,8 @@
     <table class="rates-table min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
-                @foreach(['Pair', 'Selling', 'Buying', 'Margin', 'Status', 'Added', 'Updated', 'Actions'] as $heading)
-                <th scope="col" class="px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-600 {{ in_array($heading, ['Selling', 'Buying', 'Margin', 'Actions']) ? 'text-right' : 'text-left' }} {{ $heading === 'Actions' ? 'rate-actions' : '' }}">{{ $heading }}</th>
+                @foreach(['Pair', 'Selling', 'Buying', 'Margin', 'Street', 'Status', 'Added', 'Updated', 'Actions'] as $heading)
+                <th scope="col" class="px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-600 {{ in_array($heading, ['Selling', 'Buying', 'Margin', 'Street', 'Actions']) ? 'text-right' : 'text-left' }} {{ $heading === 'Actions' ? 'rate-actions' : '' }}">{{ $heading }}</th>
                 @endforeach
             </tr>
         </thead>
@@ -138,9 +138,13 @@
                 <td class="px-3 py-4 text-right text-sm tabular-nums text-gray-900" data-label="Selling">{{ $selling }}</td>
                 <td class="px-3 py-4 text-right text-sm tabular-nums text-gray-900" data-label="Buying">{{ $rate->buy_rate === null ? '-' : $trim($rate->buy_rate) }}</td>
                 <td class="px-3 py-4 text-right text-sm tabular-nums {{ $margin === null ? 'text-gray-900' : ($margin < 0 ? 'text-red-700' : 'text-green-800') }}" data-label="Margin" title="What this pair earns per dollar. Negative means a loss.">{{ $margin === null ? '-' : ($margin > 0 ? '+' : '').$trim($margin) }}</td>
+                <td class="px-3 py-4 text-right text-sm tabular-nums text-gray-900" data-label="Street" title="The market price saved with this pair. Blank means the middle of the two desk prices is quoted.">{{ $rate->market_rate === null ? '-' : $trim($rate->market_rate) }}</td>
                 <td class="px-3 py-4" data-label="Status"><span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $rate->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' }}">{{ $rate->is_active ? 'In use' : 'Earlier' }}</span></td>
                 <td class="px-3 py-4 text-sm" data-label="Added">
-                    <div><div class="text-gray-900">{{ $rate->creator?->name ?? '-' }}</div><time datetime="{{ $rate->created_at->toIso8601String() }}" title="{{ $rate->created_at->format('M d, Y H:i:s') }}" class="text-xs text-gray-600">{{ $rate->created_at->format('M d, Y') }}</time></div>
+                    <div><div class="text-gray-900">{{ $rate->creator?->name ?? '-' }}</div><time datetime="{{ $rate->created_at->toIso8601String() }}" title="{{ $rate->created_at->format('M d, Y H:i:s') }}" class="text-xs text-gray-600">{{ $rate->created_at->format('M d, Y') }}</time>
+                        @if($rate->effective_from && $rate->effective_from->toDateString() !== $rate->created_at->toDateString())
+                            <div class="text-xs text-gray-600">In force from {{ $rate->effective_from->format('M d, Y') }}</div>
+                        @endif</div>
                 </td>
                 <td class="px-3 py-4 text-sm" data-label="Updated">
                     <div><div class="text-gray-900">{{ $rate->editor?->name ?? '-' }}</div><time datetime="{{ $rate->updated_at->toIso8601String() }}" title="{{ $rate->updated_at->format('M d, Y H:i:s') }}" class="text-xs text-gray-600">{{ $rate->updated_at->format('M d, Y') }}</time></div>
@@ -170,7 +174,7 @@
             </tr>
             @can('manage-exchange-rates')
             <tr id="rate-edit-{{ $rate->id }}" class="rate-edit {{ $editing === $rate->id ? '' : 'hidden' }} bg-gray-50">
-                <td colspan="8" class="px-4 py-4">
+                <td colspan="9" class="px-4 py-4">
                     <form id="edit-rate-{{ $rate->id }}" data-validate method="POST" action="{{ route('exchange-rates.update', $rate) }}" class="flex flex-wrap items-start gap-4">
                         @csrf
                         @method('PATCH')
@@ -198,7 +202,7 @@
             </tr>
             @endcan
             @empty
-            <tr><td colspan="8" class="px-6 py-8 text-center text-gray-600">No exchange rates found. @can('view-settings')<a href="{{ route('settings.index') }}" class="text-green-800 underline">Set rates in Settings</a>.@endcan</td></tr>
+            <tr><td colspan="9" class="px-6 py-8 text-center text-gray-600">No exchange rates found. @can('view-settings')<a href="{{ route('settings.index') }}" class="text-green-800 underline">Set rates in Settings</a>.@endcan</td></tr>
             @endforelse
         </tbody>
     </table>

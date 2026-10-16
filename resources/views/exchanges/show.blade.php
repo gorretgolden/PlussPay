@@ -28,20 +28,29 @@
             @endif
         </p>
     </div>
-    @if(!$exchange->isVoid() && auth()->user()->can('void-exchange'))
-    <button type="button" onclick="openVoidModal(this)"
-        data-action="{{ route('exchanges.void', $exchange) }}"
-        data-deal="{{ $exchange->reference }} &middot; {{ $exchange->person_name }}"
-        data-first="{{ $in }}"
-        data-second="{{ $out }}"
-        class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Cancel deal</button>
-    @endif
+    <div class="flex gap-2">
+        @can('print-receipt')
+        <a href="{{ route('exchanges.receipt', $exchange) }}" target="_blank" rel="noopener"
+            class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Print slip</a>
+        @endcan
+        @if(!$exchange->isVoid() && auth()->user()->can('void-exchange'))
+        <button type="button" onclick="openVoidModal(this)"
+            data-action="{{ route('exchanges.void', $exchange) }}"
+            data-deal="{{ $exchange->reference }} &middot; {{ $exchange->person_name }}"
+            data-first="{{ $in }}"
+            data-second="{{ $out }}"
+            class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Cancel deal</button>
+        @endif
+    </div>
 </div>
 
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs uppercase tracking-wide text-gray-500">They handed over</p>
         <p class="text-xl font-semibold text-gray-900">{{ $in }}</p>
+        @if($exchange->fee > 0)
+            <p class="text-xs text-gray-500 mt-1">Of which {{ \App\Models\Account::format($exchange->in_currency, $exchange->fee) }} was kept as commission.</p>
+        @endif
     </div>
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs uppercase tracking-wide text-gray-500">We handed back</p>
@@ -50,6 +59,12 @@
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs uppercase tracking-wide text-gray-500">Rate done at</p>
         <p class="text-sm font-medium text-gray-900 mt-1">{{ $exchange->quotedRate() ?? 'Not recorded' }}</p>
+        @if($exchange->quotedMarketRate())
+            <p class="text-xs text-gray-500 mt-1">Street price then: {{ $exchange->quotedMarketRate() }}</p>
+        @endif
+        @if($exchange->rate_reason)
+            <p class="text-xs text-amber-700 mt-1">Agreed by hand: {{ $exchange->rate_reason }}</p>
+        @endif
     </div>
     @can('view-profit')
     <div class="bg-white rounded-lg shadow p-4">
@@ -125,6 +140,8 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
         <div><span class="text-gray-500">Entered by:</span> {{ $exchange->creator?->name ?? 'System' }}</div>
         <div><span class="text-gray-500">Saved on:</span> {{ $exchange->created_at->format('M d, Y h:i A') }}</div>
+        <div><span class="text-gray-500">Desk:</span> {{ $exchange->deskLabel() ?? 'Not recorded' }}</div>
+        <div><span class="text-gray-500">Paid how:</span> {{ $exchange->payment_method ?? 'Not recorded' }}</div>
         @if($exchange->notes)
         <div class="sm:col-span-2"><span class="text-gray-500">Notes:</span> {{ $exchange->notes }}</div>
         @endif

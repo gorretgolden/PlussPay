@@ -28,6 +28,7 @@ class AccountEntry extends Model
         'reversal' => ['label' => 'Cancelled transfer', 'direction' => 'out', 'group' => 'single', 'corrective' => true],
         'agent_fee' => ['label' => 'Agent commission', 'direction' => 'in', 'group' => 'single'],
         'agent_fee_reversal' => ['label' => 'Reversed agent commission', 'direction' => 'out', 'group' => 'single', 'corrective' => true],
+        'exchange_fee' => ['label' => 'Commission kept on a deal', 'direction' => 'in', 'group' => 'single'],
     ];
 
     protected $fillable = [

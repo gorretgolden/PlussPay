@@ -55,6 +55,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::post('/exchanges', [CurrencyExchangeController::class, 'store'])->middleware('can:create-exchange')->name('exchanges.store');
         Route::get('/export/exchanges', [ExportController::class, 'exchanges'])->middleware('can:export-exchanges')->name('export.exchanges');
         Route::get('/exchanges/{exchange}', [CurrencyExchangeController::class, 'show'])->name('exchanges.show');
+        Route::get('/exchanges/{exchange}/receipt', [CurrencyExchangeController::class, 'receipt'])->middleware('can:print-receipt')->name('exchanges.receipt');
         Route::post('/exchanges/{exchange}/void', [CurrencyExchangeController::class, 'void'])->middleware('can:void-exchange')->name('exchanges.void');
     });
 
