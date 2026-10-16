@@ -38,7 +38,7 @@ class ExportController extends Controller
                 //
                 // A transfer that has not finished earned nothing yet, and one booked before
                 // the rates were snapshotted has no exchange figure to add. Those two states are
-                // kept apart here exactly as on the screen: 0.00 for the first, n/a for the
+                // kept apart here exactly as on the screen: 0.0 for the first, n/a for the
                 // second, and never a zero that reads as break-even.
                 $labels = $t->profitLabels();
                 $counts = $t->status === 'completed';
@@ -67,14 +67,14 @@ class ExportController extends Controller
                     $t->receiver_name,
                     $t->receiver_contact,
                     $t->collectedAmount(),
-                    $t->currency . ' ' . number_format((float) $t->amount, 2),
+                    $t->currency . ' ' . number_format((float) $t->amount, 1),
                     $this->ugx((float) $t->total_usd_equivalent),
-                    '¥' . number_format((float) $t->rmb_amount, 2),
+                    '¥' . number_format((float) $t->rmb_amount, 1),
                     'UGX ' . number_format((float) $t->charge_ugx),
-                    'USD ' . number_format((float) $t->charge_amount, 2),
+                    'USD ' . number_format((float) $t->charge_amount, 1),
                     $labels['exchange']['text'],
                     $labels['total']['text'],
-                    $signed($totalUsd, 2, 'USD '),
+                    $signed($totalUsd, 1, 'USD '),
                     $t->purpose ?? '-',
                     ucfirst($t->status),
                     $this->bookedBy($t),
@@ -106,8 +106,8 @@ class ExportController extends Controller
                 $t->created_at->format('Y-m-d h:i A'),
                 $t->sender_name,
                 $t->receiver_name,
-                $t->currency . ' ' . number_format((float) $t->amount, 2),
-                '¥' . number_format((float) $t->rmb_amount, 2),
+                $t->currency . ' ' . number_format((float) $t->amount, 1),
+                '¥' . number_format((float) $t->rmb_amount, 1),
                 'UGX ' . number_format((float) $t->charge_ugx),
                 $this->bookedBy($t),
             ])
@@ -507,8 +507,8 @@ class ExportController extends Controller
             ->get();
 
         $line = fn ($row) => array_merge(
-            [(string) $row->count, number_format((float) $row->usd_sent, 2)],
-            [number_format((float) $row->fee_ugx, 2), number_format((float) $row->exchange_ugx, 2)],
+            [(string) $row->count, number_format((float) $row->usd_sent, 1)],
+            [number_format((float) $row->fee_ugx), number_format((float) $row->exchange_ugx, 1)],
             $this->money($row->total_ugx, $row->total_usd, $row->total_rmb),
             [(string) $row->unpriced]
         );
@@ -542,9 +542,9 @@ class ExportController extends Controller
     private function money($ugx, $usd, $rmb): array
     {
         return [
-            number_format((float) $ugx),
-            number_format((float) $usd, 2),
-            number_format((float) $rmb, 2),
+            number_format((float) $ugx, 1),
+            number_format((float) $usd, 1),
+            number_format((float) $rmb, 1),
         ];
     }
 
@@ -561,7 +561,7 @@ class ExportController extends Controller
 
         return $rate
             ? 'UGX ' . number_format($usd * $rate)
-            : 'USD ' . number_format($usd, 2);
+            : 'USD ' . number_format($usd, 1);
     }
 
     private function download(string $name, array $headers, array $rows, string $suffix = '')

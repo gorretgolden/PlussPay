@@ -82,9 +82,9 @@ class TransactionProfitTableTest extends TestCase
         }
 
         // The charge the customer was billed, what the rates earned, and the two added.
-        $this->assertStringContainsString('UGX 20,000.00', $html);
-        $this->assertStringContainsString('UGX 10,000.00', $html);
-        $this->assertStringContainsString('UGX 30,000.00', $html);
+        $this->assertStringContainsString('UGX 20,000', $html);
+        $this->assertStringContainsString('UGX 10,000.0', $html);
+        $this->assertStringContainsString('UGX 30,000.0', $html);
 
         // The per-leg cards the client removed have no home on this page any more.
         foreach (['Profit UGX to USD', 'Profit USD to RMB', 'Yuan Leg', 'Fee (UGX)'] as $gone) {
@@ -116,17 +116,17 @@ class TransactionProfitTableTest extends TestCase
         // buying rate, which is more than the shilling margin and the charge together.
         $this->assertEqualsWithDelta(-160714.29, (float) $transaction->usd_rmb_profit_ugx, 0.01);
         $labels = $transaction->profitLabels();
-        $this->assertSame('Loss UGX 150,714.29', $labels['exchange']['text']);
+        $this->assertSame('Loss UGX 150,714.3', $labels['exchange']['text']);
         $this->assertSame('loss', $labels['exchange']['tone']);
-        $this->assertSame('UGX 20,000.00', $labels['charge']['text']);
-        $this->assertSame('Loss UGX 130,714.29', $labels['total']['text']);
+        $this->assertSame('UGX 20,000', $labels['charge']['text']);
+        $this->assertSame('Loss UGX 130,714.3', $labels['total']['text']);
 
         $html = $this->actingAs($this->user('admin'))->get('/transactions')->getContent();
-        $this->assertStringContainsString('Loss UGX 150,714.29', $html);
-        $this->assertStringContainsString('Loss UGX 130,714.29', $html);
+        $this->assertStringContainsString('Loss UGX 150,714.3', $html);
+        $this->assertStringContainsString('Loss UGX 130,714.3', $html);
         $this->assertStringContainsString('text-red-600', $html);
         // The yuan leg on its own is never printed.
-        $this->assertStringNotContainsString('Loss UGX 160,714.29', $html);
+        $this->assertStringNotContainsString('Loss UGX 160,714.3', $html);
     }
 
     public function test_cashier_and_agent_see_the_charge_but_nothing_about_profit(): void
@@ -139,7 +139,7 @@ class TransactionProfitTableTest extends TestCase
             $this->assertStringContainsString('Charge (UGX)', $html);
             $this->assertStringNotContainsString('Overall Profit', $html);
             $this->assertStringNotContainsString('Exchange Profit', $html);
-            $this->assertStringNotContainsString('UGX 30,000.00', $html);
+            $this->assertStringNotContainsString('UGX 30,000.0', $html);
         }
     }
 
@@ -163,12 +163,12 @@ class TransactionProfitTableTest extends TestCase
         $this->assertSame('n/a', $labels['total']['text']);
         $this->assertSame('muted', $labels['exchange']['tone']);
         // The charge was always known, so it keeps showing.
-        $this->assertSame('UGX 20,000.00', $labels['charge']['text']);
+        $this->assertSame('UGX 20,000', $labels['charge']['text']);
 
         $html = $this->actingAs($this->user('admin'))->get('/transactions')->getContent();
 
         $this->assertStringContainsString('n/a', $html);
-        $this->assertStringNotContainsString('UGX 30,000.00', $html);
+        $this->assertStringNotContainsString('UGX 30,000.0', $html);
     }
 
     public function test_a_cancelled_transfer_earns_nothing(): void
@@ -178,12 +178,12 @@ class TransactionProfitTableTest extends TestCase
 
         $labels = $cancelled->profitLabels();
 
-        $this->assertSame('UGX 0.00', $labels['total']['text']);
+        $this->assertSame('UGX 0.0', $labels['total']['text']);
         $this->assertSame('muted', $labels['total']['tone']);
-        $this->assertSame('UGX 0.00', $labels['charge']['text']);
+        $this->assertSame('UGX 0', $labels['charge']['text']);
 
         $html = $this->actingAs($this->user('admin'))->get('/transactions')->getContent();
-        $this->assertStringNotContainsString('UGX 30,000.00', $html);
+        $this->assertStringNotContainsString('UGX 30,000.0', $html);
         $this->assertStringContainsString('Only a completed transfer counts toward profit', $html);
     }
 
@@ -201,11 +201,11 @@ class TransactionProfitTableTest extends TestCase
         }
 
         // The customer handed over the full UGX 3,780,000 and UGX 3,760,000 of it travelled.
-        $this->assertSame('UGX 3,780,000.00', $rows[6][6]);
-        $this->assertSame('UGX 3,760,000.00', $rows[6][7]);
+        $this->assertSame('UGX 3,780,000.0', $rows[6][6]);
+        $this->assertSame('UGX 3,760,000.0', $rows[6][7]);
         $this->assertSame('UGX 20,000', $rows[6][10]);
-        $this->assertSame('Loss UGX 150,714.29', $rows[6][12]);
-        $this->assertSame('Loss UGX 130,714.29', $rows[6][13]);
+        $this->assertSame('Loss UGX 150,714.3', $rows[6][12]);
+        $this->assertSame('Loss UGX 130,714.3', $rows[6][13]);
         // The same loss in dollars, at the 7.30 those dollars were delivered at.
         $this->assertMatchesRegularExpression('/^Loss USD \d/', $rows[6][14]);
         $this->assertSame('Completed', $rows[6][16]);

@@ -82,10 +82,11 @@ class DashboardProfitTest extends TestCase
             $this->assertStringNotContainsString($gone, $html);
         }
 
-        // UGX 20,000 kept, UGX 10,000 from the shilling spread, a flat yuan pair, UGX 30,000 overall.
-        $this->assertStringContainsString('UGX 20,000.00', $html);
-        $this->assertStringContainsString('UGX 10,000.00', $html);
-        $this->assertStringContainsString('UGX 30,000.00', $html);
+        // UGX 20,000 kept, UGX 10,000 from the shilling spread, a flat yuan pair, UGX 30,000
+        // overall. The charge prints as whole shillings, the computed figures to one decimal.
+        $this->assertStringContainsString('UGX 20,000', $html);
+        $this->assertStringContainsString('UGX 10,000.0', $html);
+        $this->assertStringContainsString('UGX 30,000.0', $html);
     }
 
     public function test_a_yuan_loss_shows_against_the_day_it_happened(): void
@@ -100,9 +101,9 @@ class DashboardProfitTest extends TestCase
 
         // 40,000 of charges and 20,000 of shilling spread, against 160,714.29 lost on the yuan
         // of the second transfer: the exchange figure is 140,714.29 short and the overall 100,714.29.
-        $this->assertStringContainsString('UGX 40,000.00', $html);
-        $this->assertStringContainsString('Loss UGX 140,714.29', $html);
-        $this->assertStringContainsString('Loss UGX 100,714.29', $html);
+        $this->assertStringContainsString('UGX 40,000', $html);
+        $this->assertStringContainsString('Loss UGX 140,714.3', $html);
+        $this->assertStringContainsString('Loss UGX 100,714.3', $html);
     }
 
     public function test_transfers_without_rates_are_counted_not_silently_zeroed(): void

@@ -73,11 +73,11 @@ class ReportConsolidationTest extends TestCase
         $this->assertEqualsWithDelta((float) $profit['exchange_ugx'], (float) $byAgent->sum('exchange_ugx'), 0.01);
 
         // The charge is its own column and the overall figure is the two added: charges of
-        // 18,800 and exchange of 49,329 lost leaves the period 30,529 in the red.
+        // 18,800 and exchange of 49,328.6 lost leaves the period 30,528.6 in the red.
         $this->assertEqualsWithDelta(18800, (float) $profit['fee_ugx'], 0.01);
         $this->assertEqualsWithDelta(-30528.571429, (float) $profit['total_ugx'], 0.01);
-        $this->assertStringContainsString('Loss UGX 30,529', $html);
-        $this->assertStringContainsString('Loss UGX 49,329', $html);
+        $this->assertStringContainsString('Loss UGX 30,528.6', $html);
+        $this->assertStringContainsString('Loss UGX 49,328.6', $html);
         $this->assertStringContainsString('text-red-600', $html);
 
         // Both legs stay stored on the row, but no column or card is allowed to name them.
@@ -158,9 +158,9 @@ class ReportConsolidationTest extends TestCase
         $this->assertEqualsWithDelta(2100, (float) $byAgent->sum('exchange_ugx'), 0.01);
 
         // The yuan overall prints once per table line and once per table total, and once on each
-        // of the two cards that state it.
-        $this->assertSame(4, substr_count($response->getContent(), '>59.08<'));
-        $this->assertSame(2, substr_count($response->getContent(), '&yen;59.08'));
+        // of the two cards that state it. One decimal, because it is a computed figure.
+        $this->assertSame(4, substr_count($response->getContent(), '>59.1<'));
+        $this->assertSame(2, substr_count($response->getContent(), '&yen;59.1'));
     }
 
     public function test_the_profit_cards_state_shillings_with_the_yuan_beside_the_overall(): void
@@ -186,9 +186,10 @@ class ReportConsolidationTest extends TestCase
             $this->assertStringContainsString('>'.$heading.'<', $html);
         }
 
-        // Overall 20,900 shillings, which is 59.08 yuan, made of 18,800 of charge and 2,100 of
-        // exchange, and 41.80 shillings for each of the 500 dollars sent.
-        foreach (['UGX 20,900', '&yen;59.08', 'UGX 18,800', 'UGX 2,100', 'UGX 41.80'] as $figure) {
+        // Overall 20,900 shillings, which is 59.1 yuan, made of 18,800 of charge and 2,100 of
+        // exchange, and 41.8 shillings for each of the 500 dollars sent. The charge is a whole
+        // shilling figure, so it prints without decimals; the computed figures carry one.
+        foreach (['UGX 20,900.0', '&yen;59.1', 'UGX 18,800', 'UGX 2,100.0', 'UGX 41.8'] as $figure) {
             $this->assertStringContainsString($figure, $html);
         }
     }
@@ -216,7 +217,7 @@ class ReportConsolidationTest extends TestCase
         foreach (['Foreign exchange profit:', 'Charge:', 'Overall profit:'] as $label) {
             $this->assertStringContainsString($label, $html);
         }
-        foreach (['Loss UGX 50,228.57', 'UGX 9,400.00', 'Loss UGX 40,828.57'] as $figure) {
+        foreach (['Loss UGX 50,228.6', 'UGX 9,400', 'Loss UGX 40,828.6'] as $figure) {
             $this->assertStringContainsString($figure, $html);
         }
 

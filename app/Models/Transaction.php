@@ -125,22 +125,23 @@ class Transaction extends Model
     public function collectedAmount(): string
     {
         return $this->currency === 'USD'
-            ? 'USD ' . number_format((float) $this->amount, 2) . ' plus ' . $this->feeLabel()
-            : 'UGX ' . number_format((float) $this->cashReceived(), 2);
+            ? 'USD ' . number_format((float) $this->amount, 1) . ' plus ' . $this->feeLabel()
+            : 'UGX ' . number_format((float) $this->cashReceived(), 1);
     }
 
     /**
      * The charge is always quoted in shillings, whichever currency the transfer was booked in,
-     * so it reads the same way on every screen.
+     * so it reads the same way on every screen. It is typed by hand as a whole shilling figure,
+     * so it is printed without decimals while the money that travels keeps one.
      */
     public function feeLabel(): string
     {
-        return 'UGX ' . number_format((float) $this->charge_ugx, 2);
+        return 'UGX ' . number_format((float) $this->charge_ugx);
     }
 
     public function principalLabel(): string
     {
-        return $this->currency . ' ' . number_format((float) $this->amount, 2);
+        return $this->currency . ' ' . number_format((float) $this->amount, 1);
     }
 
     /**
@@ -212,10 +213,11 @@ class Transaction extends Model
     public function profitLabels(): array
     {
         if ($this->status !== 'completed') {
-            return array_fill_keys(
-                ['exchange', 'charge', 'total'],
-                ['text' => 'UGX 0.00', 'tone' => 'muted']
-            );
+            return [
+                'exchange' => ['text' => 'UGX 0.0', 'tone' => 'muted'],
+                'charge' => ['text' => 'UGX 0', 'tone' => 'muted'],
+                'total' => ['text' => 'UGX 0.0', 'tone' => 'muted'],
+            ];
         }
 
         $exchange = $this->fx_profit_ugx === null || $this->usd_rmb_profit_ugx === null
@@ -224,7 +226,7 @@ class Transaction extends Model
 
         return [
             'exchange' => $this->shillingProfitCell($exchange),
-            'charge' => $this->shillingProfitCell($this->charge_ugx),
+            'charge' => $this->shillingProfitCell($this->charge_ugx, 0),
             'total' => $this->shillingProfitCell($this->total_profit_ugx),
         ];
     }
@@ -232,7 +234,7 @@ class Transaction extends Model
     /**
      * @return array{text: string, tone: string}
      */
-    private function shillingProfitCell(?string $ugx): array
+    private function shillingProfitCell(?string $ugx, int $decimals = 1): array
     {
         if ($ugx === null || $ugx === '') {
             return ['text' => 'n/a', 'tone' => 'muted'];
@@ -241,13 +243,13 @@ class Transaction extends Model
         $value = (float) $ugx;
 
         return $value < 0
-            ? ['text' => 'Loss UGX '.number_format(abs($value), 2), 'tone' => 'loss']
-            : ['text' => 'UGX '.number_format($value, 2), 'tone' => 'plain'];
+            ? ['text' => 'Loss UGX '.number_format(abs($value), $decimals), 'tone' => 'loss']
+            : ['text' => 'UGX '.number_format($value, $decimals), 'tone' => 'plain'];
     }
 
     public function yuanLabel(): string
     {
-        return '¥'.number_format((float) $this->rmb_amount, 2);
+        return '¥'.number_format((float) $this->rmb_amount, 1);
     }
 
     public function scopeFiltered(Builder $query, Request $request): Builder

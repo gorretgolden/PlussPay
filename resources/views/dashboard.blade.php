@@ -16,13 +16,14 @@
     };
     $desk = $me->countryLabel();
 
-    // Stored UGX, not a fresh conversion, so these match the Reports page. A charge or a profit
-    // keeps its shilling cents because that is what gets reconciled; what merely travelled is
-    // rounded to the whole shilling.
+    // Stored UGX, not a fresh conversion, so these match the Reports page. The charge is typed as
+    // a whole shilling figure, so it prints with no decimals. A computed figure carries one
+    // decimal, because that is where the fractions of a booking land. What the customer handed
+    // over stays a whole shilling.
     $money = fn ($ugx, $usd, int $dec = 2) => $usdToUgx ? 'UGX ' . number_format($ugx, $dec) : '$' . number_format($usd, $dec);
     $shilling = fn ($value) => $value < 0
-        ? 'Loss UGX '.number_format(abs($value), 2)
-        : 'UGX '.number_format($value, 2);
+        ? 'Loss UGX '.number_format(abs($value), 1)
+        : 'UGX '.number_format($value, 1);
     $shillingTone = fn ($value) => $value < 0 ? 'text-red-600' : 'text-gray-900';
 
     // One card set per window, so no figure is printed in two places on the same page.
@@ -32,8 +33,8 @@
         $cards = [
             ['Completed', number_format($t['completed']), 'text-gray-900'],
             ['Sent', $money($t['sent_ugx'], $t['sent_usd'], 0), 'text-gray-900'],
-            ['Yuan out', '¥' . number_format($t['rmb'], 2), 'text-gray-900'],
-            ['Charge', $money($t['charge_ugx'], $t['charge_usd'], 2), 'text-gray-900'],
+            ['Yuan out', '¥' . number_format($t['rmb'], 1), 'text-gray-900'],
+            ['Charge', $money($t['charge_ugx'], $t['charge_usd'], 0), 'text-gray-900'],
         ];
         if (isset($profit[$key])) {
             $cards[] = ['FX profit', $shilling($profit[$key]['exchange']), $shillingTone($profit[$key]['exchange'])];
@@ -327,8 +328,8 @@
                     </td>
                     <td class="px-4 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
                     <td class="px-4 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">{{ $t->currency }} {{ number_format($t->amount, 2) }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">¥{{ number_format($t->rmb_amount, 2) }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">{{ $t->currency }} {{ number_format($t->amount, 1) }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">¥{{ number_format($t->rmb_amount, 1) }}</td>
                     <td class="px-4 py-4">
                         <span class="px-2 py-1 text-xs rounded-full whitespace-nowrap
                             @if($t->status === 'completed') bg-green-100 text-green-800

@@ -118,9 +118,9 @@
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">{{ $t->currency }} {{ number_format($t->amount, 2) }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($t->rmb_amount, 2) }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">UGX {{ number_format((float) $t->charge_ugx, 2) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">{{ $t->currency }} {{ number_format($t->amount, 1) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($t->rmb_amount, 1) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">UGX {{ number_format((float) $t->charge_ugx) }}</td>
                 @can('view-profit')
                 <td class="px-6 py-4 text-sm whitespace-nowrap {{ $toneClass[$profit['exchange']['tone']] }}">{{ $profit['exchange']['text'] }}</td>
                 <td class="px-6 py-4 text-sm font-medium whitespace-nowrap {{ $toneClass[$profit['total']['tone']] }}">{{ $profit['total']['text'] }}</td>
