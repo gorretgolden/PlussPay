@@ -59,14 +59,19 @@ class SiteModeSwitchTest extends TestCase
         $html = $this->get('/admin/login')->assertOk()->getContent();
 
         // The click handler reads these to refill the sign-in box, so a button without its email
-        // would quietly go back to filling nothing.
-        foreach (['admin', 'superadmin', 'agent', 'accountant'] as $role) {
+        // would quietly go back to filling nothing. Every demo account gets one, both agent desks
+        // included, because she has to be able to open either dashboard.
+        foreach (['admin', 'superadmin', 'agent', 'china.agent', 'accountant'] as $role) {
             $this->assertStringContainsString(
                 'data-demo-email="'.$role.'@plussave.com"',
                 $html,
                 'Missing the demo button for '.$role
             );
         }
+
+        // Named by desk, so the Uganda agent and the China agent are not the same word twice.
+        $this->assertStringContainsString('> Agent Uganda </button>', preg_replace('/\s+/', ' ', $html));
+        $this->assertStringContainsString('> Agent China </button>', preg_replace('/\s+/', ' ', $html));
 
         $this->assertStringContainsString('plussave.demoPasswords', $html);
     }

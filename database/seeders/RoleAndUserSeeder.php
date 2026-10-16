@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Account;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -10,18 +11,19 @@ class RoleAndUserSeeder extends Seeder
 {
     /**
      * Demo accounts. They are created on every environment, including production, because the
-     * login page's demo buttons need them whenever Site Mode is Testing.
+     * login page's demo buttons need them whenever Site Mode is Testing. The button column is
+     * what the sign-in page labels them with, so the two agent desks are never confused.
      *
      * Passwords, in the order what is available: what is typed at a terminal while the seed runs,
      * then the SEED_*_PASSWORD value from the environment, then a generated one printed once.
      * Nothing working is ever saved in the repository.
      */
     public const DEMO_ACCOUNTS = [
-        ['email' => 'superadmin@plussave.com', 'name' => 'Super Admin', 'role' => 'superadmin', 'env' => 'SEED_SUPERADMIN_PASSWORD', 'country' => 'UG'],
-        ['email' => 'admin@plussave.com', 'name' => 'Admin', 'role' => 'admin', 'env' => 'SEED_ADMIN_PASSWORD', 'country' => 'UG'],
-        ['email' => 'agent@plussave.com', 'name' => 'Agent', 'role' => 'agent', 'env' => 'SEED_AGENT_PASSWORD', 'country' => 'UG'],
-        ['email' => 'china.agent@plussave.com', 'name' => 'China Agent', 'role' => 'agent', 'env' => 'SEED_CHINA_AGENT_PASSWORD', 'country' => 'CN'],
-        ['email' => 'accountant@plussave.com', 'name' => 'Accountant', 'role' => 'accountant', 'env' => 'SEED_ACCOUNTANT_PASSWORD', 'country' => 'UG'],
+        ['email' => 'admin@plussave.com', 'name' => 'Admin', 'button' => 'Admin', 'role' => 'admin', 'env' => 'SEED_ADMIN_PASSWORD', 'country' => 'UG'],
+        ['email' => 'superadmin@plussave.com', 'name' => 'Super Admin', 'button' => 'Superadmin', 'role' => 'superadmin', 'env' => 'SEED_SUPERADMIN_PASSWORD', 'country' => 'UG'],
+        ['email' => 'agent@plussave.com', 'name' => 'Agent', 'button' => 'Agent Uganda', 'role' => 'agent', 'env' => 'SEED_AGENT_PASSWORD', 'country' => 'UG'],
+        ['email' => 'china.agent@plussave.com', 'name' => 'China Agent', 'button' => 'Agent China', 'role' => 'agent', 'env' => 'SEED_CHINA_AGENT_PASSWORD', 'country' => 'CN'],
+        ['email' => 'accountant@plussave.com', 'name' => 'Accountant', 'button' => 'Accountant', 'role' => 'accountant', 'env' => 'SEED_ACCOUNTANT_PASSWORD', 'country' => 'UG'],
     ];
 
     public function run(): void
@@ -69,6 +71,7 @@ class RoleAndUserSeeder extends Seeder
                 'timezone' => User::timezoneForCountry($country),
             ]);
             $user->assignRole($account['role']);
+            $this->ensureWallets($user);
 
             if ($typed) {
                 $this->say("Created {$email} with the password just typed.");
@@ -83,12 +86,23 @@ class RoleAndUserSeeder extends Seeder
         }
 
         $user->assignRole($account['role']);
+        $this->ensureWallets($user);
 
         if ($typed) {
             $user->password = $typed;
             $user->save();
             $this->say("Password set for {$email}.");
         }
+    }
+
+    /**
+     * The wallets this person's country gives them are made along with the account, so a desk in
+     * China opens holding a dollar and a yuan wallet and the dollars sent to it have somewhere to
+     * land. Without them the China Desk has no account of that desk to pay the receiver out of.
+     */
+    private function ensureWallets(User $user): void
+    {
+        Account::walletsFor($user);
     }
 
     /**

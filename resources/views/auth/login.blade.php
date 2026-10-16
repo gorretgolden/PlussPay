@@ -87,10 +87,11 @@
                     $printPasswords = ! \App\Http\Controllers\SettingController::testingModeBlocked(request());
                     $demoPasswords = config('demo.accounts', []);
                 @endphp
-                @foreach (['Admin' => 'admin@plussave.com', 'Superadmin' => 'superadmin@plussave.com', 'Agent' => 'agent@plussave.com', 'Accountant' => 'accountant@plussave.com'] as $label => $demoEmail)
+                @foreach (\Database\Seeders\RoleAndUserSeeder::DEMO_ACCOUNTS as $account)
+                    @php $demoEmail = $account['email']; @endphp
                     <button type="button" data-demo-email="{{ $demoEmail }}"@if($printPasswords && ! empty($demoPasswords[$demoEmail])) data-demo-password="{{ $demoPasswords[$demoEmail] }}"@endif
-                        class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
-                        {{ $label }}
+                        class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition last:col-span-2">
+                        {{ $account['button'] }}
                     </button>
                 @endforeach
             </div>
