@@ -98,7 +98,7 @@
                             : ($autofillOn && $sharedPassword ? $sharedPassword : null);
                     @endphp
                     <button type="button" data-demo-email="{{ $demoEmail }}"@if($demoPassword) data-demo-password="{{ $demoPassword }}"@endif
-                        class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition last:col-span-2">
+                        class="rounded-lg border border-green-700/30 text-left px-4 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition last:col-span-2">
                         {{ $account['button'] }}
                     </button>
                 @endforeach
