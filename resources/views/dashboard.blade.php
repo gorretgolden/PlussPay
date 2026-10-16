@@ -69,59 +69,67 @@
     $hasCharge = array_sum($chartData['revenue_ugx']) > 0;
     $hasExchange = isset($chartData['exchange_ugx']) && array_sum($chartData['exchange_ugx']) > 0;
 
-    // The shared Super Admin account is named after its own role, so its first word ("Super")
-    // is not a person. When the name only repeats the role, the greeting is left without one.
-    $firstName = trim(Str::before($me->name, ' '));
-    $who = $firstName === '' || strcasecmp($firstName, $role) === 0 || strcasecmp($firstName, trim(Str::before($role, ' '))) === 0
-        ? ''
-        : $firstName;
+    // The whole name is greeted, never just its first word: several desks share one role, so
+    // "Agent" alone cannot say whose hand the balances below are in, and a shared account named
+    // after its own role ("Super Admin") would be greeted as "Super".
+    //
+    // That same account is already its own role, so the chip is left out when the greeting has
+    // carried the very words: nothing on the card is said twice.
+    $roleAdds = strcasecmp(trim($me->name), trim($role)) !== 0;
+    $clockDate = now()->format('D, j M Y');
+    $clockTime = now()->format('g:i A');
 @endphp
 <div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm p-4 sm:p-5">
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
-        {{-- The mark follows the same hour bands as the words: a sun for the desk hours, a moon
-             for the night shift. It carries no text, so it cannot repeat anything on the page. --}}
-        <span aria-hidden="true" class="w-11 h-11 shrink-0 rounded-full flex items-center justify-center {{ $hour >= 6 && $hour < 18 ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-500' }}">
-            @if($hour >= 6 && $hour < 18)
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66l1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14l-1.41-1.41M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-            @else
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.5 13.5A8.5 8.5 0 1110.5 3.5a7 7 0 0010 10z"/></svg>
+    <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-3">
+        <div class="flex min-w-0 items-center gap-3 sm:mr-auto">
+            {{-- The mark follows the same hour bands as the words: a sun for the desk hours, a moon
+                 for the night shift. It carries no text, so it cannot repeat anything on the page. --}}
+            <span aria-hidden="true" class="w-11 h-11 shrink-0 rounded-full flex items-center justify-center {{ $hour >= 6 && $hour < 18 ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600' }}">
+                @if($hour >= 6 && $hour < 18)
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66l1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14l-1.41-1.41M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                @else
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.5 13.5A8.5 8.5 0 1110.5 3.5a7 7 0 0010 10z"/></svg>
+                @endif
+            </span>
+            <div class="min-w-0">
+                <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
+                <p class="text-gray-600 mt-1">{{ $greeting }}, {{ $me->name }}.</p>
+            </div>
+        </div>
+        {{-- One line for the desk's own facts on a wide board, and each part drops onto the next
+             line on its own on a phone rather than the whole block being dragged down. --}}
+        <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+            @if($roleAdds)
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize">{{ $role }}</span>
             @endif
-        </span>
-        <div class="mr-auto min-w-0">
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
-            <p class="text-gray-600 mt-1">{{ $greeting }}{{ $who ? ', '.$who : '' }}.</p>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-        {{-- Several desks share one role, so the role chip alone cannot say who is reading the
-             board. The name goes first and the role stays beside it as its own chip. --}}
-        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
-            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-            <span class="truncate max-w-[12rem]">{{ $me->name }}</span>
-        </span>
-        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize">{{ $role }}</span>
-        {{-- No flag emoji: Windows draws them as two bare letters, which reads as a fault. --}}
-        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border {{ $desk ? 'bg-green-100 text-green-800 border-green-200' : 'bg-amber-50 text-amber-800 border-amber-200' }}">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            {{ $desk ?: 'Desk country not set' }}
-        </span>
-        <span class="text-xs text-gray-500" id="liveClock">{{ now()->format('l, F d, Y') }} · {{ now()->format('h:i:s A') }}</span>
-        {{-- Log out and Reload sit here as well as at the bottom of the sidebar, because the
-             sidebar is hidden on a phone and the clock line is where eyes already land. --}}
-        <div class="flex items-center gap-2 no-print">
-            <button type="button" onclick="reloadDashboard(this)"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                <span>Reload</span>
-            </button>
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                    Log out
+            {{-- No flag emoji: Windows draws them as two bare letters, which reads as a fault. --}}
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border {{ $desk ? 'bg-green-100 text-green-800 border-green-200' : 'bg-amber-50 text-amber-800 border-amber-200' }}">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                {{ $desk ?: 'Desk country not set' }}
+            </span>
+            {{-- No seconds: the figure only has to be right to the minute, and a digit running
+                 every second pulls the eye away from the balances. The day is left out on a phone,
+                 where the board is read many times in one day. --}}
+            <span class="text-xs text-gray-500 tabular-nums" id="liveClock">{{ $clockDate }} · {{ $clockTime }}</span>
+            {{-- Log out and Reload sit here as well as at the bottom of the sidebar, because the
+                 sidebar is hidden on a phone and the clock line is where eyes already land. --}}
+            <div class="flex items-center gap-2 ml-auto sm:ml-0 no-print">
+                {{-- A phone gets the two glyphs at 40px each with the words dropped; the sign-out is
+                     the quieter of the pair and only colours up once it is actually being aimed at. --}}
+                <button type="button" onclick="reloadDashboard(this)" aria-label="Reload this board"
+                    class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                    <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span class="hidden sm:inline">Reload</span>
                 </button>
-            </form>
-        </div>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" aria-label="Log out"
+                        class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold border border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                        <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                        <span class="hidden sm:inline">Log out</span>
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 </div>
@@ -521,22 +529,30 @@
     }
     @endcan
 
+    // The stamp is right to the minute, so it is redrawn every ten seconds and never shows a
+    // running second: a digit that changes each second pulls the eye off the balances. The day is
+    // carried beside the time on a wide board and dropped on a phone, where the board is opened
+    // many times in the same day.
     function updateClock() {
+        const stamp = document.getElementById('liveClock');
+        if (!stamp) return;
+
         const now = new Date();
-        const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-        const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-        const day = days[now.getDay()];
-        const month = months[now.getMonth()];
-        const date = now.getDate();
-        const year = now.getFullYear();
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         let h = now.getHours();
         const ampm = h >= 12 ? 'PM' : 'AM';
         h = h % 12 || 12;
-        const m = String(now.getMinutes()).padStart(2, '0');
-        const s = String(now.getSeconds()).padStart(2, '0');
-        document.getElementById('liveClock').textContent = `${day}, ${month} ${String(date).padStart(2, '0')}, ${year} · ${String(h).padStart(2, '0')}:${m}:${s} ${ampm}`;
+        const time = `${h}:${String(now.getMinutes()).padStart(2, '0')} ${ampm}`;
+        const text = window.matchMedia('(min-width: 640px)').matches
+            ? `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()} · ${time}`
+            : time;
+
+        if (stamp.textContent !== text) stamp.textContent = text;
     }
-    setInterval(updateClock, 1000);
+    updateClock();
+    setInterval(updateClock, 10000);
+    window.addEventListener('resize', updateClock);
 
     // The button is disabled and spun before the reload so the click is never silent, and a
     // second click cannot queue a second reload. The short pause lets that state paint first.
@@ -544,6 +560,9 @@
         button.disabled = true;
         button.classList.add('opacity-60', 'cursor-wait');
         button.querySelector('span').textContent = 'Reloading...';
+        // On a phone the word is dropped and only the glyph is shown, so the state has to be
+        // carried by the name the button is read under as well.
+        button.setAttribute('aria-label', 'Reloading this board');
         button.querySelector('svg').classList.add('animate-spin');
         setTimeout(function () { window.location.reload(); }, 150);
     }

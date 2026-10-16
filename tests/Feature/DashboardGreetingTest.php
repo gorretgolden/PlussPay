@@ -11,7 +11,8 @@ use Tests\TestCase;
 
 /**
  * The board is the first thing a desk reads each shift, so the greeting has to match the hour
- * it is read at, name a person when there is one, and never carry the role slug as a name.
+ * it is read at and name the account reading it by its whole name. Several desks share one role,
+ * so a first word that happens to be the role is not a name.
  */
 class DashboardGreetingTest extends TestCase
 {
@@ -57,37 +58,52 @@ class DashboardGreetingTest extends TestCase
 
     public function test_the_greeting_bands_follow_the_clock_including_the_night_shift(): void
     {
-        $this->assertSame('Hello, Amina.', $this->greetingAt('00'));
-        $this->assertSame('Hello, Amina.', $this->greetingAt('03'));
-        $this->assertSame('Good morning, Amina.', $this->greetingAt('05'));
-        $this->assertSame('Good morning, Amina.', $this->greetingAt('11'));
-        $this->assertSame('Good afternoon, Amina.', $this->greetingAt('12'));
-        $this->assertSame('Good afternoon, Amina.', $this->greetingAt('17'));
-        $this->assertSame('Good evening, Amina.', $this->greetingAt('18'));
-        $this->assertSame('Good evening, Amina.', $this->greetingAt('23'));
+        $this->assertSame('Hello, Amina Nabukenya.', $this->greetingAt('00'));
+        $this->assertSame('Hello, Amina Nabukenya.', $this->greetingAt('03'));
+        $this->assertSame('Good morning, Amina Nabukenya.', $this->greetingAt('05'));
+        $this->assertSame('Good morning, Amina Nabukenya.', $this->greetingAt('11'));
+        $this->assertSame('Good afternoon, Amina Nabukenya.', $this->greetingAt('12'));
+        $this->assertSame('Good afternoon, Amina Nabukenya.', $this->greetingAt('17'));
+        $this->assertSame('Good evening, Amina Nabukenya.', $this->greetingAt('18'));
+        $this->assertSame('Good evening, Amina Nabukenya.', $this->greetingAt('23'));
     }
 
-    public function test_an_account_named_after_its_role_is_not_greeted_by_the_first_word(): void
+    public function test_an_account_named_after_its_role_is_greeted_by_the_whole_of_its_name(): void
     {
         $this->travelTo(now()->setTime(3, 14));
 
         $html = $this->actingAs($this->user('superadmin', 'Super Admin'))->get('/dashboard')->getContent();
-        $this->assertStringContainsString('<p class="text-gray-600 mt-1">Hello.</p>', $html);
-        $this->assertStringNotContainsString('Super,', $html);
+        $this->assertStringContainsString('<p class="text-gray-600 mt-1">Hello, Super Admin.</p>', $html);
+        $this->assertStringNotContainsString('Hello, Super.', $html, 'The first word of a role is not a person.');
 
         $html = $this->actingAs($this->user('agent', 'Gorret Oketayut'))->get('/dashboard')->getContent();
-        $this->assertStringContainsString('<p class="text-gray-600 mt-1">Hello, Gorret.</p>', $html);
+        $this->assertStringContainsString('<p class="text-gray-600 mt-1">Hello, Gorret Oketayut.</p>', $html);
     }
 
     public function test_the_badge_carries_the_role_display_name_the_sidebar_uses(): void
     {
-        $html = $this->actingAs($this->user('superadmin', 'Super Admin'))->get('/dashboard')->getContent();
+        $html = $this->actingAs($this->user('agent', 'Amina Nabukenya'))->get('/dashboard')->getContent();
 
         preg_match('/<span class="inline-flex items-center[^"]*bg-green-100[^"]*">([^<]*)<\/span>/', $html, $match);
 
-        $this->assertSame('Super Admin', trim($match[1] ?? ''));
+        $this->assertSame('Agent', trim($match[1] ?? ''));
         // The sidebar line sits beside the desk country, so the two now say the same thing.
-        $this->assertStringContainsString('Super Admin ·', $html);
+        $this->assertStringContainsString('Agent · ', $html);
+    }
+
+    public function test_an_account_named_after_its_own_role_is_not_said_twice_on_the_card(): void
+    {
+        $this->travelTo(now()->setTime(3, 14));
+
+        $html = $this->actingAs($this->user('superadmin', 'Super Admin'))->get('/dashboard')->getContent();
+
+        // The greeting already carries the whole name, and for this account the name is the role,
+        // so the chip would put the same two words side by side on one line.
+        $this->assertSame(0, substr_count($html, 'capitalize">'), 'No role chip when the greeting has said it.');
+
+        $this->flushSession();
+        $html = $this->actingAs($this->user('agent', 'Amina Nabukenya'))->get('/dashboard')->getContent();
+        $this->assertSame(1, substr_count($html, 'capitalize">'), 'The chip returns as soon as it adds a fact.');
     }
 
     public function test_the_mark_by_the_greeting_matches_the_same_hours_as_the_words(): void
