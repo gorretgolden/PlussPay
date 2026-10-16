@@ -14,7 +14,6 @@
 <div class="max-w-4xl mx-auto">
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Send Money to China</h1>
-        <p class="text-gray-600">Complete each step to create a new transaction</p>
     </div>
 
     {{-- Draft restored banner --}}
@@ -118,65 +117,48 @@
         {{-- Step 3: Payment --}}
         <div class="wizard-step bg-white rounded-lg shadow p-8 hidden" id="step-3">
             <h2 class="text-lg font-semibold text-gray-800 mb-6">Payment Details</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Currency *</label>
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label class="block text-sm font-medium text-gray-700" for="currency">Currency *</label>
+                        @include('transactions.partials.field-tip', [
+                            'id' => 'currency-help-tip',
+                            'text' => 'UGX: the customer pays shillings, the charge comes out of that money, and what is left is turned into dollars. USD: the customer hands you dollars, all of them travel, and the charge is collected on top in shillings.',
+                        ])
+                    </div>
                     <select name="currency" id="currency" required
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                        <option value="UGX" {{ old('currency') === 'UGX' ? 'selected' : '' }}>UGX (Ugandan Shilling)</option>
-                        <option value="USD" {{ old('currency') === 'USD' ? 'selected' : '' }}>USD (US Dollar)</option>
+                        <option value="UGX" {{ old('currency') === 'UGX' ? 'selected' : '' }}>UGX</option>
+                        <option value="USD" {{ old('currency') === 'USD' ? 'selected' : '' }}>USD</option>
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">UGX if the customer pays in shillings. USD if they hand you dollars, which skips the shilling conversion.</p>
+                    <p class="text-xs text-gray-500 mt-1">Choose what the customer pays in.</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Money handed over *</label>
-                    <input type="number" name="amount" id="amount" value="{{ old('amount') }}" step="0.01" min="100" required
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    <p class="text-xs text-gray-500 mt-1" id="cash_help">The whole amount the customer gave you, charge included.</p>
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label class="block text-sm font-medium text-gray-700" for="amount">Money handed over *</label>
+                        @include('transactions.partials.field-tip', [
+                            'id' => 'amount-help-tip',
+                            'text' => 'Count the cash as it was handed to you, before anything is taken out. The charge is subtracted from it, and only what is left is converted.',
+                        ])
+                    </div>
+                    <input type="text" inputmode="decimal" autocomplete="off" data-money name="amount" id="amount" value="{{ old('amount') }}" min="100" required
+                        placeholder="0"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 tabular-nums">
+                    <p class="text-xs text-gray-500 mt-1" id="cash_help">Total received, charge included.</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Charge (UGX) *</label>
-                    <input type="number" name="charge_ugx" id="charge_ugx" value="{{ old('charge_ugx') }}" step="0.01" min="0" required
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    <p class="text-xs text-gray-500 mt-1">
-                        Start point from System Settings: UGX {{ $trimMoney($serviceFeeUgx) }} per {{ $trimMoney($serviceFeeUsd) }} USD.
-                        Change it for this customer if that is what was agreed.
-                    </p>
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label class="block text-sm font-medium text-gray-700" for="charge_ugx">Charge (UGX) *</label>
+                        @include('transactions.partials.field-tip', [
+                            'id' => 'charge-help-tip',
+                            'text' => 'Settings suggest UGX ' . $trimMoney($serviceFeeUgx) . ' per ' . $trimMoney($serviceFeeUsd) . ' USD. Type what this customer actually paid.',
+                        ])
+                    </div>
+                    <input type="text" inputmode="decimal" autocomplete="off" data-money name="charge_ugx" id="charge_ugx" value="{{ old('charge_ugx') }}" min="0" required
+                        placeholder="0"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 tabular-nums">
+                    <p class="text-xs text-gray-500 mt-1">Default from Settings. Editable.</p>
                 </div>
-            </div>
-
-            <div class="bg-green-50 rounded-lg p-5 mt-6">
-                <div class="flex items-center justify-between mb-3">
-                    <h4 class="font-semibold text-green-800">Live Calculation</h4>
-                    @if(auth()->user()->can('manage-exchange-rates'))
-                        <a href="{{ route('settings.index') }}" class="text-xs text-green-700 underline hover:text-green-900">Change the prices</a>
-                    @endif
-                </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                        <div class="text-gray-500">Money That Travels</div>
-                        <div class="font-bold text-lg" id="preview_sent">-</div>
-                    </div>
-                    <div>
-                        <div class="text-gray-500">Dollars Credited</div>
-                        <div class="font-bold text-lg" id="preview_usd">-</div>
-                    </div>
-                    <div>
-                        <div class="text-gray-500">Rate (USD to RMB)</div>
-                        <div class="font-bold text-lg" id="preview_rate">{{ $usdRmb && $usdRmb['sell'] > 0 ? '1 USD = ' . $trimRate($usdRmb['sell']) . ' RMB' : 'N/A' }}</div>
-                        @if($usdRmb && $usdRmb['sell'] > 0)
-                            <div class="text-xs text-gray-400 mt-1">What the receiver is credited at</div>
-                        @endif
-                    </div>
-                    <div>
-                        <div class="text-gray-500">RMB Receiver Gets</div>
-                        <div class="font-bold text-lg text-purple-700" id="preview_rmb">-</div>
-                    </div>
-                </div>
-                <p class="text-xs text-gray-500 mt-4 leading-relaxed" id="preview_formula">Enter the money handed over to see how the figures are derived.</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div>
                     <label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose (optional)</label>
                     <select name="purpose" id="purpose"
@@ -193,21 +175,57 @@
                             class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                     </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
-                    <input type="text" name="notes" value="{{ old('notes', 'Sending money to China') }}" maxlength="500"
-                        placeholder="Any additional notes..."
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1" for="notes">Notes (optional)</label>
+                    <input type="text" name="notes" id="notes" value="{{ old('notes') }}" maxlength="500"
+                        placeholder="Sending money to China"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                 </div>
             </div>
 
-            <div class="flex justify-between mt-8">
+            <div class="bg-green-50 rounded-lg p-5 mt-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-green-800">Live Calculation</h4>
+                    @can('manage-exchange-rates')
+                        <a href="{{ route('settings.index') }}" class="text-xs text-green-700 underline hover:text-green-900">Update rates</a>
+                    @endcan
+                </div>
+
+                <p class="text-sm text-gray-600" id="calc_empty">Enter an amount to see the total.</p>
+
+                <div id="calc_rows" class="hidden">
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                        <div class="text-sm font-medium text-gray-600">RMB receiver gets</div>
+                        <div class="text-3xl font-bold text-purple-700 tabular-nums leading-none" id="preview_rmb">-</div>
+                    </div>
+                    <div class="mt-3 pt-2 border-t border-green-200 space-y-1 text-sm">
+                        <div class="flex items-center justify-between gap-4">
+                            <span class="text-gray-600">Amount converted</span>
+                            <span class="font-medium text-gray-900 tabular-nums" id="preview_sent">-</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-4">
+                            <span class="text-gray-600">Credited in USD</span>
+                            <span class="font-medium text-gray-900 tabular-nums" id="preview_usd">-</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-4">
+                            <span class="text-gray-600">Rate</span>
+                            <span class="font-medium text-gray-900 tabular-nums" id="preview_rate">{{ $usdRmb && $usdRmb['sell'] > 0 ? '1 USD = ' . $trimRate($usdRmb['sell']) . ' RMB' : 'Not set' }}</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-3 leading-relaxed" id="preview_formula"></p>
+                </div>
+            </div>
+
+            <div class="flex items-start justify-between mt-8">
                 <button type="button" onclick="prevStep(3)" class="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 font-medium">
                     ← Back
                 </button>
-                <button type="button" onclick="nextStep(3)" class="bg-green-800 text-white px-8 py-3 rounded-lg hover:bg-green-700 font-medium">
-                    Next: Review →
-                </button>
+                <div class="flex flex-col items-end gap-2">
+                    <button type="button" id="next-3" onclick="nextStep(3)" class="bg-green-800 text-white px-8 py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:bg-gray-300 font-medium">
+                        Next: Review →
+                    </button>
+                    <p class="text-xs text-gray-500" id="step3_hint"></p>
+                </div>
             </div>
         </div>
 
@@ -358,6 +376,7 @@ function syncPurposeOther() {
     purposeOtherWrap.classList.toggle('hidden', !show);
     purposeOther.required = show;
     if (!show) purposeOther.value = '';
+    syncStep3();
 }
 purposeSelect.addEventListener('change', syncPurposeOther);
 syncPurposeOther();
@@ -435,13 +454,47 @@ function showMoney(currency, n) {
     return currency === 'UGX' ? ugx(n) : '$' + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
+// The two money boxes are typed as text so the separators can appear while the cashier types.
+// Every read strips them and every send puts a plain number back, which is what the server
+// validates as numeric.
+function parseMoney(el) {
+    const raw = el.value.replace(/,/g, '').trim();
+    return raw === '' ? NaN : Number(raw);
+}
+
+function formatMoney(el) {
+    const before = (el.value.slice(0, el.selectionStart).match(/[\d.]/g) || []).length;
+    const parts = el.value.replace(/,/g, '').match(/^(\d*)(\.?)(\d{0,2})/);
+    if (!parts) return;
+    el.value = parts[1].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + parts[2] + parts[3];
+    if (el.setSelectionRange) {
+        let seen = 0;
+        let caret = el.value.length;
+        for (let i = 0; i < el.value.length; i++) {
+            if (/[\d.]/.test(el.value[i])) seen++;
+            if (seen === before) { caret = i + 1; break; }
+        }
+        el.setSelectionRange(before === 0 ? 0 : caret, before === 0 ? 0 : caret);
+    }
+}
+
+function setMoney(el, value) {
+    el.value = value;
+    formatMoney(el);
+}
+
+document.querySelectorAll('[data-money]').forEach(el => {
+    el.addEventListener('input', () => formatMoney(el));
+    if (el.value) setMoney(el, el.value);
+});
+
 // Everything the pricing depends on, worked the same way the server works it: the charge comes
 // out of the cash handed over, the dollars that travel are credited at one decimal place, and
 // the yuan payout is priced from that rounded figure.
 function figures() {
     const currency = document.getElementById('currency').value;
-    const cash = parseFloat(document.getElementById('amount').value) || 0;
-    const charge = parseFloat(document.getElementById('charge_ugx').value) || 0;
+    const cash = parseMoney(document.getElementById('amount')) || 0;
+    const charge = parseMoney(document.getElementById('charge_ugx')) || 0;
     const paidInUgx = currency === 'UGX';
     const sent = paidInUgx ? cash - charge : cash;
     const credited = sent > 0
@@ -464,33 +517,18 @@ function suggestCharge() {
     if (chargeTouched) return;
     const input = document.getElementById('charge_ugx');
     const currency = document.getElementById('currency').value;
-    const cash = parseFloat(document.getElementById('amount').value) || 0;
+    const cash = parseMoney(document.getElementById('amount')) || 0;
     if (!cash || serviceFeeUsd <= 0 || serviceFeeUgx <= 0) return;
     if (currency === 'UGX' && usdSellRate <= 0) return;
     const credited = currency === 'UGX' ? cash / usdSellRate : cash;
-    input.value = (Math.round(credited * (serviceFeeUgx / serviceFeeUsd) * 100) / 100).toFixed(2);
+    setMoney(input, (Math.round(credited * (serviceFeeUgx / serviceFeeUsd) * 100) / 100).toFixed(2));
 }
 
-function calculate() {
-    suggestCharge();
-    const f = figures();
-
-    document.getElementById('cash_help').textContent = f.paidInUgx
-        ? 'The whole amount the customer gave you, charge included.'
-        : 'The dollars the customer gave you. All of them travel, and the charge is collected on top in shillings.';
-
-    document.getElementById('preview_sent').textContent = f.sent ? showMoney(f.currency, f.sent) : '-';
-    document.getElementById('preview_usd').textContent = f.credited ? dollars(f.credited) : '-';
-    document.getElementById('preview_rmb').textContent = f.payout ? '¥' + f.payout.toLocaleString(undefined, {minimumFractionDigits: 2}) : '-';
-
-    const formula = document.getElementById('preview_formula');
-    if (!f.cash) {
-        formula.textContent = 'Enter the money handed over to see how the figures are derived.';
-        return;
-    }
+// The card shows the working as well as the answer: the same three operations the server runs,
+// in the order the money moves.
+function derivation(f) {
     if (!f.sent) {
-        formula.textContent = 'The charge is the whole of the money handed over, so nothing is left to send. It must be less than that.';
-        return;
+        return 'The charge is the whole of the money handed over, so nothing is left to send. It must be less than that.';
     }
 
     const steps = [];
@@ -510,7 +548,57 @@ function calculate() {
     } else {
         steps.push('Step 3: no yuan rate is set, so the payout cannot be worked out yet');
     }
-    formula.textContent = steps.join('   ·   ');
+
+    return steps.join('   ·   ');
+}
+
+function calculate() {
+    suggestCharge();
+    const f = figures();
+    const typed = document.getElementById('amount').value.trim() !== '';
+
+    document.getElementById('cash_help').textContent = f.paidInUgx
+        ? 'Total received, charge included.'
+        : 'All of these dollars travel.';
+
+    // Until an amount is typed the card holds one line instead of a row of dashes.
+    document.getElementById('calc_empty').classList.toggle('hidden', typed);
+    document.getElementById('calc_rows').classList.toggle('hidden', !typed);
+
+    if (typed) {
+        document.getElementById('preview_sent').textContent = showMoney(f.currency, f.sent);
+        document.getElementById('preview_usd').textContent = dollars(f.credited);
+        document.getElementById('preview_rmb').textContent = '¥' + f.payout.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('preview_formula').textContent = derivation(f);
+    }
+
+    syncStep3();
+}
+
+// The review step is only reachable with what the server will accept, so the hint names the one
+// thing still missing rather than leaving a dead button.
+function step3Hint() {
+    const amount = document.getElementById('amount');
+    const charge = document.getElementById('charge_ugx');
+    const cash = parseMoney(amount);
+    const fee = parseMoney(charge);
+    const min = parseFloat(amount.getAttribute('min')) || 0;
+
+    if (!amount.value.trim()) return 'Enter the money handed over.';
+    if (!Number.isFinite(cash)) return 'The money handed over must be a number.';
+    if (cash < min) return 'The smallest booking is ' + showMoney(document.getElementById('currency').value, min) + '.';
+    if (!charge.value.trim()) return 'Enter the charge, or 0 if none was taken.';
+    if (!Number.isFinite(fee) || fee < 0) return 'The charge cannot be negative.';
+    if (document.getElementById('currency').value === 'UGX' && cash - fee <= 0) return 'The charge must be less than the money handed over.';
+    if (purposeSelect.value === 'Other' && !purposeOther.value.trim()) return 'Say what the other reason is.';
+
+    return '';
+}
+
+function syncStep3() {
+    const hint = step3Hint();
+    document.getElementById('next-3').disabled = hint !== '';
+    document.getElementById('step3_hint').textContent = hint;
 }
 
 function titleCaseName(input) {
@@ -555,11 +643,17 @@ document.getElementById('charge_ugx').addEventListener('input', function () {
     chargeTouched = true;
     calculate();
 });
+document.getElementById('purpose_other').addEventListener('input', syncStep3);
 calculate();
 
 document.getElementById('transactionForm').addEventListener('submit', function(e) {
     buildFullContact('sender_prefix', 'sender_contact', 'sender_full_contact');
     buildFullContact('receiver_prefix', 'receiver_contact', 'receiver_full_contact');
+
+    // The separators are for reading; the server gets a plain number.
+    document.querySelectorAll('[data-money]').forEach(el => {
+        if (el.value.trim()) el.value = String(parseMoney(el));
+    });
 
     document.querySelector('[name=sender_contact]').value = document.getElementById('sender_contact').value.trim() ? document.getElementById('sender_full_contact').value : '';
     document.querySelector('[name=receiver_contact]').value = document.getElementById('receiver_contact').value.trim() ? document.getElementById('receiver_full_contact').value : '';
@@ -640,6 +734,7 @@ function restoreDraft() {
         const el = document.querySelector('[name="' + name + '"]');
         if (el && data[name] !== undefined) el.value = data[name];
     });
+    document.querySelectorAll('[data-money]').forEach(el => { if (el.value) setMoney(el, el.value); });
     pickPrefix('sender', data.sender_prefix);
     pickPrefix('receiver', data.receiver_prefix);
     if (data.charge_ugx && data.charge_ugx.trim() !== '') chargeTouched = true;

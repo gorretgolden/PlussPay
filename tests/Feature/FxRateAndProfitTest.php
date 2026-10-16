@@ -105,8 +105,10 @@ class FxRateAndProfitTest extends TestCase
 
         $html = $this->actingAs($agent)->get('/transactions/create')->getContent();
 
-        // The charge box is theirs to fill. Settings only ever supplies a starting point.
-        $this->assertStringContainsString('Change it for this customer if that is what was agreed.', $html);
+        // The charge box is theirs to fill. Settings only ever supplies a starting point, which
+        // now sits in the tooltip beside the label rather than in the sentence under the field.
+        $this->assertStringContainsString('Settings suggest UGX 2,000 per 100 USD. Type what this customer actually paid.', $html);
+        $this->assertStringContainsString('Default from Settings. Editable.', $html);
         $this->assertStringContainsString('name="charge_ugx"', $html);
         $this->assertStringNotContainsString('name="charge_ugx" readonly', $html);
         $this->assertStringNotContainsString('name="charge_ugx" disabled', $html);
@@ -141,8 +143,10 @@ class FxRateAndProfitTest extends TestCase
         $html = $this->actingAs($this->admin())->get('/transactions/create')->getContent();
 
         // Shillings are entered whole with the charge inside them; dollars all travel and the
-        // charge is collected on top, so the same box cannot carry one sentence for both.
-        $this->assertStringContainsString('The whole amount the customer gave you, charge included.', $html);
+        // charge is collected on top, so the same box cannot carry one sentence for both. The
+        // line under the field stays short and the working lives in the tooltip.
+        $this->assertStringContainsString('Total received, charge included.', $html);
+        $this->assertStringContainsString("'All of these dollars travel.'", $html);
         $this->assertStringContainsString('the charge is collected on top in shillings.', $html);
         $this->assertStringContainsString('id="cash_help"', $html);
     }
