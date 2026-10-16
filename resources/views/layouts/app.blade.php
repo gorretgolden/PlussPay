@@ -141,37 +141,12 @@
                         <svg id="reportsChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('reports.*') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
                     <div id="reportsGroup" class="{{ request()->routeIs('reports.*') ? '' : 'hidden' }}">
-                        <a href="{{ route('reports.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('reports.index') && !request()->query('type') ? 'active' : '' }}">
-                            Reports Hub
+                        @foreach(\App\Support\ReportCatalog::nav(auth()->user()) as $key => $label)
+                        @php $isHub = $key === 'hub'; @endphp
+                        <a href="{{ route('reports.index', $isHub ? [] : ['type' => $key]) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ $isHub ? (request()->routeIs('reports.index') && !request()->query('type') ? 'active' : '') : (request()->query('type') === $key ? 'active' : '') }}">
+                            {{ $label }}
                         </a>
-                        <a href="{{ route('reports.index', ['type' => 'transaction']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'transaction' ? 'active' : '' }}">
-                            Transaction Report
-                        </a>
-                        <a href="{{ route('reports.index', ['type' => 'revenue']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'revenue' ? 'active' : '' }}">
-                            Revenue Report
-                        </a>
-                        @can('view-profit')
-                        <a href="{{ route('reports.index', ['type' => 'profit']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'profit' ? 'active' : '' }}">
-                            Profit Report
-                        </a>
-                        @endcan
-                        <a href="{{ route('reports.index', ['type' => 'commission']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'commission' ? 'active' : '' }}">
-                            Commission Report
-                        </a>
-                        <a href="{{ route('reports.index', ['type' => 'agent']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'agent' ? 'active' : '' }}">
-                            Agent Report
-                        </a>
-                        <a href="{{ route('reports.index', ['type' => 'daily']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'daily' ? 'active' : '' }}">
-                            Daily Summary
-                        </a>
-                        <a href="{{ route('reports.index', ['type' => 'customer']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'customer' ? 'active' : '' }}">
-                            Customer Report
-                        </a>
-                        @can('view-exchange-rates')
-                        <a href="{{ route('reports.index', ['type' => 'rates']) }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->query('type') === 'rates' ? 'active' : '' }}">
-                            Rate Report
-                        </a>
-                        @endcan
+                        @endforeach
                     </div>
                 </div>
                 @endcan

@@ -2,12 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\ActivityLog;
+use App\Models\CurrencyExchange;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\ReportCatalog;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -21,12 +27,19 @@ class ReportsController extends Controller
 {
     public function index(Request $request)
     {
-        $dateFrom = $request->input('date_from', now()->startOfMonth()->toDateString());
-        $dateTo = $request->input('date_to', now()->toDateString());
+        $viewer = $request->user();
         $reportType = $request->input('type', 'hub');
 
-        $query = Transaction::visibleTo(auth()->user())
-            ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
+        // The type comes off the query string, so it is refused here rather than left to fall
+        // through to the hub and look like a report that worked.
+        abort_unless(ReportCatalog::open($viewer, $reportType), 403, 'That report is not open to your role.');
+
+        $isDesk = ReportCatalog::isDesk($viewer);
+        $allowed = ReportCatalog::shown($viewer);
+
+        [$dateFrom, $dateTo] = $this->period($request, $viewer);
+
+        $query = $this->scoped($request, $viewer, $dateFrom, $dateTo);
 
         $transactions = (clone $query)->latest()->get();
 
@@ -82,27 +95,26 @@ class ReportsController extends Controller
             . 'sum(coalesce(charge_amount, 0) * ('.$rmbRate.') + coalesce(fx_profit_usd, 0) * ('.$rmbRate.') + coalesce(usd_rmb_profit_cny, 0)) as total_rmb';
         $profitBind = array_merge($rmbBinding, $rmbBinding);
 
-        $byAgent = Transaction::with('creator')
-            ->visibleTo(auth()->user())
-            ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
-            ->where('status', 'completed')
-            ->selectRaw('created_by, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(charge_ugx) as fee_ugx, '.$profitCols, $profitBind)
-            ->groupBy('created_by')
-            ->get();
-
-        $dailySummary = Transaction::visibleTo(auth()->user())
-            ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
+        $dailySummary = $this->scoped($request, $viewer, $dateFrom, $dateTo)
             ->where('status', 'completed')
             ->selectRaw('DATE(created_at) as date, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(charge_ugx) as fee_ugx, '.$profitCols, $profitBind)
             ->groupBy(DB::raw('DATE(created_at)'))
             ->orderBy('date')
             ->get();
 
+        // These four read across the desks, so a desk never runs the query at all. An empty
+        // collection keeps the page from having to test the role again before it prints a name.
+        $byAgent = $isDesk ? collect() : $this->scoped($request, $viewer, $dateFrom, $dateTo)
+            ->with('creator')
+            ->where('status', 'completed')
+            ->selectRaw('created_by, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(charge_ugx) as fee_ugx, '.$profitCols, $profitBind)
+            ->groupBy('created_by')
+            ->get();
+
         // Customers come from the booking rows rather than the directory, because the directory
         // only holds a name and a phone and carries no volume. Each line is grouped under the
         // sender name as it was typed on the transfer, so a misspelling stays its own customer.
-        $byCustomer = Transaction::visibleTo(auth()->user())
-            ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
+        $byCustomer = $isDesk ? collect() : $this->scoped($request, $viewer, $dateFrom, $dateTo)
             ->where('status', 'completed')
             ->where('sender_name', '!=', '')
             ->selectRaw('sender_name, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(rmb_amount) as rmb_booked, sum(charge_ugx) as fee_ugx, max(created_at) as last_transfer')
@@ -110,11 +122,194 @@ class ReportsController extends Controller
             ->orderByDesc('total_usd')
             ->get();
 
-        $byRate = $this->rateBookings($dateFrom, $dateTo, auth()->user());
+        $byRate = $isDesk ? collect() : $this->rateBookings($request, $viewer, $dateFrom, $dateTo);
 
-        $commission = $this->commissionTotals($dateFrom, $dateTo, auth()->user());
+        $commission = $isDesk ? $this->emptyCommission() : $this->commissionTotals($dateFrom, $dateTo, $viewer);
 
-        return view('reports.index', compact('stats', 'profit', 'unpricedCount', 'unpricedReceipts', 'byCurrency', 'byAgent', 'dailySummary', 'byCustomer', 'byRate', 'dateFrom', 'dateTo', 'transactions', 'reportType', 'commission'));
+        // The book the office keeps is a list of every desk that has booked something; the desk
+        // page has no such control, because the only id it is allowed to filter by is its own.
+        $desks = $isDesk ? collect() : User::whereHas('transactions', fn ($q) => $q->visibleTo($viewer))
+            ->orderBy('name')
+            ->get();
+
+        // A desk's own three reports, each built from rows this reader booked and nothing else.
+        $myDays = $isDesk ? $this->dayByStatus($transactions) : collect();
+        $myCharge = $isDesk ? $this->chargeRollups($dailySummary) : [];
+        $myExchanges = $isDesk && isset($allowed['exchanges'])
+            ? CurrencyExchange::visibleTo($viewer)
+                ->whereDate('exchange_date', '>=', $dateFrom)
+                ->whereDate('exchange_date', '<=', $dateTo)
+                ->orderByDesc('exchange_date')
+                ->orderByDesc('id')
+                ->get()
+            : collect();
+        $myWallet = $isDesk && isset($allowed['wallet']) ? $this->walletSummary($viewer) : [];
+
+        return view('reports.index', compact(
+            'stats', 'profit', 'unpricedCount', 'unpricedReceipts', 'byCurrency', 'byAgent', 'dailySummary',
+            'byCustomer', 'byRate', 'dateFrom', 'dateTo', 'transactions', 'reportType', 'commission',
+            'viewer', 'isDesk', 'allowed', 'desks', 'myDays', 'myCharge', 'myExchanges', 'myWallet',
+        ) + [
+            'reportTitle' => ReportCatalog::title($viewer, $reportType),
+            'reportHint' => ReportCatalog::hint($viewer, $reportType),
+            'search' => (string) $request->input('search', ''),
+            'agentId' => $request->filled('agent_id') ? (int) $request->input('agent_id') : null,
+            'allTime' => $request->boolean('all_time'),
+        ]);
+    }
+
+    /**
+     * The window the page reads. All Time pins the range to this reader's earliest booking rather
+     * than dropping the clause, so every table, label and export filename keeps the same from and
+     * to shape it has always had.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function period(Request $request, User $viewer): array
+    {
+        $dateTo = $request->input('date_to', now()->toDateString());
+
+        if (! $request->boolean('all_time')) {
+            return [$request->input('date_from', now()->startOfMonth()->toDateString()), $dateTo];
+        }
+
+        $earliest = Transaction::visibleTo($viewer)->min('created_at');
+
+        return [$earliest === null ? now()->startOfMonth()->toDateString() : substr((string) $earliest, 0, 10), $dateTo];
+    }
+
+    /**
+     * Every report query starts here, and the order is the point: visibleTo() narrows the rows to
+     * whatever this reader is entitled to before any filter off the query string is applied, so a
+     * hand-typed agent id can only ever cut a desk's own set further.
+     */
+    private function scoped(Request $request, User $viewer, string $dateFrom, string $dateTo): Builder
+    {
+        $query = Transaction::visibleTo($viewer)
+            ->whereBetween('created_at', [$dateFrom, $dateTo.' 23:59:59']);
+
+        if ($request->filled('search')) {
+            $term = '%'.addcslashes($request->input('search'), '%_\\').'%';
+            $query->where(fn (Builder $q) => $q->where('receipt_number', 'like', $term)
+                ->orWhere('sender_name', 'like', $term)
+                ->orWhere('receiver_name', 'like', $term));
+        }
+
+        if ($request->filled('agent_id') && $viewer->can(ReportCatalog::LEDGER_ABILITY)) {
+            $query->where('created_by', (int) $request->input('agent_id'));
+        }
+
+        return $query;
+    }
+
+    /**
+     * One line per day with the three statuses counted beside it, read off the rows the page has
+     * already loaded. Counted in PHP because a query per status would be three chances to disagree
+     * with the cards at the top of the same screen.
+     *
+     * @return \Illuminate\Support\Collection<string, array>
+     */
+    private function dayByStatus(Collection $transactions): Collection
+    {
+        return $transactions
+            ->groupBy(fn (Transaction $t) => $t->created_at->toDateString())
+            ->map(fn ($rows) => [
+                'completed' => $rows->where('status', 'completed')->count(),
+                'pending' => $rows->where('status', 'pending')->count(),
+                'cancelled' => $rows->where('status', 'cancelled')->count(),
+                'total_usd' => (float) $rows->where('status', 'completed')->sum('total_usd_equivalent'),
+                'fee_ugx' => (float) $rows->where('status', 'completed')->sum('charge_ugx'),
+            ])
+            ->sortKeysDesc();
+    }
+
+    /**
+     * The charge kept grouped three ways off one set of day rows, because the week and month
+     * figures are the days added up and nothing else. Doing the rollup here rather than in SQL
+     * keeps it the same answer on either database the book runs on.
+     *
+     * @return array{day: \Illuminate\Support\Collection, week: \Illuminate\Support\Collection, month: \Illuminate\Support\Collection}
+     */
+    private function chargeRollups(Collection $dailySummary): array
+    {
+        $roll = function (callable $key, callable $label) use ($dailySummary) {
+            return $dailySummary
+                ->groupBy(fn ($day) => $key(Carbon::parse($day->date)))
+                ->map(fn ($days) => [
+                    'label' => $label(Carbon::parse($days->first()->date), $days->count()),
+                    'count' => (int) $days->sum('count'),
+                    'fee_ugx' => (float) $days->sum('fee_ugx'),
+                ])
+                ->sortBy(fn ($row) => $row['label'], SORT_NATURAL, true)
+                ->values();
+        };
+
+        return [
+            'day' => $dailySummary->map(fn ($day) => [
+                'label' => Carbon::parse($day->date)->format('M d, Y'),
+                'count' => (int) $day->count,
+                'fee_ugx' => (float) $day->fee_ugx,
+            ])->values(),
+            'week' => $roll(
+                fn (Carbon $d) => $d->copy()->startOfWeek()->toDateString(),
+                fn (Carbon $d) => 'Week of '.$d->copy()->startOfWeek()->format('M d, Y'),
+            ),
+            'month' => $roll(
+                fn (Carbon $d) => $d->format('Y-m'),
+                fn (Carbon $d) => $d->format('F Y'),
+            ),
+        ];
+    }
+
+    /**
+     * What this desk is holding, what they have already given up to the office, and how much of
+     * what is in their hands is their own pay. Commission is only ever in shillings, so the dollar
+     * and yuan wallets carry no figure to subtract.
+     *
+     * @return array<int, array{currency: string, name: string, in_hand: string, handed_in: string, kept: string, owed: string}>
+     */
+    private function walletSummary(User $viewer): array
+    {
+        $wallets = Account::walletsFor($viewer);
+        $handedIn = AccountEntry::handedInFor($wallets);
+
+        $shilling = $wallets['UGX'] ?? null;
+
+        $kept = '0.00';
+
+        if ($shilling) {
+            $earned = (string) AccountEntry::where('account_id', $shilling->id)->where('type', 'agent_fee')->sum('amount');
+            $given = (string) AccountEntry::where('account_id', $shilling->id)->where('type', 'agent_fee_reversal')->sum('amount');
+            $kept = bcsub($earned, $given, 2);
+        }
+
+        $rows = [];
+
+        foreach ($wallets as $currency => $account) {
+            $inHand = (string) $account->balance();
+            $mine = $currency === 'UGX' ? $kept : '0.00';
+
+            $rows[] = [
+                'currency' => $currency,
+                'name' => $account->name,
+                'in_hand' => $inHand,
+                'handed_in' => $handedIn[$account->id] ?? '0.00',
+                'kept' => $mine,
+                'owed' => bcsub($inHand, $mine, 2),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The shape the commission section expects from a reader who is not allowed to see it at all.
+     *
+     * @return array{rows: \Illuminate\Support\Collection, earned: float, reversed: float, net: float, transfers: int, everyone: bool}
+     */
+    private function emptyCommission(): array
+    {
+        return ['rows' => collect(), 'earned' => 0.0, 'reversed' => 0.0, 'net' => 0.0, 'transfers' => 0, 'everyone' => false];
     }
 
     /**
@@ -124,10 +319,9 @@ class ReportsController extends Controller
      *
      * @return \Illuminate\Support\Collection<int, object>
      */
-    private function rateBookings(string $dateFrom, string $dateTo, User $viewer)
+    private function rateBookings(Request $request, User $viewer, string $dateFrom, string $dateTo)
     {
-        $rows = Transaction::visibleTo($viewer)
-            ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59'])
+        $rows = $this->scoped($request, $viewer, $dateFrom, $dateTo)
             ->where('status', 'completed')
             ->selectRaw('exchange_rate, count(*) as count, sum(total_usd_equivalent) as total_usd, sum(rmb_amount) as rmb_booked, sum(charge_ugx) as fee_ugx, sum(coalesce(fx_profit_ugx, 0) + coalesce(usd_rmb_profit_ugx, 0)) as exchange_ugx, min(created_at) as first_booked, max(created_at) as last_booked')
             ->groupBy('exchange_rate')
@@ -246,32 +440,24 @@ class ReportsController extends Controller
 
     public function exportExcel(Request $request)
     {
-        abort_if($request->input('type') === 'profit' && !$request->user()->can('view-profit'), 403);
-        $dateFrom = $request->input('date_from', now()->startOfMonth()->toDateString());
-        $dateTo = $request->input('date_to', now()->toDateString());
+        $viewer = $request->user();
+        $reportType = $request->input('type', 'hub');
 
-        $query = Transaction::visibleTo(auth()->user())
-            ->whereBetween('created_at', [$dateFrom, $dateTo . ' 23:59:59']);
+        // The export always writes transfer rows, but the tab it is reached from is still the gate:
+        // a desk asking for the profit sheet gets a refusal, not a sheet with the profit columns
+        // quietly removed.
+        abort_unless(ReportCatalog::open($viewer, $reportType), 403, 'That report is not open to your role.');
+
+        [$dateFrom, $dateTo] = $this->period($request, $viewer);
+
+        $query = $this->scoped($request, $viewer, $dateFrom, $dateTo);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        if ($request->filled('agent_id')) {
-            $query->where('created_by', $request->agent_id);
-        }
-
         if ($request->filled('currency')) {
             $query->where('currency', $request->currency);
-        }
-
-        if ($request->filled('search')) {
-            $search = '%'.addcslashes($request->search, '%_\\').'%';
-            $query->where(function ($q) use ($search) {
-                $q->where('receipt_number', 'like', $search)
-                  ->orWhere('sender_name', 'like', $search)
-                  ->orWhere('receiver_name', 'like', $search);
-            });
         }
 
         $transactions = $query->with('creator')->latest()->get();

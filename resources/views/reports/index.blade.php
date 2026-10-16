@@ -7,41 +7,42 @@
     // The profit columns belong to the same account that owns the Profit cards, so one flag
     // decides which columns a viewer gets instead of repeating the role test everywhere.
     $showProfit = auth()->user()->can('view-profit');
+
+    // Carried on every link on the page so a filter set once survives the tab switches and the
+    // sheet that comes out of the other end.
+    $carry = array_filter([
+        'type' => $reportType,
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'search' => $search !== '' ? $search : null,
+        'agent_id' => $agentId,
+        'all_time' => $allTime ? 1 : null,
+    ]);
+
+    $query = fn (array $over) => route('reports.index', array_filter(array_merge($carry, $over), fn ($v) => $v !== null && $v !== ''));
+
+    // A desk's own page is a different set of tables, so the tab named in the address scrolls to
+    // the block that carries it for that reader.
+    $scroll = $isDesk ? ['hub' => 'section-hub', 'transaction' => 'section-transfers', 'exchanges' => 'section-exchanges', 'charge' => 'section-charge', 'wallet' => 'section-wallet', 'daily' => 'section-daily'] : ['hub' => 'section-hub', 'transaction' => 'section-transaction', 'revenue' => 'section-revenue', 'profit' => 'section-profit', 'commission' => 'section-commission', 'agent' => 'section-agent', 'customer' => 'section-customer', 'rates' => 'section-rates', 'daily' => 'section-daily'];
+
+    // A desk's exchange and wallet tabs export their own pages, not the transfer sheet.
+    $canExport = auth()->user()->can('export-reports') && ! ($isDesk && in_array($reportType, ['exchanges', 'wallet'], true));
 @endphp
 <div class="mb-6 flex justify-between items-center">
     <div>
-        <h1 class="text-2xl font-bold text-gray-900">
-            @if($reportType === 'transaction') Transaction Report
-            @elseif($reportType === 'revenue') Revenue Report
-            @elseif($reportType === 'profit') Profit Report
-            @elseif($reportType === 'commission') Commission Report
-            @elseif($reportType === 'agent') Agent Report
-            @elseif($reportType === 'customer') Customer Report
-            @elseif($reportType === 'rates') Exchange Rate Report
-            @elseif($reportType === 'daily') Daily Summary
-            @else Reports Hub
-            @endif
-        </h1>
-        <p class="text-gray-600">
-            @if($reportType === 'transaction') Detailed transaction breakdown
-            @elseif($reportType === 'revenue') Revenue and charge analysis
-            @elseif($reportType === 'profit') The charge kept plus what the rates earned on the money that travelled
-            @elseif($reportType === 'commission') What the desk earned on the transfers they booked
-            @elseif($reportType === 'agent') Agent performance metrics
-            @elseif($reportType === 'customer') Who the money moved for, and how much each one sent
-            @elseif($reportType === 'rates') What each dollar rate carried and what it earned
-            @elseif($reportType === 'daily') Day-by-day transaction summary
-            @else Transaction summaries and analytics
-            @endif
-        </p>
+        <h1 class="text-2xl font-bold text-gray-900">{{ $reportTitle }}</h1>
+        <p class="text-gray-600">{{ $reportHint }}</p>
     </div>
-    <a href="{{ route('reports.export', ['date_from' => $dateFrom, 'date_to' => $dateTo, 'type' => $reportType]) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Export Excel</a>
+    @if($canExport)
+    <a href="{{ route('reports.export', array_filter($carry, fn ($v) => $v !== null && $v !== '')) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Export Excel</a>
+    @endif
 </div>
 
 {{-- Date Filter --}}
 <div class="bg-white rounded-lg shadow p-4 mb-6 no-print">
     <form method="GET" action="{{ route('reports.index') }}" class="flex items-end gap-4 flex-wrap">
         <input type="hidden" name="type" value="{{ $reportType }}">
+        @if($allTime)<input type="hidden" name="all_time" value="1">@endif
         <div>
             <label class="block text-sm text-gray-600 mb-1">From</label>
             <input type="date" name="date_from" value="{{ $dateFrom }}" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
@@ -50,12 +51,28 @@
             <label class="block text-sm text-gray-600 mb-1">To</label>
             <input type="date" name="date_to" value="{{ $dateTo }}" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
         </div>
+        <div>
+            <label for="report-search" class="block text-sm text-gray-600 mb-1">Receipt or name</label>
+            <input type="text" id="report-search" name="search" value="{{ $search }}" placeholder="e.g. PS-20261016-0001" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+        </div>
+        @unless($isDesk)
+        <div>
+            <label for="report-agent" class="block text-sm text-gray-600 mb-1">Desk</label>
+            <select id="report-agent" name="agent_id" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">Every desk</option>
+                @foreach($desks as $desk)
+                <option value="{{ $desk->id }}" @selected($agentId === $desk->id)>{{ $desk->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        @endunless
         <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Apply</button>
         <a href="{{ route('reports.index', ['type' => $reportType]) }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Reset</a>
         <div class="flex gap-2 ml-auto">
-            <a href="{{ route('reports.index', ['type' => $reportType, 'date_from' => today()->toDateString(), 'date_to' => today()->toDateString()]) }}" class="px-3 py-1 text-xs rounded-full {{ $dateFrom === today()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Today</a>
-            <a href="{{ route('reports.index', ['type' => $reportType, 'date_from' => now()->startOfMonth()->toDateString(), 'date_to' => now()->toDateString()]) }}" class="px-3 py-1 text-xs rounded-full {{ $dateFrom === now()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">This Month</a>
-            <a href="{{ route('reports.index', ['type' => $reportType, 'date_from' => now()->subMonth()->startOfMonth()->toDateString(), 'date_to' => now()->subMonth()->endOfMonth()->toDateString()]) }}" class="px-3 py-1 text-xs rounded-full {{ $dateFrom === now()->subMonth()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Last Month</a>
+            <a href="{{ $query(['date_from' => today()->toDateString(), 'date_to' => today()->toDateString(), 'all_time' => null]) }}" class="px-3 py-1 text-xs rounded-full {{ ! $allTime && $dateFrom === today()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Today</a>
+            <a href="{{ $query(['date_from' => now()->startOfMonth()->toDateString(), 'date_to' => now()->toDateString(), 'all_time' => null]) }}" class="px-3 py-1 text-xs rounded-full {{ ! $allTime && $dateFrom === now()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">This Month</a>
+            <a href="{{ $query(['date_from' => now()->subMonth()->startOfMonth()->toDateString(), 'date_to' => now()->subMonth()->endOfMonth()->toDateString(), 'all_time' => null]) }}" class="px-3 py-1 text-xs rounded-full {{ ! $allTime && $dateFrom === now()->subMonth()->startOfMonth()->toDateString() ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">Last Month</a>
+            <a href="{{ $query(['all_time' => 1]) }}" class="px-3 py-1 text-xs rounded-full {{ $allTime ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">All Time</a>
         </div>
     </form>
 </div>
@@ -100,7 +117,217 @@
     @endcan
 </div>
 
-@can('view-profit')
+@if($isDesk)
+{{-- The desk's own bookings, printed the same way the office prints them. --}}
+<div id="section-transfers" class="bg-white rounded-lg shadow mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">My Transfers</h3>
+        <p class="text-sm text-gray-500">Every transfer you booked in this period, newest first. The receipt number opens the slip you can print.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receipt #</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Sender</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receiver</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Money Travels</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">RMB</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge (UGX)</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Date</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @forelse($transactions->take(100) as $t)
+                <tr>
+                    <td class="px-6 py-4 text-sm font-medium text-green-800 whitespace-nowrap">
+                        <a href="{{ route('receipts.show', $t->receipt_number) }}">{{ $t->receipt_number }}</a>
+                    </td>
+                    <td class="px-4 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->principalLabel() }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->yuanLabel() }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->feeLabel() }}</td>
+                    <td class="px-4 py-4">
+                        <span class="px-2 py-1 text-xs rounded-full
+                            @if($t->status === 'completed') bg-green-100 text-green-800
+                            @elseif($t->status === 'pending') bg-yellow-100 text-yellow-800
+                            @else bg-red-100 text-red-800 @endif">
+                            {{ ucfirst($t->status) }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('M d, Y h:i A') }}</td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="8" class="px-6 py-8 text-center text-gray-500">You have not booked a transfer in this period.</td>
+                </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+    @if($transactions->count() > 100)
+    <p class="px-6 py-3 text-xs text-gray-500 border-t">The hundred most recent bookings are listed. Narrow the dates to read the earlier ones.</p>
+    @endif
+</div>
+
+{{-- Every counter deal this desk did, with the money that went each way. --}}
+@if(isset($allowed['exchanges']))
+<div id="section-exchanges" class="bg-white rounded-lg shadow mb-6">
+    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div>
+            <h3 class="text-lg font-semibold text-gray-900">My Exchanges</h3>
+            <p class="text-sm text-gray-500">Every buy and sell you recorded at the counter in this period. A voided deal is listed so the callback is visible.</p>
+        </div>
+        @can('export-exchanges')
+        <a href="{{ route('export.exchanges', array_filter(['date_from' => $dateFrom, 'date_to' => $dateTo])) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700 whitespace-nowrap">Export Excel</a>
+        @endcan
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
+        <div class="rounded-lg border bg-gray-50 p-4">
+            <div class="text-sm text-gray-500">Deals</div>
+            <div class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($myExchanges->where('status', \App\Models\CurrencyExchange::ACTIVE)->count()) }}</div>
+        </div>
+        <div class="rounded-lg border bg-gray-50 p-4">
+            <div class="text-sm text-gray-500">Shillings In</div>
+            <div class="text-2xl font-bold text-gray-900 mt-1">{{ \App\Models\Account::format('UGX', $myExchanges->where('status', \App\Models\CurrencyExchange::ACTIVE)->where('in_currency', 'UGX')->sum('in_amount')) }}</div>
+        </div>
+        <div class="rounded-lg border bg-gray-50 p-4">
+            <div class="text-sm text-gray-500">Shillings Out</div>
+            <div class="text-2xl font-bold text-gray-900 mt-1">{{ \App\Models\Account::format('UGX', $myExchanges->where('status', \App\Models\CurrencyExchange::ACTIVE)->where('out_currency', 'UGX')->sum('out_amount')) }}</div>
+        </div>
+        <div class="rounded-lg border bg-gray-50 p-4">
+            <div class="text-sm text-gray-500">Fees Taken</div>
+            <div class="text-2xl font-bold text-gray-900 mt-1">{{ \App\Models\Account::format('UGX', $myExchanges->where('status', \App\Models\CurrencyExchange::ACTIVE)->sum('fee')) }}</div>
+        </div>
+    </div>
+    <div class="overflow-x-auto border-t">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Reference</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Date</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Customer</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">In</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Out</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Fee</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Rate</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @forelse($myExchanges as $x)
+                <tr>
+                    <td class="px-6 py-4 text-sm font-medium text-green-800 whitespace-nowrap">
+                        <a href="{{ route('exchanges.show', $x) }}">{{ $x->reference }}</a>
+                    </td>
+                    <td class="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $x->exchange_date->format('M d, Y') }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900">{{ $x->person_name ?: '-' }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ \App\Models\Account::format($x->in_currency, $x->in_amount) }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ \App\Models\Account::format($x->out_currency, $x->out_amount) }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ \App\Models\Account::format('UGX', $x->fee) }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $x->quotedRate() ?? '-' }}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs rounded-full {{ $x->isVoid() ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800' }}">{{ $x->isVoid() ? 'Void' : 'Active' }}</span>
+                    </td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="8" class="px-6 py-8 text-center text-gray-500">You have not recorded an exchange in this period.</td>
+                </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
+
+{{-- What this desk kept, counted the three ways she reads it. --}}
+@if(isset($allowed['charge']))
+<div id="section-charge" class="bg-white rounded-lg shadow mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">My Charge Collected</h3>
+        <p class="text-sm text-gray-500">The charge taken out of the cash handed over on the transfers that completed. A cancelled transfer is not counted, because the charge came back out of the wallet.</p>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
+        @foreach(['day' => 'By Day', 'week' => 'By Week', 'month' => 'By Month'] as $key => $heading)
+        <div>
+            <div class="text-sm font-semibold text-gray-700 mb-2">{{ $heading }}</div>
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b">
+                        <th class="text-left py-2 text-gray-500">Period</th>
+                        <th class="text-right py-2 text-gray-500">Txns</th>
+                        <th class="text-right py-2 text-gray-500">Charge (UGX)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @forelse($myCharge[$key] as $row)
+                    <tr>
+                        <td class="py-2 text-gray-900">{{ $row['label'] }}</td>
+                        <td class="py-2 text-right text-gray-900">{{ number_format($row['count']) }}</td>
+                        <td class="py-2 text-right text-gray-900">{{ number_format($row['fee_ugx']) }}</td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="3" class="py-3 text-gray-500">No completed transfer in this period.</td>
+                    </tr>
+                    @endforelse
+                </tbody>
+                @if(count($myCharge[$key]))
+                <tfoot>
+                    <tr class="border-t">
+                        <td class="py-2 font-bold text-gray-900">Total</td>
+                        <td class="py-2 text-right font-bold text-gray-900">{{ number_format(collect($myCharge[$key])->sum('count')) }}</td>
+                        <td class="py-2 text-right font-bold text-gray-900">{{ number_format(collect($myCharge[$key])->sum('fee_ugx')) }}</td>
+                    </tr>
+                </tfoot>
+                @endif
+            </table>
+        </div>
+        @endforeach
+    </div>
+</div>
+@endif
+
+{{-- In hand, handed in, and the part of it that is the desk's own pay. --}}
+@if(isset($allowed['wallet']))
+<div id="section-wallet" class="bg-white rounded-lg shadow mb-6">
+    <div class="px-6 py-4 border-b border-gray-200 flex items-start justify-between gap-4">
+        <div>
+            <h3 class="text-lg font-semibold text-gray-900">My Wallet Summary</h3>
+            <p class="text-sm text-gray-500">What you are holding right now, whatever the dates above. Still to hand in is that figure less your own commission.</p>
+        </div>
+        <a href="{{ route('wallet.index') }}" class="text-sm text-green-800 hover:underline whitespace-nowrap">Cash history and hand in</a>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+        @foreach($myWallet as $w)
+        <div class="rounded-lg border border-gray-200 p-5">
+            <div class="text-sm text-gray-500 uppercase tracking-wide">{{ $w['currency'] }} Wallet</div>
+            <div class="text-3xl font-bold text-gray-900 mt-2 tabular-nums">{{ \App\Models\Account::format($w['currency'], $w['in_hand']) }}</div>
+            <dl class="mt-4 space-y-1 text-sm">
+                <div class="flex justify-between gap-3">
+                    <dt class="text-gray-600">Commission kept</dt>
+                    <dd class="text-gray-900 tabular-nums">{{ $w['currency'] === 'UGX' ? \App\Models\Account::format('UGX', $w['kept']) : 'None, pay is in shillings' }}</dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                    <dt class="text-gray-600">Still to hand in</dt>
+                    <dd class="font-semibold text-gray-900 tabular-nums">{{ \App\Models\Account::format($w['currency'], $w['owed']) }}</dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                    <dt class="text-gray-600">Handed in so far</dt>
+                    <dd class="text-gray-900 tabular-nums">{{ \App\Models\Account::format($w['currency'], $w['handed_in']) }}</dd>
+                </div>
+            </dl>
+        </div>
+        @endforeach
+    </div>
+</div>
+@endif
+@endif
+
+@if(isset($allowed['profit']))
 <div id="section-profit" class="mb-6">
     <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -148,9 +375,10 @@
         @endif
     </div>
 </div>
-@endcan
+@endif
 
-{{-- Commission Section: everyone sees their own, admin sees the whole desk --}}
+{{-- Commission Section: the office's own report, one line per desk --}}
+@if(isset($allowed['commission']))
 <div id="section-commission" class="mb-6">
     <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b border-gray-200">
@@ -182,12 +410,12 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Person</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Transfers</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Earned (UGX)</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Given Back (UGX)</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net (UGX)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Person</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Role</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Transfers</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Earned (UGX)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Given Back (UGX)</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Net (UGX)</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -222,6 +450,7 @@
         @endif
     </div>
 </div>
+@endif
 
 {{-- Charts --}}
 <div id="section-transaction" class="mb-6">
@@ -243,10 +472,14 @@
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Transaction Status Distribution</h3>
             <div style="position:relative;height:250px"><canvas id="statusChart"></canvas></div>
         </div>
+        {{-- The comparison is a chart of every desk against each other, so a desk is not shown
+             one bar carrying their own name. --}}
+        @if(isset($allowed['revenue']))
         <div class="bg-white rounded-lg shadow p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Agent Performance Comparison</h3>
             <div style="position:relative;height:250px"><canvas id="agentChart"></canvas></div>
         </div>
+        @endif
     </div>
 </div>
 
@@ -311,6 +544,54 @@
 
 {{-- One table per day, profit columns for the accounts that own the profit cards --}}
 <div id="section-daily" class="bg-white rounded-lg shadow mb-6">
+    @if($isDesk)
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">My Daily Summary</h3>
+        <p class="text-sm text-gray-500">A line for every day you booked something, with the three states counted apart. The money columns are the transfers that completed.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Day</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Completed</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Pending</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Cancelled</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">USD Sent</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge (UGX)</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @forelse($myDays as $day => $row)
+                <tr>
+                    <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($day)->format('M d, Y') }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-green-800">{{ number_format($row['completed']) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-yellow-700">{{ number_format($row['pending']) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-red-700">{{ number_format($row['cancelled']) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format($row['total_usd'], 1) }}</td>
+                    <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format($row['fee_ugx']) }}</td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">You have not booked a transfer in this period.</td>
+                </tr>
+                @endforelse
+            </tbody>
+            @if($myDays->isNotEmpty())
+            <tfoot class="bg-gray-50">
+                <tr>
+                    <td class="px-6 py-3 text-sm font-bold text-gray-900">Total</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($myDays->sum(fn ($r) => $r['completed'])) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($myDays->sum(fn ($r) => $r['pending'])) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($myDays->sum(fn ($r) => $r['cancelled'])) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($myDays->sum(fn ($r) => $r['total_usd']), 1) }}</td>
+                    <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($myDays->sum(fn ($r) => $r['fee_ugx'])) }}</td>
+                </tr>
+            </tfoot>
+            @endif
+        </table>
+    </div>
+    @else
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">Daily Summary</h3>
         <p class="text-sm text-gray-500">One row for every day a transfer completed, with the period totals on the bottom row. A day with no completed transfer has no row.</p>
@@ -319,16 +600,16 @@
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Txns</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Day</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Txns</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">USD Sent</th>
                     @if($showProfit)
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Charge (UGX)</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Exchange Profit (UGX)</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overall (UGX)</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overall (RMB)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Exchange Profit (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Overall (UGX)</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Overall (RMB)</th>
                     @else
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Charge (UGX)</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge (UGX)</th>
                     @endif
                 </tr>
             </thead>
@@ -373,9 +654,11 @@
             @endif
         </table>
     </div>
+    @endif
 </div>
 
 {{-- One table per desk --}}
+@if(isset($allowed['agent']))
 <div id="section-agent" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">Performance by Agent</h3>
@@ -385,16 +668,16 @@
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Txns</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Agent</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Txns</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">USD Sent</th>
                     @if($showProfit)
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Charge (UGX)</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Exchange Profit (UGX)</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overall (UGX)</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overall (RMB)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Exchange Profit (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Overall (UGX)</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Overall (RMB)</th>
                     @else
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Charge (UGX)</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge (UGX)</th>
                     @endif
                 </tr>
             </thead>
@@ -440,8 +723,10 @@
         </table>
     </div>
 </div>
+@endif
 
 {{-- Customer activity, grouped from the name on each booking --}}
+@if(isset($allowed['customer']))
 <div id="section-customer" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">Customer Activity</h3>
@@ -451,12 +736,12 @@
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Transfers</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">RMB Booked</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Fee Paid (UGX)</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Last Transfer</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Customer</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Transfers</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">USD Sent</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">RMB Booked</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Fee Paid (UGX)</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Last Transfer</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -490,9 +775,10 @@
         </table>
     </div>
 </div>
+@endif
 
-@can('view-profit')
 {{-- What each dollar rate carried, which the rate sheet on its own cannot show --}}
+@if(isset($allowed['rates']))
 <div id="section-rates" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">Rates Booked in This Period</h3>
@@ -502,15 +788,17 @@
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rate (USD to RMB)</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Txns</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD Sent</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">RMB Booked</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Charge (UGX)</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Exchange Profit (UGX)</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overall (UGX)</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Booked</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Rate (USD to RMB)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Txns</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">USD Sent</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">RMB Booked</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge (UGX)</th>
+                    @if($showProfit)
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Exchange Profit (UGX)</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Overall (UGX)</th>
+                    @endif
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Booked</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -521,9 +809,11 @@
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->total_usd, 1) }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->rmb_booked, 1) }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->fee_ugx) }}</td>
+                    @if($showProfit)
                     <td class="px-4 py-3 text-sm text-right {{ (float) $rate->exchange_ugx < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format((float) $rate->exchange_ugx, 1) }}</td>
                     @php $rateTotal = (float) $rate->fee_ugx + (float) $rate->exchange_ugx; @endphp
                     <td class="px-4 py-3 text-sm text-right font-medium {{ $rateTotal < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($rateTotal, 1) }}</td>
+                    @endif
                     <td class="px-4 py-3 text-sm text-gray-900">{{ \Carbon\Carbon::parse($rate->first_booked)->format('M d, Y') }}@if(\Carbon\Carbon::parse($rate->last_booked)->toDateString() !== \Carbon\Carbon::parse($rate->first_booked)->toDateString()) to {{ \Carbon\Carbon::parse($rate->last_booked)->format('M d, Y') }}@endif</td>
                     <td class="px-6 py-3 text-sm text-gray-900">
                         @if((float) $rate->exchange_rate <= 0)
@@ -537,14 +827,14 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="9" class="px-6 py-8 text-center text-gray-500">No completed transactions in this period.</td>
+                    <td colspan="{{ $showProfit ? 9 : 7 }}" class="px-6 py-8 text-center text-gray-500">No completed transactions in this period.</td>
                 </tr>
                 @endforelse
             </tbody>
         </table>
     </div>
 </div>
-@endcan
+@endif
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
@@ -666,7 +956,7 @@
 </script>
 <script>
     const reportType = @json($reportType);
-    const sectionMap = { transaction: 'section-transaction', revenue: 'section-revenue', profit: 'section-profit', commission: 'section-commission', agent: 'section-agent', customer: 'section-customer', rates: 'section-rates', daily: 'section-daily' };
+    const sectionMap = @json($scroll);
     if (sectionMap[reportType]) {
         const el = document.getElementById(sectionMap[reportType]);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });

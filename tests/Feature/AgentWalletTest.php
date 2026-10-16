@@ -297,7 +297,7 @@ class AgentWalletTest extends TestCase
         $this->assertStringNotContainsString('15,040', $commission);
     }
 
-    public function test_an_agent_opening_the_commission_report_sees_only_their_own(): void
+    public function test_an_agent_cannot_open_the_commission_report_but_sees_his_own_on_his_wallet(): void
     {
         $mine = $this->namedAgent('Sarah Nalin');
         $theirs = $this->namedAgent('Peter Okello');
@@ -305,10 +305,14 @@ class AgentWalletTest extends TestCase
         $this->booking($mine, 'COM-003', '7520');
         $this->booking($theirs, 'COM-004', '15040');
 
+        // The commission table is an office view of every desk, so the page itself is shut rather
+        // than opened and emptied. What the agent is owed is on his own wallet summary instead.
+        $this->actingAs($mine)->get('/reports?type=commission')->assertForbidden();
+
         $this->actingAs($mine)
-            ->get('/reports?type=commission')
+            ->get('/reports?type=wallet')
             ->assertOk()
-            ->assertSee('My Commission')
+            ->assertSee('My Wallet Summary')
             ->assertSee('UGX 7,520')
             ->assertDontSee('Peter Okello')
             ->assertDontSee('15,040');
@@ -322,13 +326,28 @@ class AgentWalletTest extends TestCase
         $dropped = $this->booking($agent, 'COM-006', '15040');
         $dropped->update(['status' => 'cancelled']);
 
-        // Both fees were earned, 15,040 of it handed back when the transfer was dropped.
-        $this->actingAs($agent)
+        // Both fees were earned, 15,040 of it handed back when the transfer was dropped. The office
+        // report shows the earning and the giving back as two columns; the agent's own wallet only
+        // ever carries what he is still holding, which is the net.
+        $page = $this->actingAs($this->admin())
             ->get('/reports?type=commission')
             ->assertOk()
+            ->getContent();
+
+        $from = strpos($page, 'id="section-commission"');
+        $to = strpos($page, 'id="section-', $from + 20);
+        $commission = substr($page, $from, $to - $from);
+
+        $this->assertStringContainsString('Test Agent', $commission);
+        $this->assertStringContainsString('22,560', $commission);
+        $this->assertStringContainsString('15,040', $commission);
+        $this->assertStringContainsString('7,520', $commission);
+
+        $this->actingAs($agent)
+            ->get('/reports?type=wallet')
+            ->assertOk()
             ->assertSee('UGX 7,520')
-            ->assertSee('UGX 22,560')
-            ->assertSee('UGX 15,040');
+            ->assertDontSee('22,560');
     }
 
     public function test_the_wallet_card_on_sign_in_states_this_month_commission(): void

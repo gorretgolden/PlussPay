@@ -236,11 +236,9 @@ class FxRateAndProfitTest extends TestCase
         ]);
         $agent->assignRole('agent');
 
-        $this->actingAs($agent)
-            ->get('/reports?type=profit')
-            ->assertOk()
-            ->assertDontSee('Foreign Exchange Profit')
-            ->assertDontSee('Profit on One Dollar Sent');
+        // The profit page is shut to a desk rather than opened and emptied: the section used to
+        // render with its columns hidden, which left the whole report one bad URL away.
+        $this->actingAs($agent)->get('/reports?type=profit')->assertForbidden();
 
         $this->actingAs($agent)->get('/export/profit-report')->assertForbidden();
     }

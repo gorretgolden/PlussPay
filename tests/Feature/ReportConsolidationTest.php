@@ -258,13 +258,15 @@ class ReportConsolidationTest extends TestCase
 
         $html = $this->reports($agent)->getContent();
 
-        // The desk keeps its own earnings in shillings and nothing else: no exchange figure, no
-        // overall, and no view of the rate sheet the office books at.
+        // The desk keeps his own earnings in shillings and nothing else: no exchange figure, no
+        // overall, and no view of the rate sheet the office books at. His own commission is on his
+        // wallet card rather than in the office table that lists every desk side by side.
         $this->assertStringContainsString('Charge (UGX)', $html);
         $this->assertStringNotContainsString('Foreign Exchange Profit', $html);
         $this->assertStringNotContainsString('Profit on One Dollar Sent', $html);
         $this->assertStringNotContainsString('Rates Booked in This Period', $html);
-        $this->assertStringContainsString('My Commission', $html);
+        $this->assertStringNotContainsString('Commissions Earned', $html);
+        $this->assertStringContainsString('Commission kept', $html);
     }
 
     public function test_the_customer_report_ranks_senders_by_the_dollars_they_moved(): void

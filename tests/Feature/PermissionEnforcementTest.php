@@ -187,9 +187,10 @@ class PermissionEnforcementTest extends TestCase
         $this->role('admin')->revokePermissionTo(['view-all-transactions', 'view-profit', 'view-all-wallets', 'view-all-exchanges']);
         $this->actingAs($admin->fresh())->get('/transactions')->assertOk()->assertSee($own->receipt_number)->assertDontSee($foreign->receipt_number)->assertDontSee('Overall Profit');
         $this->get('/transactions/'.$foreign->id)->assertForbidden();
-        // The page itself stays reachable, exactly as it was under the old role gates, but every
-        // profit figure on it is behind the ability, so the tab renders empty of them.
-        $this->get('/reports?type=profit')->assertOk()->assertDontSee('Foreign Exchange Profit')->assertDontSee('Profit on One Dollar Sent');
+        // The profit report is refused outright once the ability is gone. It used to open with the
+        // figures stripped out, which left a page of headings and a table of n/a on the same URL
+        // the office reads its numbers from.
+        $this->get('/reports?type=profit')->assertForbidden();
         $this->get('/reports/export?type=profit')->assertForbidden();
         $this->get('/export/profit-report')->assertForbidden();
         $this->get('/agents/performance')->assertForbidden();
