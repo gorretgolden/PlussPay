@@ -21,45 +21,31 @@ class DashboardController extends Controller
         $role = $user->getRoleNames()->first() ?? 'User';
         $usdToUgx = $this->usdToUgxRate();
 
-        ['sent' => $ugxSent, 'fee' => $ugxRevenue] = $this->ugxTotals($usdToUgx);
+        // The board prints every figure once, out of the window the reader has picked. The
+        // all-time and today windows are also what the Reports cross-check reads, so the flat
+        // stats below are named from them rather than summed a second time.
+        $windows = $this->metricWindows($user, $usdToUgx);
+        $all = $windows['all'];
+        $today = $windows['today'];
 
-        $stats = Transaction::query()
-            ->visibleTo($user)
-            ->selectRaw("
-                COUNT(*) as total_transactions,
-                COALESCE(SUM(CASE WHEN status='completed' THEN total_usd_equivalent ELSE 0 END), 0) as total_usd_sent,
-                COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as total_revenue,
-                COALESCE(SUM(CASE WHEN status='completed' THEN rmb_amount ELSE 0 END), 0) as total_rmb_sent,
-                {$ugxSent} as total_ugx_sent,
-                {$ugxRevenue} as total_revenue_ugx,
-                SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) as pending_transactions,
-                SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed_transactions,
-                SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) as cancelled_transactions,
-                COALESCE(AVG(CASE WHEN status='completed' THEN total_usd_equivalent ELSE NULL END), 0) as avg_transaction
-            ")
-            ->toBase()
-            ->first();
-
-        $todayStats = Transaction::query()
-            ->visibleTo($user)
-            ->whereDate('created_at', today())
-            ->selectRaw("
-                SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as today_transactions,
-                COALESCE(SUM(CASE WHEN status='completed' THEN total_usd_equivalent ELSE 0 END), 0) as today_usd_sent,
-                COALESCE(SUM(CASE WHEN status='completed' THEN charge_amount ELSE 0 END), 0) as today_revenue,
-                {$ugxSent} as today_ugx_sent,
-                {$ugxRevenue} as today_revenue_ugx
-            ")
-            ->toBase()
-            ->first();
-
-        $stats = (array) $stats + (array) $todayStats;
-
-        // Derived from the UGX already summed above, so the average cannot disagree
-        // with the Money Sent card the way an average of re-converted USD did.
-        $stats['avg_ugx_sent'] = $stats['completed_transactions'] > 0
-            ? $stats['total_ugx_sent'] / $stats['completed_transactions']
-            : 0;
+        $stats = [
+            'total_transactions' => Transaction::query()->visibleTo($user)->count(),
+            'total_usd_sent' => $all['sent_usd'],
+            'total_revenue' => $all['charge_usd'],
+            'total_rmb_sent' => $all['rmb'],
+            'total_ugx_sent' => $all['sent_ugx'],
+            'total_revenue_ugx' => $all['charge_ugx'],
+            'pending_transactions' => $all['pending'],
+            'completed_transactions' => $all['completed'],
+            'cancelled_transactions' => $all['cancelled'],
+            'avg_transaction' => $all['avg_usd_sent'],
+            'today_transactions' => $today['completed'],
+            'today_usd_sent' => $today['sent_usd'],
+            'today_revenue' => $today['charge_usd'],
+            'today_ugx_sent' => $today['sent_ugx'],
+            'today_revenue_ugx' => $today['charge_ugx'],
+            'avg_ugx_sent' => $all['avg_ugx_sent'],
+        ];
 
         $stats['total_users'] = $user->can('view-users') ? User::where('is_active', true)->count() : 0;
         $stats['total_agents'] = $user->can('view-users') ? User::role('agent')->where('is_active', true)->count() : 0;
@@ -113,7 +99,7 @@ class DashboardController extends Controller
             }
         }
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'commissionMonth', 'profit', 'logAlerts'));
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'commissionMonth', 'profit', 'windows', 'logAlerts'));
     }
 
     private function usdToUgxRate(): ?float
@@ -182,6 +168,64 @@ class DashboardController extends Controller
             'revenue_ugx' => $revenueUgx,
             'exchange_ugx' => $exchangeUgx,
         ];
+    }
+
+    /**
+     * The counts and the money for each stretch of time the board can be read over, so the
+     * same figures are not printed in three separate blocks that each need their own label.
+     *
+     * This is the only money query on the page: the flat stats the Reports cross-check reads
+     * are named out of the all-time and today windows rather than summed again. Pending and
+     * cancelled transfers are counted for the status line and left out of every money figure.
+     *
+     * @return array<string, array<string, float|int>>
+     */
+    private function metricWindows(User $user, ?float $usdToUgx): array
+    {
+        ['sent' => $ugxSent, 'fee' => $ugxRevenue] = $this->ugxTotals($usdToUgx);
+
+        $windows = [
+            'today' => fn (Builder $q) => $q->whereDate('created_at', today()),
+            'month' => fn (Builder $q) => $q->whereBetween('created_at', [now()->startOfMonth(), now()]),
+            'all' => fn (Builder $q) => $q,
+        ];
+
+        $sums = [];
+
+        foreach ($windows as $window => $restrict) {
+            $row = (array) $restrict(Transaction::query()->visibleTo($user))
+                ->selectRaw("
+                    COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) as completed,
+                    COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) as pending,
+                    COALESCE(SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END), 0) as cancelled,
+                    {$ugxSent} as sent_ugx,
+                    COALESCE(SUM(CASE WHEN status = 'completed' THEN total_usd_equivalent ELSE 0 END), 0) as sent_usd,
+                    COALESCE(SUM(CASE WHEN status = 'completed' THEN rmb_amount ELSE 0 END), 0) as rmb,
+                    {$ugxRevenue} as charge_ugx,
+                    COALESCE(SUM(CASE WHEN status = 'completed' THEN charge_amount ELSE 0 END), 0) as charge_usd
+                ")
+                ->toBase()
+                ->first();
+
+            $completed = (int) $row['completed'];
+
+            $sums[$window] = [
+                'completed' => $completed,
+                'pending' => (int) $row['pending'],
+                'cancelled' => (int) $row['cancelled'],
+                'sent_ugx' => (float) $row['sent_ugx'],
+                'sent_usd' => (float) $row['sent_usd'],
+                'rmb' => (float) $row['rmb'],
+                'charge_ugx' => (float) $row['charge_ugx'],
+                'charge_usd' => (float) $row['charge_usd'],
+                // Derived here from the shillings already summed, so the average cannot disagree
+                // with the Sent figure the way an average of re-converted dollars did.
+                'avg_ugx_sent' => $completed > 0 ? (float) $row['sent_ugx'] / $completed : 0.0,
+                'avg_usd_sent' => $completed > 0 ? (float) $row['sent_usd'] / $completed : 0.0,
+            ];
+        }
+
+        return $sums;
     }
 
     /**

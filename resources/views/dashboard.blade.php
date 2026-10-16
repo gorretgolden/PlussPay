@@ -4,13 +4,53 @@
 
 @section('content')
 @php
-    $cur = $usdToUgx ? 'UGX' : 'USD';
-    // Stored UGX, not a fresh conversion, so these match the Reports page.
-    $stored = fn($ugx, $usd) => $usdToUgx ? 'UGX ' . number_format($ugx) : '$' . number_format($usd, 2);
     $me = auth()->user();
     $hour = (int) now()->format('G');
     $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
     $desk = $me->countryLabel();
+
+    // Stored UGX, not a fresh conversion, so these match the Reports page. A charge or a profit
+    // keeps its shilling cents because that is what gets reconciled; what merely travelled is
+    // rounded to the whole shilling.
+    $money = fn ($ugx, $usd, int $dec = 2) => $usdToUgx ? 'UGX ' . number_format($ugx, $dec) : '$' . number_format($usd, $dec);
+    $shilling = fn ($value) => $value < 0
+        ? 'Loss UGX '.number_format(abs($value), 2)
+        : 'UGX '.number_format($value, 2);
+    $shillingTone = fn ($value) => $value < 0 ? 'text-red-600' : 'text-gray-900';
+
+    // One card set per window, so no figure is printed in two places on the same page.
+    $panels = [];
+    foreach (['today' => 'Today', 'month' => 'This Month', 'all' => 'All Time'] as $key => $label) {
+        $t = $windows[$key];
+        $cards = [
+            ['Completed', number_format($t['completed']), 'text-gray-900'],
+            ['Sent', $money($t['sent_ugx'], $t['sent_usd'], 0), 'text-gray-900'],
+            ['Yuan out', '¥' . number_format($t['rmb'], 2), 'text-gray-900'],
+            ['Charge', $money($t['charge_ugx'], $t['charge_usd'], 2), 'text-gray-900'],
+        ];
+        if (isset($profit[$key])) {
+            $cards[] = ['FX profit', $shilling($profit[$key]['exchange']), $shillingTone($profit[$key]['exchange'])];
+            $cards[] = ['Overall profit', $shilling($profit[$key]['total']), $shillingTone($profit[$key]['total'])];
+        }
+
+        // Six figures read as two rows of three, four read as one row. The card then sizes its
+        // own number down only as far as it has to, so a long loss stays on one line at the
+        // headline size rather than spilling past the border the way a fixed size would.
+        $panels[$key] = [
+            'label' => $label,
+            'cards' => $cards,
+            'minCol' => count($cards) > 4 ? '300px' : '220px',
+            'pending' => $t['pending'],
+            'cancelled' => $t['cancelled'],
+            'avg_ugx' => $t['avg_ugx_sent'],
+            'avg_usd' => $t['avg_usd_sent'],
+            'unpriced' => $profit[$key]['unpriced'] ?? 0,
+        ];
+    }
+
+    $hasTransfers = array_sum($chartData['transactions']) > 0;
+    $hasCharge = array_sum($chartData['revenue_ugx']) > 0;
+    $hasExchange = isset($chartData['exchange_ugx']) && array_sum($chartData['exchange_ugx']) > 0;
 @endphp
 <div class="mb-6">
     <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
@@ -26,6 +66,21 @@
     </div>
 </div>
 
+<style>
+    /* The tab look follows aria-selected alone, so the styling cannot drift from the state. */
+    [role="tab"][aria-selected="true"] { background: #fff; color: #111827; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); }
+    [role="tab"][aria-selected="false"] { color: #4b5563; }
+    [role="tab"][aria-selected="false"]:hover { color: #111827; }
+    [role="tab"]:focus-visible { outline: 2px solid #86efac; outline-offset: 1px; }
+
+    /* A figure takes the headline size whenever its card can hold it on one line and gives up
+       only the pixels it needs. Digits and commas in tabular figures measure about half a font
+       size each, so dividing the card by the length of the string is the largest size it fits.
+       A browser without container queries keeps the 1.5rem above and behaves as it did before. */
+    .stat-card { container-type: inline-size; }
+    .stat-value { font-size: 1.5rem; font-size: clamp(.875rem, calc(100cqi / (var(--len) * .52)), 1.5rem); }
+</style>
+
 {{-- Account::currenciesFor() orders the wallets by the desk's country, so the local currency is always the first card. --}}
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
     @foreach($wallets as $currency => $account)
@@ -36,11 +91,11 @@
             ? 'UGX ' . number_format($balance, 0)
             : $glyph . number_format($balance, 2);
     @endphp
-    <a href="{{ route('wallet.index') }}" class="bg-white rounded-lg border border-gray-200 shadow-sm p-5 hover:shadow transition-shadow block">
+    <a href="{{ route('wallet.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow transition-shadow block">
         <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $currency }} Wallet</div>
-                <div class="text-2xl font-bold text-gray-900 mt-2">{{ $shown }}</div>
+                <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums whitespace-nowrap">{{ $shown }}</div>
             </div>
             <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center text-sm font-bold">{{ $glyph }}</span>
         </div>
@@ -54,198 +109,85 @@
     @endforeach
 </div>
 
-<div class="bg-green-800 rounded-lg border border-green-900 shadow-sm p-6 mb-6">
-    <h2 class="text-white text-lg font-semibold mb-4">Today's Summary</h2>
-    <div class="grid grid-cols-1 {{ auth()->user()->can('view-profit') ? 'md:grid-cols-5' : 'md:grid-cols-3' }} gap-4">
-        <div class="bg-white/10 rounded-lg p-4">
-            <div class="text-green-100 text-xs font-semibold uppercase tracking-wide">Completed Today</div>
-            <div class="text-white text-3xl font-bold mt-1">{{ number_format($stats['today_transactions']) }}</div>
-        </div>
-        <div class="bg-white/10 rounded-lg p-4">
-            <div class="text-green-100 text-xs font-semibold uppercase tracking-wide">Money Sent ({{ $cur }})</div>
-            <div class="text-white text-3xl font-bold mt-1">{{ $stored($stats['today_ugx_sent'], $stats['today_usd_sent']) }}</div>
-        </div>
-        <div class="bg-white/10 rounded-lg p-4">
-            <div class="text-green-100 text-xs font-semibold uppercase tracking-wide">Charge ({{ $cur }})</div>
-            <div class="text-white text-3xl font-bold mt-1">{{ $stored($stats['today_revenue_ugx'], $stats['today_revenue']) }}</div>
-        </div>
-        @can('view-profit')
-        <div class="bg-white/10 rounded-lg p-4">
-            <div class="text-green-100 text-xs font-semibold uppercase tracking-wide">Exchange Profit</div>
-            <div class="text-white text-3xl font-bold mt-1 {{ $profit['today']['exchange'] < 0 ? 'text-red-300' : '' }}">UGX {{ number_format($profit['today']['exchange']) }}</div>
-        </div>
-        <div class="bg-white/10 rounded-lg p-4">
-            <div class="text-green-100 text-xs font-semibold uppercase tracking-wide">Overall Profit</div>
-            <div class="text-white text-3xl font-bold mt-1 {{ $profit['today']['total'] < 0 ? 'text-red-300' : '' }}">UGX {{ number_format($profit['today']['total']) }}</div>
-        </div>
-        @endcan
-    </div>
-</div>
-
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-    <a href="{{ route('transactions.index') }}" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Transactions</div>
-                <div class="text-3xl font-bold text-green-800 mt-1">{{ number_format($stats['total_transactions']) }}</div>
-            </div>
-            <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-        </div>
-    </a>
-    <a href="{{ route('transactions.index') }}" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Money Sent ({{ $cur }})</div>
-                <div class="text-3xl font-bold text-green-700 mt-1">{{ $stored($stats['total_ugx_sent'], $stats['total_usd_sent']) }}</div>
-            </div>
-            <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        </div>
-    </a>
-    <a href="{{ route('transactions.index') }}" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Total RMB Sent</div>
-                <div class="text-3xl font-bold text-purple-700 mt-1">¥{{ number_format($stats['total_rmb_sent'], 2) }}</div>
-            </div>
-            <svg class="w-10 h-10 text-purple-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 8h6m-5 0a3 3 0 110 6H9l3 3m-3-6h6m6 1a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        </div>
-    </a>
-    <a href="{{ route('reports.index') }}" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Charge (All Time)</div>
-                <div class="text-3xl font-bold text-green-700 mt-1">{{ $stored($stats['total_revenue_ugx'], $stats['total_revenue']) }}</div>
-            </div>
-            <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-        </div>
-    </a>
-</div>
-
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-    <a href="{{ route('transactions.index', ['status' => 'pending']) }}" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Still Pending</div>
-                <div class="text-3xl font-bold text-yellow-600 mt-1">{{ number_format($stats['pending_transactions']) }}</div>
-            </div>
-            <svg class="w-10 h-10 text-yellow-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        </div>
-    </a>
-    <a href="{{ route('transactions.index', ['status' => 'completed']) }}" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Completed</div>
-                <div class="text-3xl font-bold text-green-700 mt-1">{{ number_format($stats['completed_transactions']) }}</div>
-            </div>
-            <svg class="w-10 h-10 text-green-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        </div>
-    </a>
-    <a href="{{ route('transactions.index', ['status' => 'cancelled']) }}" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Cancelled</div>
-                <div class="text-3xl font-bold text-red-600 mt-1">{{ number_format($stats['cancelled_transactions']) }}</div>
-            </div>
-            <svg class="w-10 h-10 text-red-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        </div>
-    </a>
-    <a href="{{ route('transactions.index') }}" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Avg Transaction</div>
-                <div class="text-3xl font-bold text-blue-700 mt-1">{{ $stored($stats['avg_ugx_sent'], $stats['avg_transaction']) }}</div>
-            </div>
-            <svg class="w-10 h-10 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-        </div>
-    </a>
-</div>
-
-@can('view-profit')
-@php
-    $shilling = fn ($value) => $value < 0
-        ? 'Loss UGX '.number_format(abs($value), 2)
-        : 'UGX '.number_format($value, 2);
-    $shillingTone = fn ($value) => $value < 0 ? 'text-red-600' : 'text-gray-900';
-@endphp
-<div class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 mb-8">
-    <h2 class="text-lg font-semibold text-gray-900 mb-1">Profit</h2>
-    <p class="text-sm text-gray-500 mb-4">The charge kept, plus what the rates came to on the money that travelled, each transfer priced at the rates it was booked at. A transfer booked before its rates were stored has no exchange figure and is counted as nothing, never guessed; each window says how many of them it holds.</p>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        @foreach(['today' => 'Today', 'month' => 'This Month', 'all' => 'All Time'] as $window => $label)
-        <div class="border border-gray-200 rounded-lg p-4">
-            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $label }}</div>
-            <dl class="mt-3 space-y-2 text-sm">
-                <div class="flex gap-3">
-                    <dt class="text-gray-500 w-32 shrink-0">Charge</dt>
-                    <dd class="{{ $shillingTone($profit[$window]['fees']) }} font-medium">{{ $shilling($profit[$window]['fees']) }}</dd>
-                </div>
-                <div class="flex gap-3">
-                    <dt class="text-gray-500 w-32 shrink-0">Exchange Profit</dt>
-                    <dd class="{{ $shillingTone($profit[$window]['exchange']) }} font-medium">{{ $shilling($profit[$window]['exchange']) }}</dd>
-                </div>
-                <div class="flex gap-3 border-t pt-2">
-                    <dt class="text-gray-500 w-32 shrink-0">Overall Profit</dt>
-                    <dd class="{{ $shillingTone($profit[$window]['total']) }} font-bold">{{ $shilling($profit[$window]['total']) }}</dd>
-                </div>
-            </dl>
-            @if($profit[$window]['unpriced'] > 0)
-            @php $count = $profit[$window]['unpriced']; @endphp
-            <p class="text-xs text-amber-700 mt-3">{{ number_format($count) }} without rates</p>
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            Overview
+            @if(isset($profit['all']))
+            <span class="relative inline-flex group" tabindex="0" aria-describedby="profit-note">
+                <svg class="w-4 h-4 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h3m-3 0a3 3 0 116 0 3 3 0 01-6 0zm0 0v3m0 0a9 9 0 110-12 9 9 0 010 12z"/></svg>
+                <span role="tooltip" id="profit-note" class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-60 -translate-x-1/2 rounded-md bg-gray-900 px-3 py-2 text-left text-xs font-normal leading-snug text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100">Overall profit is the charge plus FX profit. Transfers booked before their rates were stored count as 0.</span>
+            </span>
             @endif
+        </h2>
+        <div role="tablist" aria-label="Time window" class="inline-flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+            @foreach($panels as $key => $panel)
+            <button type="button" role="tab" id="tab-{{ $key }}" data-window="{{ $key }}" aria-controls="panel-{{ $key }}" aria-selected="{{ $loop->first ? 'true' : 'false' }}" tabindex="{{ $loop->first ? '0' : '-1' }}" class="rounded-md px-3 py-1.5 text-sm font-medium">{{ $panel['label'] }}</button>
+            @endforeach
         </div>
-        @endforeach
     </div>
+
+    @foreach($panels as $key => $panel)
+    <div role="tabpanel" id="panel-{{ $key }}" aria-labelledby="tab-{{ $key }}" @if(! $loop->first) hidden @endif>
+        <div class="grid grid-cols-[repeat(auto-fit,minmax(min({{ $panel['minCol'] }},100%),1fr))] gap-4">
+            @foreach($panel['cards'] as [$cardLabel, $cardValue, $cardTone])
+            <div class="stat-card min-w-0 rounded-lg border border-gray-200 p-4">
+                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $cardLabel }}</div>
+                <div class="stat-value mt-2 font-bold {{ $cardTone }} tabular-nums whitespace-nowrap" style="--len: {{ strlen($cardValue) }}">{{ $cardValue }}</div>
+            </div>
+            @endforeach
+        </div>
+        <p class="text-xs text-gray-500 mt-3">{{ number_format($panel['pending']) }} pending · {{ number_format($panel['cancelled']) }} cancelled · average transfer {{ $money($panel['avg_ugx'], $panel['avg_usd'], 0) }}</p>
+        @if($panel['unpriced'] > 0)
+        <p class="text-xs text-amber-700 mt-2">{{ number_format($panel['unpriced']) }} without rates</p>
+        @endif
+    </div>
+    @endforeach
 </div>
-@endcan
 
 @can('view-users')
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-    <a href="{{ route('users.index') }}" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+    <a href="{{ route('users.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow transition-shadow block">
+        <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Active Users</div>
-                <div class="text-3xl font-bold text-indigo-700 mt-1">{{ number_format($stats['total_users']) }}</div>
+                <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums">{{ number_format($stats['total_users']) }}</div>
                 <div class="text-xs text-gray-500 mt-1">{{ number_format($stats['total_agents']) }} agents</div>
             </div>
-            <svg class="w-10 h-10 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            </span>
         </div>
     </a>
-    <a href="{{ route('exchange-rates.index') }}" class="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Active Exchange Rates</div>
-                <div class="text-3xl font-bold text-teal-700 mt-1">{{ number_format($stats['active_rates']) }}</div>
+    <a href="{{ route('exchange-rates.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow transition-shadow block">
+        <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Rates</div>
+                <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums">{{ number_format($stats['active_rates']) }}</div>
+                <div class="text-xs text-gray-500 mt-1">Live currency pairs</div>
             </div>
-            <svg class="w-10 h-10 text-teal-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+            </span>
         </div>
     </a>
 </div>
 
 @if(($logAlerts['failed_logins_24h'] ?? 0) > 0 || ($logAlerts['unresolved_errors'] ?? 0) > 0)
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
     @if(($logAlerts['failed_logins_24h'] ?? 0) > 0)
-    <a href="{{ route('admin.login-logs', ['status' => 'failed']) }}" class="bg-amber-50 border border-amber-200 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-sm text-amber-700 font-medium">Failed sign-ins (last 24h)</div>
-                <div class="text-3xl font-bold text-amber-700 mt-1">{{ number_format($logAlerts['failed_logins_24h']) }}</div>
-                <div class="text-xs text-amber-600 mt-1">Review the Login Logs for a brute-force pattern.</div>
-            </div>
-            <svg class="w-10 h-10 text-amber-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86l-8.48 14.72A1 1 0 002.66 20h18.68a1 1 0 00.85-1.42L13.71 3.86a1 1 0 00-1.72 0z"/></svg>
-        </div>
+    <a href="{{ route('admin.login-logs', ['status' => 'failed']) }}" class="bg-amber-50 border border-amber-200 rounded-xl shadow-sm p-5 hover:shadow transition-shadow block">
+        <div class="text-xs font-semibold uppercase tracking-wide text-amber-800">Failed sign-ins (24h)</div>
+        <div class="text-2xl font-bold text-amber-900 mt-2 tabular-nums">{{ number_format($logAlerts['failed_logins_24h']) }}</div>
+        <div class="text-xs text-amber-800 mt-1">Check the Login Logs for a brute-force pattern.</div>
     </a>
     @endif
     @can('view-system-logs')
     @if(($logAlerts['unresolved_errors'] ?? 0) > 0)
-    <a href="{{ route('admin.system-logs', ['resolved' => '0']) }}" class="bg-red-50 border border-red-200 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer block">
-        <div class="flex items-center justify-between">
-            <div>
-                <div class="text-sm text-red-700 font-medium">Unresolved system errors</div>
-                <div class="text-3xl font-bold text-red-700 mt-1">{{ number_format($logAlerts['unresolved_errors']) }}</div>
-                <div class="text-xs text-red-600 mt-1">Open System Errors to read and mark them resolved.</div>
-            </div>
-            <svg class="w-10 h-10 text-red-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.36 5.64a9 9 0 11-12.73 0M12 9v4m0 4h.01"/></svg>
-        </div>
+    <a href="{{ route('admin.system-logs', ['resolved' => '0']) }}" class="bg-red-50 border border-red-200 rounded-xl shadow-sm p-5 hover:shadow transition-shadow block">
+        <div class="text-xs font-semibold uppercase tracking-wide text-red-800">Unresolved system errors</div>
+        <div class="text-2xl font-bold text-red-900 mt-2 tabular-nums">{{ number_format($logAlerts['unresolved_errors']) }}</div>
+        <div class="text-xs text-red-800 mt-1">Open System Errors to read and mark them resolved.</div>
     </a>
     @endif
     @endcan
@@ -253,77 +195,91 @@
 @endif
 @endcan
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-    <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 min-w-0">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Completed Transfers (Last 7 Days)</h2>
-        <div style="position:relative; height:250px;">
+        @if($hasTransfers)
+        <div class="relative h-[250px] max-w-full">
             <canvas id="transactionsChart"></canvas>
         </div>
+        @else
+        <div class="h-[250px] flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">No transfers in the last 7 days.</div>
+        @endif
     </div>
-    <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 min-w-0">
         @can('view-profit')
-        <h2 class="text-lg font-semibold text-gray-900 mb-1">Profit (Last 7 Days)</h2>
-        <p class="text-sm text-gray-500 mb-4">Stacked in shillings: the charge at the bottom and what the rates came to on top, so the top of each bar is the overall profit.</p>
-        <div style="position:relative; height:250px;">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Profit (Last 7 Days)</h2>
+        @if($hasCharge || $hasExchange)
+        <div class="relative h-[250px] max-w-full">
             <canvas id="profitChart"></canvas>
         </div>
         @else
+        <div class="h-[250px] flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">No charge or FX profit in the last 7 days.</div>
+        @endif
+        @else
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Charge Collected (Last 7 Days)</h2>
-        <div style="position:relative; height:250px;">
+        @if($hasCharge)
+        <div class="relative h-[250px] max-w-full">
             <canvas id="revenueChart"></canvas>
         </div>
+        @else
+        <div class="h-[250px] flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">No charge collected in the last 7 days.</div>
+        @endif
         @endcan
     </div>
 </div>
 
-<div class="bg-white rounded-lg border border-gray-200 shadow-sm">
-    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="px-4 sm:px-6 py-4 border-b border-gray-200 flex flex-wrap justify-between items-center gap-3">
         <h2 class="text-lg font-semibold text-gray-900">Recent Transactions</h2>
         @can('create-transaction')
         <a href="{{ route('transactions.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">New Transaction</a>
         @endcan
     </div>
     <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
+        <table class="w-full min-w-[760px] divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt #</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receiver</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">RMB</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receipt #</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Sender</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receiver</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Amount</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">RMB</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Date</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($recentTransactions as $t)
                 <tr>
-                    <td class="px-6 py-4 text-sm font-medium text-green-800">
+                    <td class="px-4 py-4 text-sm font-medium text-green-800 whitespace-nowrap">
                         <a href="{{ route('receipts.show', $t->receipt_number) }}">{{ $t->receipt_number }}</a>
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
-                    <td class="px-6 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
-                    <td class="px-6 py-4 text-sm text-gray-900">{{ $t->currency }} {{ number_format($t->amount, 2) }}</td>
-                    <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($t->rmb_amount, 2) }}</td>
-                    <td class="px-6 py-4">
-                        <span class="px-2 py-1 text-xs rounded-full
+                    <td class="px-4 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">{{ $t->currency }} {{ number_format($t->amount, 2) }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">¥{{ number_format($t->rmb_amount, 2) }}</td>
+                    <td class="px-4 py-4">
+                        <span class="px-2 py-1 text-xs rounded-full whitespace-nowrap
                             @if($t->status === 'completed') bg-green-100 text-green-800
                             @elseif($t->status === 'pending') bg-yellow-100 text-yellow-800
                             @else bg-red-100 text-red-800 @endif">
                             {{ ucfirst($t->status) }}
                         </span>
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('Y-m-d h:i A') }}</td>
-                    <td class="px-6 py-4 text-sm">
+                    <td class="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('Y-m-d h:i A') }}</td>
+                    <td class="px-4 py-4 text-sm whitespace-nowrap">
                         <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="text-green-600 hover:text-green-800 mr-2">Print</a>
                         <a href="{{ route('receipts.show', $t->receipt_number) }}" class="text-green-600 hover:text-green-800">View</a>
                     </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-6 py-8 text-center text-gray-500">No transactions yet.</td>
+                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                        No transactions yet.
+                        @can('create-transaction') Book the first one from <a href="{{ route('transactions.create') }}" class="text-green-700 underline">Send Money</a>.@endcan
+                    </td>
                 </tr>
                 @endforelse
             </tbody>
@@ -334,29 +290,54 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
     const chartData = @json($chartData);
+    const brand = 'rgb(22, 101, 52)';
 
-    new Chart(document.getElementById('transactionsChart'), {
-        type: 'line',
-        data: {
-            labels: chartData.labels,
-            datasets: [{
-                label: 'Completed',
-                data: chartData.transactions,
-                borderColor: 'rgb(22, 163, 74)',
-                backgroundColor: 'rgba(22, 163, 74, 0.1)',
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, ticks: { stepSize: 1 } }
-            }
+    document.querySelectorAll('[role="tab"][data-window]').forEach((tab) => {
+        const tabs = Array.from(document.querySelectorAll('[role="tab"][data-window]'));
+
+        function pick(next, focus) {
+            tabs.forEach((t) => {
+                const on = t === next;
+                t.setAttribute('aria-selected', on ? 'true' : 'false');
+                t.tabIndex = on ? 0 : -1;
+                document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+            });
+            if (focus) next.focus();
         }
+
+        tab.addEventListener('click', () => pick(tab));
+        tab.addEventListener('keydown', (event) => {
+            const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+            if (!step) return;
+            event.preventDefault();
+            pick(tabs[(tabs.indexOf(tab) + step + tabs.length) % tabs.length], true);
+        });
     });
+
+    if (document.getElementById('transactionsChart')) {
+        new Chart(document.getElementById('transactionsChart'), {
+            type: 'line',
+            data: {
+                labels: chartData.labels,
+                datasets: [{
+                    label: 'Completed',
+                    data: chartData.transactions,
+                    borderColor: brand,
+                    backgroundColor: 'rgba(22, 101, 52, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }
+                }
+            }
+        });
+    }
 
     if (document.getElementById('revenueChart')) {
         new Chart(document.getElementById('revenueChart'), {
@@ -364,10 +345,10 @@
             data: {
                 labels: chartData.labels,
                 datasets: [{
-                    label: 'Charge (UGX)',
+                    label: 'Charge',
                     data: chartData.revenue_ugx,
-                    backgroundColor: 'rgba(22, 163, 74, 0.8)',
-                    borderColor: 'rgb(22, 163, 74)',
+                    backgroundColor: 'rgba(22, 101, 52, 0.8)',
+                    borderColor: brand,
                     borderWidth: 1
                 }]
             },
@@ -392,10 +373,10 @@
                     {
                         label: 'Charge',
                         data: chartData.revenue_ugx,
-                        backgroundColor: 'rgba(22, 163, 74, 0.8)'
+                        backgroundColor: 'rgba(22, 101, 52, 0.8)'
                     },
                     {
-                        label: 'Foreign exchange profit',
+                        label: 'FX profit',
                         data: chartData.exchange_ugx,
                         backgroundColor: 'rgba(37, 99, 235, 0.8)'
                     }

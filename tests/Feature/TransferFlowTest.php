@@ -173,9 +173,12 @@ class TransferFlowTest extends TestCase
 
         $this->actingAs($admin)->get('/dashboard')
             ->assertOk()
-            ->assertSee('Completed Today')
+            ->assertSee('Today')
             ->assertDontSee('Transactions Today')
-            ->assertViewHas('stats', fn (array $stats) => (int) $stats['today_transactions'] === 1
-                && (int) $stats['cancelled_transactions'] === 1);
+            // The board now reads one window at a time, so the completed count lives on the
+            // Today panel instead of under its own headline.
+            ->assertViewHas('windows', fn (array $w) => $w['today']['completed'] === 1
+                && $w['today']['cancelled'] === 1
+                && $w['all']['cancelled'] === 1);
     }
 }

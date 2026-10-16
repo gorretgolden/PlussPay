@@ -72,19 +72,20 @@ class DashboardProfitTest extends TestCase
 
         $html = $this->actingAs($this->user('admin'))->get('/dashboard')->getContent();
 
-        foreach (['Charge', 'Exchange Profit', 'Overall Profit', 'Today', 'This Month', 'All Time'] as $needle) {
+        foreach (['Charge', 'FX profit', 'Overall profit', 'Today', 'This Month', 'All Time'] as $needle) {
             $this->assertStringContainsString($needle, $html);
+        }
+
+        // Each figure is printed once per window and the window is named by a tab, so the labels
+        // a cashier used to have to read twice across three blocks are gone.
+        foreach (['Service Fees', 'Total Profit', 'Yuan Leg', 'Revenue Today', 'Total Revenue', 'Money Sent (UGX)'] as $gone) {
+            $this->assertStringNotContainsString($gone, $html);
         }
 
         // UGX 20,000 kept, UGX 10,000 from the shilling spread, a flat yuan pair, UGX 30,000 overall.
         $this->assertStringContainsString('UGX 20,000.00', $html);
         $this->assertStringContainsString('UGX 10,000.00', $html);
         $this->assertStringContainsString('UGX 30,000.00', $html);
-
-        // The names the client removed are not on the page.
-        foreach (['Service Fees', 'Total Profit', 'Yuan Leg', 'Revenue Today', 'Total Revenue'] as $gone) {
-            $this->assertStringNotContainsString($gone, $html);
-        }
     }
 
     public function test_a_yuan_loss_shows_against_the_day_it_happened(): void
@@ -111,9 +112,9 @@ class DashboardProfitTest extends TestCase
 
         $html = $this->actingAs($this->user('admin'))->get('/dashboard')->getContent();
 
-        // The rule is stated once for the whole block, and each window that holds the transfer
-        // counts it: today sits inside this month, which sits inside all time.
-        $this->assertSame(1, substr_count($html, 'never guessed'));
+        // The rule is stated once, in the tooltip beside the heading, and each window that holds
+        // the transfer counts it: today sits inside this month, which sits inside all time.
+        $this->assertSame(1, substr_count($html, 'Transfers booked before their rates were stored count as 0'));
         $this->assertSame(3, substr_count($html, '>1 without rates<'));
     }
 
@@ -124,8 +125,8 @@ class DashboardProfitTest extends TestCase
         foreach (['staff', 'agent'] as $role) {
             $html = $this->actingAs($this->user($role))->get('/dashboard')->getContent();
 
-            $this->assertStringNotContainsString('Exchange Profit', $html);
-            $this->assertStringNotContainsString('Overall Profit', $html);
+            $this->assertStringNotContainsString('FX profit', $html);
+            $this->assertStringNotContainsString('Overall profit', $html);
             $this->assertStringNotContainsString('exchange_ugx', $html);
             // Their own charge figure stays where it was.
             $this->assertStringContainsString('Charge', $html);
