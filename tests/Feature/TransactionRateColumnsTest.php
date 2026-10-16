@@ -248,6 +248,9 @@ class TransactionRateColumnsTest extends TestCase
 
     public function test_the_download_honours_the_price_filter_and_carries_the_prices(): void
     {
+        // The receipt number carries the day it was booked, so the clock is pinned or this test
+        // fails the moment the date rolls over.
+        $this->travelTo(\Carbon\Carbon::parse('2026-10-16 09:05:00'));
         $admin = $this->user('admin');
         $this->book($admin);
         ExchangeRate::setPair('USD', 'UGX', 3800, 3790, 3800);
