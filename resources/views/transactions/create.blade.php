@@ -182,7 +182,17 @@
                 </div>
             </div>
 
-            <div class="bg-green-50 rounded-lg p-5 mt-6">
+            <div class="mt-6 rounded-lg border-2 border-green-700 bg-white p-4 sm:p-5 hidden" id="balance_strip">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <span class="block text-sm font-semibold text-gray-800" id="balance_label">Balance after the charge</span>
+                        <span class="block text-xs text-gray-500 mt-1" id="balance_note">This is the money turned into dollars, then into yuan.</span>
+                    </div>
+                    <span class="text-2xl font-bold text-green-800 tabular-nums leading-none" id="balance_amount">-</span>
+                </div>
+            </div>
+
+            <div class="bg-green-50 rounded-lg p-5 mt-4">
                 <div class="flex items-center justify-between mb-3">
                     <h4 class="font-semibold text-green-800">Live Calculation</h4>
                     @can('manage-exchange-rates')
@@ -198,10 +208,6 @@
                         <div class="text-3xl font-bold text-purple-700 tabular-nums leading-none" id="preview_rmb">-</div>
                     </div>
                     <div class="mt-3 pt-2 border-t border-green-200 space-y-1 text-sm">
-                        <div class="flex items-center justify-between gap-4">
-                            <span class="text-gray-600">Amount converted</span>
-                            <span class="font-medium text-gray-900 tabular-nums" id="preview_sent">-</span>
-                        </div>
                         <div class="flex items-center justify-between gap-4">
                             <span class="text-gray-600">Credited in USD</span>
                             <span class="font-medium text-gray-900 tabular-nums" id="preview_usd">-</span>
@@ -547,9 +553,13 @@ function calculate() {
     // Until an amount is typed the card holds one line instead of a row of dashes.
     document.getElementById('calc_empty').classList.toggle('hidden', typed);
     document.getElementById('calc_rows').classList.toggle('hidden', !typed);
+    document.getElementById('balance_strip').classList.toggle('hidden', !typed);
 
     if (typed) {
-        document.getElementById('preview_sent').textContent = showMoney(f.currency, f.sent);
+        document.getElementById('balance_amount').textContent = showMoney(f.currency, f.sent);
+        document.getElementById('balance_note').textContent = f.paidInUgx
+            ? 'This is the money turned into dollars, then into yuan.'
+            : 'Paid in dollars, so all of them travel. The charge is collected on top in shillings.';
         document.getElementById('preview_usd').textContent = dollars(f.credited);
         document.getElementById('preview_rmb').textContent = '¥' + f.payout.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
         document.getElementById('preview_formula').textContent = derivation(f);

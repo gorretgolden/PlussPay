@@ -110,14 +110,40 @@ class WizardPaymentStepTest extends TestCase
         $this->assertStringContainsString('Enter an amount to see the total.', $step);
         $this->assertStringContainsString('id="calc_rows" class="hidden"', $step);
         $this->assertStringContainsString('RMB receiver gets', $step);
-        $this->assertStringContainsString('Amount converted', $step);
         $this->assertStringContainsString('Credited in USD', $step);
 
-        foreach (['Money That Travels', 'Dollars Credited', 'What the receiver is credited at', 'RMB Receiver Gets'] as $gone) {
+        foreach (['Money That Travels', 'Dollars Credited', 'What the receiver is credited at', 'RMB Receiver Gets', 'Amount converted'] as $gone) {
             $this->assertStringNotContainsString($gone, $step);
         }
 
         $this->assertStringContainsString('1 USD = 7.24 RMB', $step);
+    }
+
+    /**
+     * The balance is the figure the whole calculation runs on, so it gets its own line below
+     * the fields rather than living only inside the card. It appears once on the step.
+     */
+    public function test_the_balance_after_the_charge_is_shown_below_the_fields(): void
+    {
+        $step = $this->step3($this->page('agent'));
+
+        $notes = strpos($step, 'id="notes"');
+        $strip = strpos($step, 'id="balance_strip"');
+        $card = strpos($step, 'Live Calculation');
+
+        $this->assertIsInt($strip);
+        $this->assertLessThan($strip, $notes, 'the balance must sit below the fields');
+        $this->assertLessThan($card, $strip, 'the balance must sit above the calculation card');
+
+        $this->assertStringContainsString('sm:p-5 hidden" id="balance_strip"', $step);
+        $this->assertStringContainsString('Balance after the charge', $step);
+        $this->assertStringContainsString('This is the money turned into dollars, then into yuan.', $step);
+        $this->assertSame(1, substr_count($step, 'id="balance_amount"'));
+
+        $html = $this->page('agent');
+        $this->assertStringContainsString("getElementById('balance_amount').textContent = showMoney(f.currency, f.sent)", $html);
+        $this->assertStringContainsString('Paid in dollars, so all of them travel. The charge is collected on top in shillings.', $html);
+        $this->assertStringNotContainsString('preview_sent', $html);
     }
 
     public function test_the_rates_link_is_small_renamed_and_still_gated(): void
