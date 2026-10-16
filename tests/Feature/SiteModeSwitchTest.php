@@ -71,6 +71,33 @@ class SiteModeSwitchTest extends TestCase
         $this->assertStringContainsString('plussave.demoPasswords', $html);
     }
 
+    public function test_on_the_developers_own_host_the_button_fills_the_password_from_the_env(): void
+    {
+        config(['demo.accounts' => ['admin@plussave.com' => 'chosen-in-dot-env']]);
+
+        auth()->logout();
+
+        $this->get('/admin/login')
+            ->assertOk()
+            ->assertSee('data-demo-email="admin@plussave.com" data-demo-password="chosen-in-dot-env"', false);
+    }
+
+    public function test_a_public_host_never_prints_a_demo_password_in_the_page(): void
+    {
+        config([
+            'app.url' => 'https://plussave.com',
+            'demo.accounts' => ['admin@plussave.com' => 'chosen-in-dot-env'],
+        ]);
+
+        auth()->logout();
+
+        $html = $this->call('GET', 'https://plussave.com/admin/login')->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-demo-email="admin@plussave.com"', $html);
+        $this->assertStringNotContainsString('data-demo-password', $html);
+        $this->assertStringNotContainsString('chosen-in-dot-env', $html);
+    }
+
     public function test_a_super_admin_can_switch_the_site_to_production(): void
     {
         $this->actingAs($this->user('superadmin'))

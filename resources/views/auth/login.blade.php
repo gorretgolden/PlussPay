@@ -79,8 +79,14 @@
                 <div class="flex-1 h-px bg-gray-200"></div>
             </div>
             <div class="grid grid-cols-2 gap-3">
+                @php
+                    // The SEED_*_PASSWORD values are only ever printed where the machine is the
+                    // developer's own. On a public host the page stays silent about passwords.
+                    $printPasswords = ! \App\Http\Controllers\SettingController::testingModeBlocked(request());
+                    $demoPasswords = config('demo.accounts', []);
+                @endphp
                 @foreach (['Admin' => 'admin@plussave.com', 'Superadmin' => 'superadmin@plussave.com', 'Agent' => 'agent@plussave.com', 'Accountant' => 'accountant@plussave.com'] as $label => $demoEmail)
-                    <button type="button" data-demo-email="{{ $demoEmail }}"
+                    <button type="button" data-demo-email="{{ $demoEmail }}"@if($printPasswords && ! empty($demoPasswords[$demoEmail])) data-demo-password="{{ $demoPasswords[$demoEmail] }}"@endif
                         class="rounded-lg border border-green-700/30 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition">
                         {{ $label }}
                     </button>
@@ -100,8 +106,10 @@
             }
         })();
 
-        // The demo buttons only exist while Site Mode is Testing, so the password typed for one of
-        // them is kept in this browser and refilled on the next click. Nothing is sent anywhere.
+        // The demo buttons only exist while Site Mode is Testing. On a machine of the developer's
+        // own the password comes from SEED_*_PASSWORD in .env. On a public host the page prints no
+        // password at all, so the one typed for a demo account is kept in this browser instead and
+        // refilled on the next click. Nothing is sent anywhere from here.
         (function() {
             const STORE = 'plussave.demoPasswords';
             const emailBox = document.getElementById('email');
@@ -120,7 +128,7 @@
             buttons.forEach(function (button) {
                 button.addEventListener('click', function () {
                     emailBox.value = button.dataset.demoEmail;
-                    const password = saved()[button.dataset.demoEmail];
+                    const password = button.dataset.demoPassword || saved()[button.dataset.demoEmail] || '';
                     if (password) {
                         passwordBox.value = password;
                     }
