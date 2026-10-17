@@ -166,6 +166,9 @@
                         class="text-gray-500 hover:text-gray-800 border border-gray-300 rounded px-2 py-1 text-xs">More</button>
                     <div id="menu-exp{{ $expense->id }}" data-row-menu class="hidden absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg text-left z-20">
                         <a href="{{ route('expenses.show', $expense) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Open entry</a>
+                        @if(! $expense->isVoid() && auth()->user()->can('create-expense') && ($seesAll || (int) $expense->created_by === (int) auth()->id()))
+                        <a href="{{ route('expenses.edit', $expense) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Edit the words</a>
+                        @endif
                         @can('view-accounts')
                         <a href="{{ route('accounts.movements', ['search' => $expense->reference]) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Ledger lines</a>
                         @endcan

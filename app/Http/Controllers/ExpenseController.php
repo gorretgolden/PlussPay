@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
+use App\Models\AccountEntry;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -119,12 +121,38 @@ class ExpenseController extends Controller
 
     public function create()
     {
+        return $this->form(null);
+    }
+
+    public function edit(Request $request, Expense $expense)
+    {
+        $this->authorizeEdit($expense);
+
+        return $this->form($expense);
+    }
+
+    /**
+     * One page for both jobs. Recording an expense and correcting the words of one already paid
+     * ask for the same fields in the same order, and a second copy of the form is a second set of
+     * words to get out of step with the first.
+     */
+    private function form(?Expense $expense)
+    {
         $accounts = $this->payableAccounts();
+
+        // An entry paid out of an account this desk no longer chooses from stays editable, and the
+        // account it names has to be on the list or the page would read as a blank.
+        if ($expense && $expense->account && ! collect($accounts)->contains('id', $expense->account_id)) {
+            $accounts[] = $expense->account;
+        }
+
         $local = auth()->user()->country === 'CN' ? 'RMB' : 'UGX';
-        $default = collect($accounts)->first(fn (Account $a) => $a->currency === $local)
+        $default = collect($accounts)->first(fn (Account $a) => $a->id === $expense?->account_id)
+            ?? collect($accounts)->first(fn (Account $a) => $a->currency === $local)
             ?? collect($accounts)->first();
 
-        return view('expenses.create', [
+        return view('expenses.form', [
+            'expense' => $expense,
             'accounts' => $accounts,
             'defaultAccountId' => $default?->id,
             'seesAll' => $this->seesEveryEntry(),
@@ -133,7 +161,20 @@ class ExpenseController extends Controller
             'defaultCategoryId' => array_search($this->seesEveryEntry() ? 'Rent' : 'Transport', $options, true)
                 ?: array_key_first($options),
             'paidVia' => Expense::PAID_VIA,
+            'minimumAmount' => (float) Setting::get('min_transaction_amount', 100),
         ]);
+    }
+
+    /**
+     * The person who may write an expense may fix its words; the office may fix anybody's. A
+     * cancelled entry is closed: its money is already back in the account, so editing it would
+     * describe a payment that no longer stands.
+     */
+    private function authorizeEdit(Expense $expense): void
+    {
+        abort_if($expense->isVoid(), 403, 'A cancelled entry is closed. Record the payment again instead.');
+        abort_unless($this->seesEveryEntry() || (int) $expense->created_by === (int) auth()->id(), 403,
+            'You can only edit an expense you recorded.');
     }
 
     public function store(Request $request)
@@ -152,6 +193,7 @@ class ExpenseController extends Controller
         ], [
             'category_id.required' => 'Choose what kind of spending this was.',
             'description.required' => 'Say what the money was spent on.',
+            'amount.required' => 'Enter how much was paid out.',
             'amount.min' => 'Enter how much was paid out.',
             'account_id.required' => 'Choose which account paid for it.',
             'account_id.in' => $this->seesEveryEntry()
@@ -163,6 +205,11 @@ class ExpenseController extends Controller
 
         $account = Account::findOrFail($validated['account_id']);
         $amount = number_format((float) $validated['amount'], 2, '.', '');
+
+        if ($refusal = $this->refusal($account, $amount)) {
+            return back()->withErrors(['amount' => $refusal])->withInput();
+        }
+
         $head = ExpenseCategory::findOrFail($validated['category_id']);
 
         try {
@@ -186,6 +233,88 @@ class ExpenseController extends Controller
         return redirect()->route('expenses.index')
             ->with('success', $expense->reference.' saved: '.Account::format($account->currency, $amount)
                 .' taken out of '.$account->name.'.');
+    }
+
+    /**
+     * Two figures stop an entry before the books are touched. Nothing is spent for free, and nothing
+     * is entered so small it is a typing mistake rather than a payment. And the money has to be in
+     * the account named: a wallet that holds less than the figure cannot have paid it.
+     *
+     * The company's China accounts are deliberately left out of the second rule. That side pays the
+     * receiver out of its own float before Uganda settles across, so a negative there is the honest
+     * picture of who is owed what rather than a missing payment.
+     */
+    private function refusal(Account $account, string $amount): ?string
+    {
+        $minimum = (float) Setting::get('min_transaction_amount', 100);
+
+        if (bccomp($amount, (string) $minimum, 2) < 0) {
+            return 'The smallest amount this desk records is '.Account::format($account->currency, $minimum)
+                .'. Enter what was actually paid out.';
+        }
+
+        if ($account->isWallet() && bccomp($amount, (string) $account->balance(), 2) > 0) {
+            return $account->name.' holds '.Account::format($account->currency, $account->balance())
+                .'. An expense cannot be more than the money in the account that paid it.';
+        }
+
+        return null;
+    }
+
+    /**
+     * The words of an entry are corrected in place; the money it moved is not. The ledger line that
+     * carries the payment is rewritten to match, because a line describing a fare when the note now
+     * says airtime is two records of the same cash disagreeing with each other.
+     */
+    public function update(Request $request, Expense $expense)
+    {
+        $this->authorizeEdit($expense);
+
+        $validated = $request->validate([
+            'category_id' => ['required', 'integer', Rule::exists('expense_categories', 'id')->where('is_active', true)],
+            'description' => ['required', 'string', 'max:255'],
+            'expense_date' => ['required', 'date'],
+            'paid_via' => ['nullable', Rule::in(Expense::PAID_VIA)],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'receipt' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ], [
+            'category_id.required' => 'Choose what kind of spending this was.',
+            'description.required' => 'Say what the money was spent on.',
+        ]);
+
+        $head = ExpenseCategory::findOrFail($validated['category_id']);
+
+        $expense->fill([
+            'category_id' => $head->id,
+            'category' => $head->name,
+            'description' => trim($validated['description']),
+            'expense_date' => $validated['expense_date'],
+            'paid_via' => $validated['paid_via'] ?? null,
+            'notes' => $validated['notes'] ?? null,
+        ]);
+
+        if ($request->hasFile('receipt')) {
+            if ($expense->receipt_file) {
+                Storage::disk('local')->delete($expense->receipt_file);
+            }
+
+            $expense->receipt_file = $request->file('receipt')->store('receipts', 'local');
+        }
+
+        $expense->save();
+
+        AccountEntry::where('reference', $expense->reference)
+            ->where('direction', 'out')
+            ->get()
+            ->each(fn (AccountEntry $line) => $line->update([
+                'entry_date' => $expense->expense_date->toDateString(),
+                'description' => $expense->category.': '.$expense->description.' ('.$expense->reference.', paid via '
+                    .strtolower((string) ($expense->paid_via ?: 'cash')).')',
+            ]));
+
+        return redirect()->route('expenses.show', $expense)
+            ->with('success', $expense->reference.' updated. The '.Account::format($expense->currency, $expense->amount)
+                .' it moved is unchanged.');
     }
 
     public function void(Request $request, Expense $expense)

@@ -20,6 +20,10 @@
             {{ $expense->description }}
         </p>
     </div>
+    <div class="flex flex-wrap gap-2">
+    @if(!$expense->isVoid() && auth()->user()->can('create-expense') && ($seesAll || (int) $expense->created_by === (int) auth()->id()))
+    <a href="{{ route('expenses.edit', $expense) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Edit the words</a>
+    @endif
     @if(!$expense->isVoid() && auth()->user()->can('void-expense'))
     <button type="button" onclick="openVoidModal(this)"
         data-action="{{ route('expenses.void', $expense) }}"
@@ -27,6 +31,7 @@
         data-first="{{ $paid }}"
         class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Cancel entry</button>
     @endif
+    </div>
 </div>
 
 <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

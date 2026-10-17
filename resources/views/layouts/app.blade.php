@@ -407,20 +407,63 @@
             });
         }
 
+        // A row menu sits inside a table that scrolls sideways, so a dropdown placed against the
+        // row is cut off by that box and reads as a button that opens nothing. An open menu is
+        // lifted to fixed coordinates under its own row, and flips above it when the row is at
+        // the bottom of the screen.
+        function placeMenu(menu) {
+            const host = menu.closest('[data-row-menu-host]');
+            if (!host) return;
+
+            const rect = host.getBoundingClientRect();
+            menu.style.position = 'fixed';
+            menu.style.marginTop = '0';
+            menu.style.left = 'auto';
+            menu.style.right = (window.innerWidth - rect.right) + 'px';
+            menu.style.top = (rect.bottom + 4) + 'px';
+
+            if (rect.bottom + 4 + menu.offsetHeight > window.innerHeight
+                && rect.top - menu.offsetHeight - 4 > 0) {
+                menu.style.top = (rect.top - menu.offsetHeight - 4) + 'px';
+            }
+        }
+
+        function hideMenu(menu) {
+            menu.classList.add('hidden');
+            menu.style.position = '';
+            menu.style.top = '';
+            menu.style.right = '';
+            menu.style.left = '';
+            menu.style.marginTop = '';
+        }
+
         function toggleMenu(key) {
             const target = document.getElementById('menu-' + key);
             document.querySelectorAll('[data-row-menu]').forEach(function(menu) {
-                if (menu !== target) menu.classList.add('hidden');
+                if (menu !== target) hideMenu(menu);
             });
-            target.classList.toggle('hidden');
+
+            if (target.classList.contains('hidden')) {
+                target.classList.remove('hidden');
+                placeMenu(target);
+            } else {
+                hideMenu(target);
+            }
         }
 
         document.addEventListener('click', function(e) {
             if (!e.target.closest('[data-row-menu-host]')) {
-                document.querySelectorAll('[data-row-menu]').forEach(function(menu) {
-                    menu.classList.add('hidden');
-                });
+                document.querySelectorAll('[data-row-menu]:not(.hidden)').forEach(hideMenu);
             }
+        });
+
+        // The menu belongs to its row, so it moves with the page and the table.
+        window.addEventListener('scroll', function() {
+            document.querySelectorAll('[data-row-menu]:not(.hidden)').forEach(placeMenu);
+        }, true);
+
+        window.addEventListener('resize', function() {
+            document.querySelectorAll('[data-row-menu]:not(.hidden)').forEach(placeMenu);
         });
 
         // Searchable dropdowns. The native select stays in the DOM so form
