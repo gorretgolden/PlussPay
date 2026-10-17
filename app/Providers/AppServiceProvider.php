@@ -2,15 +2,19 @@
 
 namespace App\Providers;
 
+use App\Models\ActivityLog;
 use App\Models\LoginLog;
 use App\Models\Setting;
 use App\Models\SystemLog;
 use App\Models\Transaction;
+use App\Observers\ActivityNewsObserver;
 use App\Observers\TransactionObserver;
+use App\Support\ActivityNews;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -40,9 +44,11 @@ class AppServiceProvider extends ServiceProvider
         $this->applyTimezone();
 
         Transaction::observe(TransactionObserver::class);
+        ActivityLog::observe(ActivityNewsObserver::class);
 
         $this->registerLogListeners();
         $this->registerSidebarLogBadges();
+        $this->registerSidebarNewsBadges();
 
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
@@ -106,6 +112,29 @@ class AppServiceProvider extends ServiceProvider
                 }
             } catch (\Throwable) {
                 // login_logs / system_logs not migrated yet on a fresh deploy; skip badges.
+            }
+        });
+    }
+
+    /**
+     * The count of what each reader has not seen yet, so the sidebar says where to look without
+     * anybody having to open the inbox first. It is read out of the notices that person was
+     * actually sent, which means a badge can never show news they could not open, and a desk
+     * that is not on the receiving end of any kind of news gets no badge and no inbox link.
+     */
+    private function registerSidebarNewsBadges(): void
+    {
+        View::composer('layouts.app', function ($view) {
+            $user = auth()->user();
+
+            if (!$user || !Gate::any(ActivityNews::AUDIENCE)) {
+                return;
+            }
+
+            try {
+                $view->with('sidebarNews', ActivityNews::badgeCounts($user));
+            } catch (\Throwable) {
+                // notifications not migrated yet on a fresh deploy; skip badges.
             }
         });
     }

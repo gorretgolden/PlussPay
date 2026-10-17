@@ -12,6 +12,7 @@ use App\Http\Controllers\ExchangeRateController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExportController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\RolePermissionController;
@@ -170,4 +171,10 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     Route::get('/admin/system-logs', [SystemLogController::class, 'index'])->middleware('can:view-system-logs')->name('admin.system-logs');
     Route::patch('/admin/system-logs/{systemLog}/resolve', [SystemLogController::class, 'resolve'])->middleware('can:resolve-system-logs')->name('admin.system-logs.resolve');
     Route::get('/export/system-logs', [ExportController::class, 'systemLogs'])->middleware('can:export-system-logs')->name('export.system-logs');
+
+    // What happened in the book. No ability gates this page: a notice is only ever written for
+    // a part of the book its reader can already open, and the controller proves that.
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
 });

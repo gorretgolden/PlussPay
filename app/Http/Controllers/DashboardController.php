@@ -9,9 +9,11 @@ use App\Models\LoginLog;
 use App\Models\SystemLog;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\ActivityNews;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class DashboardController extends Controller
 {
@@ -110,7 +112,23 @@ class DashboardController extends Controller
             }
         }
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts'));
+        // Word of what the other desks did while this reader was not looking. A notice is only
+        // ever written for a part of the book its reader can already open, so the card needs no
+        // permission of its own beyond being able to earn one.
+        $news = ['unread' => 0, 'items' => collect()];
+
+        if (Gate::any(ActivityNews::AUDIENCE)) {
+            try {
+                $news = [
+                    'unread' => $user->unreadNotifications()->count(),
+                    'items' => $user->unreadNotifications()->limit(6)->get(),
+                ];
+            } catch (\Throwable) {
+                // notifications not migrated yet on a fresh deploy; show no card.
+            }
+        }
+
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts', 'news'));
     }
 
     private function usdToUgxRate(): ?float

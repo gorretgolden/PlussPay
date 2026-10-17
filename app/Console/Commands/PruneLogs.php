@@ -7,6 +7,7 @@ use App\Models\LoginLog;
 use App\Models\Setting;
 use App\Models\SystemLog;
 use Illuminate\Console\Command;
+use Illuminate\Notifications\DatabaseNotification;
 
 class PruneLogs extends Command
 {
@@ -14,7 +15,7 @@ class PruneLogs extends Command
                             {--days= : Override the retention window in days}
                             {--dry-run : Report what would be removed without deleting}';
 
-    protected $description = 'Delete audit, login and system log rows older than the retention window';
+    protected $description = 'Delete audit, login and system log rows older than the retention window, and notices already read';
 
     /**
      * A money business keeps its audit trail longer than a normal app deletes noise, so
@@ -39,6 +40,12 @@ class PruneLogs extends Command
             // A resolved error is her record that an incident happened and was closed,
             // so only unresolved rows past the window are eligible for removal.
             'system_logs' => SystemLog::where('resolved', false)->where('created_at', '<', $cutoff)->count(),
+            // A notice nobody has read is still waiting for somebody, so it stays until they
+            // see it. The trail it was written from is pruned by its own rule above, and the
+            // notice keeps its own words, so nothing is lost by either.
+            'notifications' => DatabaseNotification::whereNotNull('read_at')
+                ->where('created_at', '<', $cutoff)
+                ->count(),
         ];
 
         if ($this->option('dry-run')) {
@@ -56,9 +63,11 @@ class PruneLogs extends Command
                 'activity_logs' => ActivityLog::class,
                 'login_logs' => LoginLog::class,
                 'system_logs' => SystemLog::class,
+                'notifications' => DatabaseNotification::class,
             };
             $model::where('created_at', '<', $cutoff)
                 ->when($table === 'system_logs', fn ($q) => $q->where('resolved', false))
+                ->when($table === 'notifications', fn ($q) => $q->whereNotNull('read_at'))
                 ->delete();
             $removed += $count;
             $this->line("  {$table}: {$count} deleted");

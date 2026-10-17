@@ -52,7 +52,7 @@ class ExpenseReachabilityTest extends TestCase
         // A top-level entry, not a sub-link that stays hidden until another group is opened. The
         // card on the page is the second route to the same book, which is what she asked for.
         $this->assertSame(1, preg_match_all('#<a href="[^"]+/expenses" class="sidebar-link#', $html), 'One Expenses entry in the sidebar.');
-        $this->assertSame(1, substr_count($html, '>Expenses</span>'));
+        $this->assertSame(2, substr_count($html, '>Expenses</span>'), 'The sidebar entry and the card on the board, once each.');
     }
 
     public function test_the_expenses_entry_does_not_ride_on_the_accounts_gate(): void

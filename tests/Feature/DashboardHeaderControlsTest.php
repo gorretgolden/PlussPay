@@ -173,8 +173,14 @@ class DashboardHeaderControlsTest extends TestCase
 
     public function test_the_hour_mark_is_dark_enough_to_read_against_its_circle(): void
     {
+        $today = now()->startOfDay();
+
+        // Both bands are read at a fixed hour. Read at whatever hour the suite happens to run
+        // in, the evening board was the morning one and this failed on a midday run.
+        $this->travelTo($today->copy()->setTime(20, 10));
         $evening = $this->board();
-        $this->travelTo(now()->setTime(13, 5));
+
+        $this->travelTo($today->copy()->setTime(13, 5));
         $this->flushSession();
         $midday = $this->actingAs($this->desk())->get('/dashboard')->getContent();
 
