@@ -37,6 +37,7 @@ class ChinaDeskController extends Controller
             'canPay' => $canPay,
             'sources' => $this->sendableAccounts($viewer),
             'desks' => $this->chinaDesks(),
+            'deskBook' => $viewer->can('view-all-wallets'),
             'usdWallet' => Account::where('owner_id', $viewer->id)->where('currency', 'USD')->first(),
             'rmbWallet' => Account::where('owner_id', $viewer->id)->where('currency', 'RMB')->first(),
         ]);
@@ -96,7 +97,9 @@ class ChinaDeskController extends Controller
         $transactions = $this->sendable($viewer, $ids);
 
         if ($transactions->count() !== $ids->count()) {
-            return back()->withErrors(['transaction_ids' => $this->staleSelection($ids, $transactions)]);
+            return back()->withErrors([
+                'transaction_ids' => $this->staleSelection($ids, $transactions, fn ($q) => $q->visibleTo($viewer)),
+            ]);
         }
 
         $total = $transactions->sum(fn (Transaction $t) => (float) $t->total_usd_equivalent);
@@ -173,7 +176,10 @@ class ChinaDeskController extends Controller
         $transactions = $this->payable($viewer, $ids);
 
         if ($transactions->count() !== $ids->count()) {
-            return back()->withErrors(['transaction_ids' => $this->staleSelection($ids, $transactions)]);
+            return back()->withErrors([
+                'transaction_ids' => $this->staleSelection($ids, $transactions,
+                    fn ($q) => $q->when(! $viewer->can('view-all-transactions'), fn ($rows) => $rows->where('settled_to', $viewer->id))),
+            ]);
         }
 
         $paid = collect();
@@ -340,15 +346,30 @@ class ChinaDeskController extends Controller
     /**
      * Names the receipts that can no longer be moved rather than refusing the batch in general
      * terms, because the clerk needs to know whether it was a colleague's click or a stale page.
+     * Only rows this side already lists are named, and the rest are counted: a hand-typed list of
+     * ids cannot be used to read out another desk's receipt numbers.
      *
      * @param  \Illuminate\Support\Collection<int, int>  $ids
      * @param  \Illuminate\Support\Collection<int, Transaction>  $found
+     * @param  callable(\Illuminate\Database\Eloquent\Builder): mixed  $reach  the visibility the page itself lists by
      */
-    private function staleSelection($ids, $found): string
+    private function staleSelection($ids, $found, callable $reach): string
     {
-        $missing = Transaction::whereIn('id', $ids->diff($found->pluck('id'))->all())->pluck('receipt_number');
+        $missing = $ids->diff($found->pluck('id'))->values();
+        $named = $reach(Transaction::query())->whereIn('id', $missing->all())->pluck('receipt_number');
+        $hidden = $missing->count() - $named->count();
 
-        return 'These transfers can no longer be moved in one go: '.$missing->implode(', ')
-            .'. Someone else has already sent or paid them, or they are no longer completed. Reload the page and tick them again.';
+        $parts = [];
+
+        if ($named->isNotEmpty()) {
+            $parts[] = 'These transfers can no longer be moved in one go: '.$named->implode(', ');
+        }
+
+        if ($hidden > 0) {
+            $parts[] = $hidden.' of the ticks are not transfers this desk lists';
+        }
+
+        return implode('. ', $parts).'. Someone else has already sent or paid them, or they are no longer'
+            .' completed. Reload the page and tick them again.';
     }
 }

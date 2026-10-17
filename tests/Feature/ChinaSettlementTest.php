@@ -230,6 +230,49 @@ class ChinaSettlementTest extends TestCase
         $this->assertNull($transaction->fresh()->delivered_at);
     }
 
+    public function test_the_wallets_of_every_china_desk_stay_with_the_side_that_keeps_the_books(): void
+    {
+        $transaction = $this->booked('PS-UG-0011', $this->agent);
+        $this->send($transaction, $this->dollars(1000), $this->china);
+
+        // The desk sending dollars needs each name and what that desk is holding, because that is
+        // the choice it is making. The emails, roles and yuan floats beside them are the Accounts
+        // screen's business, and an agent is 403 there.
+        $this->actingAs($this->agent)->get('/china')
+            ->assertOk()
+            ->assertSee('China Desk')
+            ->assertDontSee('The desks in China')
+            ->assertDontSee('china.desk@plussave.test');
+
+        $this->actingAs($this->office)->get('/china')
+            ->assertOk()
+            ->assertSee('The desks in China')
+            ->assertSee('china.desk@plussave.test');
+    }
+
+    public function test_a_tick_from_another_desk_s_book_is_refused_without_its_receipt_number(): void
+    {
+        $other = $this->person('Mbarara Agent', 'agent', 'UG');
+        $mine = $this->booked('PS-UG-0012', $this->agent);
+        $theirs = $this->booked('PS-UG-0013', $other);
+
+        // A desk sends out of its own dollar wallet, which is all the send form offers it.
+        $wallet = Account::walletFor($this->agent, 'USD');
+        AccountLedger::record($wallet, 'opening_balance', '2000.00', 'Dollars collected at the counter');
+
+        $this->actingAs($this->agent)->post('/china/send', [
+            'transaction_ids' => [$mine->id, $theirs->id],
+            'recipient_id' => $this->china->id,
+            'source_account_id' => $wallet->id,
+        ])->assertSessionHasErrors('transaction_ids');
+
+        $error = $this->flashedError('transaction_ids');
+
+        $this->assertStringNotContainsString('PS-UG-0013', $error, 'A typed id list cannot be read back for numbers.');
+        $this->assertStringContainsString('1 of the ticks are not transfers this desk lists', $error);
+        $this->assertNull($mine->fresh()->settled_at, 'The whole batch stays where it was.');
+    }
+
     public function test_a_desk_in_china_is_never_offered_dollars_that_are_not_theirs_to_send(): void
     {
         $this->actingAs($this->china)->get('/china')

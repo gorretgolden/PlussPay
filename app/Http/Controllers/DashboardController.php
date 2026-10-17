@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\ExchangeRate;
+use App\Models\Expense;
 use App\Models\LoginLog;
 use App\Models\SystemLog;
 use App\Models\Transaction;
@@ -128,7 +129,53 @@ class DashboardController extends Controller
             }
         }
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts', 'news'));
+        // The spending book is a different reach from the transfer book: a role that may not open
+        // it gets no card at all rather than a figure it cannot check.
+        $spending = $user->can('view-expenses') ? $this->spendingToday($user) : ['count' => 0, 'desks' => []];
+
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts', 'news', 'spending'));
+    }
+
+    /**
+     * What was spent today, kept apart by the desk that paid it out. The transfers above the fold
+     * are money coming in; this is the money going out on the same day, and until now the only way
+     * to see it was to open the spending book.
+     *
+     * Today means recorded today rather than dated today, because a fare paid on Friday and typed up
+     * on Monday was made today. The country is read off the account that paid, which is the same rule
+     * the spending book filters by, so the two screens cannot split the same entry two ways.
+     *
+     * @return array{count: int, desks: array<int, array<string, mixed>>}
+     */
+    private function spendingToday(User $user): array
+    {
+        $rows = Expense::with(['account:id,country,currency', 'creator:id,name'])
+            ->where('status', Expense::ACTIVE)
+            ->whereDate('created_at', today())
+            // A desk without the whole book sees its own spending, which is the same reach the
+            // spending page gives it.
+            ->when(! $user->can('view-all-expenses'), fn (Builder $q) => $q->where('created_by', $user->id))
+            ->get();
+
+        $ownCountry = $user->country ?: User::DEFAULT_COUNTRY;
+        $corridor = array_flip(array_keys(User::COUNTRIES));
+
+        $desks = $rows->groupBy(fn (Expense $row) => $row->account?->country ?: User::DEFAULT_COUNTRY)
+            // Their own desk's money first, the other country after it, in the order the two
+            // countries are declared rather than alphabetically.
+            ->sortBy(fn ($group, string $country) => [$country === $ownCountry ? 0 : 1, $corridor[$country] ?? count($corridor)])
+            ->map(fn ($group, string $country) => [
+                'label' => User::COUNTRIES[$country] ?? $country,
+                'count' => $group->count(),
+                'people' => $group->pluck('creator.name')->filter()->unique()->sort()->values()->all(),
+                'totals' => $group->groupBy('currency')
+                    ->map(fn ($byCurrency) => (string) $byCurrency->sum('amount'))
+                    ->all(),
+            ])
+            ->values()
+            ->all();
+
+        return ['count' => $rows->count(), 'desks' => $desks];
     }
 
     private function usdToUgxRate(): ?float

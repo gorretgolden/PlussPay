@@ -263,6 +263,39 @@
 </div>
 @endif
 
+{{-- Money going out on the same day as the money coming in above it. Each desk keeps its own
+     totals, because shillings spent in Kampala and yuan spent in Guangzhou are not one number. --}}
+@can('view-expenses')
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">Spent today</h2>
+        <a href="{{ route('expenses.index') }}" class="text-sm text-green-800 hover:underline">Open the spending book</a>
+    </div>
+    @if($spending['desks'] === [])
+        <p class="text-sm text-gray-500">Nothing has been recorded as spent today.</p>
+    @else
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(min(15rem,100%),1fr))] gap-4">
+        @foreach($spending['desks'] as $desk)
+        @php
+            $who = collect($desk['people'])->take(3);
+            $rest = count($desk['people']) - $who->count();
+        @endphp
+        <div class="stat-card min-w-0 rounded-lg border border-gray-200 p-4">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $desk['label'] }}</div>
+            @foreach($desk['totals'] as $currency => $amount)
+            <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums whitespace-nowrap">{{ \App\Models\Account::format($currency, $amount) }}</div>
+            @endforeach
+            <div class="text-xs text-gray-500 mt-2">
+                {{ number_format($desk['count']) }} {{ $desk['count'] === 1 ? 'entry' : 'entries' }} today
+                @if($who->isNotEmpty()) · {{ $who->implode(', ') }}@if($rest > 0) and {{ $rest }} more @endif @endif
+            </div>
+        </div>
+        @endforeach
+    </div>
+    @endif
+</div>
+@endcan
+
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">

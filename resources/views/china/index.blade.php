@@ -213,6 +213,10 @@
 </div>
 @endif
 
+{{-- Every desk's two wallets and what the office owes them. The sending desk only ever needs the
+     holding printed beside each name in the dropdown above, so the full table stays with the
+     people who read every wallet, matching the Accounts screen. --}}
+@if($deskBook)
 <div class="bg-white rounded-lg shadow">
     <div class="px-6 py-4 border-b border-gray-200">
         <h2 class="text-lg font-semibold text-gray-900">The desks in China</h2>
@@ -253,6 +257,7 @@
         </table>
     </div>
 </div>
+@endif
 
 <script>
 (function () {
