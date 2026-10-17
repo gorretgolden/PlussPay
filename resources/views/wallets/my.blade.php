@@ -37,23 +37,31 @@
 </div>
 
 @if($isAgent)
+@php
+    $chosen = old('currency', array_key_first($wallets) ?? '');
+    $heldNow = (float) (($wallets[$chosen] ?? null)?->balance() ?? 0);
+    // Handing in the whole bag is the usual case, so the box opens at what the chosen
+    // wallet holds. A figure typed before a failed submit always wins over the guess,
+    // and an empty wallet leaves the box empty rather than opening at a zero it cannot send.
+    $prefill = old('amount', $heldNow > 0 ? (string) round($heldNow, 2) : '');
+@endphp
 <div class="bg-white rounded-lg shadow p-6 mb-8">
     <h2 class="text-lg font-semibold text-gray-900">Hand cash in to the office</h2>
-    <p class="text-sm text-gray-600 mt-1 mb-4">Enter what you are carrying in. The office till gains exactly that figure.</p>
+    <p class="text-sm text-gray-600 mt-1 mb-4">Enter what you are carrying in. The office till gains exactly that figure. The amount opens at your whole balance; change it if you are handing in part of it.</p>
     <form method="POST" action="{{ route('wallets.hand-in') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
         @csrf
         <div>
             <label for="hand-in-currency" class="block text-sm font-medium text-gray-700 mb-1">Money</label>
             <select id="hand-in-currency" name="currency" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
                 @foreach($wallets as $currency => $account)
-                <option value="{{ $currency }}" @selected(old('currency') === $currency)>{{ $currency }} ({{ \App\Models\Account::format($currency, $account->balance()) }} in hand)</option>
+                <option value="{{ $currency }}" data-balance="{{ (string) round((float) $account->balance(), 2) }}" @selected($chosen === $currency)>{{ $currency }} ({{ \App\Models\Account::format($currency, $account->balance()) }} in hand)</option>
                 @endforeach
             </select>
             @error('currency') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
         </div>
         <div>
             <label for="hand-in-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-            <input type="number" id="hand-in-amount" name="amount" step="0.01" min="0.01" required value="{{ old('amount') }}"
+            <input type="number" id="hand-in-amount" name="amount" step="0.01" min="0.01" required value="{{ $prefill }}"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
             @error('amount') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
         </div>
@@ -112,3 +120,28 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    (function () {
+        var money = document.getElementById('hand-in-currency');
+        var amount = document.getElementById('hand-in-amount');
+
+        if (!money || !amount) { return; }
+
+        var held = function () { return money.options[money.selectedIndex].dataset.balance; };
+
+        // The amount follows the wallet it names until the person takes over the typing.
+        // Once they have moved the figure off the balance, switching wallets leaves their
+        // figure alone, because a part payment they typed is not a guess to overwrite.
+        // An empty wallet clears the box rather than typing a zero it cannot send.
+        money.dataset.held = held();
+        money.addEventListener('change', function () {
+            if (amount.value === '' || amount.value === money.dataset.held) {
+                amount.value = held() === '0' ? '' : held();
+            }
+            money.dataset.held = held();
+        });
+    })();
+</script>
+@endpush
