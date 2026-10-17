@@ -8,12 +8,13 @@ use App\Models\AccountEntry;
 use App\Models\ActivityLog;
 use App\Models\User;
 use App\Services\AccountLedger;
+use App\Support\WalletHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 class WalletController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $user = auth()->user();
 
@@ -52,7 +53,8 @@ class WalletController extends Controller
             'wallets' => $wallets,
             'handedIn' => AccountEntry::handedInFor($wallets),
             'commission' => $this->commissionTotals($held),
-            'movements' => $this->movements($user),
+            'movements' => WalletHistory::paginate(WalletHistory::filtered(WalletHistory::lines($user), $request), $request),
+            'kinds' => WalletHistory::KINDS,
         ]);
     }
 
@@ -155,6 +157,16 @@ class WalletController extends Controller
         $wallet = Account::walletFor($agent, $currency);
         $before = $wallet->balance();
 
+        // Standing at the counter, the most anybody can hand in is what is in the hand. Checked
+        // here rather than left to the ledger so the refusal names the figure actually held and
+        // the note they typed survives the failed submit.
+        if (bccomp((string) $validated['amount'], (string) $before, 2) > 0) {
+            return back()->withErrors([
+                'amount' => 'You cannot hand in more than the wallet holds. The '.$currency.' wallet holds '
+                    .Account::format($currency, $before).'.',
+            ])->withInput();
+        }
+
         $note = $request->input('note');
 
         try {
@@ -206,56 +218,5 @@ class WalletController extends Controller
         $given = (string) AccountEntry::where('account_id', $shilling->id)->where('type', 'agent_fee_reversal')->sum('amount');
 
         return [$shilling->id => bcsub($earned, $given, 2)];
-    }
-
-    /**
-     * Every movement of this person's own cash, newest first, each line carrying the balance it
-     * left behind. Typed out by hand from the ledger in date order and then run backwards, because
-     * a running figure only means something when it walks from the oldest line to the newest.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function movements(User $user, int $limit = 40): array
-    {
-        $wallets = array_values(Account::walletsFor($user));
-
-        if ($wallets === []) {
-            return [];
-        }
-
-        $byWallet = [];
-
-        foreach ($wallets as $wallet) {
-            $running = (string) $wallet->opening_balance;
-            $lines = [];
-
-            $entries = AccountEntry::where('account_id', $wallet->id)
-                ->orderBy('entry_date')
-                ->orderBy('id')
-                ->get();
-
-            foreach ($entries as $entry) {
-                $running = $entry->direction === 'in'
-                    ? bcadd($running, (string) $entry->amount, 2)
-                    : bcsub($running, (string) $entry->amount, 2);
-
-                $lines[] = [
-                    'date' => $entry->entry_date,
-                    'currency' => $wallet->currency,
-                    'label' => AccountEntry::walletLabel($entry->type),
-                    'description' => $entry->description,
-                    'reference' => $entry->reference,
-                    'in' => $entry->direction === 'in' ? (string) $entry->amount : null,
-                    'out' => $entry->direction === 'out' ? (string) $entry->amount : null,
-                    'running' => $running,
-                ];
-            }
-
-            $byWallet = array_merge($byWallet, array_reverse($lines));
-        }
-
-        usort($byWallet, fn ($a, $b) => strcmp($b['date']->toDateString(), $a['date']->toDateString()));
-
-        return array_slice($byWallet, 0, $limit);
     }
 }

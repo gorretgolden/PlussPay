@@ -14,6 +14,7 @@ use App\Models\SystemLog;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\SystemLogReader;
+use App\Support\WalletHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -409,6 +410,32 @@ class ExportController extends Controller
         return $this->download('movements', [
             'Date', 'Account', 'Movement', 'Goes Up', 'Goes Down', 'Against', 'Transfer',
             'Reference', 'Description', 'Entered By',
+        ], $rows);
+    }
+
+    /**
+     * The drawer's own book, exactly as the wallet page lists it after the filters on the screen
+     * are applied, running balance included. A person downloads their own cash history, so the
+     * gate is the same one that opens the page.
+     */
+    public function cashHistory(Request $request)
+    {
+        $rows = collect(WalletHistory::filtered(WalletHistory::lines($request->user()), $request))
+            ->map(fn (array $line) => [
+                $line['date']->format('Y-m-d').' '.($line['clock']?->format('H:i') ?? ''),
+                $line['currency'],
+                $line['label'],
+                $line['reference'] ?? '-',
+                $line['status'] ? ucfirst($line['status']) : '',
+                $line['in'] !== null ? Account::format($line['currency'], $line['in']) : '',
+                $line['out'] !== null ? Account::format($line['currency'], $line['out']) : '',
+                Account::format($line['currency'], $line['running']),
+                $line['description'],
+            ])
+            ->all();
+
+        return $this->download('cash-history', [
+            'Date', 'Wallet', 'What happened', 'Reference', 'Transfer', 'In', 'Out', 'Left in hand', 'Description',
         ], $rows);
     }
 

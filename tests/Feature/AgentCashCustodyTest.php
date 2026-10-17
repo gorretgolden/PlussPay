@@ -345,13 +345,13 @@ class AgentCashCustodyTest extends TestCase
 
         // Handing in the whole bag is the usual case, so the box opens at the balance and
         // each wallet carries its own figure for the box to follow when the money changes.
-        $this->assertStringContainsString('min="0.01" required value="500000"', $page);
+        $this->assertStringContainsString('min="0.01" max="500000" required value="500000"', $page);
         $this->assertStringContainsString('value="UGX" data-balance="500000"', $page);
 
         $empty = $this->agent('Peter Okello');
         $page = $this->actingAs($empty)->get(route('wallet.index'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('min="0.01" required value=""', $page, 'An empty drawer opens at an empty box, not at a zero it cannot send.');
+        $this->assertStringContainsString('min="0.01" max="" required value=""', $page, 'An empty drawer opens at an empty box, not at a zero it cannot send.');
     }
 
     public function test_the_agent_list_shows_what_each_desk_still_holds(): void
