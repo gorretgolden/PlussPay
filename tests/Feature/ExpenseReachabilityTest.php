@@ -93,7 +93,7 @@ class ExpenseReachabilityTest extends TestCase
 
     public function test_quick_actions_offer_a_role_only_the_things_it_may_do(): void
     {
-        $labels = ['Send Money', 'Record Exchange', 'Record Expense', 'Expenses', 'Exchange Rates', 'Add Customer'];
+        $labels = ['Send Money to China', 'Send Money to Uganda', 'Record Exchange', 'Record Expense', 'Expenses', 'Exchange Rates', 'Add Customer'];
 
         $superadmin = $this->html($this->user('superadmin', 'Super Admin'));
         foreach ($labels as $label) {
@@ -103,7 +103,8 @@ class ExpenseReachabilityTest extends TestCase
         // A desk agent books transfers, swaps notes and logs what they spent out of the cash in
         // hand. Prices and the customer list stay with the office.
         $agent = $this->html($this->user('agent', 'Amina Nabukenya'));
-        $this->assertStringContainsString('>Send Money</span>', $agent);
+        $this->assertStringContainsString('>Send Money to China</span>', $agent);
+        $this->assertStringContainsString('>Send Money to Uganda</span>', $agent);
         $this->assertStringContainsString('>Record Exchange</span>', $agent);
         $this->assertStringContainsString('>Record Expense</span>', $agent, 'An agent who spends the desk\'s cash records it themselves.');
         $this->assertStringContainsString('>Expenses</span>', $agent, 'Their own page of the book, reached from the same card.');
@@ -116,7 +117,8 @@ class ExpenseReachabilityTest extends TestCase
         $accountant = $this->html($this->user('accountant', 'Grace Naigaga'));
         $this->assertStringContainsString('>Expenses</span>', $accountant);
         $this->assertStringNotContainsString('>Record Expense</span>', $accountant, 'Recording spending is the desk that paid it out.');
-        $this->assertStringNotContainsString('>Send Money</span>', $accountant, 'Booking a transfer is beyond an accountant.');
+        $this->assertStringNotContainsString('>Send Money to China</span>', $accountant, 'Booking a transfer is beyond an accountant.');
+        $this->assertStringNotContainsString('>Send Money to Uganda</span>', $accountant, 'Nor is the other corridor.');
 
         // Desk staff read the day and change nothing, so there is nothing for them to start.
         $staff = $this->html($this->user('staff', 'Peter Mugisha'));
@@ -133,16 +135,27 @@ class ExpenseReachabilityTest extends TestCase
         }
     }
 
-    public function test_send_money_is_offered_once_on_the_dashboard(): void
+    public function test_each_corridor_is_offered_once_on_the_dashboard(): void
     {
         $html = $this->html($this->user('agent', 'Amina Nabukenya'));
 
         // The button that used to sit on the Recent Transactions header booked the same thing
-        // under a second name, so the card's entry is now the only one of those labels. Sidebar
-        // links keep their text outside a span, so each count below is the card alone.
-        $this->assertSame(1, substr_count($html, '>Send Money</span>'));
+        // under a second name, so the card's entries are now the only ones of those labels. Sidebar
+        // links keep their text outside a span, so each count below is the card alone. Sending is
+        // offered twice on purpose, once per corridor, and never as one undecided card.
+        $this->assertSame(1, substr_count($html, '>Send Money to China</span>'));
+        $this->assertSame(1, substr_count($html, '>Send Money to Uganda</span>'));
+        $this->assertSame(0, substr_count($html, '>Send Money</span>'), 'No card sends money without saying which way.');
         $this->assertSame(1, substr_count($html, '>Record Exchange</span>'));
         $this->assertStringNotContainsString('New Transaction', $html);
+    }
+
+    public function test_the_two_sending_shortcuts_open_their_own_corridor(): void
+    {
+        $html = $this->html($this->user('agent', 'Amina Nabukenya'));
+
+        $this->assertMatchesRegularExpression('#transactions/create\?destination=CN"#', $html);
+        $this->assertMatchesRegularExpression('#transactions/create\?destination=UG"#', $html);
     }
 
     public function test_the_shortcuts_open_the_page_ahead_of_the_balances(): void
