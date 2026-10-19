@@ -67,6 +67,7 @@ class TransactionProfitTableTest extends TestCase
             'currency' => 'UGX',
             'amount' => $cash,
             'charge_ugx' => $charge,
+            'payment_method' => 'Cash',
         ])->assertSessionHasNoErrors();
 
         return Transaction::latest('id')->firstOrFail();
@@ -218,7 +219,7 @@ class TransactionProfitTableTest extends TestCase
         $this->assertSame('Loss UGX 130,714.3', $rows[6][15]);
         // The same loss in dollars, at the 7.30 those dollars were delivered at.
         $this->assertMatchesRegularExpression('/^Loss USD \d/', $rows[6][16]);
-        $this->assertSame('Completed', $rows[6][18]);
+        $this->assertSame('Completed', $rows[6][20]);
 
         foreach (['Yuan Leg (CNY)', 'Yuan Leg (UGX)', 'Yuan Leg (USD)', 'Dollar Margin (UGX)',
             'UGX Bought At (per USD)', 'RMB Bought At (per USD)'] as $gone) {

@@ -267,6 +267,7 @@ class SecurityHardeningTest extends TestCase
             'currency' => 'USD',
             'amount' => 200,
             'charge_ugx' => 2000,
+            'payment_method' => 'Cash',
             'notes' => 'Sending money to China',
         ];
 
@@ -335,6 +336,7 @@ class SecurityHardeningTest extends TestCase
             'currency' => 'USD',
             'amount' => 1000,
             'charge_ugx' => 20000,
+            'payment_method' => 'Cash',
             'charge_rate' => 0,
             'exchange_rate' => 1,
             'total_usd_equivalent' => 1,

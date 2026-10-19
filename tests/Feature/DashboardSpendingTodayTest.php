@@ -192,6 +192,7 @@ class DashboardSpendingTodayTest extends TestCase
             'currency' => 'UGX',
             'amount' => '480000',
             'charge_ugx' => '20000',
+            'payment_method' => 'Cash',
         ])->assertSessionHasNoErrors();
 
         $booking = \App\Models\Transaction::latest('id')->firstOrFail();

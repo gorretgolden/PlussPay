@@ -178,6 +178,7 @@ class ProfitCalculatorTest extends TestCase
             'currency' => 'UGX',
             'amount' => '500000',
             'charge_ugx' => '20000',
+            'payment_method' => 'Cash',
         ])->assertSessionHasNoErrors();
 
         $transaction = Transaction::latest('id')->firstOrFail();

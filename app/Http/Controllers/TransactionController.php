@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class TransactionController extends Controller
 {
@@ -116,6 +117,8 @@ class TransactionController extends Controller
             'charge_ugx' => "required|numeric|min:0|max:{$maxAmount}|decimal:0,2",
             'purpose' => 'nullable|string|max:100',
             'purpose_other' => 'required_if:purpose,Other|nullable|string|max:100',
+            'payment_method' => ['required', Rule::in(Transaction::PAYMENT_METHODS)],
+            'payment_reference' => ['required_unless:payment_method,'.Transaction::CASH_PAYMENT, 'nullable', 'string', 'max:60'],
             'notes' => 'nullable|string|max:500',
             'agent_id' => $mustNameHolder ? 'required' : 'nullable',
         ], [
@@ -128,6 +131,10 @@ class TransactionController extends Controller
             'charge_ugx.numeric' => 'The charge must be a number of shillings.',
             'charge_ugx.min' => 'The charge cannot be negative.',
             'purpose_other.required_if' => 'Please say what the other reason is.',
+            'payment_method.required' => 'Say how the customer paid you, so the money in the till matches the way it arrived.',
+            'payment_method.in' => 'That is not one of the ways this desk takes money. Choose Cash, MTN Mobile Money, Airtel Money, Bank transfer, or Other.',
+            'payment_reference.required_unless' => 'Write the confirmation number from the payment alert, such as the MoMo transaction ID or the bank reference. Cash is the only payment that needs none.',
+            'payment_reference.max' => 'The confirmation number is at most 60 characters.',
             'sender_name.required' => 'Sender name is required.',
             'sender_name.min' => 'Sender name must be at least 2 characters.',
             'sender_contact.regex' => 'Enter a valid phone number (e.g. +256 700 000 000).',
@@ -191,6 +198,8 @@ class TransactionController extends Controller
             'status' => 'completed',
             'created_by' => $holder?->id ?? auth()->id(),
             'purpose' => $purpose ? trim($purpose) : null,
+            'payment_method' => $validated['payment_method'],
+            'payment_reference' => !empty($validated['payment_reference']) ? trim($validated['payment_reference']) : null,
             'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
         ], $quote)));
 
@@ -379,6 +388,15 @@ class TransactionController extends Controller
             foreach ($rows as $index => $row) {
                 $rowNumber = $index + 2;
 
+                // A file that says nothing about how the money arrived is a sheet of counter
+                // bookings, so the blank is read as cash before the row is checked. Doing it here
+                // rather than after the check is what keeps an old file with no such column
+                // importing: a row with no answer at all would otherwise be asked for a
+                // confirmation number it has no way to supply.
+                $row['payment_method'] = isset($row['payment_method']) && trim((string) $row['payment_method']) !== ''
+                    ? trim((string) $row['payment_method'])
+                    : Transaction::CASH_PAYMENT;
+
                 $checked = Validator::make($row, [
                     'sender_name' => 'required|string|max:100|min:2',
                     'sender_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
@@ -388,7 +406,12 @@ class TransactionController extends Controller
                     'amount' => "required|numeric|min:{$minAmount}|max:{$maxAmount}",
                     'charge_ugx' => 'nullable|numeric|min:0|max:'.$maxAmount,
                     'purpose' => 'nullable|string|max:100',
+                    'payment_method' => ['required', Rule::in(Transaction::PAYMENT_METHODS)],
+                    'payment_reference' => ['required_unless:payment_method,'.Transaction::CASH_PAYMENT, 'nullable', 'string', 'max:60'],
                     'notes' => 'nullable|string|max:500',
+                ], [
+                    'payment_method.in' => 'payment_method must be Cash, MTN Mobile Money, Airtel Money, Bank transfer, or Other.',
+                    'payment_reference.required_unless' => 'payment_reference holds the confirmation number, which every payment that is not cash has to carry.',
                 ]);
 
                 if ($checked->fails()) {
@@ -442,6 +465,10 @@ class TransactionController extends Controller
                             'status' => 'completed',
                             'created_by' => auth()->id(),
                             'purpose' => !empty($data['purpose']) ? trim($data['purpose']) : null,
+                            // A row that says nothing is read as cash, which is what a sheet of
+                            // counter bookings is. Correct it by rebooking if it was not.
+                            'payment_method' => $data['payment_method'],
+                            'payment_reference' => !empty($data['payment_reference']) ? trim($data['payment_reference']) : null,
                             'notes' => !empty($data['notes']) ? trim($data['notes']) : null,
                         ], $quote));
 

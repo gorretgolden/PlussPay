@@ -70,6 +70,7 @@ class TransactionRateColumnsTest extends TestCase
             'amount' => $cash,
             'charge_ugx' => $charge,
             'purpose' => $purpose,
+            'payment_method' => 'Cash',
         ])->assertSessionHasNoErrors();
 
         return Transaction::latest('id')->firstOrFail();
@@ -377,6 +378,7 @@ class TransactionRateColumnsTest extends TestCase
             'currency' => 'USD',
             'amount' => '1000.5',
             'charge_ugx' => '20000',
+            'payment_method' => 'Cash',
         ])->assertSessionHasNoErrors();
 
         return Transaction::latest('id')->firstOrFail();

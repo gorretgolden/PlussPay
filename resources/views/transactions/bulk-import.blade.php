@@ -15,7 +15,9 @@
         <li>Maximum file size: 10 MB</li>
         <li>First row must contain column headers</li>
         <li>Required columns: <strong>sender_name</strong>, <strong>receiver_name</strong>, <strong>currency</strong>, <strong>amount</strong></li>
-        <li>Optional columns: sender_contact, receiver_contact, purpose, notes, charge_ugx</li>
+        <li>Optional columns: sender_contact, receiver_contact, purpose, notes, charge_ugx, payment_method, payment_reference</li>
+        <li><strong>payment_method</strong> is how the customer paid: Cash, MTN Mobile Money, Airtel Money, Bank transfer, or Other. Leave the cell blank for cash.</li>
+        <li><strong>payment_reference</strong> is the confirmation number from the payment alert. Every row that is not cash has to carry one.</li>
         <li><strong>amount</strong> is the whole money the customer handed over, not the money that travels. The charge is taken out of it and the rest is what is sent.</li>
         <li><strong>charge_ugx</strong> is the sending charge in shillings, entered per row. Nothing is filled in for you: leave it blank only where no charge was taken.</li>
     </ul>

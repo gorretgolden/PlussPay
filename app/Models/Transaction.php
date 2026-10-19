@@ -15,6 +15,14 @@ class Transaction extends Model
 {
     use SoftDeletes;
 
+    /**
+     * How the customer handed this desk the money. Cash needs no proof because the desk counted
+     * it; every other way arrives with a confirmation number the cashier writes down.
+     */
+    public const PAYMENT_METHODS = ['Cash', 'MTN Mobile Money', 'Airtel Money', 'Bank transfer', 'Other'];
+
+    public const CASH_PAYMENT = 'Cash';
+
     protected $fillable = [
         'receipt_number',
         'sender_name',
@@ -42,6 +50,8 @@ class Transaction extends Model
         'updated_by',
         'notes',
         'purpose',
+        'payment_method',
+        'payment_reference',
     ];
 
     protected $casts = [
@@ -435,11 +445,12 @@ class Transaction extends Model
                     ->orWhere('sender_name', 'like', $search)
                     ->orWhere('receiver_name', 'like', $search)
                     ->orWhere('sender_contact', 'like', $search)
-                    ->orWhere('receiver_contact', 'like', $search);
+                    ->orWhere('receiver_contact', 'like', $search)
+                    ->orWhere('payment_reference', 'like', $search);
             });
         }
 
-        foreach (['status', 'currency', 'created_by', 'purpose'] as $filter) {
+        foreach (['status', 'currency', 'created_by', 'purpose', 'payment_method'] as $filter) {
             if ($request->filled($filter)) {
                 $query->where($filter, $request->input($filter));
             }

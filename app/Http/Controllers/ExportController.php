@@ -79,6 +79,8 @@ class ExportController extends Controller
                     $labels['total']['text'],
                     $signed($totalUsd, 1, 'USD '),
                     $t->purpose ?? '-',
+                    $t->payment_method ?? '-',
+                    $t->payment_reference ?? '-',
                     ucfirst($t->status),
                     $this->bookedBy($t),
                     $t->settled_at?->format('Y-m-d h:i A') ?? '-',
@@ -93,7 +95,7 @@ class ExportController extends Controller
             'Money Handed Over', 'Amount Sent', 'UGX Equivalent', 'RMB', 'Charge (UGX)', 'Charge (USD)',
             'Dollar Selling Price (per USD)', 'Yuan Selling Price (per USD)',
             'Exchange Profit (UGX)', 'Overall Profit (UGX)', 'Overall Profit (USD)',
-            'Reason', 'Status', 'Booked By',
+            'Reason', 'Paid How', 'Confirmation Number', 'Status', 'Booked By',
             // The last three columns are the settlement chain: a row with '-' under all of them is
             // still cash in a hand in Uganda.
             'Sent To China', 'Held In China By', 'Paid In China',

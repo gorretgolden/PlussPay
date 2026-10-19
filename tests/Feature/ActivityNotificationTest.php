@@ -80,6 +80,7 @@ class ActivityNotificationTest extends TestCase
             'currency' => 'UGX',
             'amount' => '3780000',
             'charge_ugx' => '20000',
+            'payment_method' => 'Cash',
         ])->assertSessionHasNoErrors();
 
         return Transaction::latest('id')->firstOrFail();

@@ -53,6 +53,9 @@ class ShowBookingBook extends Command
             ['Booked by', $booking->creator?->name ?? '(nobody: id '.($booking->created_by ?? 'none').')',
                 'An agent sees only rows booked in their name'],
             ['Currency', $booking->currency, ''],
+            ['Paid how', ($booking->payment_method ?? '(nobody said)')
+                .($booking->payment_reference ? ', confirmation '.$booking->payment_reference : ''),
+                'How the money reached the desk. It moves nothing in the ledger; the till holds it either way'],
             ['Amount that travels', Account::format($booking->currency, $booking->amount),
                 'This is the Sent figure, after the charge is taken out'],
             ['Charge', Account::format('UGX', $booking->charge_ugx),

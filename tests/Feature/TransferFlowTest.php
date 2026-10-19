@@ -60,6 +60,7 @@ class TransferFlowTest extends TestCase
             'currency' => 'UGX',
             'amount' => $amount,
             'charge_ugx' => $charge,
+            'payment_method' => 'Cash',
         ])->assertSessionHasNoErrors();
 
         return Transaction::latest('id')->firstOrFail();

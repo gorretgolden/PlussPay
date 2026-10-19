@@ -34,6 +34,8 @@
         <div class="grid grid-cols-2 gap-4 text-sm">
             <div><span class="text-gray-500">Currency:</span> {{ $transaction->currency }}</div>
             <div><span class="text-gray-500">Money Handed Over:</span> {{ $transaction->collectedAmount() }}</div>
+            <div><span class="text-gray-500">Paid How:</span> {{ $transaction->payment_method ?: '-' }}</div>
+            <div><span class="text-gray-500">Confirmation Number:</span> {{ $transaction->payment_reference ?: '-' }}</div>
             <div><span class="text-gray-500">Charge Taken Out:</span> UGX {{ number_format((float) $transaction->charge_ugx) }}</div>
             <div><span class="text-gray-500">Money That Travels:</span> {{ $transaction->principalLabel() }}</div>
             <div><span class="text-gray-500">Exchange Rate:</span> {{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</div>

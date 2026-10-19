@@ -208,6 +208,24 @@
                     <p class="text-xs text-gray-500 mt-1" id="travels_help">Fills itself in from the two boxes above.</p>
                 </div>
                 <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1" for="payment_method">Paid how? *</label>
+                    <select name="payment_method" id="payment_method" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <option value="">Choose how the customer paid</option>
+                        @foreach(\App\Models\Transaction::PAYMENT_METHODS as $method)
+                            <option value="{{ $method }}" {{ old('payment_method') === $method ? 'selected' : '' }}>{{ $method }}</option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">How the money reached this desk.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1" for="payment_reference" id="payment-reference-label">Confirmation number</label>
+                    <input type="text" name="payment_reference" id="payment_reference" maxlength="60" value="{{ old('payment_reference') }}"
+                        placeholder="e.g. MoMo ID 48219355" autocomplete="off"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    <p class="text-xs text-gray-500 mt-1" id="payment_reference_help">The code from the payment alert, bank reference, or cheque number.</p>
+                </div>
+                <div>
                     <label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose (optional)</label>
                     <select name="purpose" id="purpose"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
@@ -271,7 +289,8 @@
                 </div>
             </div>
 
-            <p class="mt-3 text-sm text-gray-600 hidden" id="rev_purpose"></p>
+            <p class="mt-3 text-sm text-gray-600 hidden" id="rev_payment"></p>
+            <p class="mt-1 text-sm text-gray-600 hidden" id="rev_purpose"></p>
 
             <div class="mt-6">
                 @include('transactions.partials.calculation-card', [
@@ -397,12 +416,48 @@ function syncPurposeOther() {
 purposeSelect.addEventListener('change', syncPurposeOther);
 syncPurposeOther();
 
+// Cash is counted across the counter, so it is the one payment with nothing to quote back.
+// Every other way arrives with a confirmation number, and the box only asks for it when the
+// method needs one.
+const cashPayment = @json(\App\Models\Transaction::CASH_PAYMENT);
+const paymentSelect = document.getElementById('payment_method');
+const paymentRef = document.getElementById('payment_reference');
+const paymentRefLabel = document.getElementById('payment-reference-label');
+const paymentRefHelp = document.getElementById('payment_reference_help');
+
+function paymentNeedsReference() {
+    return paymentSelect.value !== '' && paymentSelect.value !== cashPayment;
+}
+
+function syncPaymentReference() {
+    const needed = paymentNeedsReference();
+    paymentRef.required = needed;
+    paymentRefLabel.textContent = needed ? 'Confirmation number *' : 'Confirmation number';
+
+    // Three states, because the desk has to be told something different before it answers,
+    // when it says cash, and when it says anything else.
+    if (needed) {
+        paymentRefHelp.textContent = 'The code from the payment alert, bank reference, or cheque number.';
+    } else if (paymentSelect.value === cashPayment) {
+        paymentRefHelp.textContent = 'Cash is counted here, so there is nothing to quote. Fill this in only if you have a number.';
+        paymentRef.value = '';
+    } else {
+        paymentRefHelp.textContent = 'Ask it once the way of paying is chosen.';
+    }
+
+    syncStep3();
+}
+paymentSelect.addEventListener('change', syncPaymentReference);
+syncPaymentReference();
+
 // A step that refuses to move has to say which box it is waiting on, in the words that box uses,
 // because a red flash alone leaves her hunting for what went wrong.
 const STEP_HINTS = {
     sender_name: "Enter the sender's name.",
     receiver_name: "Enter the receiver's name.",
     agent_id: 'Select who took this money.',
+    payment_method: 'Say how the customer paid.',
+    payment_reference: 'Write the confirmation number from the payment alert.',
 };
 
 function validateStep(step) {
@@ -667,6 +722,8 @@ function step3Hint() {
     if (!Number.isFinite(fee) || fee < 0) return 'The charge cannot be negative.';
     if (document.getElementById('currency').value === 'UGX' && cash - fee <= 0) return 'The charge must be less than the money handed over.';
     if (purposeSelect.value === 'Other' && !purposeOther.value.trim()) return 'Say what the other reason is.';
+    if (!paymentSelect.value) return 'Say how the customer paid.';
+    if (paymentNeedsReference() && !paymentRef.value.trim()) return 'Write the confirmation number from the payment alert.';
 
     return '';
 }
@@ -707,6 +764,13 @@ function populateReview() {
     purposeRow.classList.toggle('hidden', purpose === '');
     purposeRow.textContent = purpose ? 'Purpose: ' + purpose : '';
 
+    const paymentRow = document.getElementById('rev_payment');
+    const reference = paymentRef.value.trim();
+    paymentRow.classList.toggle('hidden', paymentSelect.value === '');
+    paymentRow.textContent = paymentSelect.value
+        ? 'Paid by ' + paymentSelect.value + (reference ? ', confirmation ' + reference : '')
+        : '';
+
     // The review names the hand the cash is in, read off the chosen option rather than the id
     // the form carries.
     const holder = document.getElementById('rev_holder');
@@ -725,6 +789,7 @@ document.getElementById('currency').addEventListener('change', calculate);
 document.getElementById('amount').addEventListener('input', calculate);
 document.getElementById('charge_ugx').addEventListener('input', calculate);
 document.getElementById('purpose_other').addEventListener('input', syncStep3);
+document.getElementById('payment_reference').addEventListener('input', syncStep3);
 calculate();
 
 document.getElementById('transactionForm').addEventListener('submit', function(e) {
@@ -752,7 +817,7 @@ const DRAFT_KEY = @json($draftKey);
 const KEEP_KEY = @json($keepKey);
 localStorage.removeItem('pluspay_send_draft');
 localStorage.removeItem('pluspay_keep_draft');
-const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'amount', 'charge_ugx', 'purpose', 'purpose_other', 'notes', 'agent_id'];
+const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'amount', 'charge_ugx', 'purpose', 'purpose_other', 'payment_method', 'payment_reference', 'notes', 'agent_id'];
 let draftCleared = false;
 
 function collectDraft() {

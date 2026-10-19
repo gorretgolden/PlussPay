@@ -64,6 +64,7 @@ class OfficeBookedForAgentTest extends TestCase
             'amount' => '500000',
             'charge_ugx' => '20000',
             'purpose' => 'Family Support',
+            'payment_method' => 'Cash',
         ], $extra);
     }
 

@@ -114,6 +114,18 @@
         <span class="value">{{ $transaction->purpose }}</span>
     </div>
     @endif
+    @if($transaction->payment_method)
+    <div class="field">
+        <span class="label">Paid by:</span>
+        <span class="value">{{ $transaction->payment_method }}</span>
+    </div>
+    @endif
+    @if($transaction->payment_reference)
+    <div class="field">
+        <span class="label">Confirmation:</span>
+        <span class="value">{{ $transaction->payment_reference }}</span>
+    </div>
+    @endif
 
     <div class="money">
         <img class="mark" src="{{ asset('logo.webp') }}" alt="">

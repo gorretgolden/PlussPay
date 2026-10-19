@@ -124,6 +124,7 @@ class FxRateAndProfitTest extends TestCase
             'currency' => 'UGX',
             'amount' => '3772500',
             'charge_ugx' => '12500',
+            'payment_method' => 'Cash',
         ])->assertSessionHasNoErrors();
 
         $transaction = Transaction::latest('id')->firstOrFail();
@@ -170,6 +171,7 @@ class FxRateAndProfitTest extends TestCase
             'currency' => 'UGX',
             'amount' => '3780000',
             'charge_ugx' => '3780000',
+            'payment_method' => 'Cash',
         ])->assertSessionHasErrors('charge_ugx');
 
         $this->assertSame(0, Transaction::count());
@@ -357,6 +359,7 @@ class FxRateAndProfitTest extends TestCase
             'currency' => 'UGX',
             'amount' => $cashHandedOver,
             'charge_ugx' => $charge,
+            'payment_method' => 'Cash',
         ])->assertSessionHasNoErrors();
 
         return Transaction::latest('id')->firstOrFail();

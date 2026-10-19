@@ -20,7 +20,7 @@
     <form method="GET" action="{{ route('transactions.index') }}" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div>
             <label class="block text-sm text-gray-600 mb-1">Search</label>
-            <input type="text" name="search" value="{{ request('search') }}" placeholder="Receipt #, sender, receiver"
+            <input type="text" name="search" value="{{ request('search') }}" placeholder="Receipt #, sender, receiver, confirmation number"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
         </div>
         <div>
@@ -61,6 +61,15 @@
         </div>
         @endcan
         <div>
+            <label class="block text-sm text-gray-600 mb-1">Paid how</label>
+            <select name="payment_method" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">All</option>
+                @foreach(\App\Models\Transaction::PAYMENT_METHODS as $method)
+                <option value="{{ $method }}" {{ request('payment_method') === $method ? 'selected' : '' }}>{{ $method }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
             <label class="block text-sm text-gray-600 mb-1">Created By</label>
             <select name="created_by" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All</option>
@@ -86,7 +95,7 @@
     </form>
     <div class="flex gap-2 mt-3 pt-3 border-t border-gray-200">
         @php
-            $quickBase = array_filter(request()->only(['search', 'status', 'currency', 'created_by', 'usd_rate', 'rmb_rate']), fn($v) => $v !== '');
+            $quickBase = array_filter(request()->only(['search', 'status', 'currency', 'created_by', 'payment_method', 'usd_rate', 'rmb_rate']), fn($v) => $v !== '');
             $ranges = [
                 'Today' => [today()->toDateString(), today()->toDateString()],
                 'Yesterday' => [today()->subDay()->toDateString(), today()->subDay()->toDateString()],
@@ -117,6 +126,7 @@
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Sender</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receiver</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Reason</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="How the money reached this desk, with the confirmation number when there was one">Paid how</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Money Travels</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">RMB</th>
                 @can('view-profit')
@@ -146,6 +156,9 @@
                 <td class="px-2 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
                 <td class="px-2 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
                 <td class="px-2 py-4 text-sm text-gray-700">{{ $t->purpose ?: '-' }}</td>
+                <td class="px-2 py-4 text-sm text-gray-900 whitespace-nowrap">
+                    {{ $t->payment_method ?: '-' }}@if($t->payment_reference)<span class="text-gray-600"> · {{ $t->payment_reference }}</span>@endif
+                </td>
                 <td class="px-2 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->principalLabel() }}</td>
                 <td class="px-2 py-4 text-sm text-gray-900 whitespace-nowrap">¥{{ number_format($t->rmb_amount, 1) }}</td>
                 @can('view-profit')

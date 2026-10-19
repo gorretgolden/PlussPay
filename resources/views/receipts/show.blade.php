@@ -112,6 +112,12 @@
         @if($transaction->purpose)
             <p class="text-gray-600 sm:text-right">Reason <span class="font-medium text-gray-900">{{ $transaction->purpose }}</span></p>
         @endif
+        @if($transaction->payment_method)
+            <p class="text-gray-600">Paid by <span class="font-medium text-gray-900">{{ $transaction->payment_method }}</span></p>
+        @endif
+        @if($transaction->payment_reference)
+            <p class="text-gray-600 sm:text-right">Confirmation <span class="font-medium text-gray-900 tabular-nums">{{ $transaction->payment_reference }}</span></p>
+        @endif
     </div>
 
     {{-- Money, one figure to a line. The PlusPay mark sits behind it as the watermark a customer
