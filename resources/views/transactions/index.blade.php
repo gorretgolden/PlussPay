@@ -40,6 +40,18 @@
                 <option value="USD" {{ request('currency') === 'USD' ? 'selected' : '' }}>USD</option>
             </select>
         </div>
+        @can('view-all-transactions')
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Desk</label>
+            <select name="country" title="The desk of the hand each transfer was booked into"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">Both desks</option>
+                @foreach(\App\Models\User::COUNTRIES as $code => $desk)
+                <option value="{{ $code }}" {{ request('country') === $code ? 'selected' : '' }}>{{ $desk }}</option>
+                @endforeach
+            </select>
+        </div>
+        @endcan
         @can('view-profit')
         <div>
             <label class="block text-sm text-gray-600 mb-1">Dollar Selling Price</label>
@@ -95,7 +107,7 @@
     </form>
     <div class="flex gap-2 mt-3 pt-3 border-t border-gray-200">
         @php
-            $quickBase = array_filter(request()->only(['search', 'status', 'currency', 'created_by', 'payment_method', 'usd_rate', 'rmb_rate']), fn($v) => $v !== '');
+            $quickBase = array_filter(request()->only(['search', 'status', 'currency', 'created_by', 'payment_method', 'usd_rate', 'rmb_rate', 'country']), fn($v) => $v !== '');
             $ranges = [
                 'Today' => [today()->toDateString(), today()->toDateString()],
                 'Yesterday' => [today()->subDay()->toDateString(), today()->subDay()->toDateString()],
@@ -111,6 +123,75 @@
     </div>
 </div>
 
+<div class="bg-white rounded-lg shadow p-4 mb-6 overflow-x-auto no-print">
+    <h2 class="text-sm font-semibold text-gray-900 mb-1">Money by desk</h2>
+    {{-- Uganda money and China money are read apart, because the two desks hold different notes:
+         shillings come in here and yuan go out there. The same filters that cut the list cut this,
+         so a desk narrowed to China shows what China took in and nothing else. --}}
+    @php
+        // The two desks in the order the book is kept in, then any code that should not be there.
+        $deskOrder = array_flip(array_keys(\App\Models\User::COUNTRIES));
+        $deskRows = $deskTotals->sortKeysUsing(function ($a, $b) use ($deskOrder) {
+            return ($deskOrder[$a] ?? 99) <=> ($deskOrder[$b] ?? 99);
+        })->map(function ($row, $code) {
+            $row->label = \App\Models\User::COUNTRIES[$code] ?? $code;
+
+            return $row;
+        })->values();
+
+        $all = [
+            'bookings' => $deskRows->sum('bookings'),
+            'cash_ugx' => $deskRows->sum('cash_ugx'),
+            'cash_usd' => $deskRows->sum('cash_usd'),
+            'charges_ugx' => $deskRows->sum('charges_ugx'),
+            'rmb_out' => $deskRows->sum('rmb_out'),
+        ];
+
+        $shillings = fn ($value) => 'UGX '.number_format((float) $value);
+        $dollars = fn ($value) => 'USD '.number_format((float) $value, 1);
+        $yuan = fn ($value) => '¥'.number_format((float) $value, 1);
+    @endphp
+    @if($deskRows->isEmpty())
+        <p class="text-sm text-gray-500 py-2">No transfers on these filters.</p>
+    @else
+        <table class="min-w-full mt-1">
+            <thead>
+                <tr class="text-left text-xs font-medium text-gray-500 uppercase">
+                    <th class="py-2 pr-3 whitespace-nowrap font-medium">Desk</th>
+                    <th class="py-2 pr-3 text-right whitespace-nowrap font-medium">Bookings</th>
+                    <th class="py-2 pr-3 text-right whitespace-nowrap font-medium" title="The shillings this desk is holding, with the charge still inside them">Shillings handed over</th>
+                    <th class="py-2 pr-3 text-right whitespace-nowrap font-medium" title="The dollars this desk is holding, forwarded whole by a dollar booking">Dollars handed over</th>
+                    <th class="py-2 pr-3 text-right whitespace-nowrap font-medium" title="What this desk kept from the money it took in">Charges earned</th>
+                    <th class="py-2 text-right whitespace-nowrap font-medium" title="What the transfers priced here promise to receivers in China">Yuan to China</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 text-sm tabular-nums">
+                @foreach($deskRows as $row)
+                <tr>
+                    <td class="py-2 pr-3 whitespace-nowrap"><span class="text-gray-900 font-medium">{{ $row->label }}</span><span class="text-gray-400"> · {{ $row->country }}</span></td>
+                    <td class="py-2 pr-3 text-right text-gray-900">{{ number_format((int) $row->bookings) }}</td>
+                    <td class="py-2 pr-3 text-right text-gray-900">{{ $shillings($row->cash_ugx) }}</td>
+                    <td class="py-2 pr-3 text-right text-gray-900">{{ $dollars($row->cash_usd) }}</td>
+                    <td class="py-2 pr-3 text-right text-gray-900">{{ $shillings($row->charges_ugx) }}</td>
+                    <td class="py-2 text-right text-gray-900">{{ $yuan($row->rmb_out) }}</td>
+                </tr>
+                @endforeach
+                @if($deskRows->count() > 1)
+                <tr class="border-t-2 border-gray-300 font-medium">
+                    <td class="py-2 pr-3 whitespace-nowrap text-gray-900">Both desks</td>
+                    <td class="py-2 pr-3 text-right text-gray-900">{{ number_format((int) $all['bookings']) }}</td>
+                    <td class="py-2 pr-3 text-right text-gray-900">{{ $shillings($all['cash_ugx']) }}</td>
+                    <td class="py-2 pr-3 text-right text-gray-900">{{ $dollars($all['cash_usd']) }}</td>
+                    <td class="py-2 pr-3 text-right text-gray-900">{{ $shillings($all['charges_ugx']) }}</td>
+                    <td class="py-2 text-right text-gray-900">{{ $yuan($all['rmb_out']) }}</td>
+                </tr>
+                @endif
+            </tbody>
+        </table>
+        <p class="text-xs text-gray-500 mt-2">A transfer stands under the desk of the hand it was booked into. A cancelled booking gave its money back, so it counts among the bookings and not in the shillings, dollars or yuan. The charge a desk kept sits inside the shillings that were handed over, and arrives alongside the dollars on a dollar booking. The yuan figure is what the transfers priced here promise to receivers, wherever that money has reached so far.</p>
+    @endif
+</div>
+
 <div class="bg-white rounded-lg shadow overflow-x-auto">
     @php
         // A figure that was never priced reads as n/a in gray, and a negative one is a loss
@@ -123,6 +204,7 @@
                 {{-- The book is wider than any screen, so the number a teller reads out over the phone
                      is pinned to the left edge and stays put while the rest slides under it. --}}
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap sticky left-0 z-20 bg-gray-50 border-r border-gray-200">Receipt #</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Where the transfer originated, read off the hand holding the money">Desk</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Sender</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receiver</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Reason</th>
@@ -141,7 +223,7 @@
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Date</th>
                 @can('view-profit')
-                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Booked By</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Whoever the booking was written into. Their desk is the column beside Receipt #">Booked By</th>
                 @endcan
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Actions</th>
             </tr>
@@ -153,6 +235,9 @@
                 <td class="px-2 py-4 text-sm font-medium text-green-800 whitespace-nowrap sticky left-0 z-10 bg-white border-r border-gray-200">
                     <a href="{{ route('receipts.show', $t->receipt_number) }}" class="whitespace-nowrap">{{ $t->receipt_number }}</a>
                 </td>
+                {{-- The desk is read off the transfer, not off the person who booked it, so moving
+                     somebody between desks cannot rewrite where their older money was taken. --}}
+                <td class="px-2 py-4 text-sm whitespace-nowrap"><span class="text-gray-900">{{ $t->deskLabel() }}</span><span class="text-gray-400"> · {{ $t->deskCode() }}</span></td>
                 <td class="px-2 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
                 <td class="px-2 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
                 <td class="px-2 py-4 text-sm text-gray-700">{{ $t->purpose ?: '-' }}</td>
@@ -182,7 +267,7 @@
                 <td class="px-2 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('M d, Y h:i A') }}</td>
                 @can('view-profit')
                 <td class="px-2 py-4 text-sm text-gray-700 whitespace-nowrap">
-                    {{ $t->creator?->name ?? '-' }}@if($t->creator && $t->creator->countryLabel())<span class="text-gray-400"> · {{ $t->creator->countryLabel() }}</span>@endif
+                    {{ $t->creator?->name ?? '-' }}
                 </td>
                 @endcan
                 <td data-row-menu-host class="px-2 py-4 text-right relative">
@@ -223,7 +308,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="{{ auth()->user()->can('view-profit') ? 15 : 10 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
+                <td colspan="{{ auth()->user()->can('view-profit') ? 17 : 12 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
             </tr>
             @endforelse
         </tbody>

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class Transaction extends Model
@@ -76,6 +77,16 @@ class Transaction extends Model
 
     protected static function booted(): void
     {
+        // Which desk took the money is read off the hand it was booked into, and it is written once.
+        // The column is deliberately left out of $fillable so no form, import sheet or later edit
+        // can set it by hand: a person moved to the other desk must not rewrite where a transfer
+        // they already booked actually happened.
+        static::creating(function (self $transaction) {
+            $transaction->country = static::deskOf($transaction->created_by)
+                ?? auth()->user()?->country
+                ?? User::DEFAULT_COUNTRY;
+        });
+
         static::saving(function (self $transaction) {
             foreach (['sender_name', 'receiver_name'] as $field) {
                 if ($transaction->isDirty($field)) {
@@ -106,6 +117,52 @@ class Transaction extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * The desk a hand sits at, or null when the book has no such person to read it from.
+     */
+    private static function deskOf(mixed $holderId): ?string
+    {
+        if (! $holderId) {
+            return null;
+        }
+
+        $country = User::whereKey($holderId)->value('country');
+
+        return $country ? (string) $country : null;
+    }
+
+    /**
+     * Read a desk back off the hand each older transfer was booked into. The migration that added
+     * the column runs this once, and the test for it calls the same words, because the book kept
+     * no record of a desk before then and the holder's own desk is the only evidence it holds.
+     * A transfer nobody is named on, or whose holder has no desk set, stays on the home desk.
+     */
+    public static function stampMissingDesks(): void
+    {
+        \DB::statement("
+            UPDATE transactions
+            SET country = COALESCE(
+                (SELECT users.country FROM users WHERE users.id = transactions.created_by),
+                'UG'
+            )
+        ");
+    }
+
+    /**
+     * Where this money was taken in, in the words the desks use for themselves. Read from the
+     * transfer rather than from the person who booked it, so the answer does not change when
+     * somebody is moved between desks.
+     */
+    public function deskLabel(): string
+    {
+        return User::COUNTRIES[$this->country] ?? ($this->country ?: 'No desk');
+    }
+
+    public function deskCode(): string
+    {
+        return (string) $this->country;
     }
 
     public function editor(): BelongsTo
@@ -338,7 +395,10 @@ class Transaction extends Model
             ];
         }
 
-        return ['key' => 'in_uganda', 'text' => 'Held in Uganda, not yet sent to China', 'tone' => 'pending'];
+        // The first leg says only that the money came in, because the desk that took it is named
+        // above this block: a transfer booked into a hand on the China desk has its shillings
+        // sitting on that desk, and the sentence must not contradict the desk line.
+        return ['key' => 'in_uganda', 'text' => 'Taken in, not yet sent to China', 'tone' => 'pending'];
     }
 
     /**
@@ -450,7 +510,7 @@ class Transaction extends Model
             });
         }
 
-        foreach (['status', 'currency', 'created_by', 'purpose', 'payment_method'] as $filter) {
+        foreach (['status', 'currency', 'created_by', 'purpose', 'payment_method', 'country'] as $filter) {
             if ($request->filled($filter)) {
                 $query->where($filter, $request->input($filter));
             }
@@ -477,6 +537,38 @@ class Transaction extends Model
         }
 
         return $query;
+    }
+
+    /**
+     * The book cut by desk: how many transfers each one took in, and what that money came to.
+     * Built from the same filtered query the list beside it is built from, so the figures always
+     * describe exactly the rows on screen.
+     *
+     * Only a completed transfer carries money: cancelling gave the cash back, so a cancelled
+     * booking counts in the number of bookings and not in the shillings, dollars or yuan. The
+     * caption under the strip says the same, because a total that quietly dropped rows reads as a
+     * fault in the books rather than a rule.
+     *
+     * The shilling figure is the cash a customer counted out, which holds the charge inside it,
+     * exactly as cashReceived() describes it. The charge column therefore repeats part of the
+     * shilling figure on a shilling booking and adds to it on a dollar one.
+     *
+     * @return \Illuminate\Support\Collection<string, object>
+     */
+    public function scopeDeskTotals(Builder $query): \Illuminate\Support\Collection
+    {
+        $completed = "status = 'completed'";
+
+        return $query
+            ->selectRaw("country,
+                COUNT(*) as bookings,
+                COALESCE(SUM(CASE WHEN {$completed} AND currency = 'UGX' THEN amount + charge_ugx ELSE 0 END), 0) as cash_ugx,
+                COALESCE(SUM(CASE WHEN {$completed} AND currency = 'USD' THEN amount ELSE 0 END), 0) as cash_usd,
+                COALESCE(SUM(CASE WHEN {$completed} THEN charge_ugx ELSE 0 END), 0) as charges_ugx,
+                COALESCE(SUM(CASE WHEN {$completed} THEN rmb_amount ELSE 0 END), 0) as rmb_out")
+            ->groupBy('country')
+            ->get()
+            ->keyBy('country');
     }
 
     /**

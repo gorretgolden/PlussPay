@@ -32,6 +32,7 @@
     <div class="border-t pt-4 mb-6">
         <h3 class="text-sm font-medium text-gray-500 mb-3">Payment</h3>
         <div class="grid grid-cols-2 gap-4 text-sm">
+            <div><span class="text-gray-500">Origin desk:</span> {{ $transaction->deskLabel() }} ({{ $transaction->deskCode() }})</div>
             <div><span class="text-gray-500">Currency:</span> {{ $transaction->currency }}</div>
             <div><span class="text-gray-500">Money Handed Over:</span> {{ $transaction->collectedAmount() }}</div>
             <div><span class="text-gray-500">Paid How:</span> {{ $transaction->payment_method ?: '-' }}</div>
@@ -61,7 +62,7 @@
             desk in China holds those dollars.</p>
         <ol class="text-sm space-y-2">
             <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span class="text-gray-600">Collected in Uganda</span>
+                <span class="text-gray-600">Money taken in</span>
                 <span class="font-medium text-gray-900 tabular-nums">{{ $transaction->collectedAmount() }} on {{ $transaction->created_at->format('M d, Y h:i A') }}</span>
             </li>
             <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -69,7 +70,7 @@
                 @if($transaction->settled_at)
                 <span class="font-medium text-gray-900 tabular-nums">{{ \App\Models\Account::format('USD', $transaction->total_usd_equivalent) }} to {{ $transaction->settledDesk?->name ?? 'the China desk' }} on {{ $transaction->settled_at->format('M d, Y h:i A') }}</span>
                 @else
-                <span class="font-medium text-amber-700">Still held in Uganda</span>
+                <span class="font-medium text-amber-700">Not sent to China yet</span>
                 @endif
             </li>
             <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -188,8 +189,10 @@
     @endif
 
     <div class="border-t pt-4 mt-4 text-sm text-gray-500 space-y-1">
+        {{-- The desk comes off the transfer, not off the person, so moving somebody between desks
+             later cannot rewrite where this money was actually taken. --}}
         @if($transaction->creator)
-        <p>Created by <span class="font-medium text-gray-900">{{ $transaction->creator->name }}</span>@if($transaction->creator->countryLabel()) <span class="text-gray-500">({{ $transaction->creator->countryLabel() }})</span>@endif on {{ $transaction->created_at->format('M d, Y h:i A') }}</p>
+        <p>Created by <span class="font-medium text-gray-900">{{ $transaction->creator->name }}</span> <span class="text-gray-500">({{ $transaction->deskLabel() }} desk)</span> on {{ $transaction->created_at->format('M d, Y h:i A') }}</p>
         @endif
         <p>Last updated on {{ $transaction->updated_at->format('M d, Y h:i A') }}@if($transaction->editor) by <span class="font-medium text-gray-900">{{ $transaction->editor->name }}</span>@endif</p>
     </div>

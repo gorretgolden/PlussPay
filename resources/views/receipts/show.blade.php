@@ -108,7 +108,7 @@
 
     {{-- Whose hand the money left --}}
     <div class="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md bg-gray-50 px-4 py-3 text-sm">
-        <p class="text-gray-600">Money taken by <span class="font-medium text-gray-900">{{ $issuedBy }}</span></p>
+        <p class="text-gray-600">Money taken by <span class="font-medium text-gray-900">{{ $issuedBy }}</span> at the <span class="font-medium text-gray-900">{{ $transaction->deskLabel() }}</span> desk</p>
         @if($transaction->purpose)
             <p class="text-gray-600 sm:text-right">Reason <span class="font-medium text-gray-900">{{ $transaction->purpose }}</span></p>
         @endif

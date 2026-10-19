@@ -108,6 +108,10 @@
         <span class="label">Money taken by:</span>
         <span class="value">{{ $issuedBy }}</span>
     </div>
+    <div class="field">
+        <span class="label">Origin desk:</span>
+        <span class="value">{{ $transaction->deskLabel() }} ({{ $transaction->deskCode() }})</span>
+    </div>
     @if($transaction->purpose)
     <div class="field">
         <span class="label">Reason:</span>

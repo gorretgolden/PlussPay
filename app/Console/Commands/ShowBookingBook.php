@@ -52,6 +52,8 @@ class ShowBookingBook extends Command
             ['Booked at', (string) $booking->created_at, 'The Today and This Month windows cut on this clock'],
             ['Booked by', $booking->creator?->name ?? '(nobody: id '.($booking->created_by ?? 'none').')',
                 'An agent sees only rows booked in their name'],
+            ['Origin desk', $booking->deskLabel().' ('.$booking->deskCode().')',
+                'Stamped on the row from the desk of the hand it was booked into, so moving that person later cannot rewrite where this money came in'],
             ['Currency', $booking->currency, ''],
             ['Paid how', ($booking->payment_method ?? '(nobody said)')
                 .($booking->payment_reference ? ', confirmation '.$booking->payment_reference : ''),

@@ -50,7 +50,12 @@ class TransactionController extends Controller
             $rmbPrices = Transaction::bookedPrices($viewer, ['exchange_rate']);
         }
 
-        return view('transactions.index', compact('transactions', 'creators', 'usdPrices', 'rmbPrices'));
+        // The money cut by desk, read off the same filters the list below is read off, so the
+        // shillings standing under Uganda and the yuan standing under China describe the rows a
+        // viewer is actually looking at and not some other slice of the book.
+        $deskTotals = Transaction::visibleTo($viewer)->filtered($request)->deskTotals();
+
+        return view('transactions.index', compact('transactions', 'creators', 'usdPrices', 'rmbPrices', 'deskTotals'));
     }
 
     public function create()

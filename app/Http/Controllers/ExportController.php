@@ -83,6 +83,7 @@ class ExportController extends Controller
                     $t->payment_reference ?? '-',
                     ucfirst($t->status),
                     $this->bookedBy($t),
+                    $t->deskLabel(),
                     $t->settled_at?->format('Y-m-d h:i A') ?? '-',
                     $t->settledDesk?->name ?? '-',
                     $t->delivered_at?->format('Y-m-d h:i A') ?? '-',
@@ -95,7 +96,7 @@ class ExportController extends Controller
             'Money Handed Over', 'Amount Sent', 'UGX Equivalent', 'RMB', 'Charge (UGX)', 'Charge (USD)',
             'Dollar Selling Price (per USD)', 'Yuan Selling Price (per USD)',
             'Exchange Profit (UGX)', 'Overall Profit (UGX)', 'Overall Profit (USD)',
-            'Reason', 'Paid How', 'Confirmation Number', 'Status', 'Booked By',
+            'Reason', 'Paid How', 'Confirmation Number', 'Status', 'Booked By', 'Desk',
             // The last three columns are the settlement chain: a row with '-' under all of them is
             // still cash in a hand in Uganda.
             'Sent To China', 'Held In China By', 'Paid In China',
@@ -124,27 +125,23 @@ class ExportController extends Controller
                 '¥' . number_format((float) $t->rmb_amount, 1),
                 'UGX ' . number_format((float) $t->charge_ugx),
                 $this->bookedBy($t),
+                $t->deskLabel(),
             ])
             ->all();
 
         return $this->download('receipts', [
-            'Receipt #', 'Date', 'Sender', 'Receiver', 'Amount', 'RMB', 'Charge (UGX)', 'Booked By',
+            'Receipt #', 'Date', 'Sender', 'Receiver', 'Amount', 'RMB', 'Charge (UGX)', 'Booked By', 'Desk',
         ], $rows);
     }
 
     /**
-     * The teller who booked a transfer, with the country of their desk so a China
-     * booking and a Uganda booking read apart once they leave the screen.
+     * The teller who booked a transfer. Their desk is its own column now, read off the transfer
+     * rather than off the person, so a download taken today says where the money was actually
+     * taken rather than where that person happens to sit today.
      */
     private function bookedBy(Transaction $t): string
     {
-        if (! $t->creator) {
-            return '-';
-        }
-
-        $label = $t->creator->countryLabel();
-
-        return $label ? "{$t->creator->name} ({$label})" : $t->creator->name;
+        return $t->creator?->name ?? '-';
     }
 
     public function users(Request $request)
