@@ -113,7 +113,7 @@ class ChinaSettlementTest extends TestCase
 
         $this->assertNull($transaction->settled_at);
         $this->assertNull($transaction->delivered_at);
-        $this->assertSame('in_uganda', $transaction->chinaStage()['key']);
+        $this->assertSame('collected', $transaction->stage()['key']);
         $this->assertSame(1, Transaction::awaitingSendToChina()->count());
         $this->assertSame(0, Transaction::awaitingPayoutInChina()->count());
 
@@ -137,7 +137,7 @@ class ChinaSettlementTest extends TestCase
         $this->assertNotNull($sent->settled_at);
         $this->assertNull($sent->delivered_at);
         $this->assertSame($this->china->id, (int) $sent->settled_to);
-        $this->assertSame('in_china', $sent->chinaStage()['key']);
+        $this->assertSame('crossed', $sent->stage()['key']);
 
         $this->assertSame('1000.00', $source->fresh()->balance());
         $this->assertSame('1000.00', Account::walletFor($this->china, 'USD')->fresh()->balance());
@@ -163,7 +163,7 @@ class ChinaSettlementTest extends TestCase
         $paid = $transaction->fresh();
 
         $this->assertNotNull($paid->delivered_at);
-        $this->assertSame('paid', $paid->chinaStage()['key']);
+        $this->assertSame('paid', $paid->stage()['key']);
         $this->assertSame('-6750.00', $yuanWallet->fresh()->balance());
         $this->assertSame('0.00', Account::byCode(Account::RMB_CHINA)->balance());
     }
@@ -324,7 +324,7 @@ class ChinaSettlementTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $this->assertNotNull($transaction->fresh()->delivered_at);
-        $this->assertSame('paid', $transaction->fresh()->chinaStage()['key']);
+        $this->assertSame('paid', $transaction->fresh()->stage()['key']);
     }
 
     public function test_a_shilling_line_in_the_cash_books_does_not_claim_a_payout_in_china(): void

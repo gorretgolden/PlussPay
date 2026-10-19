@@ -24,6 +24,20 @@ class Transaction extends Model
 
     public const CASH_PAYMENT = 'Cash';
 
+    /**
+     * Which end of the corridor the money is on its way to. A booking says this once, at the desk
+     * that takes the money in, and the screens read the route off the row afterwards instead of
+     * guessing it from the currency, because dollars travel either way.
+     */
+    public const DESTINATIONS = ['CN' => 'China', 'UG' => 'Uganda'];
+
+    public const TO_CHINA = 'CN';
+
+    public const TO_UGANDA = 'UG';
+
+    /** The money a receiver is actually handed, which is what the payout leg of the books moves. */
+    public const PAYOUT_CURRENCIES = ['RMB' => 'Yuan', 'USD' => 'Dollars', 'UGX' => 'Shillings'];
+
     protected $fillable = [
         'receipt_number',
         'sender_name',
@@ -32,11 +46,14 @@ class Transaction extends Model
         'receiver_contact',
         'currency',
         'amount',
+        'destination',
+        'payout_currency',
         'exchange_rate',
         'rmb_buying_rate',
         'rate_buy_ugx',
         'rate_sell_ugx',
         'rmb_amount',
+        'ugx_amount',
         'charge_rate',
         'charge_amount',
         'charge_ugx',
@@ -62,6 +79,7 @@ class Transaction extends Model
         'rate_buy_ugx' => 'decimal:6',
         'rate_sell_ugx' => 'decimal:6',
         'rmb_amount' => 'decimal:2',
+        'ugx_amount' => 'decimal:2',
         'charge_rate' => 'decimal:4',
         'charge_amount' => 'decimal:2',
         'charge_ugx' => 'decimal:2',
@@ -85,6 +103,16 @@ class Transaction extends Model
             $transaction->country = static::deskOf($transaction->created_by)
                 ?? auth()->user()?->country
                 ?? User::DEFAULT_COUNTRY;
+        });
+
+        // Every booking that does not say which way it is going is on the only route the desk had
+        // when the book was started: money taken in Uganda, paid out in China as yuan. The columns
+        // default to those values in the database too, so an older row and a row booked today read
+        // the same way, and nothing already in the book is re-routed by this.
+        static::creating(function (self $transaction) {
+            $transaction->destination = $transaction->destination ?: self::TO_CHINA;
+            $transaction->payout_currency = $transaction->payout_currency
+                ?: ($transaction->destination === self::TO_UGANDA ? 'UGX' : 'RMB');
         });
 
         static::saving(function (self $transaction) {
@@ -165,6 +193,88 @@ class Transaction extends Model
         return (string) $this->country;
     }
 
+    /**
+     * Which end of the corridor this booking is heading for, in the words the desk cards use.
+     * Defaults to the route the book has always run, so a row older than the column reads the same
+     * as a row booked today.
+     */
+    public function destinationCode(): string
+    {
+        return $this->destination === self::TO_UGANDA ? self::TO_UGANDA : self::TO_CHINA;
+    }
+
+    public function isToUganda(): bool
+    {
+        return $this->destinationCode() === self::TO_UGANDA;
+    }
+
+    public function destinationLabel(): string
+    {
+        return static::DESTINATIONS[$this->destinationCode()] ?? 'No destination';
+    }
+
+    /**
+     * Which end the money was handed over at. This is read off the route rather than off the desk
+     * the booking was keyed into, because the two are not the same fact: the desk line above says
+     * whose hand typed it in, and a booking made at the office for a receiver in Uganda can only
+     * have been paid for in China.
+     */
+    public function originLabel(): string
+    {
+        return static::DESTINATIONS[$this->isToUganda() ? self::TO_CHINA : self::TO_UGANDA] ?? 'Unknown';
+    }
+
+    /**
+     * The one line a screen uses to say what a transfer is, so a list never shows a China-bound
+     * booking and a Uganda-bound booking under the same heading.
+     */
+    public function corridorLabel(): string
+    {
+        return 'Money to a receiver in '.$this->destinationLabel();
+    }
+
+    /**
+     * Which money the receiver is actually handed, and therefore which pile of the books this
+     * transfer draws on when it is paid out. Rows older than the column promised yuan, which is
+     * what their own yuan figure says they did.
+     */
+    public function payoutCurrency(): string
+    {
+        if (! $this->payout_currency) {
+            return (float) $this->ugx_amount > 0 ? 'UGX' : 'RMB';
+        }
+
+        return strtoupper($this->payout_currency);
+    }
+
+    /**
+     * The payout figure for this transfer's own route, in the column that holds it. Null means the
+     * transfer promises nothing in handed-over money, which is how a booking priced before the
+     * payout was stored reads.
+     */
+    public function payoutAmount(): ?string
+    {
+        return match ($this->payoutCurrency()) {
+            'UGX' => (string) $this->ugx_amount,
+            'USD' => (string) $this->total_usd_equivalent,
+            default => (float) $this->rmb_amount > 0 ? (string) $this->rmb_amount : null,
+        };
+    }
+
+    /**
+     * The money the receiver is handed, written the way each currency is written elsewhere in the
+     * book: shillings in notes so no decimals, yuan to the tenth they are counted in, dollars to
+     * the cent they are credited at.
+     */
+    public function payoutLabel(): string
+    {
+        return match ($this->payoutCurrency()) {
+            'UGX' => 'UGX '.number_format((float) $this->ugx_amount),
+            'USD' => '$'.number_format((float) $this->total_usd_equivalent, 2),
+            default => '¥'.number_format((float) $this->rmb_amount, 1),
+        };
+    }
+
     public function editor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
@@ -185,15 +295,20 @@ class Transaction extends Model
     }
 
     /**
-     * The cash the customer handed over. A shilling booking has the charge taken out of it, so
-     * the two add back together. A dollar booking forwards the dollars whole, so the charge is
-     * extra money that arrives alongside them rather than part of the figure handed over.
+     * The cash the customer handed over, at its face value in the money it was paid in.
+     *
+     * A shilling booking has the charge taken out of the notes counted over the counter, so the
+     * charge and the money that travels add back to that figure. Every other booking hands over
+     * whole units, dollars or yuan, and the charge is either extra money alongside them or, on the
+     * way into Uganda, comes out of the shillings paid over at the far end instead. So only a
+     * shilling booking carries the charge inside the cash received, and adding it to any other
+     * would count the same money twice.
      */
     public function cashReceived(): string
     {
-        return $this->currency === 'USD'
-            ? (string) $this->amount
-            : bcadd((string) $this->amount, (string) $this->charge_ugx, 2);
+        return strtoupper($this->currency) === 'UGX'
+            ? bcadd((string) $this->amount, (string) $this->charge_ugx, 2)
+            : (string) $this->amount;
     }
 
     /**
@@ -202,9 +317,11 @@ class Transaction extends Model
      */
     public function collectedAmount(): string
     {
-        return $this->currency === 'USD'
-            ? 'USD ' . number_format((float) $this->amount, 1) . ' plus ' . $this->feeLabel()
-            : 'UGX ' . number_format((float) $this->cashReceived());
+        if (strtoupper($this->currency) === 'UGX') {
+            return 'UGX '.number_format((float) $this->cashReceived());
+        }
+
+        return $this->principalLabel().' plus '.$this->feeLabel();
     }
 
     /**
@@ -232,14 +349,20 @@ class Transaction extends Model
     }
 
     /**
-     * How many yuan one dollar of this transfer bought. Read from the transfer itself when
-     * it carries both figures; rows booked before those were stored fall back to whatever
-     * USD/RMB rate stands on the rate sheet today.
+     * How many yuan one dollar of this transfer was worth. Read from the transfer itself when it
+     * carries the figures: the payout and the credit together on a booking that turned dollars into
+     * yuan for a receiver in China, or the price stamped on the row when the yuan was handed over
+     * here instead. Only a row that holds neither figure borrows the USD/RMB rate standing on the
+     * sheet today, because that is the one case where the row genuinely has no price of its own.
      */
     public function yuanRatePerUsd(): float
     {
         if ((float) $this->total_usd_equivalent > 0 && (float) $this->rmb_amount > 0) {
             return (float) $this->rmb_amount / (float) $this->total_usd_equivalent;
+        }
+
+        if ((float) $this->exchange_rate > 0) {
+            return (float) $this->exchange_rate;
         }
 
         return (float) (ExchangeRate::getActiveRate('USD', 'RMB')->rate ?? 0);
@@ -271,7 +394,8 @@ class Transaction extends Model
         $fallback = (float) (ExchangeRate::getActiveRate('USD', 'RMB')->rate ?? 0);
 
         return [
-            '(CASE WHEN total_usd_equivalent > 0 AND rmb_amount > 0 THEN rmb_amount * 1.0 / total_usd_equivalent ELSE ? END)',
+            '(CASE WHEN total_usd_equivalent > 0 AND rmb_amount > 0 THEN rmb_amount * 1.0 / total_usd_equivalent'
+                .' WHEN exchange_rate > 0 THEN exchange_rate * 1.0 ELSE ? END)',
             [$fallback],
         ];
     }
@@ -339,26 +463,42 @@ class Transaction extends Model
     }
 
     /**
-     * Yuan whose dollars have not left Uganda yet: the money has been collected and priced, and it
-     * is still sitting with the desk that took it.
+     * Transfers whose dollars have not left Uganda yet: the money has been taken in and priced, and
+     * it is still sitting with the desk that took it. The pile is cut on the dollars rather than the
+     * yuan, because a receiver in China can now be handed dollars, and those still have to cross.
+     * A booking into Uganda is not in this list at all: its money arrives in Uganda rather than
+     * leaving it.
+     *
+     * A row that promises yuan but carries no dollar figure is still listed, because it was listed
+     * before this corridor existed and the desk has to send something for it. Those rows predate the
+     * dollar column being filled in, and dropping one off the list would quietly strand a receiver.
      */
     public function scopeAwaitingSendToChina(Builder $query): Builder
     {
         return $query->where('status', 'completed')
-            ->where('rmb_amount', '>', 0)
+            ->where('destination', self::TO_CHINA)
             ->whereNull('settled_at')
-            ->whereNull('delivered_at');
+            ->whereNull('delivered_at')
+            ->where(function (Builder $q) {
+                $q->where('total_usd_equivalent', '>', 0)
+                    ->orWhere('rmb_amount', '>', 0);
+            });
     }
 
     /**
-     * Yuan the desk in China holds dollars for, but has not yet handed over to the receiver.
+     * Money the desk in China holds dollars for but has not yet handed over to the receiver, in
+     * whichever of the two currencies that receiver is being paid in.
      */
     public function scopeAwaitingPayoutInChina(Builder $query): Builder
     {
         return $query->where('status', 'completed')
-            ->where('rmb_amount', '>', 0)
+            ->where('destination', self::TO_CHINA)
             ->whereNotNull('settled_at')
-            ->whereNull('delivered_at');
+            ->whereNull('delivered_at')
+            ->where(function (Builder $q) {
+                $q->where('rmb_amount', '>', 0)
+                    ->orWhere('total_usd_equivalent', '>', 0);
+            });
     }
 
     /**
@@ -373,32 +513,46 @@ class Transaction extends Model
 
     /**
      * Where the money of one transfer actually is, in the words the desk uses for it. Null means
-     * there is no China leg to track: the booking is not finished, or it carries no yuan.
+     * there is no crossing to track: the booking is not finished, or it hands over no money at the
+     * far end.
+     *
+     * The keys name the stage rather than a country, because either country can now be the far end.
+     * The three are exclusive: a transfer is on its way, it is with the desk at the other end, or it
+     * has been handed over.
      *
      * @return array{key: string, text: string, tone: string}|null
      */
-    public function chinaStage(): ?array
+    public function stage(): ?array
     {
-        if ($this->status !== 'completed' || (float) $this->rmb_amount <= 0) {
+        if ($this->status !== 'completed' || $this->payoutAmount() === null) {
             return null;
         }
 
         if ($this->delivered_at !== null) {
-            return ['key' => 'paid', 'text' => 'Paid to '.$this->receiver_name.' in China', 'tone' => 'done'];
+            return [
+                'key' => 'paid',
+                'text' => 'Paid to '.$this->receiver_name.' in '.$this->destinationLabel(),
+                'tone' => 'done',
+            ];
         }
 
         if ($this->settled_at !== null) {
             return [
-                'key' => 'in_china',
-                'text' => 'Dollars with '.($this->settledDesk?->name ?? 'the China desk').', waiting to be paid out',
+                'key' => 'crossed',
+                'text' => 'Dollars with '.($this->settledDesk?->name ?? 'the '.$this->destinationLabel().' desk')
+                    .', waiting to be paid out',
                 'tone' => 'waiting',
             ];
         }
 
-        // The first leg says only that the money came in, because the desk that took it is named
-        // above this block: a transfer booked into a hand on the China desk has its shillings
+        // The first line says only which desk holds the money, because the desk that took it is
+        // named above this block: a transfer booked into a hand on the China desk has its yuan
         // sitting on that desk, and the sentence must not contradict the desk line.
-        return ['key' => 'in_uganda', 'text' => 'Taken in, not yet sent to China', 'tone' => 'pending'];
+        return [
+            'key' => 'collected',
+            'text' => 'Taken in at the '.$this->originLabel().' desk, not yet paid out in '.$this->destinationLabel(),
+            'tone' => 'pending',
+        ];
     }
 
     /**
@@ -510,7 +664,7 @@ class Transaction extends Model
             });
         }
 
-        foreach (['status', 'currency', 'created_by', 'purpose', 'payment_method', 'country'] as $filter) {
+        foreach (['status', 'currency', 'created_by', 'purpose', 'payment_method', 'country', 'destination', 'payout_currency'] as $filter) {
             if ($request->filled($filter)) {
                 $query->where($filter, $request->input($filter));
             }
@@ -550,8 +704,9 @@ class Transaction extends Model
      * fault in the books rather than a rule.
      *
      * The shilling figure is the cash a customer counted out, which holds the charge inside it,
-     * exactly as cashReceived() describes it. The charge column therefore repeats part of the
-     * shilling figure on a shilling booking and adds to it on a dollar one.
+     * exactly as cashReceived() describes it. Dollars and yuan arrive as whole units, so the charge
+     * is money beside them rather than part of them. The charge column therefore repeats part of the
+     * shilling figure on a shilling booking and adds to it on every other one.
      *
      * @return \Illuminate\Support\Collection<string, object>
      */
@@ -564,8 +719,10 @@ class Transaction extends Model
                 COUNT(*) as bookings,
                 COALESCE(SUM(CASE WHEN {$completed} AND currency = 'UGX' THEN amount + charge_ugx ELSE 0 END), 0) as cash_ugx,
                 COALESCE(SUM(CASE WHEN {$completed} AND currency = 'USD' THEN amount ELSE 0 END), 0) as cash_usd,
+                COALESCE(SUM(CASE WHEN {$completed} AND currency = 'RMB' THEN amount ELSE 0 END), 0) as cash_rmb,
                 COALESCE(SUM(CASE WHEN {$completed} THEN charge_ugx ELSE 0 END), 0) as charges_ugx,
-                COALESCE(SUM(CASE WHEN {$completed} THEN rmb_amount ELSE 0 END), 0) as rmb_out")
+                COALESCE(SUM(CASE WHEN {$completed} THEN rmb_amount ELSE 0 END), 0) as rmb_out,
+                COALESCE(SUM(CASE WHEN {$completed} THEN ugx_amount ELSE 0 END), 0) as ugx_out")
             ->groupBy('country')
             ->get()
             ->keyBy('country');

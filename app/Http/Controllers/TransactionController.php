@@ -250,7 +250,7 @@ class TransactionController extends Controller
             // hand in China.
             'payoutRecorded' => $legs->contains(fn (AccountEntry $leg) => $leg->direction === 'out'
                 && $leg->account?->currency === 'RMB'),
-            'stage' => $transaction->chinaStage(),
+            'stage' => $transaction->stage(),
         ]);
     }
 
