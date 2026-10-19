@@ -225,6 +225,21 @@ class AccountLedger
     }
 
     /**
+     * Which office till the money handed over for a booking belongs in. Read off the end the cash
+     * comes from and the money it arrives in, never off the desk that typed the booking: money paid
+     * for in China is China's money even when the office here keys it in.
+     */
+    public static function intakeTill(Transaction $transaction): Account
+    {
+        return match (true) {
+            $transaction->isToUganda() && strtoupper($transaction->currency) === 'RMB' => Account::byCode(Account::RMB_CHINA),
+            $transaction->isToUganda() => Account::byCode(Account::USD_CHINA),
+            strtoupper($transaction->currency) === 'USD' => Account::byCode(Account::USD_UGANDA),
+            default => Account::byCode(Account::UGX_UGANDA),
+        };
+    }
+
+    /**
      * Where collected cash belongs depends on who took it. An agent stands beside the customer and
      * holds that money in their own hand until it is handed in, so the collection credits the agent's
      * wallet and the office till only grows when the cash actually arrives. A booking taken at the
@@ -235,6 +250,10 @@ class AccountLedger
      * money held for the office, the charge is the collector's own earnings. A customer who hands
      * over dollars forwards the dollars whole and adds the charge in shillings on top, so the deal
      * lands in two accounts and each gains only the money it actually holds.
+     *
+     * A booking into Uganda is the one case where the charge is not money the till receives: the
+     * customer hands over yuan or dollars whole in China and the charge comes back out of the
+     * shillings paid to the receiver here, so the intake is one line of exactly what arrived.
      */
     public static function postCompletedTransfer(Transaction $transaction): void
     {
@@ -255,6 +274,20 @@ class AccountLedger
                 'money_in',
                 (string) $transaction->amount,
                 "Transfer {$transaction->receipt_number} collected in {$transaction->currency} from {$transaction->sender_name}, held by {$holder->name} until handed in",
+                $date,
+                $transaction->receipt_number,
+                $transaction->id,
+            );
+
+            return;
+        }
+
+        if ($transaction->isToUganda()) {
+            static::record(
+                static::intakeTill($transaction),
+                'money_in',
+                (string) $transaction->amount,
+                "Transfer {$transaction->receipt_number} collected in {$transaction->currency} from {$transaction->sender_name} in China",
                 $date,
                 $transaction->receipt_number,
                 $transaction->id,
@@ -306,10 +339,14 @@ class AccountLedger
      * that holds the principal. A booking taken at the office desk has no collector to pay, and its
      * charge was posted into the till with the rest of the cash, so writing a commission line for it
      * as well would count the same money twice.
+     *
+     * A booking into Uganda pays no commission line either way: the charge was never collected as
+     * money, it is held back from the shillings that get paid out here, and the hand that took the
+     * yuan in China is not holding shillings to keep it out of.
      */
     public static function postAgentFee(Transaction $transaction): void
     {
-        if (! $transaction->created_by) {
+        if (! $transaction->created_by || $transaction->isToUganda()) {
             return;
         }
 

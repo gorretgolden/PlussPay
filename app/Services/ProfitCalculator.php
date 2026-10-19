@@ -74,6 +74,23 @@ class ProfitCalculator
         string $destination = self::TO_CHINA,
         string $payoutCurrency = 'RMB',
     ): array {
+        return array_map(
+            fn (array $pair) => $pair[0].' → '.$pair[1],
+            static::requiredRatePairs($currency, $destination, $payoutCurrency),
+        );
+    }
+
+    /**
+     * The same prices as requiredPairs(), as [from, to] so a booking can look each one up on the
+     * rate sheet without reading its own label back again.
+     *
+     * @return array<int, array{string, string}>
+     */
+    public static function requiredRatePairs(
+        string $currency,
+        string $destination = self::TO_CHINA,
+        string $payoutCurrency = 'RMB',
+    ): array {
         $toUganda = strtoupper($destination) === self::TO_UGANDA;
         $pairs = [['USD', 'UGX']];
 
@@ -86,7 +103,7 @@ class ProfitCalculator
             $pairs[] = ['USD', 'RMB'];
         }
 
-        return array_map(fn (array $pair) => $pair[0].' → '.$pair[1], $pairs);
+        return $pairs;
     }
 
     /**

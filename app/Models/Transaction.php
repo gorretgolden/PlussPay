@@ -321,6 +321,12 @@ class Transaction extends Model
             return 'UGX '.number_format((float) $this->cashReceived());
         }
 
+        // On the way into Uganda the charge never reaches the till as extra money: it is held back
+        // from the shillings paid out here, so the desk takes in exactly what was handed over.
+        if ($this->isToUganda()) {
+            return $this->principalLabel();
+        }
+
         return $this->principalLabel().' plus '.$this->feeLabel();
     }
 
