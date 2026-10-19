@@ -26,7 +26,7 @@
             <div>
                 <span class="block text-[11px] font-semibold uppercase tracking-wider text-gray-500">Receiver gets</span>
                 <div class="mt-1 text-3xl font-bold leading-none text-purple-700">
-                    <span class="font-medium text-purple-400">¥</span><span class="tabular-nums" data-c="rmb">0.00</span>
+                    <span class="font-medium text-purple-400" data-c="payout-glyph">¥</span><span class="tabular-nums" data-c="payout-total">0.00</span>
                 </div>
             </div>
             <p class="text-xs text-gray-500 tabular-nums sm:text-right" data-c="rates"></p>
@@ -60,14 +60,14 @@
                     <p class="mt-1 text-xs text-gray-500 tabular-nums" data-c="usd-hint"></p>
                 </div>
             </li>
-            <li class="mt-3 flex gap-3 border-t border-green-200 pt-3">
+            <li class="mt-3 flex gap-3 border-t border-green-200 pt-3" data-c="payout-step">
                 <span class="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-800 text-xs font-bold text-white">3</span>
                 <div class="min-w-0 flex-1">
                     <div class="flex items-baseline justify-between gap-4">
-                        <span class="text-gray-600" data-c="rmb-label">Converted to RMB</span>
-                        <span class="font-bold text-gray-900 tabular-nums" data-c="rmb-line">-</span>
+                        <span class="text-gray-600" data-c="payout-label">Converted to RMB</span>
+                        <span class="font-bold text-gray-900 tabular-nums" data-c="payout-line">-</span>
                     </div>
-                    <p class="mt-1 text-xs text-gray-500 tabular-nums" data-c="rmb-hint"></p>
+                    <p class="mt-1 text-xs text-gray-500 tabular-nums" data-c="payout-hint"></p>
                 </div>
             </li>
         </ol>

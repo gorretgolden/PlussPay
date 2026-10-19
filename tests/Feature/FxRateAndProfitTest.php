@@ -155,8 +155,15 @@ class FxRateAndProfitTest extends TestCase
         // line under the field stays short and the working lives in the tooltip.
         $this->assertStringContainsString('Total received, charge included.', $html);
         $this->assertStringContainsString("'All of these dollars travel.'", $html);
-        $this->assertStringContainsString('the charge is collected on top in shillings.', $html);
+        $this->assertStringContainsString('the charge is added on top in shillings', $html);
         $this->assertStringContainsString('id="cash_help"', $html);
+
+        // Money going the other way is handed over in China and the charge comes back out of the
+        // shillings paid here, so that route gets its own sentences rather than the ones above.
+        $this->assertStringContainsString("'The whole of the yuan crosses. The charge comes out of the payout instead.'", $html);
+        $this->assertStringContainsString('Taken out of the shillings paid to the receiver.', $html);
+        $this->assertStringContainsString('value="RMB" data-routes="UG"', $html);
+        $this->assertStringContainsString('value="UGX" data-routes="CN"', $html);
     }
 
     public function test_a_charge_that_leaves_nothing_to_send_is_refused(): void

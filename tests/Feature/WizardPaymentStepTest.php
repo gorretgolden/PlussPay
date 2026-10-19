@@ -30,7 +30,7 @@ class WizardPaymentStepTest extends TestCase
         ExchangeRate::setPair('USD', 'RMB', 7.24, 7.24, 7.24);
     }
 
-    private function page(string $role): string
+    private function page(string $role, string $path = '/transactions/create'): string
     {
         $user = User::create([
             'name' => 'Desk '.ucfirst($role),
@@ -40,7 +40,7 @@ class WizardPaymentStepTest extends TestCase
         ]);
         $user->assignRole($role);
 
-        return $this->actingAs($user)->get('/transactions/create')->getContent();
+        return $this->actingAs($user)->get($path)->getContent();
     }
 
     /**
@@ -84,12 +84,68 @@ class WizardPaymentStepTest extends TestCase
             $this->assertStringNotContainsString($gone, $html);
         }
 
-        $this->assertStringContainsString('UGX: the customer pays shillings, the charge comes out of that money', $html);
+        $this->assertStringContainsString('shillings, where the charge comes out of that money', $html);
         $this->assertStringContainsString('You agree this per customer, so nothing is filled in for you. Type what you kept, or 0 when nothing was taken.', $html);
         // The per-dollar fee rule is gone, so no sentence may point at it.
         $this->assertStringNotContainsString('Settings suggest', $html);
         $this->assertStringNotContainsString('Default from Settings', $html);
-        $this->assertSame(4, substr_count($html, 'role="tooltip"'));
+        // One tooltip per field that needs more than its short line: the route, the money handed
+        // over, the charge, the money that travels, the payout and the money it is taken in. The
+        // office picker on the same page carries a seventh, and an agent is not shown it.
+        $this->assertSame(6, substr_count($html, 'role="tooltip"'));
+    }
+
+    /**
+     * Which way the money goes is the first thing a desk knows, so it is answered with two cards at
+     * the top of the form rather than buried in a dropdown, and the card that opens the form is the
+     * one the shortcut that opened it named.
+     */
+    public function test_the_route_is_answered_with_two_cards_and_opens_on_the_one_asked_for(): void
+    {
+        $china = $this->page('agent');
+        $uganda = $this->page('agent', '/transactions/create?destination=UG');
+
+        foreach (['Money to a receiver in China', 'Money to a receiver in Uganda'] as $title) {
+            $this->assertStringContainsString($title, $china, $title.' is offered on the plain form.');
+            $this->assertStringContainsString($title, $uganda, $title.' stays offered on the other card.');
+        }
+
+        $this->assertMatchesRegularExpression('#name="destination" value="CN"[^>]*checked#', $china);
+        $this->assertMatchesRegularExpression('#name="destination" value="UG"[^>]*checked#', $uganda);
+        $this->assertDoesNotMatchRegularExpression('#name="destination" value="CN"[^>]*checked#', $uganda);
+        $this->assertSame(2, substr_count($uganda, 'name="destination"'), 'Two cards, one question.');
+        $this->assertStringContainsString('<h1 class="text-2xl font-bold text-gray-900" id="page_title">Send Money to Uganda</h1>', $uganda);
+
+        // Each card says which money it takes in, so nobody picks a route and then finds the boxes
+        // do not hold the money the customer is standing there with.
+        $this->assertStringContainsString('Cash is handed over here in Uganda, in shillings or dollars.', $china);
+        $this->assertStringContainsString('Cash is handed over in China, in yuan or dollars.', $china);
+    }
+
+    public function test_the_payout_is_chosen_on_the_way_to_china_and_fixed_on_the_way_to_uganda(): void
+    {
+        $china = $this->page('agent');
+        $uganda = $this->page('agent', '/transactions/create?destination=UG');
+
+        // A receiver in China is paid in either of two currencies, so the form asks. A receiver in
+        // Uganda is only ever paid shillings, so the box is still posted for the server to check but
+        // the route script hides the choice.
+        $this->assertMatchesRegularExpression('#<select name="payout_currency"[^>]*required#', $china);
+        $this->assertStringContainsString('Receiver gets', $china);
+        $this->assertStringContainsString('id="payout_wrap"', $uganda, 'The same field is on the page so a draft can carry it.');
+        $this->assertStringContainsString("document.getElementById('payout_wrap').classList.toggle('hidden', !r.payoutChoice);", $china);
+        $this->assertStringContainsString('payoutChoice: false', $china, 'The Uganda route is the one with a single answer.');
+        foreach (['value="RMB" data-routes="CN"', 'value="USD" data-routes="CN"', 'value="UGX" data-routes="UG"'] as $option) {
+            $this->assertStringContainsString($option, $china, 'The payout box offers '.$option.'.');
+        }
+
+        // Both corridors' intake moneys are on the sheet and the script hides the ones the route
+        // refuses: shillings only come in here, and yuan only comes in from China.
+        foreach (['value="UGX" data-routes="CN"', 'value="USD" data-routes="CN,UG"', 'value="RMB" data-routes="UG"'] as $option) {
+            $this->assertStringContainsString($option, $china, 'The intake box offers '.$option.'.');
+        }
+        $this->assertStringNotContainsString('>Ugandan Shilling<', $china);
+        $this->assertStringNotContainsString('>US Dollar<', $china);
     }
 
     public function test_the_currency_options_are_bare_codes(): void
@@ -100,11 +156,20 @@ class WizardPaymentStepTest extends TestCase
 
         $this->assertStringContainsString('>UGX</option>', $match[0] ?? '');
         $this->assertStringContainsString('>USD</option>', $match[0] ?? '');
+        $this->assertStringContainsString('>RMB</option>', $match[0] ?? '', 'The yuan a customer hands over in China is offered on the same box.');
         $this->assertStringNotContainsString('Ugandan Shilling', $match[0] ?? '');
         $this->assertStringNotContainsString('US Dollar', $match[0] ?? '');
+
+        // The payout box is named the same way, so the two selects never spell the same money twice.
+        preg_match('/<select name="payout_currency".*?<\/select>/s', $html, $payout);
+
+        foreach (['>RMB</option>', '>USD</option>', '>UGX</option>'] as $option) {
+            $this->assertStringContainsString($option, $payout[0] ?? '');
+        }
+        $this->assertStringNotContainsString('Chinese', $payout[0] ?? '');
     }
 
-    public function test_the_card_leads_with_the_yuan_and_holds_one_line_before_an_amount_exists(): void
+    public function test_the_card_leads_with_what_the_receiver_gets_and_holds_one_line_before_an_amount_exists(): void
     {
         $step = $this->step3($this->page('agent'));
 
@@ -113,19 +178,24 @@ class WizardPaymentStepTest extends TestCase
         $this->assertStringContainsString('class="hidden" data-c="body"', $step);
         $this->assertStringContainsString('Receiver gets', $step);
 
-        // The working is three numbered rows the cashier can read top to bottom.
-        foreach (['cash-label', 'charge-label', 'travels-label', 'usd-label', 'rmb-label', 'rates'] as $key) {
+        // The working is three numbered rows the cashier can read top to bottom. The third row is
+        // named for the payout rather than for yuan, because on two of the three routes the
+        // receiver is not paid in yuan at all.
+        foreach (['cash-label', 'charge-label', 'travels-label', 'usd-label', 'payout-label', 'payout-line', 'payout-hint', 'payout-glyph', 'payout-total', 'rates'] as $key) {
             $this->assertSame(1, substr_count($step, 'data-c="'.$key.'"'), $key.' must appear once on the step.');
         }
 
-        foreach (['RMB receiver gets', 'Credited in USD', 'Money That Travels', 'Amount converted', 'Step 1:'] as $gone) {
+        foreach (['RMB receiver gets', 'Credited in USD', 'Money That Travels', 'Amount converted', 'Step 1:', 'data-c="rmb-label"'] as $gone) {
             $this->assertStringNotContainsString($gone, $step);
         }
 
-        // The rate line is written by the script from the live prices, shillings then yuan.
+        // The rate line is written by the script from the live prices, and names which side of the
+        // spread each price is, because that is the difference the desk earns on.
         $html = $this->page('agent');
-        $this->assertStringContainsString("'1 USD = UGX ' + rateLabel(usdSellRate) + ' · ' : ''", $html);
-        $this->assertStringContainsString("'1 USD = ' + rateLabel(rmbSellRate) + ' RMB'", $html);
+        $this->assertStringContainsString("'1 USD = UGX ' + rateLabel(usdSellRate)", $html);
+        $this->assertStringContainsString("'1 USD = UGX ' + rateLabel(usdBuyRate)", $html);
+        $this->assertStringContainsString("'1 USD = ' + rateLabel(rmbSellRate) + ' yuan'", $html);
+        $this->assertStringContainsString("'1 USD = ' + rateLabel(rmbBuyRate) + ' yuan'", $html);
     }
 
     /**
@@ -151,12 +221,12 @@ class WizardPaymentStepTest extends TestCase
 
         $this->assertMatchesRegularExpression('/<input type="text" id="travels_out" readonly aria-readonly="true"/', $step);
         $this->assertStringNotContainsString('name="travels_out"', $step);
-        $this->assertStringContainsString("travelsEl.value = f.cash > 0 ? showMoney(f.currency, f.sent) : '';", $html);
+        $this->assertStringContainsString("travelsEl.value = f.cash > 0 ? showMoney(f.currency, f.travels) : '';", $html);
 
         // One name for the figure on this step, painted by the one renderer, and no second copy
         // of the strip that used to hold it.
         $this->assertStringContainsString('>Amount that travels</label>', $step);
-        $this->assertStringContainsString("calcSet(panel, 'travels', showMoney(f.currency, f.sent));", $html);
+        $this->assertStringContainsString("calcSet(panel, 'travels', showMoney(f.currency, f.travels));", $html);
         $this->assertSame(1, substr_count($step, 'data-c="travels"'));
 
         foreach (['balance_strip', 'Balance after the charge', 'preview_sent'] as $gone) {
@@ -168,12 +238,22 @@ class WizardPaymentStepTest extends TestCase
      * Rounding the dollars before the yuan conversion priced the payout off a credit nobody was
      * given, so the script must divide at full precision and round only on the way out.
      */
-    public function test_the_dollars_are_divided_at_full_precision_before_the_yuan(): void
+    public function test_the_dollars_are_divided_at_full_precision_before_the_payout(): void
     {
         $html = $this->page('agent');
 
-        $this->assertStringContainsString('const exact = travels > 0 ? (paidInUgx && usdSellRate > 0 ? travels / usdSellRate : travels) : 0;', $html);
-        $this->assertStringContainsString('payout: rmbSellRate > 0 ? Number((exact * rmbSellRate).toFixed(2)) : 0', $html);
+        // Shillings are divided by the selling price and yuan by the buying price, at full
+        // precision, and the rounded dollars are only ever the figure shown or stored.
+        $this->assertStringContainsString('const exact = travels > 0', $html);
+        $this->assertStringContainsString('paidInUgx && usdSellRate > 0 ? travels / usdSellRate', $html);
+        $this->assertStringContainsString('inYuan && rmbBuyRate > 0 ? travels / rmbBuyRate : travels', $html);
+        $this->assertStringContainsString('const dollars = Number(exact.toFixed(2));', $html);
+
+        // Every far-end figure is priced off the unrounded dollars, so rounding the dollars first
+        // cannot leak into the payout on any of the three routes.
+        $this->assertStringContainsString('(exact * rmbSellRate).toFixed(2)', $html);
+        $this->assertStringContainsString('(exact * usdBuyRate).toFixed(2)', $html);
+        $this->assertStringNotContainsString('(dollars * rmbSellRate)', $html);
         $this->assertStringNotContainsString('toFixed(1)', $html);
 
         // Both panels are painted by one renderer, so the review step cannot disagree.

@@ -9,10 +9,27 @@
     $draftKey = 'pluspay_send_draft_u' . (auth()->id() ?? 'guest');
     $keepKey = 'pluspay_keep_draft_u' . (auth()->id() ?? 'guest');
     $trimRate = fn ($r) => rtrim(rtrim(number_format((float) $r, 6, '.', ''), '0'), '.');
+
+    // Which way the money is going is decided before the first box is answered, because it changes
+    // what money the desk takes in, what the receiver is handed, whose number comes first and what
+    // the booking is even called. The dashboard cards seed it from the link; a rejected booking
+    // keeps the route the desk had chosen rather than dropping it back to China.
+    $destination = old('destination', $destination ?? \App\Models\Transaction::TO_CHINA);
+    $destination = $destination === \App\Models\Transaction::TO_UGANDA
+        ? \App\Models\Transaction::TO_UGANDA
+        : \App\Models\Transaction::TO_CHINA;
+    $toUganda = $destination === \App\Models\Transaction::TO_UGANDA;
+
+    // A receiver in Uganda is always paid shillings out of the till there, so that route has one
+    // payout and nothing to choose; the China route lets the desk pick yuan or dollars.
+    $intakeChoices = $toUganda ? ['RMB', 'USD'] : ['UGX', 'USD'];
+    $payoutChoices = $toUganda ? ['UGX'] : ['RMB', 'USD'];
+    $payoutOld = old('payout_currency');
+    $payoutCurrency = in_array($payoutOld, $payoutChoices, true) ? $payoutOld : $payoutChoices[0];
 @endphp
 <div class="max-w-4xl mx-auto">
     <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900">Send Money to China</h1>
+        <h1 class="text-2xl font-bold text-gray-900" id="page_title">{{ $toUganda ? 'Send Money to Uganda' : 'Send Money to China' }}</h1>
     </div>
 
     {{-- Draft restored banner --}}
@@ -57,20 +74,47 @@
         {{-- Step 1: Sender --}}
         <div class="wizard-step bg-white rounded-lg shadow p-8" id="step-1">
             <h2 class="text-lg font-semibold text-gray-800 mb-6">Sender Details</h2>
+
+            <div class="mb-6">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="block text-sm font-medium text-gray-700">Which way is the money going? *</span>
+                    @include('transactions.partials.field-tip', [
+                        'id' => 'destination-help-tip',
+                        'text' => 'This fixes the rest of the form. Money going to China is handed over here in Uganda, in shillings or dollars, and the receiver is paid there. Money going to Uganda is handed over in China, in yuan or dollars, and the receiver is paid shillings out of the till here.',
+                    ])
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label class="route-card flex items-start gap-3 rounded-lg border-2 bg-white p-4 cursor-pointer" data-dest="CN">
+                        <input type="radio" name="destination" value="CN" class="mt-1 h-4 w-4 shrink-0 accent-green-800" {{ $destination === 'CN' ? 'checked' : '' }}>
+                        <span>
+                            <span class="block text-sm font-semibold text-gray-900">Money to a receiver in China</span>
+                            <span class="block mt-1 text-xs text-gray-600">Cash is handed over here in Uganda, in shillings or dollars.</span>
+                        </span>
+                    </label>
+                    <label class="route-card flex items-start gap-3 rounded-lg border-2 bg-white p-4 cursor-pointer" data-dest="UG">
+                        <input type="radio" name="destination" value="UG" class="mt-1 h-4 w-4 shrink-0 accent-green-800" {{ $destination === 'UG' ? 'checked' : '' }}>
+                        <span>
+                            <span class="block text-sm font-semibold text-gray-900">Money to a receiver in Uganda</span>
+                            <span class="block mt-1 text-xs text-gray-600">Cash is handed over in China, in yuan or dollars.</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Sender's Name *</label>
                     <input type="text" name="sender_name" value="{{ old('sender_name') }}" required maxlength="100"
-                        placeholder="e.g. John Okello"
+                        placeholder="{{ $toUganda ? 'e.g. Zhang Wei' : 'e.g. John Okello' }}"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Sender's Phone</label>
                     <div class="flex">
-                        @include('transactions.partials.prefix-picker', ['who' => 'sender', 'default' => '+256'])
+                        @include('transactions.partials.prefix-picker', ['who' => 'sender', 'default' => $toUganda ? '+86' : '+256'])
                         <input type="tel" name="sender_contact" id="sender_contact" value="{{ old('sender_contact') }}" maxlength="15"
-                            placeholder="700 000 000"
-                            class="flex-1 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            placeholder="{{ $toUganda ? '138 0000 0000' : '700 000 000' }}"
+                            class="flex-1 min-w-0 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                     </div>
                     <input type="hidden" name="sender_full_contact" id="sender_full_contact">
                 </div>
@@ -123,16 +167,16 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Receiver's Name *</label>
                     <input type="text" name="receiver_name" value="{{ old('receiver_name') }}" required maxlength="100"
-                        placeholder="e.g. Zhang Wei"
+                        placeholder="{{ $toUganda ? 'e.g. John Okello' : 'e.g. Zhang Wei' }}"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Receiver's Phone</label>
                     <div class="flex">
-                        @include('transactions.partials.prefix-picker', ['who' => 'receiver', 'default' => '+86'])
+                        @include('transactions.partials.prefix-picker', ['who' => 'receiver', 'default' => $toUganda ? '+256' : '+86'])
                         <input type="tel" name="receiver_contact" id="receiver_contact" value="{{ old('receiver_contact') }}" maxlength="15"
-                            placeholder="138 0000 0000"
-                            class="flex-1 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            placeholder="{{ $toUganda ? '700 000 000' : '138 0000 0000' }}"
+                            class="flex-1 min-w-0 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                     </div>
                     <input type="hidden" name="receiver_full_contact" id="receiver_full_contact">
                 </div>
@@ -154,22 +198,23 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <div class="flex items-center justify-between gap-2 mb-1">
-                        <label class="block text-sm font-medium text-gray-700" for="currency">Currency *</label>
+                        <label class="block text-sm font-medium text-gray-700" for="currency">Handed over in *</label>
                         @include('transactions.partials.field-tip', [
                             'id' => 'currency-help-tip',
-                            'text' => 'UGX: the customer pays shillings, the charge comes out of that money, and what is left is turned into dollars. USD: the customer hands you dollars, all of them travel, and the charge is collected on top in shillings.',
+                            'text' => 'Money going to China is handed over here in Uganda: shillings, where the charge comes out of that money, or dollars, where all of them travel and the charge is added on top in shillings. Money going to Uganda is handed over in China: yuan or dollars. Shillings are not offered there because that route pays shillings out rather than taking them in.',
                         ])
                     </div>
                     <select name="currency" id="currency" required
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                        <option value="UGX" {{ old('currency') === 'UGX' ? 'selected' : '' }}>UGX</option>
-                        <option value="USD" {{ old('currency') === 'USD' ? 'selected' : '' }}>USD</option>
+                        <option value="UGX" data-routes="CN" {{ old('currency') === 'UGX' ? 'selected' : '' }}>UGX</option>
+                        <option value="USD" data-routes="CN,UG" {{ old('currency') === 'USD' ? 'selected' : '' }}>USD</option>
+                        <option value="RMB" data-routes="UG" {{ old('currency') === 'RMB' ? 'selected' : '' }}>RMB</option>
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">Choose what the customer pays in.</p>
+                    <p class="text-xs text-gray-500 mt-1" id="currency_help">Choose what the customer pays in.</p>
                 </div>
                 <div>
                     <div class="flex items-center justify-between gap-2 mb-1">
-                        <label class="block text-sm font-medium text-gray-700" for="amount">Money handed over *</label>
+                        <label class="block text-sm font-medium text-gray-700" id="cash_label" for="amount">Money handed over *</label>
                         @include('transactions.partials.field-tip', [
                             'id' => 'amount-help-tip',
                             'text' => 'Count the cash as it was handed to you, before anything is taken out. The charge is subtracted from it, and only what is left is converted.',
@@ -182,7 +227,7 @@
                 </div>
                 <div>
                     <div class="flex items-center justify-between gap-2 mb-1">
-                        <label class="block text-sm font-medium text-gray-700" for="charge_ugx">Charge (UGX) *</label>
+                        <label class="block text-sm font-medium text-gray-700" id="charge_label" for="charge_ugx">Charge (UGX) *</label>
                         @include('transactions.partials.field-tip', [
                             'id' => 'charge-help-tip',
                             'text' => $defaultCharge !== ''
@@ -193,7 +238,7 @@
                     <input type="text" inputmode="decimal" autocomplete="off" data-money name="charge_ugx" id="charge_ugx" value="{{ old('charge_ugx', $defaultCharge) }}" min="0" required
                         placeholder="0"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 tabular-nums">
-                    <p class="text-xs text-gray-500 mt-1">{{ $defaultCharge !== '' ? 'Starts at the default charge from Settings.' : 'Type what you kept from this customer.' }}</p>
+                    <p class="text-xs text-gray-500 mt-1" id="charge_help">{{ $defaultCharge !== '' ? 'Starts at the default charge from Settings.' : 'Type what you kept from this customer.' }}</p>
                 </div>
                 <div>
                     <div class="flex items-center justify-between gap-2 mb-1">
@@ -206,6 +251,22 @@
                     <input type="text" id="travels_out" readonly aria-readonly="true" placeholder="-"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-900 tabular-nums cursor-default">
                     <p class="text-xs text-gray-500 mt-1" id="travels_help">Fills itself in from the two boxes above.</p>
+                </div>
+                <div id="payout_wrap">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label class="block text-sm font-medium text-gray-700" for="payout_currency">Receiver gets *</label>
+                        @include('transactions.partials.field-tip', [
+                            'id' => 'payout-help-tip',
+                            'text' => 'Yuan is the usual payout in China: the dollars that transfer is worth go across, are changed there, and the receiver is handed yuan. Dollars when the receiver wants dollars, which means the money stops as dollars and is never changed. A receiver in Uganda is always paid shillings out of the till here, so there is nothing to choose on that route.',
+                        ])
+                    </div>
+                    <select name="payout_currency" id="payout_currency" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <option value="RMB" data-routes="CN" {{ $payoutCurrency === 'RMB' ? 'selected' : '' }}>RMB</option>
+                        <option value="USD" data-routes="CN" {{ $payoutCurrency === 'USD' ? 'selected' : '' }}>USD</option>
+                        <option value="UGX" data-routes="UG" {{ $payoutCurrency === 'UGX' ? 'selected' : '' }}>UGX</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1" id="payout_help">Choose what the receiver is handed.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1" for="payment_method">Paid how? *</label>
@@ -243,7 +304,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1" for="notes">Notes (optional)</label>
-                    <input type="text" name="notes" id="notes" value="{{ old('notes', 'Sending money to China') }}" maxlength="500"
+                    <input type="text" name="notes" id="notes" value="{{ old('notes', $toUganda ? 'Sending money to Uganda' : 'Sending money to China') }}" maxlength="500"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                 </div>
             </div>
@@ -289,6 +350,7 @@
                 </div>
             </div>
 
+            <p class="mt-3 text-sm font-medium text-gray-700" id="rev_route"></p>
             <p class="mt-3 text-sm text-gray-600 hidden" id="rev_payment"></p>
             <p class="mt-1 text-sm text-gray-600 hidden" id="rev_purpose"></p>
 
@@ -323,15 +385,136 @@
     /* calcBump() skips this class entirely when the visitor asks for reduced motion. */
     @@keyframes calc-bump { from { opacity: .35; transform: translateY(3px); } to { opacity: 1; transform: none; } }
     .calc-bump { display: inline-block; animation: calc-bump .18s ease-out; }
+
+    /* The route the desk is on has to be obvious from across the counter, and the box the keyboard
+       is on must show too, so both states are drawn here rather than left to the radio dot. */
+    .route-card { border-color: #e5e7eb; }
+    .route-card-on { border-color: #166534; background: #f0fdf4; }
+    .route-card:focus-within { box-shadow: 0 0 0 3px rgb(22 163 74 / .35); }
 </style>
 @endpush
 
 @push('scripts')
 <script>
 const usdSellRate = {{ $usdUgx && $usdUgx['sell'] > 0 ? $usdUgx['sell'] : 0 }};
+const usdBuyRate = {{ $usdUgx && $usdUgx['buy'] > 0 ? $usdUgx['buy'] : 0 }};
 const rmbSellRate = {{ $usdRmb && $usdRmb['sell'] > 0 ? $usdRmb['sell'] : 0 }};
+const rmbBuyRate = {{ $usdRmb && $usdRmb['buy'] > 0 ? $usdRmb['buy'] : 0 }};
 const errorFields = @json($errorFields);
 let currentStep = 1;
+
+// The route is decided before anything is typed, and it is the same choice the server prices on:
+// money going to China is taken in here in shillings or dollars and handed over there in yuan or
+// dollars; money going to Uganda is taken in there in yuan or dollars and handed over here in
+// shillings. Everything on this page that says a word about money is read off these two records.
+const ROUTES = {
+    CN: {
+        intake: ['UGX', 'USD'],
+        payout: ['RMB', 'USD'],
+        payoutChoice: true,
+        title: 'Send Money to China',
+        notes: 'Sending money to China',
+        cashLabel: 'Money handed over *',
+        cashHelp: { UGX: 'Total received, charge included.', USD: 'All of these dollars travel.' },
+        travelsHelp: { UGX: 'Money handed over minus the charge.', USD: 'Every dollar handed over, since the charge comes on top.' },
+        currencyHelp: 'Choose what the customer pays in.',
+        chargeNote: 'Taken out of the money handed over.',
+        phone: { sender: ['+256', '700 000 000'], receiver: ['+86', '138 0000 0000'] },
+        name: { sender: 'e.g. John Okello', receiver: 'e.g. Zhang Wei' },
+    },
+    UG: {
+        intake: ['RMB', 'USD'],
+        payout: ['UGX'],
+        payoutChoice: false,
+        title: 'Send Money to Uganda',
+        notes: 'Sending money to Uganda',
+        cashLabel: 'Money handed over in China *',
+        cashHelp: { RMB: 'Yuan counted over there. The whole of it is taken in.', USD: 'Dollars counted over there. The whole of them are taken in.' },
+        travelsHelp: { RMB: 'The whole of the yuan crosses. The charge comes out of the payout instead.', USD: 'The whole of the dollars cross. The charge comes out of the payout instead.' },
+        currencyHelp: 'Choose what the customer handed over in China.',
+        chargeNote: 'Taken out of the shillings paid to the receiver.',
+        phone: { sender: ['+86', '138 0000 0000'], receiver: ['+256', '700 000 000'] },
+        name: { sender: 'e.g. Zhang Wei', receiver: 'e.g. John Okello' },
+    },
+};
+
+const MONEY_NAME = { UGX: 'shillings', USD: 'dollars', RMB: 'yuan' };
+const MONEY_GLYPH = { UGX: 'UGX ', USD: '$', RMB: '¥' };
+
+// What the charge box was told before the route had anything to say about it.
+const chargeHelpBase = document.getElementById('charge_help').textContent.trim();
+
+function chosenRoute() {
+    const picked = document.querySelector('[name=destination]:checked');
+
+    return picked && ROUTES[picked.value] ? picked.value : 'CN';
+}
+
+function pickedPayout(route) {
+    const choices = ROUTES[route].payout;
+
+    if (choices.length === 1) return choices[0];
+
+    const picked = document.getElementById('payout_currency').value;
+
+    return choices.includes(picked) ? picked : choices[0];
+}
+
+// Only the option the route cannot take is hidden, so the desk never has to work out which money
+// belongs to which corridor, and a value the route no longer allows is moved off it rather than
+// sent to the server to be refused.
+function narrowOptions(select, allowed) {
+    Array.from(select.options).forEach(opt => {
+        opt.hidden = !allowed.includes(opt.value);
+        opt.disabled = opt.hidden;
+    });
+
+    if (!allowed.includes(select.value)) {
+        select.value = allowed[0];
+    }
+}
+
+function applyRoute() {
+    const route = chosenRoute();
+    const other = route === 'CN' ? 'UG' : 'CN';
+    const r = ROUTES[route];
+
+    document.querySelectorAll('.route-card').forEach(card => {
+        card.classList.toggle('route-card-on', card.dataset.dest === route);
+    });
+
+    narrowOptions(document.getElementById('currency'), r.intake);
+    document.getElementById('payout_wrap').classList.toggle('hidden', !r.payoutChoice);
+    narrowOptions(document.getElementById('payout_currency'), r.payout);
+
+    document.querySelector('[name=sender_name]').placeholder = r.name.sender;
+    document.querySelector('[name=receiver_name]').placeholder = r.name.receiver;
+    document.getElementById('sender_contact').placeholder = r.phone.sender[1];
+    document.getElementById('receiver_contact').placeholder = r.phone.receiver[1];
+
+    // The code boxes follow the route only while they still hold the one the other route opens
+    // with, so a prefix chosen by hand is never walked over.
+    ['sender', 'receiver'].forEach(who => {
+        const hidden = document.getElementById(who + '_prefix');
+        if (hidden.value === ROUTES[other].phone[who][0]) pickPrefix(who, r.phone[who][0]);
+    });
+
+    document.getElementById('cash_label').textContent = r.cashLabel;
+    document.getElementById('charge_label').textContent = route === 'UG'
+        ? 'Charge, out of the payout (UGX) *'
+        : 'Charge (UGX) *';
+    document.getElementById('currency_help').textContent = r.currencyHelp;
+    document.getElementById('charge_help').textContent = chargeHelpBase + ' ' + r.chargeNote;
+
+    // The note the page opens with names the corridor, so it is only rewritten while it still says
+    // what the other corridor would have said, or nothing at all.
+    const notes = document.getElementById('notes');
+    if (notes.value === '' || notes.value === ROUTES[other].notes) notes.value = r.notes;
+
+    document.getElementById('page_title').textContent = r.title;
+
+    calculate();
+}
 
 function nationalDigits(prefixId, contactId) {
     const code = document.getElementById(prefixId).value.replace(/\D/g, '');
@@ -532,7 +715,10 @@ function ugx(n) {
 }
 
 function showMoney(currency, n) {
-    return currency === 'UGX' ? ugx(n) : '$' + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    if (currency === 'UGX') return ugx(n);
+    if (currency === 'RMB') return '¥' + n.toLocaleString(undefined, {maximumFractionDigits: 2});
+
+    return '$' + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
 // The two money boxes are typed as text so the separators can appear while the cashier types.
@@ -569,37 +755,144 @@ document.querySelectorAll('[data-money]').forEach(el => {
     if (el.value) setMoney(el, el.value);
 });
 
-// Everything the pricing depends on, worked the same way the server works it: the charge comes out
-// of the cash handed over, the dollars are divided out at full precision, and the yuan payout is
-// priced from those unrounded dollars. Rounding happens only where a figure is shown or stored.
+// Everything the pricing depends on, worked the same way the server works it. Two shapes: money
+// going to China has the charge taken out of what is handed over here, is divided into dollars at
+// full precision, and those unrounded dollars price whatever the receiver is handed; money going
+// to Uganda keeps the whole of what is handed over there, and the charge comes out of the shillings
+// paid over here instead. Rounding happens only where a figure is shown or stored.
 function figures() {
+    const route = chosenRoute();
+    const toUganda = route === 'UG';
     const currency = document.getElementById('currency').value;
+    const payout = pickedPayout(route);
     const cash = parseMoney(document.getElementById('amount')) || 0;
     const charge = parseMoney(document.getElementById('charge_ugx')) || 0;
     const paidInUgx = currency === 'UGX';
-    const travels = paidInUgx ? cash - charge : cash;
-    const exact = travels > 0 ? (paidInUgx && usdSellRate > 0 ? travels / usdSellRate : travels) : 0;
+    const inYuan = currency === 'RMB';
+
+    // The figure the booking is priced from, in the money it was handed over.
+    const travels = toUganda ? cash : (paidInUgx ? cash - charge : cash);
+
+    // What that money is worth in dollars, the book's own measure, at full precision: shillings are
+    // divided by the price the desk sells dollars at, yuan in China by the price it buys dollars
+    // at, and money already in dollars is counted as it stands.
+    const exact = travels > 0
+        ? (paidInUgx && usdSellRate > 0 ? travels / usdSellRate : inYuan && rmbBuyRate > 0 ? travels / rmbBuyRate : travels)
+        : 0;
+    const dollars = Number(exact.toFixed(2));
+
+    // The shillings those dollars are worth at the price the desk obtains them for, which is the
+    // figure the payout into Uganda is cut from, and the yuan those dollars change into at the
+    // price the desk hands them over for.
+    const shillings = Number((exact * usdBuyRate).toFixed(2));
+    const yuan = Number((exact * rmbSellRate).toFixed(2));
+    const payoutAmount = toUganda
+        ? Number((shillings - charge).toFixed(2))
+        : (payout === 'USD' ? dollars : yuan);
 
     return {
-        currency,
-        cash,
-        charge,
-        paidInUgx,
-        sent: travels > 0 ? travels : 0,
-        exact,
-        credited: Number(exact.toFixed(2)),
-        payout: rmbSellRate > 0 ? Number((exact * rmbSellRate).toFixed(2)) : 0
+        route, toUganda, currency, payout, cash, charge, paidInUgx, inYuan,
+        turnsToYuan: !toUganda && payout === 'RMB',
+        dollarsOut: !toUganda && payout === 'USD',
+        travels: travels > 0 ? travels : 0,
+        exact, dollars, shillings, yuan,
+        payoutAmount: payoutAmount > 0 ? payoutAmount : 0,
     };
 }
 
-// The card shows the working as well as the answer: the same three operations the server runs,
-// in the order the money moves. One renderer fills both panels, so the Payment step and the
-// Review step cannot disagree with each other or with what gets saved.
+// Which price this route cannot be priced without. A route that never turns money does not need the
+// price it never turns it by.
+function missingPrices(f) {
+    const missing = [];
+
+    if (f.toUganda) {
+        if (f.inYuan && rmbBuyRate <= 0) missing.push('USD to RMB');
+        if (usdBuyRate <= 0) missing.push('USD to UGX');
+    } else {
+        if (f.paidInUgx && usdSellRate <= 0) missing.push('USD to UGX');
+        if (f.turnsToYuan && rmbSellRate <= 0) missing.push('USD to RMB');
+    }
+
+    return missing;
+}
+
+function missingPriceMessage(f) {
+    return 'No price is in use for ' + missingPrices(f).join(' or ')
+        + '. Set it in System Settings, or bring an earlier price back on the Currency Rates page.';
+}
+
+// The card shows the working as well as the answer: the same operations the server runs, in the
+// order the money moves. One renderer fills both panels, so the Payment step and the Review step
+// cannot disagree with each other or with what gets saved.
 const calcPanels = Array.from(document.querySelectorAll('[data-calc-panel]'));
-const CALC_LABELS = {
-    live: { cash: 'Handed over', charge: 'Service charge', travels: 'Amount that travels', usd: 'Converted to USD', rmb: 'Converted to RMB' },
-    review: { cash: 'Money handed over', charge: 'Charge taken out', travels: 'Money that travels', usd: 'Dollars credited', rmb: 'RMB to receiver' },
-};
+
+// What each line of the card is called. The card is the same on both routes, so only the words
+// move: money going to China is turned over and ends in the money the receiver is handed there,
+// and money going to Uganda is priced from what was handed over there and ends in shillings here.
+function words(panel, f) {
+    const live = panel === 'live';
+
+    if (f.toUganda) {
+        return {
+            cash: live ? (f.inYuan ? 'Yuan handed over' : 'Dollars handed over') : 'Money handed over in China',
+            charge: live ? 'Service charge, out of the payout' : 'Charge out of the payout',
+            travels: live ? 'Money that travels' : 'Money that crosses to Uganda',
+            dollars: live ? 'Turned into dollars' : 'Dollars the money is worth',
+            payout: live ? 'Shillings to the receiver' : 'UGX to receiver',
+        };
+    }
+
+    return {
+        cash: live ? 'Handed over' : 'Money handed over',
+        charge: live ? 'Service charge' : 'Charge taken out',
+        travels: live ? 'Amount that travels' : 'Money that travels',
+        dollars: live ? 'Converted to USD' : 'Dollars credited',
+        payout: f.dollarsOut
+            ? (live ? 'Paid out as dollars' : 'USD to receiver')
+            : (live ? 'Converted to RMB' : 'RMB to receiver'),
+    };
+}
+
+function dollarHint(f) {
+    if (f.toUganda) {
+        return f.inYuan
+            ? '¥' + two(f.cash) + ' ÷ ' + rateLabel(rmbBuyRate)
+            : 'Handed over in dollars, so nothing is divided';
+    }
+
+    return f.paidInUgx
+        ? ugx(f.travels) + ' ÷ ' + rateLabel(usdSellRate)
+        : 'Paid in dollars, so nothing is divided';
+}
+
+function payoutHint(f) {
+    if (f.toUganda) {
+        return '$' + two(f.dollars) + ' × ' + rateLabel(usdBuyRate) + ' = ' + ugx(f.shillings) + ' − ' + ugx(f.charge);
+    }
+
+    return '$' + two(f.dollars) + ' × ' + rateLabel(rmbSellRate);
+}
+
+// The prices the booking was turned at, named by which side of the spread they are, because the
+// desk earns on the difference between them and the working has to say which one it used.
+function priceNotes(f) {
+    const parts = [];
+
+    if (f.toUganda) {
+        if (f.inYuan) parts.push('1 USD = ' + rateLabel(rmbBuyRate) + ' yuan');
+        if (usdBuyRate > 0) parts.push('1 USD = UGX ' + rateLabel(usdBuyRate));
+
+        return parts.length ? parts.join(' · ') + ', the prices we take money in at' : 'Nothing is turned on this booking.';
+    }
+
+    if (f.paidInUgx && usdSellRate > 0) parts.push('1 USD = UGX ' + rateLabel(usdSellRate));
+    if (f.turnsToYuan && rmbSellRate > 0) parts.push('1 USD = ' + rateLabel(rmbSellRate) + ' yuan');
+
+    return parts.length
+        ? parts.join(' · ') + ', the prices we pay out at'
+        : 'Dollars handed over and dollars paid out, so no price is read.';
+}
+
 let calcState = { ready: false, message: '' };
 
 function two(n) {
@@ -621,7 +914,7 @@ function calcSet(panel, key, value) {
     const el = panel.querySelector('[data-c="' + key + '"]');
     if (!el || el.textContent === value) return;
     el.textContent = value;
-    if (key === 'rmb') calcBump(el);
+    if (key === 'payout-total') calcBump(el);
 }
 
 function renderCalcPanels(f) {
@@ -640,24 +933,31 @@ function renderCalcPanels(f) {
             return;
         }
 
-        const labels = CALC_LABELS[panel.dataset.calcPanel] || CALC_LABELS.live;
+        const w = words(panel.dataset.calcPanel, f);
+        const chargeComesOut = f.paidInUgx || f.toUganda;
 
-        calcSet(panel, 'cash-label', labels.cash);
+        calcSet(panel, 'cash-label', w.cash);
         calcSet(panel, 'cash', showMoney(f.currency, f.cash));
-        calcSet(panel, 'charge-label', f.paidInUgx ? labels.charge : labels.charge + ', collected on top');
-        calcSet(panel, 'charge', (f.paidInUgx ? '− ' : '') + ugx(f.charge));
-        calcSet(panel, 'travels-label', labels.travels);
-        calcSet(panel, 'travels', showMoney(f.currency, f.sent));
-        calcSet(panel, 'usd-label', labels.usd);
-        calcSet(panel, 'usd', '$' + two(f.credited));
-        calcSet(panel, 'usd-hint', f.paidInUgx
-            ? ugx(f.sent) + ' ÷ ' + rateLabel(usdSellRate)
-            : 'Paid in dollars, so nothing is divided');
-        calcSet(panel, 'rmb-label', labels.rmb);
-        calcSet(panel, 'rmb-line', '¥' + two(f.payout));
-        calcSet(panel, 'rmb-hint', '$' + two(f.credited) + ' × ' + rateLabel(rmbSellRate));
-        calcSet(panel, 'rates', (f.paidInUgx ? '1 USD = UGX ' + rateLabel(usdSellRate) + ' · ' : '') + '1 USD = ' + rateLabel(rmbSellRate) + ' RMB');
-        calcSet(panel, 'rmb', two(f.payout));
+        calcSet(panel, 'charge-label', chargeComesOut ? w.charge : w.charge + ', collected on top');
+        calcSet(panel, 'charge', (chargeComesOut ? '− ' : '') + ugx(f.charge));
+        calcSet(panel, 'travels-label', w.travels);
+        calcSet(panel, 'travels', showMoney(f.currency, f.travels));
+        calcSet(panel, 'usd-label', w.dollars);
+        calcSet(panel, 'usd', '$' + two(f.dollars));
+        calcSet(panel, 'usd-hint', dollarHint(f));
+
+        // A receiver paid in dollars is paid the dollars step 2 already showed, so the third
+        // working is the same figure twice and the step is dropped instead.
+        panel.querySelector('[data-c="payout-step"]').classList.toggle('hidden', f.dollarsOut);
+
+        calcSet(panel, 'payout-label', w.payout);
+        calcSet(panel, 'payout-line', showMoney(f.payout, f.payoutAmount));
+        calcSet(panel, 'payout-hint', f.dollarsOut ? '' : payoutHint(f));
+        calcSet(panel, 'payout-glyph', MONEY_GLYPH[f.payout]);
+        calcSet(panel, 'payout-total', f.payout === 'UGX'
+            ? f.payoutAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })
+            : two(f.payoutAmount));
+        calcSet(panel, 'rates', priceNotes(f));
     });
 }
 
@@ -677,27 +977,26 @@ function calculate() {
     const f = figures();
     const amountEl = document.getElementById('amount');
     const cash = parseMoney(amountEl);
+    const r = ROUTES[f.route];
 
-    document.getElementById('cash_help').textContent = f.paidInUgx
-        ? 'Total received, charge included.'
-        : 'All of these dollars travel.';
+    document.getElementById('cash_help').textContent = r.cashHelp[f.currency] || '';
 
     // The figure the booking is priced from, shown beside the charge it came from rather than only
     // further down the page. It stays blank until there is cash to work with so it never reads as a
     // booked zero, and it carries no name attribute, so nothing here can be posted by mistake.
     const travelsEl = document.getElementById('travels_out');
-    travelsEl.value = f.cash > 0 ? showMoney(f.currency, f.sent) : '';
-    document.getElementById('travels_help').textContent = f.paidInUgx
-        ? 'Money handed over minus the charge.'
-        : 'Every dollar handed over, since the charge comes on top.';
+    travelsEl.value = f.cash > 0 ? showMoney(f.currency, f.travels) : '';
+    document.getElementById('travels_help').textContent = r.travelsHelp[f.currency] || '';
 
-    // An amount or a rate that is missing leaves one plain line, never a row of zeros.
+    // An amount or a price that is missing leaves one plain line, never a row of zeros.
     if (amountEl.value.trim() === '' || !Number.isFinite(cash) || cash <= 0) {
         calcState = { ready: false, message: 'Enter an amount to see the calculation.' };
-    } else if (f.sent <= 0) {
+    } else if (f.travels <= 0) {
         calcState = { ready: false, message: 'The charge is the whole of the money handed over, so nothing is left to send.' };
-    } else if (usdSellRate <= 0 || rmbSellRate <= 0) {
-        calcState = { ready: false, message: 'Set the dollar and yuan selling rates to see the calculation.' };
+    } else if (missingPrices(f).length) {
+        calcState = { ready: false, message: missingPriceMessage(f) };
+    } else if (f.payoutAmount <= 0) {
+        calcState = { ready: false, message: 'The charge is more than the money this booking can pay over, so nothing would be left for the receiver.' };
     } else {
         calcState = { ready: true, message: '' };
     }
@@ -714,13 +1013,18 @@ function step3Hint() {
     const cash = parseMoney(amount);
     const fee = parseMoney(charge);
     const min = parseFloat(amount.getAttribute('min')) || 0;
+    const f = figures();
 
     if (!amount.value.trim()) return 'Enter the money handed over.';
     if (!Number.isFinite(cash)) return 'The money handed over must be a number.';
-    if (cash < min) return 'The smallest booking is ' + showMoney(document.getElementById('currency').value, min) + '.';
+    if (cash < min) return 'The smallest booking is ' + showMoney(f.currency, min) + '.';
     if (!charge.value.trim()) return 'Enter the charge, or 0 if none was taken.';
     if (!Number.isFinite(fee) || fee < 0) return 'The charge cannot be negative.';
-    if (document.getElementById('currency').value === 'UGX' && cash - fee <= 0) return 'The charge must be less than the money handed over.';
+    if (f.paidInUgx && cash - fee <= 0) return 'The charge must be less than the money handed over.';
+    if (missingPrices(f).length) return missingPriceMessage(f);
+    if (f.payoutAmount <= 0) {
+        return 'The charge is more than the ' + MONEY_NAME[f.payout] + ' this booking can pay over, so nothing would be left for the receiver.';
+    }
     if (purposeSelect.value === 'Other' && !purposeOther.value.trim()) return 'Say what the other reason is.';
     if (!paymentSelect.value) return 'Say how the customer paid.';
     if (paymentNeedsReference() && !paymentRef.value.trim()) return 'Write the confirmation number from the payment alert.';
@@ -747,6 +1051,14 @@ function populateReview() {
     buildFullContact('receiver_prefix', 'receiver_contact', 'receiver_full_contact');
 
     document.querySelectorAll('input[name="sender_name"], input[name="receiver_name"]').forEach(titleCaseName);
+
+    // The route is repeated in the desk's own words ahead of the money, because it is the one
+    // choice on this booking that changes every figure under it, and a booking on the wrong corridor
+    // is the one mistake nobody catches by looking at a total.
+    const f = figures();
+    document.getElementById('rev_route').textContent = 'Taken in as ' + MONEY_NAME[f.currency]
+        + ' in ' + (f.toUganda ? 'China' : 'Uganda') + ', paid out as ' + MONEY_NAME[f.payout]
+        + ' in ' + (f.toUganda ? 'Uganda' : 'China') + '.';
 
     document.getElementById('rev_sender_name').textContent = document.querySelector('[name=sender_name]').value;
     document.getElementById('rev_receiver_name').textContent = document.querySelector('[name=receiver_name]').value;
@@ -785,12 +1097,16 @@ function populateReview() {
     calculate();
 }
 
+document.querySelectorAll('[name=destination]').forEach(radio => {
+    radio.addEventListener('change', applyRoute);
+});
 document.getElementById('currency').addEventListener('change', calculate);
+document.getElementById('payout_currency').addEventListener('change', calculate);
 document.getElementById('amount').addEventListener('input', calculate);
 document.getElementById('charge_ugx').addEventListener('input', calculate);
 document.getElementById('purpose_other').addEventListener('input', syncStep3);
 document.getElementById('payment_reference').addEventListener('input', syncStep3);
-calculate();
+applyRoute();
 
 document.getElementById('transactionForm').addEventListener('submit', function(e) {
     buildFullContact('sender_prefix', 'sender_contact', 'sender_full_contact');
@@ -817,11 +1133,11 @@ const DRAFT_KEY = @json($draftKey);
 const KEEP_KEY = @json($keepKey);
 localStorage.removeItem('pluspay_send_draft');
 localStorage.removeItem('pluspay_keep_draft');
-const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'amount', 'charge_ugx', 'purpose', 'purpose_other', 'payment_method', 'payment_reference', 'notes', 'agent_id'];
+const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'payout_currency', 'amount', 'charge_ugx', 'purpose', 'purpose_other', 'payment_method', 'payment_reference', 'notes', 'agent_id'];
 let draftCleared = false;
 
 function collectDraft() {
-    const data = { step: currentStep };
+    const data = { step: currentStep, destination: chosenRoute() };
     DRAFT_FIELDS.forEach(name => {
         const el = document.querySelector('[name="' + name + '"]');
         if (el) data[name] = el.value;
@@ -845,7 +1161,11 @@ function readDraft() {
         const raw = localStorage.getItem(DRAFT_KEY);
         if (!raw) return null;
         const data = JSON.parse(raw);
-        const hasContent = DRAFT_FIELDS.some(name => data[name] && data[name].trim() !== '');
+        // These two boxes hold a choice even when nobody has typed anything, so they cannot be the
+        // proof that a draft is somebody's unfinished booking.
+        const alwaysFilled = ['currency', 'payout_currency'];
+        const hasContent = DRAFT_FIELDS.some(name => !alwaysFilled.includes(name)
+            && data[name] && data[name].trim() !== '');
         return hasContent ? data : null;
     } catch (err) {
         return null;
@@ -881,6 +1201,13 @@ function restoreDraft() {
         if (el && data[name] !== undefined) el.value = data[name];
     });
     document.querySelectorAll('[data-money]').forEach(el => { if (el.value) setMoney(el, el.value); });
+
+    // The route comes back before anything the route rewrites, so the corridor the desk was on is
+    // the one that lays out the boxes, and the drafted money codes win over its defaults.
+    const drafted = document.querySelector('[name=destination][value="' + (data.destination || 'CN') + '"]');
+    if (drafted) drafted.checked = true;
+    applyRoute();
+
     pickPrefix('sender', data.sender_prefix);
     pickPrefix('receiver', data.receiver_prefix);
     form.querySelectorAll('select').forEach(sel => sel.dispatchEvent(new Event('change', { bubbles: true })));

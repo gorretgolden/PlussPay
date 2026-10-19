@@ -58,10 +58,17 @@ class TransactionController extends Controller
         return view('transactions.index', compact('transactions', 'creators', 'usdPrices', 'rmbPrices', 'deskTotals'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $usdUgx = ExchangeRate::usdUgxPair();
         $usdRmb = ExchangeRate::pair('USD', 'RMB');
+
+        // The dashboard opens this form through one of two cards, so which way the money is going
+        // arrives on the query string. Anything else falls back to the corridor the desk has always
+        // run: cash in Uganda, a receiver in China.
+        $destination = $request->input('destination') === Transaction::TO_UGANDA
+            ? Transaction::TO_UGANDA
+            : Transaction::TO_CHINA;
 
         // One-time token so a replayed or double-posted submit cannot mint a second receipt.
         $formId = (string) Str::uuid();
@@ -72,7 +79,7 @@ class TransactionController extends Controller
         $default = (float) \App\Models\Setting::get('default_charge_ugx', 0);
         $defaultCharge = $default > 0 ? rtrim(rtrim(number_format($default, 2, '.', ''), '0'), '.') : '';
 
-        return view('transactions.create', compact('usdUgx', 'usdRmb', 'formId', 'defaultCharge') + [
+        return view('transactions.create', compact('usdUgx', 'usdRmb', 'formId', 'defaultCharge', 'destination') + [
             'agents' => $this->bookingAgents(),
         ]);
     }
@@ -111,13 +118,24 @@ class TransactionController extends Controller
         // to say whose before the booking will save.
         $mustNameHolder = (bool) auth()->user()?->can('view-all-transactions');
 
+        // Which way the money is going decides which money this desk can take in and which money it
+        // hands out, so the route is read before the rest of the form is checked. A booking to China
+        // is never taken in from China, and a booking to Uganda never pays out yuan. The wizard always
+        // answers both, and a booking that arrives without them is read as the corridor this desk has
+        // run since it opened, priced in yuan at the far end.
+        $toUganda = $request->input('destination') === Transaction::TO_UGANDA;
+        $intakeChoices = $toUganda ? ['RMB', 'USD'] : ['UGX', 'USD'];
+        $payoutChoices = $toUganda ? ['UGX'] : ['RMB', 'USD'];
+
         $validated = $request->validate([
             'form_id' => 'required|string',
             'sender_name' => 'required|string|max:100|min:2',
             'sender_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
             'receiver_name' => 'required|string|max:100|min:2',
             'receiver_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
-            'currency' => 'required|in:UGX,USD',
+            'destination' => ['nullable', Rule::in([Transaction::TO_CHINA, Transaction::TO_UGANDA])],
+            'currency' => ['required', Rule::in($intakeChoices)],
+            'payout_currency' => ['nullable', Rule::in($payoutChoices)],
             'amount' => "required|numeric|min:{$minAmount}|max:{$maxAmount}|decimal:0,2",
             'charge_ugx' => "required|numeric|min:0|max:{$maxAmount}|decimal:0,2",
             'purpose' => 'nullable|string|max:100',
@@ -129,6 +147,14 @@ class TransactionController extends Controller
         ], [
             'form_id.required' => 'This form has expired. Please reload the page and try again.',
             'agent_id.required' => 'Say which agent took this money. A transfer always belongs to the agent holding the cash, so the office has to name them before it books.',
+            'destination.in' => 'Money either goes to a receiver in China or to a receiver in Uganda. Choose one of those two.',
+            'currency.required' => 'Say what money was handed over.',
+            'currency.in' => $toUganda
+                ? 'On the way to Uganda the money is handed over in China, in yuan or dollars. Shillings are not what a customer there pays with.'
+                : 'On the way to China the money is handed over here in Uganda, in shillings or dollars.',
+            'payout_currency.in' => $toUganda
+                ? 'A receiver in Uganda is handed UGX shillings.'
+                : 'A receiver in China is handed either RMB yuan or USD dollars.',
             'amount.min' => "Minimum amount is {$minAmount}.",
             'amount.max' => "Maximum amount is ".number_format($maxAmount).".",
             'amount.decimal' => 'Amount cannot have more than 2 decimal places.',
@@ -142,12 +168,22 @@ class TransactionController extends Controller
             'payment_reference.max' => 'The confirmation number is at most 60 characters.',
             'sender_name.required' => 'Sender name is required.',
             'sender_name.min' => 'Sender name must be at least 2 characters.',
-            'sender_contact.regex' => 'Enter a valid phone number (e.g. +256 700 000 000).',
+            'sender_contact.regex' => $toUganda
+                ? 'Enter a valid phone number (e.g. +86 138 0000 0000), which is the number of whoever hands the money over in China.'
+                : 'Enter a valid phone number (e.g. +256 700 000 000).',
             'receiver_name.required' => 'Receiver name is required.',
             'receiver_name.min' => 'Receiver name must be at least 2 characters.',
-            'receiver_contact.regex' => 'Enter a valid phone number (e.g. +86 138 0000 0000).',
+            'receiver_contact.regex' => $toUganda
+                ? 'Enter a valid phone number (e.g. +256 700 000 000), which is the number of whoever is paid here in Uganda.'
+                : 'Enter a valid phone number (e.g. +86 138 0000 0000).',
             'amount.required' => 'Amount is required.',
         ]);
+
+        // The wizard answers the route and the payout every time, so a booking that arrives without
+        // them is one keyed in from somewhere else, and it is read as the corridor this desk has run
+        // since it opened with the money that route has always handed over.
+        $validated['destination'] ??= $toUganda ? Transaction::TO_UGANDA : Transaction::TO_CHINA;
+        $validated['payout_currency'] ??= $payoutChoices[0];
 
         if (! hash_equals((string) session('transaction_form_id', ''), $validated['form_id'])) {
             return back()->withErrors(['form_id' => 'This transaction was already submitted. Start a new form to send another.']);
@@ -171,17 +207,34 @@ class TransactionController extends Controller
             }
         }
 
-        if (! ExchangeRate::getActiveRate('USD', 'RMB')) {
-            return back()->withErrors(['exchange_rate' => 'No price is in use for USD to RMB. Set it in System Settings, or bring an earlier price back on the Currency Rates page.']);
-        }
+        // Only the prices this corridor actually reads are demanded, so a booking that pays dollars
+        // out in China is never blocked because no yuan price is set, and a dollar booking from
+        // China needs no yuan price either.
+        $missing = collect(ProfitCalculator::requiredRatePairs(
+            $validated['currency'],
+            $validated['destination'],
+            $validated['payout_currency'],
+        ))
+            ->reject(fn (array $pair) => (bool) ExchangeRate::pair($pair[0], $pair[1]))
+            ->map(fn (array $pair) => $pair[0].' to '.$pair[1])
+            ->values();
 
-        if (! ExchangeRate::usdUgxPair()) {
-            return back()->withErrors(['exchange_rate' => 'No price is in use for USD to UGX. Set it in System Settings, or bring an earlier price back on the Currency Rates page.']);
+        if ($missing->isNotEmpty()) {
+            return back()->withErrors([
+                'exchange_rate' => 'No price is in use for '.$missing->implode(', ').
+                    '. Set it in System Settings, or bring an earlier price back on the Currency Rates page.',
+            ])->withInput();
         }
 
         // The browser only ever shows a preview. Every figure that lands in the books, including
-        // the money that travels and the yuan handed to the receiver, is priced here instead.
-        $quote = ProfitCalculator::quote($validated['currency'], (string) $validated['amount'], (string) $validated['charge_ugx']);
+        // the money that travels and the cash handed to the receiver, is priced here instead.
+        $quote = ProfitCalculator::quote(
+            $validated['currency'],
+            (string) $validated['amount'],
+            (string) $validated['charge_ugx'],
+            $validated['destination'],
+            $validated['payout_currency'],
+        );
 
         if ($quote === null) {
             return back()->withErrors(['charge_ugx' => 'The charge leaves nothing to send. It must be less than the money handed over.'])->withInput();
