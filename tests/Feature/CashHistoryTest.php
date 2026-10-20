@@ -3,11 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\CashHandover;
 use App\Models\ExchangeRate;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Services\AccountLedger;
 use App\Support\PermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -56,6 +56,21 @@ class CashHistoryTest extends TestCase
         ]);
 
         $user->assignRole('agent');
+
+        return $user;
+    }
+
+    private function superAgent(string $name = 'Amina Lead'): User
+    {
+        $user = User::create([
+            'name' => $name,
+            'email' => strtolower(str_replace(' ', '.', $name)).'@plussave.test',
+            'password' => 'Password123',
+            'is_active' => true,
+            'country' => 'UG',
+        ]);
+
+        $user->assignRole('super-agent');
 
         return $user;
     }
@@ -181,16 +196,18 @@ class CashHistoryTest extends TestCase
     public function test_the_going_and_coming_filter_keeps_only_money_leaving_the_hand(): void
     {
         $agent = $this->agent('Faith Nansere');
+        $lead = $this->superAgent();
         $this->shillingBooking($agent, 'PS-20261017-0107');
-        AccountLedger::handInCash($agent, 'UGX', '480000');
+        CashHandover::request($agent, $lead, 'UGX', '480000')->approve();
 
         $out = $this->page($agent, '?direction=out');
         $in = $this->page($agent, '?direction=in');
 
-        $this->assertStringContainsString('Cash handed in by Faith Nansere', $out);
+        $this->assertStringContainsString('Cash handover', $out);
+        $this->assertStringContainsString('Faith Nansere handed UGX 480,000 to Amina Lead', $out);
         $this->assertStringNotContainsString('held by', $out);
         $this->assertStringContainsString('held by', $in);
-        $this->assertStringNotContainsString('Cash handed in by', $in);
+        $this->assertStringNotContainsString('Cash handover', $in);
     }
 
     public function test_the_search_box_finds_a_line_by_its_receipt_number(): void
@@ -263,16 +280,18 @@ class CashHistoryTest extends TestCase
 
         $this->assertStringContainsString('Nothing has moved through your wallets yet', $html);
         $this->assertStringNotContainsString('PS-20261017-0115', $html, 'Somebody else s cash is not this desk s book.');
-        $this->assertStringNotContainsString('Hand cash in to the office', $html, 'A desk that holds no collections gets no hand-in box.');
+        $this->assertStringNotContainsString('Hand cash in to your super agent', $html, 'A desk that holds no collections gets no hand-in box.');
     }
 
     public function test_a_hand_in_bigger_than_the_hand_is_refused_before_the_ledger_is_touched(): void
     {
         $agent = $this->agent();
+        $lead = $this->superAgent();
         $this->shillingBooking($agent, 'PS-20261017-0113');
 
         $this->flushSession();
-        $this->actingAs($agent)->post('/wallets/hand-in', [
+        $this->actingAs($agent)->post(route('cash-handovers.store'), [
+            'super_agent_id' => $lead->id,
             'currency' => 'UGX',
             'amount' => '500000000000',
             'note' => 'Whole day',
@@ -285,11 +304,13 @@ class CashHistoryTest extends TestCase
         );
         $this->assertSame('500000.00', Account::walletFor($agent, 'UGX')->fresh()->balance());
         $this->assertSame('0.00', Account::byCode(Account::UGX_UGANDA)->balance());
+        $this->assertSame(0, CashHandover::count());
     }
 
     public function test_the_amount_box_carries_the_ceiling_of_the_wallet_it_names(): void
     {
         $agent = $this->agent();
+        $this->superAgent();
         $this->shillingBooking($agent, 'PS-20261017-0114');
 
         $html = $this->page($agent);

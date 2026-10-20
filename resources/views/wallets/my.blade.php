@@ -3,11 +3,20 @@
 @section('title', 'My Wallet')
 
 @section('content')
-@php $isAgent = auth()->user()->hasRole('agent'); @endphp
+@php
+    $isSuperAgent = auth()->user()->hasRole('super-agent');
+    $isAgent = auth()->user()->hasRole('agent') && ! $isSuperAgent;
+@endphp
 
 <div class="mb-6">
     <h1 class="text-2xl font-bold text-gray-900">My Wallet</h1>
-    <p class="text-gray-600">Money you collected stays here until you hand it in. Commission is paid in shillings, whatever currency the transfer was booked in.</p>
+    <p class="text-gray-600">
+        @if($isSuperAgent)
+            Cash handed to you by the agents stays here until you send it to the China desk. Commission is paid in shillings, whatever currency the transfer was booked in.
+        @else
+            Money you collected stays here until the super agent takes it in hand. Commission is paid in shillings, whatever currency the transfer was booked in.
+        @endif
+    </p>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -20,10 +29,17 @@
         <div class="text-sm text-gray-500 uppercase tracking-wide">{{ $currency }} Wallet</div>
         <div class="text-3xl font-bold text-gray-900 mt-2 tabular-nums">{{ \App\Models\Account::format($currency, $balance) }}</div>
         <dl class="mt-4 space-y-1 text-sm">
+            @if($isSuperAgent)
+            <div class="flex justify-between gap-3">
+                <dt class="text-gray-600">Received from agents</dt>
+                <dd class="text-gray-900 tabular-nums">{{ \App\Models\Account::format($currency, $received[$currency] ?? '0.00') }}</dd>
+            </div>
+            @else
             <div class="flex justify-between gap-3">
                 <dt class="text-gray-600">Handed in so far</dt>
                 <dd class="text-gray-900 tabular-nums">{{ \App\Models\Account::format($currency, $handedIn[$account->id] ?? '0.00') }}</dd>
             </div>
+            @endif
             @if($kept !== null)
             <div class="flex justify-between gap-3">
                 <dt class="text-gray-600">Commission kept</dt>
@@ -46,12 +62,24 @@
     $prefill = old('amount', $heldNow > 0 ? (string) round($heldNow, 2) : '');
 @endphp
 <div class="bg-white rounded-lg shadow p-6 mb-8">
-    <h2 class="text-lg font-semibold text-gray-900">Hand cash in to the office</h2>
-    <p class="text-sm text-gray-600 mt-1 mb-4">Enter what you are carrying in. The office till gains exactly that figure. The amount opens at your whole balance; change it if you are handing in part of it.</p>
-    <form method="POST" action="{{ route('wallets.hand-in') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+    <h2 class="text-lg font-semibold text-gray-900">Hand cash in to your super agent</h2>
+    @if($superAgents->isEmpty())
+        <p class="text-sm text-gray-600 mt-2">No super agent is active yet. Ask the office to set one up before you hand any cash in.</p>
+    @else
+    <p class="text-sm text-gray-600 mt-1 mb-4">The money stays in your wallet until the super agent approves it. You will see the decision here, and the cash only changes hands when they approve.</p>
+    <form method="POST" action="{{ route('cash-handovers.store') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
         @csrf
         <div>
-            <label for="hand-in-currency" class="block text-sm font-medium text-gray-700 mb-1">Money</label>
+            <label for="hand-in-super-agent" class="block text-sm font-medium text-gray-700 mb-1">Super agent</label>
+            <select id="hand-in-super-agent" name="super_agent_id" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                @foreach($superAgents as $superAgent)
+                <option value="{{ $superAgent->id }}" @selected((string) old('super_agent_id') === (string) $superAgent->id)>{{ $superAgent->name }}</option>
+                @endforeach
+            </select>
+            @error('super_agent_id') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+        </div>
+        <div>
+            <label for="hand-in-currency" class="block text-sm font-medium text-gray-700 mb-1">Wallet</label>
             <select id="hand-in-currency" name="currency" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
                 @foreach($wallets as $currency => $account)
                 <option value="{{ $currency }}" data-balance="{{ (string) round((float) $account->balance(), 2) }}" @selected($chosen === $currency)>{{ $currency }} ({{ \App\Models\Account::format($currency, $account->balance()) }} in hand)</option>
@@ -66,16 +94,81 @@
             <p class="text-xs text-gray-400 mt-1">Cannot be more than the {{ $chosen }} wallet holds right now.</p>
             @error('amount') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
         </div>
-        <div class="md:col-span-2">
+        <div class="md:col-span-3">
             <label for="hand-in-note" class="block text-sm font-medium text-gray-700 mb-1">Note, optional</label>
             <input type="text" id="hand-in-note" name="note" maxlength="255" value="{{ old('note') }}" placeholder="e.g. Full day's collections"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
             @error('note') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
         </div>
-        <div class="md:col-span-4 flex justify-end">
-            <button type="submit" class="bg-green-800 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition">Hand in cash</button>
+        <div class="md:col-span-1 flex md:justify-end">
+            <button type="submit" class="w-full md:w-auto bg-green-800 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition">Send for approval</button>
         </div>
     </form>
+    @endif
+</div>
+@endif
+
+@if(($isAgent || $isSuperAgent) && $handovers->isNotEmpty())
+<div class="bg-white rounded-lg shadow mb-8 overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Cash hand-in requests</h2>
+        <p class="text-sm text-gray-500 mt-1">A request moves no money until it is approved. A decline leaves the cash in the agent's wallet.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-[720px] divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requested</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ $isSuperAgent ? 'From agent' : 'To super agent' }}</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Note</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @foreach($handovers as $handover)
+                <tr>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{{ $handover->created_at->format('M d, Y') }}<span class="text-gray-500">, {{ $handover->created_at->format('h:i A') }}</span></td>
+                    <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{{ $handover->reference }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{{ $isSuperAgent ? $handover->agent?->name : $handover->superAgent?->name }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 tabular-nums whitespace-nowrap">{{ $handover->figure() }}</td>
+                    <td class="px-4 py-3 text-sm whitespace-nowrap">
+                        @if($handover->status === \App\Models\CashHandover::APPROVED)
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Approved</span>
+                        @elseif($handover->status === \App\Models\CashHandover::DECLINED)
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Declined</span>
+                        @else
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Pending</span>
+                        @endif
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-600">
+                        @if($handover->decision_note)
+                            {{ $handover->decision_note }}
+                        @elseif($handover->note)
+                            {{ $handover->note }}
+                        @endif
+                        @if($isSuperAgent && $handover->isPending())
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            <form method="POST" action="{{ route('cash-handovers.approve', $handover) }}">
+                                @csrf
+                                <button type="submit" class="bg-green-800 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-green-700">Approve</button>
+                            </form>
+                            <form method="POST" action="{{ route('cash-handovers.decline', $handover) }}" class="flex flex-wrap items-center gap-2">
+                                @csrf
+                                <input type="text" name="decision_note" required maxlength="255" placeholder="Why it is going back"
+                                    aria-label="Reason for declining {{ $handover->reference }}"
+                                    class="px-2 py-1.5 border border-gray-300 rounded-md text-xs w-44 focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                <button type="submit" class="bg-white text-red-700 border border-red-300 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-red-50">Decline</button>
+                            </form>
+                        </div>
+                        @endif
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
 </div>
 @endif
 
@@ -141,7 +234,7 @@
     </div>
 
     <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
+        <table class="min-w-[880px] divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date and time</th>

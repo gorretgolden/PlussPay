@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\AccountEntry;
+use App\Models\CashHandover;
 use App\Models\ExchangeRate;
 use App\Models\Expense;
 use App\Models\LoginLog;
@@ -85,6 +86,38 @@ class DashboardController extends Controller
         $wallets = $holdsMoney ? Account::walletsFor($user) : [];
         $handedIn = AccountEntry::handedInFor($wallets);
 
+        // The super agent's queue is the cash the agents say they are bringing. It is shown here
+        // rather than only on the wallet page because this is the screen the super agent opens
+        // first, and the money should not wait on somebody remembering to look elsewhere. What was
+        // decided lately stays beside it so the card still answers "did that go through?".
+        $handoverQueue = collect();
+        $handoverHistory = collect();
+
+        if ($user->hasRole('super-agent')) {
+            $handoverQueue = CashHandover::with('agent:id,name')
+                ->pendingFor($user)
+                ->oldest('id')
+                ->get();
+
+            $handoverHistory = CashHandover::with('agent:id,name')
+                ->where('super_agent_id', $user->id)
+                ->where('status', '!=', CashHandover::PENDING)
+                ->latest('decided_at')
+                ->limit(5)
+                ->get();
+        }
+
+        // An ordinary agent sees what they are still waiting on, so a request that has not been
+        // decided is not mistaken for cash already handed over.
+        $pendingHandIn = $user->hasRole('agent')
+            ? CashHandover::where('agent_id', $user->id)
+                ->where('status', CashHandover::PENDING)
+                ->selectRaw('currency, COALESCE(SUM(amount), 0) as total')
+                ->groupBy('currency')
+                ->pluck('total', 'currency')
+                ->all()
+            : [];
+
         // Commission only ever lands in a shilling wallet, whoever booked the transfer, so it is
         // read from that account directly rather than from the wallets this person is shown.
         // A desk in China is shown yuan and dollars but still earns its commission in shillings.
@@ -133,7 +166,7 @@ class DashboardController extends Controller
         // it gets no card at all rather than a figure it cannot check.
         $spending = $user->can('view-expenses') ? $this->spendingToday($user) : ['count' => 0, 'desks' => []];
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts', 'news', 'spending'));
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts', 'news', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn'));
     }
 
     /**

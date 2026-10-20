@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
 use App\Models\AccountEntry;
+use App\Models\CashHandover;
 use App\Models\CurrencyExchange;
 use App\Models\Expense;
 use App\Models\Transaction;
@@ -103,31 +104,39 @@ class AccountLedger
     }
 
     /**
-     * Cash an agent collected leaves their hand and enters the office till, which is the only moment
-     * the till gains money a booking brought in. One movement, two lines, the same currency and the
-     * same figure on both, so the total the business holds never changes and whatever is left in the
-     * agent's wallet is always the cash still in their drawer.
+     * Cash an agent collected leaves their hand and lands in the super agent's wallet of the same
+     * currency, which is the moment the agent stops being answerable for it. One movement, two
+     * lines, the same figure on both, so the total the business holds never changes and whatever
+     * is left in the agent's wallet is always the cash still in their drawer.
      *
      * @return array{0: AccountEntry, 1: AccountEntry}
      */
-    public static function handInCash(User $agent, string $currency, string $amount, ?string $note = null, ?string $date = null): array
+    public static function handOverCash(CashHandover $handover): array
     {
-        $currency = strtoupper($currency);
-        $chineseDesk = ($agent->country ?: User::DEFAULT_COUNTRY) === 'CN';
+        $currency = strtoupper($handover->currency);
+        $amount = number_format((float) $handover->amount, 2, '.', '');
+        $from = Account::walletFor($handover->agent, $currency);
+        $to = Account::walletFor($handover->superAgent, $currency);
 
-        $till = Account::byCode(match (true) {
-            $currency === 'USD' => $chineseDesk ? Account::USD_CHINA : Account::USD_UGANDA,
-            $chineseDesk => Account::RMB_CHINA,
-            default => Account::UGX_UGANDA,
+        $description = 'Cash handover '.$handover->reference.': '.$handover->agent->name
+            .' handed '.Account::format($currency, $amount).' to '.$handover->superAgent->name
+            .($handover->note ? '. '.$handover->note : '');
+
+        return DB::transaction(function () use ($from, $to, $amount, $description, $handover) {
+            // The request was typed against a balance that may have moved since. The drawer is
+            // locked while it is read, so the approval cannot pay out cash the agent no longer has.
+            $locked = Account::whereKey($from->id)->lockForUpdate()->first() ?? $from;
+            $available = $locked->balance();
+
+            if (bccomp($available, $amount, 2) < 0) {
+                throw new InsufficientFundsException($locked, $amount, $available);
+            }
+
+            $out = static::record($from, 'handover_out', $amount, $description, null, $handover->reference, null, $to);
+            $in = static::record($to, 'handover_in', $amount, $description, null, $handover->reference, null, $from);
+
+            return [$out, $in];
         });
-
-        return static::transfer(
-            Account::walletFor($agent, $currency),
-            $till,
-            $amount,
-            'Cash handed in by '.$agent->name.': '.Account::format($currency, $amount).($note ? '. '.$note : ''),
-            $date,
-        );
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\ActivityLog;
+use App\Models\CashHandover;
 use App\Models\User;
 use App\Services\AccountLedger;
 use App\Support\WalletHistory;
@@ -55,6 +56,22 @@ class WalletController extends Controller
             'commission' => $this->commissionTotals($held),
             'movements' => WalletHistory::paginate(WalletHistory::filtered(WalletHistory::lines($user), $request), $request),
             'kinds' => WalletHistory::KINDS,
+            'superAgents' => $user->hasRole('agent') && ! $user->hasRole('super-agent')
+                ? User::role('super-agent')->where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                : collect(),
+            'received' => $user->hasRole('super-agent')
+                ? CashHandover::where('super_agent_id', $user->id)
+                    ->where('status', CashHandover::APPROVED)
+                    ->selectRaw('currency, COALESCE(SUM(amount), 0) as total')
+                    ->groupBy('currency')
+                    ->pluck('total', 'currency')
+                    ->all()
+                : [],
+            'handovers' => CashHandover::with(['agent:id,name', 'superAgent:id,name'])
+                ->where(fn ($query) => $query->where('agent_id', $user->id)->orWhere('super_agent_id', $user->id))
+                ->latest('id')
+                ->limit(50)
+                ->get(),
         ]);
     }
 
@@ -111,91 +128,6 @@ class WalletController extends Controller
         $label = $validated['direction'] === 'credit' ? 'credited' : 'debited';
 
         return back()->with('success', "{$agent->name}'s wallet {$label} with UGX " . number_format((float) $validated['amount'], 2) . '.');
-    }
-
-    /**
-     * Collected money only becomes office money when it is carried in, so this is the movement she
-     * makes standing at the counter with the cash in her hand. What the office gains, the drawer
-     * loses, in one currency and one figure, which is why the amount can never be more than the
-     * wallet actually holds: the ledger refuses it and says what is really there.
-     */
-    public function handIn(Request $request)
-    {
-        $viewer = $request->user();
-
-        $validated = $request->validate([
-            'agent_id' => 'nullable|integer|exists:users,id',
-            'currency' => 'required|string',
-            'amount' => 'required|numeric|min:0.01',
-            'note' => 'nullable|string|max:255',
-        ], [
-            'currency.required' => 'Choose which money you are handing in.',
-            'amount.required' => 'Enter the amount you are handing in.',
-            'amount.min' => 'Enter an amount greater than zero.',
-        ]);
-
-        $agent = $viewer;
-
-        if (! empty($validated['agent_id'])) {
-            if (! $viewer->can('view-all-wallets')) {
-                return back()->withErrors(['agent_id' => 'You cannot hand in cash for another person.']);
-            }
-
-            $agent = User::findOrFail($validated['agent_id']);
-        }
-
-        if (! $agent->hasRole('agent')) {
-            return back()->withErrors(['agent_id' => 'Only an agent holds collected cash.']);
-        }
-
-        $currency = strtoupper($validated['currency']);
-
-        if (! in_array($currency, Account::currenciesFor($agent), true)) {
-            return back()->withErrors(['currency' => "This desk does not hold {$currency}."]);
-        }
-
-        $wallet = Account::walletFor($agent, $currency);
-        $before = $wallet->balance();
-
-        // Standing at the counter, the most anybody can hand in is what is in the hand. Checked
-        // here rather than left to the ledger so the refusal names the figure actually held and
-        // the note they typed survives the failed submit.
-        if (bccomp((string) $validated['amount'], (string) $before, 2) > 0) {
-            return back()->withErrors([
-                'amount' => 'You cannot hand in more than the wallet holds. The '.$currency.' wallet holds '
-                    .Account::format($currency, $before).'.',
-            ])->withInput();
-        }
-
-        $note = $request->input('note');
-
-        try {
-            AccountLedger::handInCash($agent, $currency, (string) $validated['amount'], $note ?: null);
-        } catch (InsufficientFundsException $e) {
-            return back()->withErrors(['amount' => $e->getMessage()])->withInput();
-        } catch (\InvalidArgumentException $e) {
-            return back()->withErrors(['amount' => $e->getMessage()])->withInput();
-        }
-
-        $figure = Account::format($currency, $validated['amount']);
-
-        ActivityLog::create([
-            'user_id' => $viewer->id,
-            ...ActivityLog::subjectAttributes($wallet),
-            'action' => 'cash_handed_in',
-            'description' => ($agent->is($viewer) ? $agent->name : $agent->name.' (recorded by '.$viewer->name.')')
-                .' handed in '.$figure,
-            'old_value' => json_encode(['balance' => $before]),
-            'new_value' => json_encode([
-                'balance' => $wallet->balance(),
-                'amount' => $figure,
-                'currency' => $currency,
-                'agent' => $agent->name,
-                'note' => $note,
-            ]),
-        ]);
-
-        return back()->with('success', $figure.' handed in to the office. '.$agent->name.' now holds '.Account::format($currency, $wallet->balance()).'.');
     }
 
     /**

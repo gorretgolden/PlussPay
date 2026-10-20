@@ -226,6 +226,72 @@
 </div>
 @endif
 
+{{-- The super agent's first job of the day: the cash the agents say they are bringing. A request
+     moves no money until it is approved here or on the wallet page, so the queue is the decision
+     itself rather than a reminder of one. --}}
+@if($handoverQueue->isNotEmpty() || $handoverHistory->isNotEmpty())
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
+    <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 sm:px-5 py-3">
+        <h2 class="text-lg font-semibold text-gray-900 mr-auto">Cash Handed To You</h2>
+        @if($handoverQueue->isNotEmpty())
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-900 tabular-nums">
+            {{ number_format($handoverQueue->count()) }} waiting
+        </span>
+        @endif
+        <a href="{{ route('wallet.index') }}" class="text-sm font-semibold text-green-800 hover:underline">Open the wallet</a>
+    </div>
+    @if($handoverQueue->isNotEmpty())
+    <ul class="divide-y divide-gray-100">
+        @foreach($handoverQueue as $handover)
+        <li class="px-4 sm:px-5 py-3">
+            <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span class="text-sm font-semibold text-gray-900">{{ $handover->agent?->name }}</span>
+                <span class="text-sm font-bold text-gray-900 tabular-nums">{{ $handover->figure() }}</span>
+                <span class="text-xs text-gray-500 tabular-nums ml-auto whitespace-nowrap">{{ $handover->created_at->format('M j, g:i A') }}</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-0.5">
+                {{ $handover->reference }}
+                @if($handover->note)<span class="text-gray-400"> · </span>{{ $handover->note }}@endif
+            </p>
+            <div class="flex flex-wrap items-center gap-2 mt-2">
+                <form method="POST" action="{{ route('cash-handovers.approve', $handover) }}">
+                    @csrf
+                    <button type="submit" class="bg-green-800 text-white px-3 py-1.5 rounded-md text-xs font-semibold hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                        Approve receipt
+                    </button>
+                </form>
+                <form method="POST" action="{{ route('cash-handovers.decline', $handover) }}" class="flex flex-wrap items-center gap-2">
+                    @csrf
+                    <input type="text" name="decision_note" required maxlength="255" placeholder="Why it is going back"
+                        aria-label="Reason for declining {{ $handover->reference }}"
+                        class="px-2 py-1.5 border border-gray-300 rounded-md text-xs w-44 focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    <button type="submit" class="bg-white text-red-700 border border-red-300 px-3 py-1.5 rounded-md text-xs font-semibold hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                        Decline
+                    </button>
+                </form>
+            </div>
+        </li>
+        @endforeach
+    </ul>
+    @endif
+    @if($handoverHistory->isNotEmpty())
+    <div class="border-t border-gray-200 bg-gray-50 px-4 sm:px-5 py-3">
+        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Decided lately</div>
+        <ul class="space-y-1">
+            @foreach($handoverHistory as $handover)
+            <li class="flex flex-wrap items-baseline gap-x-2 text-sm">
+                <span class="font-medium {{ $handover->status === \App\Models\CashHandover::APPROVED ? 'text-green-800' : 'text-red-700' }}">{{ $handover->status === \App\Models\CashHandover::APPROVED ? 'Received' : 'Declined' }}</span>
+                <span class="text-gray-900 tabular-nums">{{ $handover->figure() }}</span>
+                <span class="text-gray-500">from {{ $handover->agent?->name }}</span>
+                <span class="text-xs text-gray-500 ml-auto tabular-nums whitespace-nowrap">{{ $handover->decided_at?->format('M j, g:i A') }}</span>
+            </li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
+</div>
+@endif
+
 {{-- Account::currenciesFor() orders the wallets by the desk's country, so the local currency is always the first card.
      The controller hands an empty list to anyone who reads every wallet instead of holding one, and the row is left out. --}}
 @if($wallets !== [])
@@ -256,6 +322,12 @@
                 Handed in so far: {{ \App\Models\Account::format($currency, $handedIn[$account->id]) }}.
             @endif
         </div>
+        @if((float) ($pendingHandIn[$currency] ?? 0) > 0)
+        <div class="text-xs text-amber-700 mt-1">{{ \App\Models\Account::format($currency, $pendingHandIn[$currency]) }} waiting for the super agent's approval.</div>
+        @endif
+        @endif
+        @if($me->hasRole('super-agent'))
+        <div class="text-xs text-gray-500 mt-1">Cash handed to you by the agents. Send it on from the China desk.</div>
         @endif
         @if($balance <= 0)
         <div class="text-xs text-gray-500 mt-1">No balance yet. @can('adjust-wallets')<span class="font-semibold text-gray-700 underline">Add money</span>@endcan</div>
