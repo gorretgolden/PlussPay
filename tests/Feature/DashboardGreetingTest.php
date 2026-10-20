@@ -91,19 +91,22 @@ class DashboardGreetingTest extends TestCase
         $this->assertStringContainsString('Agent · ', $html);
     }
 
-    public function test_an_account_named_after_its_own_role_is_not_said_twice_on_the_card(): void
+    public function test_the_role_chip_stays_on_the_header_even_when_the_name_is_the_role(): void
     {
         $this->travelTo(now()->setTime(3, 14));
 
         $html = $this->actingAs($this->user('superadmin', 'Super Admin'))->get('/dashboard')->getContent();
 
-        // The greeting already carries the whole name, and for this account the name is the role,
-        // so the chip would put the same two words side by side on one line.
-        $this->assertSame(0, substr_count($html, 'capitalize">'), 'No role chip when the greeting has said it.');
+        // The greeting carries the whole name, and for this account the name is the role. The
+        // badge still stays: it is the header's statement of what the account may do.
+        $this->assertSame(1, substr_count($html, 'capitalize">'), 'The role chip is shown for a role-named account.');
+
+        preg_match('/<span class="[^"]*capitalize">([^<]*)<\/span>/', $html, $match);
+        $this->assertSame('Super Admin', trim($match[1] ?? ''));
 
         $this->flushSession();
         $html = $this->actingAs($this->user('agent', 'Amina Nabukenya'))->get('/dashboard')->getContent();
-        $this->assertSame(1, substr_count($html, 'capitalize">'), 'The chip returns as soon as it adds a fact.');
+        $this->assertSame(1, substr_count($html, 'capitalize">'), 'The role chip is shown for every other account too.');
     }
 
     public function test_the_mark_by_the_greeting_matches_the_same_hours_as_the_words(): void

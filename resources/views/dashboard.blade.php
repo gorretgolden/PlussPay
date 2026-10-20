@@ -73,9 +73,9 @@
     // "Agent" alone cannot say whose hand the balances below are in, and a shared account named
     // after its own role ("Super Admin") would be greeted as "Super".
     //
-    // That same account is already its own role, so the chip is left out when the greeting has
-    // carried the very words: nothing on the card is said twice.
-    $roleAdds = strcasecmp(trim($me->name), trim($role)) !== 0;
+    // The role chip stays even when the name repeats the role, because the badge is the header's
+    // statement of what this account may do, not a second rendering of the person's name.
+
     $clockDate = now()->format('D, j M Y');
     $clockTime = now()->format('g:i A');
 @endphp
@@ -99,9 +99,7 @@
         {{-- One line for the desk's own facts on a wide board, and each part drops onto the next
              line on its own on a phone rather than the whole block being dragged down. --}}
         <div class="flex flex-wrap items-center gap-2 sm:justify-end">
-            @if($roleAdds)
             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize">{{ $role }}</span>
-            @endif
             {{-- No flag emoji: Windows draws them as two bare letters, which reads as a fault. --}}
             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border {{ $desk ? 'bg-green-100 text-green-800 border-green-200' : 'bg-amber-50 text-amber-800 border-amber-200' }}">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
