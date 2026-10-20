@@ -160,22 +160,25 @@ class AccountLedger
     }
 
     /**
-     * The yuan a transfer promised is put into the receiver's hand, out of the yuan wallet of the
-     * very desk that was sent the dollars, so the two sides of the chain always point at each
-     * other. The China account is allowed to run below zero (see guardAgainstOverdraft), because
-     * that side pays the receiver before Uganda has made the dollars whole across; the stamp that
-     * follows is what moves the transfer out of "in China, unpaid" and into "paid".
+     * The money a transfer promised at its far end is put into the receiver's hand, out of the
+     * wallet of the very desk that was sent for it, so the two sides of the chain always point at
+     * each other. Which wallet that is depends on the money the receiver was promised: a desk paid
+     * in yuan draws on its yuan, and one handed dollars pays straight out of the dollars that
+     * crossed, with no exchange in between. The China account is allowed to run below zero (see
+     * guardAgainstOverdraft), because that side pays the receiver before Uganda has made the dollars
+     * whole across; the stamp that follows is what moves the transfer out of "in China, unpaid" and
+     * into "paid".
      */
-    public static function payOutInChina(Transaction $transaction, Account $yuanAccount, ?string $date = null): AccountEntry
+    public static function payOutInChina(Transaction $transaction, Account $account, ?string $date = null): AccountEntry
     {
-        $amount = number_format((float) $transaction->rmb_amount, 2, '.', '');
+        $amount = number_format((float) $transaction->payoutAmount(), 2, '.', '');
 
         $entry = static::record(
-            $yuanAccount,
+            $account,
             'money_out',
             $amount,
-            "Transfer {$transaction->receipt_number}: ".Account::format($yuanAccount->currency, $amount)
-                .' paid to '.$transaction->receiver_name.' in China',
+            "Transfer {$transaction->receipt_number}: ".Account::format($account->currency, $amount)
+                .' paid to '.$transaction->receiver_name.' in '.$transaction->destinationLabel(),
             $date,
             $transaction->receipt_number,
             $transaction->id,

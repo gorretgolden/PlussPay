@@ -140,12 +140,14 @@ class AccountController extends Controller
             return back()->withErrors(['kind' => $e->getMessage()])->withInput();
         }
 
-        // A yuan line written in by hand is still the China desk putting cash into a receiver's
-        // hand, so it stamps the transfer as paid exactly as the China Desk screen does. Without
-        // this the money would leave the account while every board still counted it as owed.
-        if ($validated['kind'] === 'money_out' && $account->currency === 'RMB') {
+        // A money-out line written in by hand against a receipt number is still the desk putting
+        // cash into a receiver's hand, so it stamps the transfer as paid exactly as the China Desk
+        // screen does. Which transfers a line can close depends on the money the account holds,
+        // because that is the money the receiver was promised in. Without this the money would
+        // leave the account while every board still counted it as owed.
+        if ($validated['kind'] === 'money_out') {
             Transaction::where('receipt_number', trim($validated['reference'] ?? ''))
-                ->where('rmb_amount', '>', 0)
+                ->payingIn($account->currency)
                 ->whereNull('delivered_at')
                 ->get()
                 ->each(fn (Transaction $t) => $t->forceFill(['delivered_at' => now()])->save());

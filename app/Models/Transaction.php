@@ -275,6 +275,40 @@ class Transaction extends Model
         };
     }
 
+    /**
+     * The handed-over money of a set of transfers, added up per currency and dropping the currencies
+     * that hold nothing. A batch that pays one receiver in yuan and another in dollars is two piles
+     * of the book held in two wallets, so it never adds up to one number.
+     *
+     * @param  \Illuminate\Support\Collection<int, Transaction>  $transactions
+     * @return array<string, string>
+     */
+    public static function sumPayouts($transactions): array
+    {
+        return $transactions
+            ->groupBy(fn (self $t) => $t->payoutCurrency())
+            ->map(fn ($rows) => number_format($rows->sum(fn (self $t) => (float) $t->payoutAmount()), 2, '.', ''))
+            ->filter(fn (string $figure) => (float) $figure > 0)
+            ->all();
+    }
+
+    /**
+     * Those totals as one phrase, so a mixed batch reads "¥732.30 and $111.63" and a batch that paid
+     * no dollars never mentions them.
+     *
+     * @param  array<string, string>  $payouts
+     */
+    public static function formatPayouts(array $payouts): string
+    {
+        if ($payouts === []) {
+            return 'nothing';
+        }
+
+        return collect($payouts)
+            ->map(fn (string $figure, string $currency) => Account::format($currency, $figure))
+            ->implode(' and ');
+    }
+
     public function editor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
@@ -492,6 +526,37 @@ class Transaction extends Model
     }
 
     /**
+     * Which transfers hand over money in one named currency at their far end, and therefore which
+     * wallet a payment out of that currency closes. The figure lives in a different column per
+     * currency, so the pairing belongs here rather than in each screen that has to find the rows a
+     * movement settles. A currency the book never pays out in matches nothing, which is the honest
+     * answer: no transfer promises cash in a money the desk does not hold.
+     */
+    public function scopePayingIn(Builder $query, string $currency): Builder
+    {
+        return match (strtoupper($currency)) {
+            'RMB' => $query->where('payout_currency', 'RMB')->where('rmb_amount', '>', 0),
+            'USD' => $query->where('payout_currency', 'USD')->where('total_usd_equivalent', '>', 0),
+            'UGX' => $query->where('payout_currency', 'UGX')->where('ugx_amount', '>', 0),
+            default => $query->whereRaw('1 = 0'),
+        };
+    }
+
+    /**
+     * The transfers that owe somebody cash at the end of their journey, in whichever money their own
+     * route promises it. Read against payoutAmount(), so a row that promises yuan but carries no yuan
+     * figure is not on this list to be paid 0.00 against.
+     */
+    public function scopeOwingPayout(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            foreach (['RMB', 'USD', 'UGX'] as $currency) {
+                $q->orWhere(fn (Builder $rows) => $rows->payingIn($currency));
+            }
+        });
+    }
+
+    /**
      * Money the desk in China holds dollars for but has not yet handed over to the receiver, in
      * whichever of the two currencies that receiver is being paid in.
      */
@@ -501,10 +566,7 @@ class Transaction extends Model
             ->where('destination', self::TO_CHINA)
             ->whereNotNull('settled_at')
             ->whereNull('delivered_at')
-            ->where(function (Builder $q) {
-                $q->where('rmb_amount', '>', 0)
-                    ->orWhere('total_usd_equivalent', '>', 0);
-            });
+            ->owingPayout();
     }
 
     /**

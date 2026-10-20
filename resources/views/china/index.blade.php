@@ -5,8 +5,6 @@
 @section('content')
 @php
     $usdTo = $outbound->sum('total_usd_equivalent');
-    $yuanWaiting = $outbound->sum('rmb_amount');
-    $yuanInChina = $inbound->sum('rmb_amount');
     $sendForm = $canSend && $outbound->isNotEmpty();
     $payForm = $canPay && $inbound->isNotEmpty();
 @endphp
@@ -14,26 +12,26 @@
 <div class="mb-6">
     <h1 class="text-2xl font-bold text-gray-900">China Desk</h1>
     <p class="text-gray-600 text-sm max-w-3xl">A transfer is not finished when the cash is collected. It is finished when the dollars that transfer was worth arrive at a desk in China and that desk
-        hands the receiver their yuan. Tick the rows on each side at the moment the money actually moves, and the books follow.</p>
+        hands the receiver the money they were promised, in yuan or in dollars. Tick the rows on each side at the moment the money actually moves, and the books follow.</p>
 </div>
 
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     @if($canSend)
     <div class="bg-white rounded-lg shadow p-4">
-        <p class="text-xs uppercase tracking-wide text-gray-500">Yuan to receive in China</p>
-        <p class="text-xl font-semibold text-gray-900 tabular-nums">{{ \App\Models\Account::format('RMB', $yuanWaiting) }}</p>
+        <p class="text-xs uppercase tracking-wide text-gray-500">To hand over in China</p>
+        @include('china.partials.payout-figures', ['payouts' => $outboundPayouts])
         <p class="text-xs text-gray-500 mt-1">{{ number_format($outbound->count()) }} transfer{{ $outbound->count() === 1 ? '' : 's' }} still in Uganda, worth {{ \App\Models\Account::format('USD', $usdTo) }}</p>
     </div>
     @endif
     @if($canPay)
     <div class="bg-white rounded-lg shadow p-4">
-        <p class="text-xs uppercase tracking-wide text-gray-500">Yuan in China, unpaid</p>
-        <p class="text-xl font-semibold text-gray-900 tabular-nums">{{ \App\Models\Account::format('RMB', $yuanInChina) }}</p>
+        <p class="text-xs uppercase tracking-wide text-gray-500">In China, unpaid</p>
+        @include('china.partials.payout-figures', ['payouts' => $inboundPayouts])
         <p class="text-xs text-gray-500 mt-1">{{ number_format($inbound->count()) }} transfer{{ $inbound->count() === 1 ? '' : 's' }} waiting to be handed over</p>
     </div>
     <div class="bg-white rounded-lg shadow p-4">
-        <p class="text-xs uppercase tracking-wide text-gray-500">Yuan paid in China</p>
-        <p class="text-xl font-semibold text-gray-900 tabular-nums">{{ \App\Models\Account::format('RMB', $paid['rmb']) }}</p>
+        <p class="text-xs uppercase tracking-wide text-gray-500">Paid in China</p>
+        @include('china.partials.payout-figures', ['payouts' => $paid['payouts']])
         <p class="text-xs text-gray-500 mt-1">{{ number_format($paid['count']) }} transfer{{ $paid['count'] === 1 ? '' : 's' }} closed on both sides</p>
     </div>
     @endif
@@ -72,7 +70,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receiver in China</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Dollars to send</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Yuan they receive</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Receiver is handed</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Collected by</th>
                     </tr>
                 </thead>
@@ -81,7 +79,8 @@
                     <tr>
                         <td class="px-4 py-3">
                             <input type="checkbox" name="transaction_ids[]" value="{{ $transaction->id }}" class="row-check rounded border-gray-300"
-                                data-usd="{{ $transaction->total_usd_equivalent }}" data-rmb="{{ $transaction->rmb_amount }}">
+                                data-usd="{{ $transaction->total_usd_equivalent }}" data-pay="{{ $transaction->payoutAmount() ?: 0 }}"
+                                data-pay-cur="{{ $transaction->payoutCurrency() }}">
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
                             <a href="{{ route('transactions.show', $transaction) }}" class="text-green-800 hover:underline">{{ $transaction->receipt_number }}</a>
@@ -92,7 +91,7 @@
                             <span class="block text-xs text-gray-500">for {{ $transaction->sender_name }}</span>
                         </td>
                         <td class="px-4 py-3 text-sm text-right text-gray-900 tabular-nums">{{ \App\Models\Account::format('USD', $transaction->total_usd_equivalent) }}</td>
-                        <td class="px-4 py-3 text-sm text-right text-gray-900 tabular-nums">{{ \App\Models\Account::format('RMB', $transaction->rmb_amount) }}</td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-900 tabular-nums">{{ \App\Models\Account::format($transaction->payoutCurrency(), $transaction->payoutAmount()) }}</td>
                         <td class="px-6 py-3 text-sm text-gray-500">{{ $transaction->creator?->name ?? 'the office desk' }}</td>
                     </tr>
                     @endforeach
@@ -131,7 +130,7 @@
             </div>
             <p class="md:col-span-4 text-sm text-gray-600">Ticked: <span data-sum="count" class="font-medium text-gray-900">0</span>
                 transfer(s), <span data-sum="usd" data-currency="USD" class="font-medium text-gray-900 tabular-nums">$0.00</span> in dollars,
-                <span data-sum="rmb" data-currency="RMB" class="font-medium text-gray-900 tabular-nums">¥0.00</span> of yuan due on the other side.</p>
+                <span data-payout-line data-empty="nothing due" class="font-medium text-gray-900">nothing due</span> on the other side.</p>
             @error('transaction_ids') <p class="md:col-span-4 text-sm text-red-600">{{ $message }}</p> @enderror
         </div>
     </form>
@@ -146,8 +145,9 @@
 @if($payForm)
 <div class="bg-white rounded-lg shadow mb-8">
     <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-semibold text-gray-900">Confirm the yuan paid to receivers</h2>
-        <p class="text-sm text-gray-500 mt-1">Tick a transfer once the receiver has been handed their yuan in China. The payment leaves the yuan wallet of the desk that was sent the dollars for it.</p>
+        <h2 class="text-lg font-semibold text-gray-900">Confirm the receivers were paid</h2>
+        <p class="text-sm text-gray-500 mt-1">Tick a transfer once the receiver has been handed their money in China, whether that was yuan or dollars. The payment leaves the wallet, in that money, of the
+            desk that was sent the dollars for it.</p>
     </div>
     <form method="POST" action="{{ route('china.payout') }}">
         @csrf
@@ -160,7 +160,7 @@
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receiver</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Yuan to pay</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">To hand over</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dollars arrived</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Booked by</th>
                     </tr>
@@ -170,7 +170,8 @@
                     <tr>
                         <td class="px-4 py-3">
                             <input type="checkbox" name="transaction_ids[]" value="{{ $transaction->id }}" class="row-check rounded border-gray-300"
-                                data-usd="{{ $transaction->total_usd_equivalent }}" data-rmb="{{ $transaction->rmb_amount }}">
+                                data-usd="{{ $transaction->total_usd_equivalent }}" data-pay="{{ $transaction->payoutAmount() ?: 0 }}"
+                                data-pay-cur="{{ $transaction->payoutCurrency() }}">
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
                             <a href="{{ route('transactions.show', $transaction) }}" class="text-green-800 hover:underline">{{ $transaction->receipt_number }}</a>
@@ -179,7 +180,7 @@
                             {{ $transaction->receiver_name }}
                             <span class="block text-xs text-gray-500">{{ $transaction->receiver_contact ?: 'no contact given' }}</span>
                         </td>
-                        <td class="px-4 py-3 text-sm text-right text-gray-900 tabular-nums">{{ \App\Models\Account::format('RMB', $transaction->rmb_amount) }}</td>
+                        <td class="px-4 py-3 text-sm text-right text-gray-900 tabular-nums">{{ \App\Models\Account::format($transaction->payoutCurrency(), $transaction->payoutAmount()) }}</td>
                         <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
                             {{ $transaction->settled_at?->format('M d, Y') ?? '-' }}
                             <span class="block text-xs text-gray-500">{{ $transaction->settled_at?->format('h:i A') }} with {{ $transaction->settledDesk?->name ?? 'the China desk' }}</span>
@@ -201,7 +202,7 @@
                 <button type="submit" class="bg-green-800 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition">Mark as paid in China</button>
             </div>
             <p class="md:col-span-4 text-sm text-gray-600">Ticked: <span data-sum="count" class="font-medium text-gray-900">0</span>
-                transfer(s), <span data-sum="rmb" data-currency="RMB" class="font-medium text-gray-900 tabular-nums">¥0.00</span> of yuan to hand over.</p>
+                transfer(s), <span data-payout-line data-empty="nothing to hand over" class="font-medium text-gray-900">nothing to hand over</span>.</p>
             @error('transaction_ids') <p class="md:col-span-4 text-sm text-red-600">{{ $message }}</p> @enderror
         </div>
     </form>
@@ -220,8 +221,9 @@
 <div class="bg-white rounded-lg shadow">
     <div class="px-6 py-4 border-b border-gray-200">
         <h2 class="text-lg font-semibold text-gray-900">The desks in China</h2>
-        <p class="text-sm text-gray-500 mt-1">Dollars arrive in each desk's own dollar wallet, and the yuan they pay out leaves their own yuan wallet. A yuan wallet below zero means that desk has
-            paid receivers ahead of the dollars being changed into yuan, which the books allow on that side.</p>
+        <p class="text-sm text-gray-500 mt-1">Dollars arrive in each desk's own dollar wallet. A receiver paid in yuan is paid out of that desk's yuan wallet, and a receiver paid in dollars is paid
+            straight out of the dollars that crossed. A yuan wallet below zero means that desk has paid receivers ahead of the dollars being changed into yuan, which the books allow on that
+            side.</p>
     </div>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
@@ -231,7 +233,7 @@
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Holding</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Dollar wallet</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Yuan wallet</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Yuan owed to them</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Still to hand over</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -239,14 +241,22 @@
                 @php
                     $dollar = \App\Models\Account::walletFor($desk, 'USD');
                     $yuan = \App\Models\Account::walletFor($desk, 'RMB');
-                    $owed = \App\Models\Transaction::awaitingPayoutInChina()->where('settled_to', $desk->id)->sum('rmb_amount');
+                    $owed = \App\Models\Transaction::sumPayouts(
+                        \App\Models\Transaction::awaitingPayoutInChina()->where('settled_to', $desk->id)->get()
+                    );
                 @endphp
                 <tr>
                     <td class="px-4 py-3 text-sm text-gray-900">{{ $desk->name }}<span class="block text-xs text-gray-500">{{ $desk->email }}</span></td>
                     <td class="px-4 py-3 text-sm text-gray-500">{{ $desk->getRoleNames()->implode(', ') ?: 'no role yet' }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900 tabular-nums">{{ \App\Models\Account::format('USD', $dollar->balance()) }}</td>
                     <td class="px-4 py-3 text-sm text-right {{ (float) $yuan->balance() < 0 ? 'text-red-700' : 'text-gray-900' }} tabular-nums">{{ \App\Models\Account::format('RMB', $yuan->balance()) }}</td>
-                    <td class="px-6 py-3 text-sm text-right text-gray-900 tabular-nums">{{ \App\Models\Account::format('RMB', $owed) }}</td>
+                    <td class="px-6 py-3 text-sm text-right text-gray-900 tabular-nums">
+                        @forelse($owed as $currency => $figure)
+                        <span class="block">{{ \App\Models\Account::format($currency, $figure) }}</span>
+                        @empty
+                        <span class="text-gray-500">nothing owed</span>
+                        @endforelse
+                    </td>
                 </tr>
                 @empty
                 <tr>
@@ -272,23 +282,37 @@
         const rows = Array.from(form.querySelectorAll('.row-check'));
         const all = form.querySelector('[data-check-all]');
         const outs = Array.from(form.querySelectorAll('[data-sum]'));
+        const phrases = Array.from(form.querySelectorAll('[data-payout-line]'));
+
+        function money(currency, value) {
+            const figure = value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            return currency === 'USD' ? '$' + figure : '¥' + figure;
+        }
 
         function refresh() {
-            const sums = {count: 0, usd: 0, rmb: 0};
+            const sums = {count: 0, usd: 0};
+            const payouts = {};
 
             rows.forEach(function (row) {
                 if (!row.checked) return;
                 sums.count++;
                 sums.usd += parseFloat(row.dataset.usd || '0');
-                sums.rmb += parseFloat(row.dataset.rmb || '0');
+                const currency = row.dataset.payCur;
+                payouts[currency] = (payouts[currency] || 0) + parseFloat(row.dataset.pay || '0');
             });
 
             outs.forEach(function (out) {
                 const value = sums[out.dataset.sum] || 0;
-                out.textContent = out.dataset.currency
-                    ? (out.dataset.currency === 'USD' ? '$' : '¥')
-                        + value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})
-                    : String(value);
+                out.textContent = out.dataset.currency ? money(out.dataset.currency, value) : String(value);
+            });
+
+            // The money handed over is named per currency because a batch that pays one receiver in
+            // yuan and another in dollars empties two wallets, and one total would describe neither.
+            phrases.forEach(function (out) {
+                const parts = [];
+                if (payouts.RMB > 0) parts.push(money('RMB', payouts.RMB) + ' of yuan');
+                if (payouts.USD > 0) parts.push(money('USD', payouts.USD) + ' in dollars');
+                out.textContent = parts.length ? parts.join(' and ') : out.dataset.empty;
             });
 
             if (all) all.checked = rows.every(function (row) { return row.checked; });

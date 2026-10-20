@@ -3,6 +3,16 @@
 @section('title', 'Transaction ' . $transaction->receipt_number)
 
 @section('content')
+@php
+    // The money the receiver is handed goes by a different name on each route, and every sentence
+    // below has to agree with the one the booking was priced at.
+    $handed = match ($transaction->payoutCurrency()) {
+        'USD' => 'dollars',
+        'UGX' => 'shillings',
+        default => 'yuan',
+    };
+    $dueToBeHanded = $transaction->payoutAmount() !== null;
+@endphp
 <div class="mb-6 flex justify-between items-center">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Transaction: {{ $transaction->receipt_number }}</h1>
@@ -39,9 +49,19 @@
             <div><span class="text-gray-500">Confirmation Number:</span> {{ $transaction->payment_reference ?: '-' }}</div>
             <div><span class="text-gray-500">Charge Taken Out:</span> UGX {{ number_format((float) $transaction->charge_ugx) }}</div>
             <div><span class="text-gray-500">Money That Travels:</span> {{ $transaction->principalLabel() }}</div>
+            {{-- A booking that hands over dollars is never turned through yuan, so it has no yuan
+                 price to print. Showing the zero would read as yuan bought for nothing. --}}
+            @if((float) $transaction->exchange_rate > 0)
             <div><span class="text-gray-500">Exchange Rate:</span> {{ rtrim(rtrim(number_format((float) $transaction->exchange_rate, 6, '.', ''), '0'), '.') }}</div>
-            <div><span class="text-gray-500">RMB Amount:</span> ¥{{ number_format($transaction->rmb_amount, 1) }}</div>
+            @endif
+            @if($dueToBeHanded)
+            <div><span class="text-gray-500">Receiver Is Handed:</span> {{ $transaction->payoutLabel() }}</div>
+            @endif
+            {{-- The dollar credit is the figure the corridor is settled in. It is the same money as
+                 the payout when the receiver is paid in dollars, so it is not printed twice. --}}
+            @if($transaction->payoutCurrency() !== 'USD')
             <div><span class="text-gray-500">Dollars Credited:</span> ${{ number_format($transaction->total_usd_equivalent, 1) }}</div>
+            @endif
             <div>
                 <span class="text-gray-500">Status:</span>
                 <span class="px-2 py-1 text-xs rounded-full
@@ -57,14 +77,27 @@
     @if($stage)
     <div class="border-t pt-4 mb-6">
         <h3 class="text-sm font-medium text-gray-500 mb-1">Where this money is</h3>
-        <p class="text-xs text-gray-500 mb-3">{{ $stage['text'] }}. The yuan a customer is owed only
-            reaches China after the dollars for it have been sent, and the receiver is paid once the
-            desk in China holds those dollars.</p>
+        <p class="text-xs text-gray-500 mb-3">{{ $stage['text'] }}.
+            @if($transaction->isToUganda())
+            The {{ $handed }} a customer is owed are paid in {{ $transaction->destinationLabel() }} from
+            the money handed over in {{ $transaction->originLabel() }}.</p>
+            @elseif($transaction->payoutCurrency() === 'USD')
+            The dollars a customer is owed only reach {{ $transaction->destinationLabel() }} once they
+            have been sent across, and the desk there hands them over without any exchange.</p>
+            @else
+            The {{ $handed }} a customer is owed only reach {{ $transaction->destinationLabel() }} after
+            the dollars for them have been sent, and the receiver is paid once the desk there holds
+            those dollars.</p>
+            @endif
         <ol class="text-sm space-y-2">
             <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span class="text-gray-600">Money taken in</span>
                 <span class="font-medium text-gray-900 tabular-nums">{{ $transaction->collectedAmount() }} on {{ $transaction->created_at->format('M d, Y h:i A') }}</span>
             </li>
+            {{-- Only the way into China crosses as a separate movement: the dollars are sent first and
+                 the desk there then pays. Money coming into Uganda is booked and paid at the desk
+                 there, so there is no sending leg to show. --}}
+            @unless($transaction->isToUganda())
             <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span class="text-gray-600">Dollars sent to a desk in China</span>
                 @if($transaction->settled_at)
@@ -73,10 +106,11 @@
                 <span class="font-medium text-amber-700">Not sent to China yet</span>
                 @endif
             </li>
+            @endunless
             <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span class="text-gray-600">Yuan paid to {{ $transaction->receiver_name }}</span>
+                <span class="text-gray-600">{{ ucfirst($handed) }} paid to {{ $transaction->receiver_name }}</span>
                 @if($transaction->delivered_at)
-                <span class="font-medium text-gray-900 tabular-nums">{{ $transaction->yuanLabel() }} on {{ $transaction->delivered_at->format('M d, Y h:i A') }}</span>
+                <span class="font-medium text-gray-900 tabular-nums">{{ $transaction->payoutLabel() }} on {{ $transaction->delivered_at->format('M d, Y h:i A') }}</span>
                 @else
                 <span class="font-medium text-amber-700">Not paid yet</span>
                 @endif
@@ -95,15 +129,15 @@
                 <h3 class="text-sm font-medium text-gray-500">Which accounts moved</h3>
                 <p class="text-xs text-gray-500 mt-1">The same transfer written in the cash books, so the account that went up is named next to the one that came down.</p>
             </div>
-            @if($transaction->status === 'completed' && ! $payoutRecorded && (float) $transaction->rmb_amount > 0)
+            @if($transaction->status === 'completed' && ! $payoutRecorded && $dueToBeHanded)
             <a href="{{ route('accounts.entries.create', [
                     'account_id' => $payoutAccount->id,
                     'kind' => 'money_out',
-                    'amount' => rtrim(rtrim(number_format((float) $transaction->rmb_amount, 2, '.', ''), '0'), '.'),
+                    'amount' => rtrim(rtrim(number_format((float) $transaction->payoutAmount(), 2, '.', ''), '0'), '.'),
                     'reference' => $transaction->receipt_number,
-                    'description' => 'Paid '.$transaction->yuanLabel().' to '.$transaction->receiver_name.' for '.$transaction->receipt_number,
+                    'description' => 'Paid '.$transaction->payoutLabel().' to '.$transaction->receiver_name.' for '.$transaction->receipt_number,
                 ]) }}"
-                class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Record the China payout</a>
+                class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Record the {{ $transaction->isToUganda() ? 'Uganda' : 'China' }} payout</a>
             @endif
         </div>
 
@@ -140,11 +174,12 @@
             </table>
         </div>
 
-        @if($transaction->status === 'completed' && ! $payoutRecorded && (float) $transaction->rmb_amount > 0)
+        @if($transaction->status === 'completed' && ! $payoutRecorded && $dueToBeHanded)
         <p class="text-xs text-amber-700 mt-2">
-            The {{ $transaction->collectedAmount() }} collected here is in the Uganda account, but the
-            {{ $transaction->yuanLabel() }} paid out in China is not recorded anywhere yet, so the account that reduces is still missing from the books. Use the button above once the
-            China desk has paid {{ $transaction->receiver_name }}.
+            The {{ $transaction->collectedAmount() }} {{ $transaction->isToUganda() ? 'handed over in '.$transaction->originLabel() : 'collected here' }}
+            is in the books, but the {{ $transaction->payoutLabel() }} owed to {{ $transaction->receiver_name }} in
+            {{ $transaction->destinationLabel() }} has not been recorded yet. That payout is the line which reduces an account, so until it is written
+            the books still show money the desk no longer holds. Use the button above once the payment is actually made.
         </p>
         @endif
     </div>
@@ -167,7 +202,7 @@
             <div><span class="text-gray-500">Dollar selling rate:</span> {{ $price($transaction->rate_sell_ugx, 'UGX') }}</div>
             <div><span class="text-gray-500">Yuan selling rate:</span> {{ $price($transaction->exchange_rate) }}</div>
             <div><span class="text-gray-500">Dollars credited:</span> ${{ number_format($transaction->total_usd_equivalent, 1) }}</div>
-            <div><span class="text-gray-500">Yuan paid out:</span> &yen;{{ number_format($transaction->rmb_amount, 1) }}</div>
+            <div><span class="text-gray-500">Paid out at the far end:</span> {{ $dueToBeHanded ? $transaction->payoutLabel() : 'not recorded' }}</div>
             <div><span class="text-gray-500">Foreign exchange profit:</span> <span class="{{ $toneClass[$profit['exchange']['tone']] }}">{{ $profit['exchange']['text'] }}</span></div>
             <div><span class="text-gray-500">Charge:</span> <span class="{{ $toneClass[$profit['charge']['tone']] }}">{{ $profit['charge']['text'] }}</span></div>
             <div class="col-span-2 pt-2 border-t text-base font-semibold">

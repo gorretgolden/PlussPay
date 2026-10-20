@@ -284,9 +284,10 @@ class TransactionController extends Controller
 
         $transaction->load('activityLogs.user');
 
-        // The till side of a transfer posts itself the moment it is completed, but the payout in
-        // China is a separate piece of cash that only the China desk knows has left. Both sides are
-        // listed here so the account that went up is never shown without the one that came down.
+        // The till side of a transfer posts itself the moment it is completed, but the money handed
+        // over at the far end is a separate piece of cash that only the desk there knows has left.
+        // Both sides are listed here so the account that went up is never shown without the one that
+        // came down.
         $legs = AccountEntry::with(['account', 'counterparty'])
             ->where('reference', $transaction->receipt_number)
             ->orWhere('transaction_id', $transaction->id)
@@ -294,15 +295,29 @@ class TransactionController extends Controller
             ->orderBy('account_id')
             ->get();
 
+        // The receiver can be paid in yuan, dollars or shillings depending on the route, and each of
+        // those is a different wallet of the book. The payout is read off the transfer's own promise
+        // so a desk that pays a receiver in dollars is never shown a yuan account to write it against.
+        $payoutCurrency = $transaction->payoutCurrency();
+        $payoutDesk = $transaction->settledDesk;
+
         return view('transactions.show', [
             'transaction' => $transaction,
             'legs' => $legs,
-            'payoutAccount' => Account::byCode(Account::RMB_CHINA),
-            // Only yuan leaving an account counts as the payout. A dollar or shilling leg on the
-            // same receipt is the other half of the booking, not the cash put into the receiver's
-            // hand in China.
-            'payoutRecorded' => $legs->contains(fn (AccountEntry $leg) => $leg->direction === 'out'
-                && $leg->account?->currency === 'RMB'),
+            // Money comes out of the wallet of the very desk that was sent the dollars for it, and
+            // falls back to the company book of that money when no desk is named.
+            'payoutAccount' => $payoutDesk
+                ? Account::walletFor($payoutDesk, $payoutCurrency)
+                : Account::byCode(match ($payoutCurrency) {
+                    'USD' => Account::USD_CHINA,
+                    'UGX' => Account::UGX_UGANDA,
+                    default => Account::RMB_CHINA,
+                }),
+            // Only cash paid out of the account holding the money the receiver was promised is the
+            // payout. A dollar line on the same receipt is the other half of the booking or the
+            // dollars sent across, and a transfer out of the till is not money handed to anybody.
+            'payoutRecorded' => $legs->contains(fn (AccountEntry $leg) => $leg->type === 'money_out'
+                && $leg->account?->currency === $payoutCurrency),
             'stage' => $transaction->stage(),
         ]);
     }

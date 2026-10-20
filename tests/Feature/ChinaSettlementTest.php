@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\AccountEntry;
+use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
@@ -17,9 +18,10 @@ use Tests\TestCase;
 
 /**
  * The corridor's second half, which used to be assumed rather than recorded: the dollars a transfer
- * is worth are sent from Uganda to a desk in China, that desk changes them and hands the yuan to the
- * receiver. Each step moves real ledger money and stamps the transfer, so the yuan the boards count
- * and the cash the two desks hold stay one story.
+ * is worth are sent from Uganda to a desk in China, and that desk hands the receiver their money.
+ * What it hands over is the currency the booking promised, yuan out of the desk's yuan wallet or the
+ * very dollars that crossed, and each step moves real ledger money and stamps the transfer, so the
+ * money the boards count and the cash the two desks hold stay one story.
  */
 class ChinaSettlementTest extends TestCase
 {
@@ -60,10 +62,10 @@ class ChinaSettlementTest extends TestCase
     }
 
     /**
-     * A booking already collected and priced: one thousand dollars travelling, six thousand seven
-     * hundred and fifty yuan promised to the receiver.
+     * A booking already collected and priced: one thousand dollars travelling, and at the far end
+     * either six thousand seven hundred and fifty yuan or those dollars handed over as they are.
      */
-    private function booked(string $receipt, User $creator, float $usd = 1000.0): Transaction
+    private function booked(string $receipt, User $creator, float $usd = 1000.0, string $payout = 'RMB'): Transaction
     {
         return Transaction::withoutEvents(fn () => Transaction::create([
             'receipt_number' => $receipt,
@@ -71,10 +73,12 @@ class ChinaSettlementTest extends TestCase
             'sender_contact' => '',
             'receiver_name' => 'Receiver '.$receipt,
             'receiver_contact' => '',
+            'destination' => 'CN',
+            'payout_currency' => $payout,
             'currency' => 'USD',
             'amount' => $usd,
-            'exchange_rate' => 6.75,
-            'rmb_amount' => $usd * 6.75,
+            'exchange_rate' => $payout === 'RMB' ? 6.75 : 0,
+            'rmb_amount' => $payout === 'RMB' ? $usd * 6.75 : 0,
             'total_usd_equivalent' => $usd,
             'charge_rate' => 0,
             'charge_amount' => 0,
@@ -107,6 +111,30 @@ class ChinaSettlementTest extends TestCase
         ]);
     }
 
+    /**
+     * What the transfer page pre-fills into the cash-book form for a payout, read back off the link
+     * it offers, so the wallet named and the figure carried can be checked against the money the
+     * receiver was actually promised. Null means the page offers nothing, which is what a transfer
+     * whose payout is already in the books should do.
+     *
+     * @return array<string, string>|null
+     */
+    private function payoutOffer(User $viewer, Transaction $transaction): ?array
+    {
+        $html = $this->actingAs($viewer)->get('/transactions/'.$transaction->id)
+            ->assertOk()
+            ->getContent();
+
+        if (! preg_match('/href="([^"]+)"\s+class="[^"]+">Record the (?:China|Uganda) payout/', $html, $matches)) {
+            return null;
+        }
+
+        $query = [];
+        parse_str((string) parse_url(html_entity_decode($matches[1]), PHP_URL_QUERY), $query);
+
+        return $query;
+    }
+
     public function test_a_fresh_booking_holds_its_yuan_in_uganda_and_waits_on_the_send_list(): void
     {
         $transaction = $this->booked('PS-UG-0001', $this->agent);
@@ -119,7 +147,7 @@ class ChinaSettlementTest extends TestCase
 
         $this->actingAs($this->office)->get('/china')
             ->assertOk()
-            ->assertSee('Yuan to receive in China')
+            ->assertSee('To hand over in China')
             ->assertSee('PS-UG-0001');
     }
 
@@ -166,6 +194,160 @@ class ChinaSettlementTest extends TestCase
         $this->assertSame('paid', $paid->stage()['key']);
         $this->assertSame('-6750.00', $yuanWallet->fresh()->balance());
         $this->assertSame('0.00', Account::byCode(Account::RMB_CHINA)->balance());
+    }
+
+    /**
+     * The route she asked for: the receiver in China is handed dollars, so the desk there pays out of
+     * the very dollars that crossed and no yuan wallet is touched at either step.
+     */
+    public function test_a_receiver_paid_in_dollars_is_paid_straight_out_of_the_dollars_that_crossed(): void
+    {
+        $transaction = $this->booked('PS-UG-0040', $this->agent, 1000.0, 'USD');
+        $source = $this->dollars(1000);
+
+        $this->send($transaction, $source, $this->china)->assertSessionHasNoErrors();
+
+        $waiting = $transaction->fresh();
+        $this->assertSame('$1,000.00', $waiting->payoutLabel());
+        $this->assertSame('0.00', Account::walletFor($this->china, 'RMB')->fresh()->balance());
+
+        $this->actingAs($this->china)->post('/china/payout', [
+            'transaction_ids' => [$waiting->id],
+        ])->assertRedirect(route('china.index'))
+            ->assertSessionHas('success', fn (string $flash) => str_contains($flash, '$1,000.00 paid out in China for PS-UG-0040'));
+
+        $paid = $transaction->fresh();
+
+        $this->assertNotNull($paid->delivered_at);
+        $this->assertSame('paid', $paid->stage()['key']);
+        $this->assertSame('0.00', Account::walletFor($this->china, 'USD')->fresh()->balance());
+        $this->assertSame('0.00', Account::walletFor($this->china, 'RMB')->fresh()->balance());
+
+        $leg = AccountEntry::where('transaction_id', $paid->id)->firstWhere('type', 'money_out');
+
+        $this->assertNotNull($leg, 'The payout has to be money leaving a wallet.');
+        $this->assertSame('USD', $leg->account->currency);
+        $this->assertSame('1000.00', (string) $leg->amount);
+        $this->assertStringContainsString('paid to Receiver PS-UG-0040 in China', $leg->description);
+    }
+
+    /**
+     * One tick list can hold a receiver paid in yuan and a receiver paid in dollars. Those are two
+     * piles of the book sitting in two wallets, so the batch is recorded, audited and reported as
+     * two figures rather than a total in a currency nobody holds.
+     */
+    public function test_a_mixed_batch_is_paid_out_of_both_wallets_and_reported_as_two_figures(): void
+    {
+        $yuan = $this->booked('PS-UG-0041', $this->agent);
+        $dollars = $this->booked('PS-UG-0042', $this->agent, 250.0, 'USD');
+
+        $source = $this->dollars(1250);
+        $this->send($yuan, $source, $this->china)->assertSessionHasNoErrors();
+        $this->send($dollars, $source, $this->china)->assertSessionHasNoErrors();
+
+        $this->actingAs($this->office)->post('/china/payout', [
+            'transaction_ids' => [$yuan->fresh()->id, $dollars->fresh()->id],
+        ])->assertSessionHas('success', fn (string $flash) => str_contains($flash, '¥6,750.00 and $250.00 paid out'));
+
+        $this->assertSame('-6750.00', Account::walletFor($this->china, 'RMB')->fresh()->balance());
+
+        // The desk was sent 1,250 dollars and handed over 250 of them, so what is left in its dollar
+        // wallet is the 1,000 it still has to turn into the yuan it owes on the other transfer.
+        $this->assertSame('1000.00', Account::walletFor($this->china, 'USD')->fresh()->balance());
+
+        $dollarLeg = AccountEntry::where('transaction_id', $dollars->fresh()->id)->firstWhere('type', 'money_out');
+        $this->assertSame('USD', $dollarLeg->account->currency);
+        $this->assertSame(Account::walletFor($this->china, 'USD')->id, $dollarLeg->account_id);
+
+        $audit = ActivityLog::where('action', 'china_payout_recorded')->latest('id')->firstOrFail();
+        $this->assertStringContainsString('¥6,750.00', $audit->description);
+        $this->assertStringContainsString('$250.00', $audit->description);
+    }
+
+    public function test_the_desk_page_names_the_money_each_receiver_is_handed(): void
+    {
+        $yuan = $this->booked('PS-UG-0043', $this->agent);
+        $dollars = $this->booked('PS-UG-0044', $this->agent, 250.0, 'USD');
+
+        $source = $this->dollars(1250);
+        $this->send($yuan, $source, $this->china)->assertSessionHasNoErrors();
+        $this->send($dollars, $source, $this->china)->assertSessionHasNoErrors();
+
+        $this->actingAs($this->office)->get('/china')
+            ->assertOk()
+            ->assertSee('In China, unpaid')
+            // Two wallets hold the money, so the waiting figure is two lines rather than one total
+            // in a currency nobody has.
+            ->assertSee('¥6,750.00')
+            ->assertSee('$250.00')
+            ->assertSee('Still to hand over')
+            ->assertSee('China Desk');
+
+        $this->actingAs($this->office)->get('/transactions/'.$dollars->fresh()->id)
+            ->assertOk()
+            ->assertSee('Receiver Is Handed')
+            ->assertSee('$250.00')
+            // A booking that was never turned through yuan has no yuan price to print, and a bare
+            // zero there would read as yuan bought for nothing.
+            ->assertDontSee('Exchange Rate:');
+
+        $this->actingAs($this->office)->get('/transactions/'.$yuan->fresh()->id)
+            ->assertOk()
+            ->assertSee('Exchange Rate:')
+            ->assertSee('¥6,750.0');
+    }
+
+    /**
+     * The button that records a payout written by hand has to point at the wallet the money actually
+     * leaves, or the office would book a dollar payment against the yuan book.
+     */
+    public function test_the_payout_button_offers_the_wallet_of_the_money_the_receiver_was_promised(): void
+    {
+        $dollars = $this->booked('PS-UG-0045', $this->agent, 250.0, 'USD');
+        $yuan = $this->booked('PS-UG-0046', $this->agent);
+
+        $source = $this->dollars(1250);
+        $this->send($dollars, $source, $this->china)->assertSessionHasNoErrors();
+        $this->send($yuan, $source, $this->china)->assertSessionHasNoErrors();
+
+        $dollarOffer = $this->payoutOffer($this->office, $dollars->fresh());
+        $this->assertNotNull($dollarOffer);
+        $this->assertSame(Account::walletFor($this->china, 'USD')->id, (int) $dollarOffer['account_id']);
+        $this->assertSame('250', $dollarOffer['amount']);
+        $this->assertStringContainsString('$250.00', $dollarOffer['description']);
+        $this->assertSame('money_out', $dollarOffer['kind']);
+
+        $yuanOffer = $this->payoutOffer($this->office, $yuan->fresh());
+        $this->assertNotNull($yuanOffer);
+        $this->assertSame(Account::walletFor($this->china, 'RMB')->id, (int) $yuanOffer['account_id']);
+        $this->assertSame('6750', $yuanOffer['amount']);
+
+        // Once the desk has paid, the money is in the books and the offer goes away.
+        $this->actingAs($this->china)->post('/china/payout', [
+            'transaction_ids' => [$dollars->fresh()->id],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertNull($this->payoutOffer($this->office, $dollars->fresh()));
+    }
+
+    public function test_a_transfer_that_promises_yuan_but_holds_none_is_never_paid_out_for_nothing(): void
+    {
+        $transaction = $this->booked('PS-UG-0047', $this->agent);
+        $this->send($transaction, $this->dollars(1000), $this->china)->assertSessionHasNoErrors();
+
+        // A row whose yuan figure was never filled in: the desk must not be able to close it by
+        // handing over nothing, so it stays off the list instead of showing as a free payout.
+        $transaction->forceFill(['rmb_amount' => 0])->save();
+
+        $this->assertSame(0, Transaction::awaitingPayoutInChina()->count());
+        $this->assertNull($transaction->fresh()->stage());
+
+        $this->actingAs($this->china)->post('/china/payout', [
+            'transaction_ids' => [$transaction->id],
+        ])->assertSessionHasErrors('transaction_ids');
+
+        $this->assertNull($transaction->fresh()->delivered_at);
+        $this->assertSame('0.00', Account::walletFor($this->china, 'RMB')->fresh()->balance());
     }
 
     public function test_a_batch_that_costs_more_dollars_than_are_in_hand_is_refused_and_nothing_moves(): void
@@ -220,8 +402,8 @@ class ChinaSettlementTest extends TestCase
 
         $this->actingAs($this->agent)->get('/china')
             ->assertOk()
-            ->assertSee('Yuan to receive in China')
-            ->assertDontSee('Yuan in China, unpaid');
+            ->assertSee('To hand over in China')
+            ->assertDontSee('In China, unpaid');
 
         $this->actingAs($this->agent)->post('/china/payout', [
             'transaction_ids' => [$transaction->fresh()->id],
@@ -277,7 +459,7 @@ class ChinaSettlementTest extends TestCase
     {
         $this->actingAs($this->china)->get('/china')
             ->assertOk()
-            ->assertDontSee('Yuan to receive in China');
+            ->assertDontSee('To hand over in China');
 
         $this->actingAs($this->china)->post('/china/send', [
             'transaction_ids' => [$this->booked('PS-UG-0010', $this->agent)->id],

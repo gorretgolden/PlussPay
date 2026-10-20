@@ -29,9 +29,16 @@ class ChinaDeskController extends Controller
         $viewer = $request->user();
         [$canSend, $canPay] = $this->sides($viewer);
 
+        // The two lists are read once here because each side's money card and its table are the same
+        // rows, and a card that re-queried them could disagree with the list under it.
+        $outbound = $canSend ? $this->awaitingSend($viewer) : collect();
+        $inbound = $canPay ? $this->awaitingPayout($viewer) : collect();
+
         return view('china.index', [
-            'outbound' => $canSend ? $this->awaitingSend($viewer) : collect(),
-            'inbound' => $canPay ? $this->awaitingPayout($viewer) : collect(),
+            'outbound' => $outbound,
+            'inbound' => $inbound,
+            'outboundPayouts' => Transaction::sumPayouts($outbound),
+            'inboundPayouts' => Transaction::sumPayouts($inbound),
             'paid' => $canPay ? $this->paidTotal($viewer) : null,
             'canSend' => $canSend,
             'canPay' => $canPay,
@@ -198,20 +205,20 @@ class ChinaDeskController extends Controller
             }
         });
 
-        $yuan = $transactions->sum(fn (Transaction $t) => (float) $t->rmb_amount);
+        $figures = Transaction::formatPayouts(Transaction::sumPayouts($transactions));
 
         ActivityLog::create([
             'user_id' => $viewer->id,
             'action' => 'china_payout_recorded',
-            'description' => 'Paid '.Account::format('RMB', $yuan).' to the receivers of '.$paid->count()
+            'description' => 'Paid '.$figures.' to the receivers of '.$paid->count()
                 .' transfer'.($paid->count() === 1 ? '' : 's').' in China',
             'new_value' => json_encode([
-                'amount_rmb' => Account::format('RMB', $yuan),
+                'amount_paid' => $figures,
                 'receipts' => $paid->implode(', '),
             ]),
         ]);
 
-        return redirect()->route('china.index')->with('success', Account::format('RMB', $yuan)
+        return redirect()->route('china.index')->with('success', $figures
             .' paid out in China for '.implode(', ', $paid->all())
             .'. Those transfers are closed on both sides of the corridor.');
     }
@@ -247,17 +254,24 @@ class ChinaDeskController extends Controller
      * list above it, so the three figures on the page are one story: what is still in Uganda, what
      * is in China waiting, and what has been paid, with no overlap and no fourth state.
      *
-     * @return array{count: int, rmb: string}
+     * The paid money is totalled per currency rather than as one number, because a receiver paid in
+     * yuan and one paid in dollars are two different piles of the book and adding them together
+     * would invent a third currency nobody holds.
+     *
+     * @return array{count: int, payouts: array<string, string>}
      */
     private function paidTotal(User $viewer): array
     {
         $rows = Transaction::where('status', 'completed')
-            ->where('rmb_amount', '>', 0)
             ->whereNotNull('delivered_at')
             ->when(! $viewer->can('view-all-transactions'), fn ($q) => $q->where('settled_to', $viewer->id))
-            ->get(['id', 'rmb_amount']);
+            ->owingPayout()
+            ->get(['id', 'rmb_amount', 'total_usd_equivalent', 'ugx_amount', 'payout_currency', 'destination']);
 
-        return ['count' => $rows->count(), 'rmb' => (string) $rows->sum('rmb_amount')];
+        return [
+            'count' => $rows->count(),
+            'payouts' => Transaction::sumPayouts($rows),
+        ];
     }
 
     /**
@@ -328,19 +342,25 @@ class ChinaDeskController extends Controller
     }
 
     /**
-     * The yuan for a payout comes from the wallet of the desk that was actually sent the dollars,
-     * so the corridor never mixes one agent's float with another's. A desk that has since been
-     * deleted falls back to the company yuan book, which keeps the receiver's payment recordable.
+     * The money for a payout comes from the wallet, in the money the receiver was promised, of the
+     * desk that was actually sent it, so the corridor never mixes one agent's float with another's.
+     * A receiver paid in dollars is paid out of the dollars that crossed, which is why that side
+     * needs no exchange at all. A desk that has since been deleted falls back to the company book of
+     * that currency, which keeps the receiver's payment recordable.
      */
     private function payoutAccount(Transaction $transaction): Account
     {
+        $currency = $transaction->payoutCurrency();
         $desk = $transaction->settledDesk ?? ($transaction->settled_to ? User::find($transaction->settled_to) : null);
 
         if ($desk) {
-            return Account::walletFor($desk, 'RMB');
+            return Account::walletFor($desk, $currency);
         }
 
-        return Account::byCode(Account::RMB_CHINA);
+        return Account::byCode(match ($currency) {
+            'USD' => Account::USD_CHINA,
+            default => Account::RMB_CHINA,
+        });
     }
 
     /**
