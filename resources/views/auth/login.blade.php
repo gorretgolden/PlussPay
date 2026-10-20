@@ -89,6 +89,7 @@
                     $envPasswords = config('demo.accounts', []);
                     $autofillOn = \App\Models\Setting::get('demo_login_autofill', 'off') === 'on';
                     $sharedPassword = \App\Models\Setting::get('demo_password');
+                    $demoCount = count(\Database\Seeders\RoleAndUserSeeder::DEMO_ACCOUNTS);
                 @endphp
                 @foreach (\Database\Seeders\RoleAndUserSeeder::DEMO_ACCOUNTS as $account)
                     @php
@@ -98,7 +99,7 @@
                             : ($autofillOn && $sharedPassword ? $sharedPassword : null);
                     @endphp
                     <button type="button" data-demo-email="{{ $demoEmail }}"@if($demoPassword) data-demo-password="{{ $demoPassword }}"@endif
-                        class="rounded-lg border border-green-700/30 text-left px-4 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition last:col-span-2">
+                        class="rounded-lg border border-green-700/30 text-left px-4 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition{{ $demoCount % 2 === 1 && $loop->last ? ' col-span-2' : '' }}">
                         {{ $account['button'] }}
                     </button>
                 @endforeach

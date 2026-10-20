@@ -228,8 +228,9 @@
 
 {{-- The super agent's first job of the day: the cash the agents say they are bringing. A request
      moves no money until it is approved here or on the wallet page, so the queue is the decision
-     itself rather than a reminder of one. --}}
-@if($handoverQueue->isNotEmpty() || $handoverHistory->isNotEmpty())
+     itself rather than a reminder of one. The card stays on the dashboard while the queue is empty
+     so the desk can see where the money will arrive before the first agent ever sends any. --}}
+@if($me->hasRole('super-agent'))
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
     <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 sm:px-5 py-3">
         <h2 class="text-lg font-semibold text-gray-900 mr-auto">Cash Handed To You</h2>
@@ -273,6 +274,11 @@
         </li>
         @endforeach
     </ul>
+    @endif
+    @if($handoverQueue->isEmpty() && $handoverHistory->isEmpty())
+    <div class="px-4 sm:px-5 py-4">
+        <p class="text-sm text-gray-600">No cash has been handed to you yet. When an agent sends cash in, it waits here until you approve it.</p>
+    </div>
     @endif
     @if($handoverHistory->isNotEmpty())
     <div class="border-t border-gray-200 bg-gray-50 px-4 sm:px-5 py-3">

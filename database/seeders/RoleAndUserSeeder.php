@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Account;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -15,7 +16,8 @@ class RoleAndUserSeeder extends Seeder
      * what the sign-in page labels them with, so the two agent desks are never confused.
      *
      * Passwords, in the order what is available: what is typed at a terminal while the seed runs,
-     * then the SEED_*_PASSWORD value from the environment, then a generated one printed once.
+     * then the SEED_*_PASSWORD value from the environment, then the shared demo password saved in
+     * System Settings (the one the sign-in buttons carry), then a generated one printed once.
      * Nothing working is ever saved in the repository.
      */
     public const DEMO_ACCOUNTS = [
@@ -23,6 +25,7 @@ class RoleAndUserSeeder extends Seeder
         ['email' => 'superadmin@plussave.com', 'name' => 'Super Admin', 'button' => 'Superadmin', 'role' => 'superadmin', 'env' => 'SEED_SUPERADMIN_PASSWORD', 'country' => 'UG'],
         ['email' => 'agent@plussave.com', 'name' => 'Agent', 'button' => 'Agent Uganda', 'role' => 'agent', 'env' => 'SEED_AGENT_PASSWORD', 'country' => 'UG'],
         ['email' => 'china.agent@plussave.com', 'name' => 'China Agent', 'button' => 'Agent China', 'role' => 'agent', 'env' => 'SEED_CHINA_AGENT_PASSWORD', 'country' => 'CN'],
+        ['email' => 'superagent@plussave.com', 'name' => 'Super Agent', 'button' => 'Super Agent', 'role' => 'super-agent', 'env' => 'SEED_SUPER_AGENT_PASSWORD', 'country' => 'UG'],
         ['email' => 'accountant@plussave.com', 'name' => 'Accountant', 'button' => 'Accountant', 'role' => 'accountant', 'env' => 'SEED_ACCOUNTANT_PASSWORD', 'country' => 'UG'],
     ];
 
@@ -59,7 +62,10 @@ class RoleAndUserSeeder extends Seeder
         $country = $account['country'] ?? User::DEFAULT_COUNTRY;
 
         if ($user === null) {
-            $password = $typed ?: env($account['env']) ?: Str::random(20);
+            // The shared demo password is the one the sign-in buttons fill, so a demo account
+            // seeded on the live site works from the first click without anyone retyping it.
+            $shared = ($typed || env($account['env'])) ? null : Setting::get('demo_password');
+            $password = $typed ?: env($account['env']) ?: $shared ?: Str::random(20);
 
             $user = User::create([
                 'name' => $account['name'],
@@ -75,6 +81,14 @@ class RoleAndUserSeeder extends Seeder
 
             if ($typed) {
                 $this->say("Created {$email} with the password just typed.");
+
+                return;
+            }
+
+            if ($shared) {
+                // The sign-in page already gives this password to anyone who looks at the page
+                // source while autofill is on, but the deploy output is not the place for it.
+                $this->say("Created {$email} with the shared demo password from System Settings.");
 
                 return;
             }

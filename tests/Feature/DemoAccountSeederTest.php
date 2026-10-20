@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Setting;
 use App\Models\User;
 use Database\Seeders\RoleAndUserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,6 +22,7 @@ class DemoAccountSeederTest extends TestCase
         'SEED_ADMIN_PASSWORD',
         'SEED_AGENT_PASSWORD',
         'SEED_CHINA_AGENT_PASSWORD',
+        'SEED_SUPER_AGENT_PASSWORD',
         'SEED_ACCOUNTANT_PASSWORD',
     ];
 
@@ -28,7 +30,7 @@ class DemoAccountSeederTest extends TestCase
     {
         parent::setUp();
 
-        foreach (['superadmin', 'admin', 'agent', 'accountant'] as $role) {
+        foreach (['superadmin', 'admin', 'agent', 'super-agent', 'accountant'] as $role) {
             Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
 
@@ -77,6 +79,7 @@ class DemoAccountSeederTest extends TestCase
             'SEED_ADMIN_PASSWORD' => 'admin-secret-two',
             'SEED_AGENT_PASSWORD' => 'agent-secret-three',
             'SEED_CHINA_AGENT_PASSWORD' => 'china-secret-four',
+            'SEED_SUPER_AGENT_PASSWORD' => 'lead-secret-six',
             'SEED_ACCOUNTANT_PASSWORD' => 'books-secret-five',
         ]);
 
@@ -91,12 +94,14 @@ class DemoAccountSeederTest extends TestCase
             'agent@plussave.com',
             'china.agent@plussave.com',
             'superadmin@plussave.com',
+            'superagent@plussave.com',
         ], User::orderBy('email')->pluck('email')->all());
 
         $expected = [
             'admin@plussave.com' => 'admin',
             'agent@plussave.com' => 'agent',
             'china.agent@plussave.com' => 'agent',
+            'superagent@plussave.com' => 'super-agent',
             'accountant@plussave.com' => 'accountant',
             'superadmin@plussave.com' => 'superadmin',
         ];
@@ -113,6 +118,7 @@ class DemoAccountSeederTest extends TestCase
             'admin@plussave.com' => 'admin-secret-two',
             'agent@plussave.com' => 'agent-secret-three',
             'china.agent@plussave.com' => 'china-secret-four',
+            'superagent@plussave.com' => 'lead-secret-six',
             'accountant@plussave.com' => 'books-secret-five',
         ];
 
@@ -161,7 +167,7 @@ class DemoAccountSeederTest extends TestCase
         $this->assertTrue(Hash::check('her-own-long-standing-password', $boss->fresh()->password));
         $this->assertFalse(Hash::check('a-brand-new-value', $boss->fresh()->password));
         $this->assertTrue(Hash::check('admin-secret-two', User::where('email', 'admin@plussave.com')->value('password')));
-        $this->assertSame(5, User::count());
+        $this->assertSame(6, User::count());
     }
 
     public function test_an_account_with_no_key_set_is_still_created_and_active(): void
@@ -175,6 +181,24 @@ class DemoAccountSeederTest extends TestCase
         $this->assertTrue($agent->is_active);
         $this->assertStringStartsWith('$2y$', (string) $agent->password);
         $this->assertTrue($agent->hasRole('agent'));
+    }
+
+    public function test_an_account_made_on_the_live_site_takes_the_shared_demo_password_the_buttons_fill(): void
+    {
+        // The live site never has the SEED_* values. What it does have is the one demo password
+        // typed in System Settings, and the sign-in buttons carry exactly that, so a demo
+        // account seeded there has to be created with it or the button offers a dead password.
+        Setting::set('demo_password', 'DeskShared2026', 'string', 'display');
+
+        $this->app['env'] = 'production';
+        $this->artisan('db:seed', ['--class' => RoleAndUserSeeder::class, '--force' => true])
+            ->assertExitCode(0);
+
+        $lead = User::where('email', 'superagent@plussave.com')->firstOrFail();
+
+        $this->assertTrue($lead->hasRole('super-agent'));
+        $this->assertTrue(Hash::check('DeskShared2026', $lead->password));
+        $this->assertTrue(Auth::attempt(['email' => 'superagent@plussave.com', 'password' => 'DeskShared2026']));
     }
 
     public function test_the_seed_rebuilds_a_machine_where_the_roles_were_never_made(): void

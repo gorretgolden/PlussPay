@@ -26,7 +26,7 @@ class DemoLoginAutofillTest extends TestCase
     {
         parent::setUp();
 
-        foreach (['superadmin', 'admin', 'agent', 'accountant'] as $role) {
+        foreach (['superadmin', 'admin', 'agent', 'super-agent', 'accountant'] as $role) {
             Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
 
@@ -48,7 +48,7 @@ class DemoLoginAutofillTest extends TestCase
         Setting::set('site_mode', 'testing', 'string', 'display');
     }
 
-    public function test_saving_a_demo_password_resets_the_five_demo_accounts_and_nobody_else(): void
+    public function test_saving_a_demo_password_resets_every_demo_account_and_nobody_else(): void
     {
         $bystander = User::create([
             'name' => 'Real staff', 'email' => 'staff@example.test',
@@ -130,6 +130,36 @@ class DemoLoginAutofillTest extends TestCase
         $this->assertStringNotContainsString('TestDesk2026', $log->description);
         $this->assertStringNotContainsString('TestDesk2026', (string) $log->old_value);
         $this->assertStringNotContainsString('TestDesk2026', (string) $log->new_value);
+    }
+
+    public function test_the_super_agent_button_opens_the_super_agent_dashboard(): void
+    {
+        $this->put('/settings', [
+            'settings_tab' => 'site', 'site_mode' => 'testing',
+            'demo_login_autofill' => 'on', 'demo_password' => 'TestDesk2026',
+        ])->assertSessionHasNoErrors();
+
+        auth()->logout();
+        $html = $this->get('/admin/login')->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-demo-email="superagent@plussave.com"', $html);
+        $this->assertStringContainsString(
+            '> Super Agent </button>',
+            preg_replace('/\s+/', ' ', $html)
+        );
+
+        $this->post('/admin/login', [
+            'email' => 'superagent@plussave.com',
+            'password' => 'TestDesk2026',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertAuthenticatedAs(User::where('email', 'superagent@plussave.com')->sole());
+
+        // The queue is the reason this account exists, so it is on the first screen even before
+        // any agent has sent cash in.
+        $this->get('/dashboard')->assertOk()
+            ->assertSee('Cash Handed To You')
+            ->assertSee('No cash has been handed to you yet.');
     }
 
     public function test_a_blank_demo_password_leaves_the_accounts_on_what_they_already_are(): void

@@ -60,7 +60,7 @@ class CashHandoverTest extends TestCase
 
         $this->flushSession();
         $this->actingAs($other)->get('/dashboard')->assertOk()
-            ->assertDontSee('Cash Handed To You')
+            ->assertSee('No cash has been handed to you yet.')
             ->assertDontSee($handover->reference);
     }
 
