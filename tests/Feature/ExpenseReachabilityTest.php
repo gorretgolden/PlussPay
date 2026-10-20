@@ -93,7 +93,7 @@ class ExpenseReachabilityTest extends TestCase
 
     public function test_quick_actions_offer_a_role_only_the_things_it_may_do(): void
     {
-        $labels = ['Send Money to China', 'Send Money to Uganda', 'Record Exchange', 'Record Expense', 'Expenses', 'Exchange Rates', 'Add Customer'];
+        $labels = ['Send Money to China', 'Send Money to Uganda', 'Record Exchange', 'Expenses', 'Exchange Rates', 'Add Customer'];
 
         $superadmin = $this->html($this->user('superadmin', 'Super Admin'));
         foreach ($labels as $label) {
@@ -105,15 +105,15 @@ class ExpenseReachabilityTest extends TestCase
         $agent = $this->html($this->user('agent', 'Amina Nabukenya'));
         $this->assertStringContainsString('>Send Money to China</span>', $agent);
         $this->assertStringContainsString('>Send Money to Uganda</span>', $agent);
-        $this->assertStringContainsString('>Record Expense</span>', $agent, 'An agent who spends the desk\'s cash records it themselves.');
-        $this->assertStringContainsString('>Expenses</span>', $agent, 'Their own page of the book, reached from the same card.');
-        foreach (['Record Exchange', 'Exchange Rates', 'Add Customer'] as $label) {
+        $this->assertStringContainsString('>Expenses</span>', $agent, 'Their own page of the book, where the pen sits above their entries.');
+        $this->assertStringContainsString('Record spending, read your entries', $agent);
+        foreach (['Record Exchange', 'Record Expense', 'Exchange Rates', 'Add Customer'] as $label) {
             $this->assertStringNotContainsString('>'.$label.'</span>', $agent, $label.' is beyond an agent.');
         }
 
         // The lead agent adds the counter to the same board: he is the one who changes money.
         $lead = $this->html($this->user('super-agent', 'Amina Lead'));
-        foreach (['Send Money to China', 'Send Money to Uganda', 'Record Exchange', 'Record Expense', 'Expenses'] as $label) {
+        foreach (['Send Money to China', 'Send Money to Uganda', 'Record Exchange', 'Expenses'] as $label) {
             $this->assertStringContainsString('>'.$label.'</span>', $lead, $label.' is a Super Agent shortcut.');
         }
         foreach (['Exchange Rates', 'Add Customer'] as $label) {
@@ -131,6 +131,35 @@ class ExpenseReachabilityTest extends TestCase
         // Desk staff read the day and change nothing, so there is nothing for them to start.
         $staff = $this->html($this->user('staff', 'Peter Mugisha'));
         $this->assertStringNotContainsString('Quick Actions', $staff);
+    }
+
+    private function quickActions(string $html): string
+    {
+        $start = strpos($html, '>Quick Actions</h2>');
+        $this->assertIsInt($start);
+
+        $end = strpos($html, 'Cash Handed To You', $start);
+        if ($end === false) {
+            $end = strpos($html, 'Wallet</div>', $start);
+        }
+        $this->assertIsInt($end);
+
+        return substr($html, $start, $end - $start);
+    }
+
+    public function test_quick_actions_sit_two_to_a_row_and_fill_the_last_row(): void
+    {
+        $lead = $this->quickActions($this->html($this->user('super-agent', 'Amina Lead')));
+
+        $this->assertStringContainsString('grid-cols-1 sm:grid-cols-2', $lead);
+        $this->assertStringNotContainsString('lg:grid-cols-3', $lead);
+        $this->assertSame(4, substr_count($lead, 'hover:border-green-300'), 'The lead sees two rows of two.');
+        $this->assertStringNotContainsString('sm:col-span-2', $lead);
+
+        $agent = $this->quickActions($this->html($this->user('agent', 'Amina Nabukenya')));
+
+        $this->assertSame(3, substr_count($agent, 'hover:border-green-300'));
+        $this->assertSame(1, substr_count($agent, 'sm:col-span-2'), 'The third card fills its row instead of leaving a gap.');
     }
 
     public function test_every_shortcut_a_role_is_handed_open_for_that_role(): void

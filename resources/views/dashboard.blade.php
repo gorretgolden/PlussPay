@@ -196,13 +196,20 @@
     // permission error, and a role that books nothing at all gets no card rather than a row of
     // dead links. Every label is the words the screen it opens uses, so one thing never carries
     // two names. Sending opens with the corridor already chosen, since which way the money goes is
-    // the first thing a desk knows about the booking standing in front of it.
+    // the first thing a desk knows about the booking standing in front of it. The spending book
+    // carries its own Record Expense button, so one card opens it rather than two cards competing
+    // for the same job.
+    $expenseHint = match (true) {
+        $me->can('create-expense') && $me->can('view-all-expenses') => 'Record spending, read every entry',
+        $me->can('create-expense') => 'Record spending, read your entries',
+        $me->can('view-all-expenses') => 'Every expense logged',
+        default => 'What you spent',
+    };
     $quickActions = array_values(array_filter([
         ['create-transaction', 'Send Money to China', 'Cash in Uganda, paid in China', route('transactions.create', ['destination' => \App\Models\Transaction::TO_CHINA]), 'M5 12h14m0 0l-5-5m5 5l-5 5'],
         ['create-transaction', 'Send Money to Uganda', 'Cash in China, paid in Uganda', route('transactions.create', ['destination' => \App\Models\Transaction::TO_UGANDA]), 'M19 12H5m0 0l5-5m-5 5l5 5'],
         ['create-exchange', 'Record Exchange', 'Buy or sell notes', route('exchanges.create'), 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4'],
-        ['create-expense', 'Record Expense', 'Money spent here', route('expenses.create'), 'M12 3v11m0 0l-4-4m4 4l4-4M4 20h16'],
-        ['view-expenses', 'Expenses', $me->can('view-all-expenses') ? 'Every expense logged' : 'What you spent', route('expenses.index'), 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
+        ['view-expenses', 'Expenses', $expenseHint, route('expenses.index'), 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
         ['view-exchange-rates', 'Exchange Rates', "Today's prices", route('exchange-rates.index'), 'M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2zm3-14h4m-4 4h4m-4 4h4'],
         ['create-customer', 'Add Customer', 'Save a person', route('customers.create'), 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
     ], fn (array $a) => $me->can($a[0])));
@@ -210,9 +217,9 @@
 @if($quickActions !== [])
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         @foreach($quickActions as [$ability, $label, $hint, $url, $glyph])
-        <a href="{{ $url }}" class="flex items-center gap-3 min-w-0 rounded-lg border border-gray-200 p-3 hover:border-green-300 hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+        <a href="{{ $url }}" class="flex items-center gap-3 min-w-0 rounded-lg border border-gray-200 p-3 hover:border-green-300 hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1{{ count($quickActions) % 2 === 1 && $loop->last ? ' sm:col-span-2' : '' }}">
             <span aria-hidden="true" class="w-9 h-9 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $glyph }}"/></svg>
             </span>
