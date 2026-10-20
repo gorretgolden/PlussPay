@@ -12,12 +12,15 @@
 
     // Which way the money is going is decided before the first box is answered, because it changes
     // what money the desk takes in, what the receiver is handed, whose number comes first and what
-    // the booking is even called. The dashboard cards seed it from the link; a rejected booking
-    // keeps the route the desk had chosen rather than dropping it back to China.
-    $destination = old('destination', $destination ?? \App\Models\Transaction::TO_CHINA);
-    $destination = $destination === \App\Models\Transaction::TO_UGANDA
-        ? \App\Models\Transaction::TO_UGANDA
-        : \App\Models\Transaction::TO_CHINA;
+    // the booking is even called. A hand who books only their own desk is pinned to the road that
+    // desk takes cash in; someone who sees the whole book picks the road from the card they
+    // followed. A rejected booking keeps the route rather than dropping it back to China.
+    $chosen = old('destination', $destination ?? \App\Models\Transaction::TO_CHINA);
+    $destination = $canChooseRoute
+        ? ($chosen === \App\Models\Transaction::TO_UGANDA
+            ? \App\Models\Transaction::TO_UGANDA
+            : \App\Models\Transaction::TO_CHINA)
+        : \App\Models\Transaction::destinationForDesk(auth()->user()?->country);
     $toUganda = $destination === \App\Models\Transaction::TO_UGANDA;
 
     // A receiver in Uganda is always paid shillings out of the till there, so that route has one
@@ -76,6 +79,7 @@
             <h2 class="text-lg font-semibold text-gray-800 mb-6">Sender Details</h2>
 
             <div class="mb-6">
+                @if($canChooseRoute)
                 <div class="flex items-center justify-between gap-2 mb-2">
                     <span class="block text-sm font-medium text-gray-700">Which way is the money going? *</span>
                     @include('transactions.partials.field-tip', [
@@ -99,6 +103,18 @@
                         </span>
                     </label>
                 </div>
+                @else
+                {{-- The desk has one road, so there is nothing to choose. The hidden answer keeps
+                     the rest of the form, the draft and the server all reading the same route. --}}
+                <input type="hidden" name="destination" value="{{ $destination }}">
+                <div class="rounded-lg border border-green-200 bg-green-50/60 px-4 py-3">
+                    <p class="text-sm text-gray-700">
+                        {{ $toUganda
+                            ? 'Cash is handed over here in China, in yuan or dollars.'
+                            : 'Cash is handed over here in Uganda, in shillings or dollars.' }}
+                    </p>
+                </div>
+                @endif
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -445,7 +461,10 @@ const MONEY_GLYPH = { UGX: 'UGX ', USD: '$', RMB: '¥' };
 const chargeHelpBase = document.getElementById('charge_help').textContent.trim();
 
 function chosenRoute() {
-    const picked = document.querySelector('[name=destination]:checked');
+    // An office picks the route from the two cards; a desk that only has one road carries it in a
+    // hidden box, which is never checked and would otherwise read as China on every desk.
+    const picked = document.querySelector('[name=destination]:checked')
+        || document.querySelector('input[type=hidden][name=destination]');
 
     return picked && ROUTES[picked.value] ? picked.value : 'CN';
 }

@@ -376,4 +376,52 @@ class CorridorBookingTest extends TestCase
         $this->assertSame(0, Transaction::count());
         $this->assertStringContainsString('The charge leaves nothing to send', $this->flashedError('charge_ugx'));
     }
+
+    /**
+     * The cash is handed over where the agent stands, so a hand can only book the road that starts
+     * at their own counter. Editing the posted form cannot send money back into the country the
+     * customer is already in.
+     */
+    public function test_a_desk_cannot_book_the_road_that_starts_at_the_other_desk(): void
+    {
+        $uganda = $this->deskUser('agent', 'Faith Nansere');
+        $china = $this->deskUser('agent', 'Li Fang', 'CN');
+
+        $this->actingAs($uganda)->get('/transactions/create');
+        $this->actingAs($uganda)->post('/transactions', $this->payload([
+            'destination' => 'UG',
+            'payout_currency' => 'UGX',
+            'currency' => 'RMB',
+            'amount' => '6610',
+            'charge_ugx' => '20000',
+        ]))->assertSessionHasErrors('destination');
+
+        $this->assertStringContainsString('Your Uganda desk sends money to China', $this->flashedError('destination'));
+
+        $this->actingAs($china)->get('/transactions/create');
+        $this->actingAs($china)->post('/transactions', $this->payload([
+            'destination' => 'CN',
+            'payout_currency' => 'RMB',
+            'currency' => 'UGX',
+            'amount' => '500000',
+            'charge_ugx' => '20000',
+        ]))->assertSessionHasErrors('destination');
+
+        $this->assertStringContainsString('Your China desk sends money to Uganda', $this->flashedError('destination'));
+        $this->assertSame(0, Transaction::count(), 'A turned-around booking never reaches the book.');
+    }
+
+    public function test_a_china_agent_books_the_uganda_road_even_when_the_form_names_none(): void
+    {
+        $china = $this->deskUser('agent', 'Li Fang', 'CN');
+
+        $transfer = $this->book($china, [
+            'currency' => 'RMB',
+            'amount' => '6610',
+            'charge_ugx' => '20000',
+        ]);
+
+        $this->assertSame('UG', $transfer->destination, 'A hand in China sends to Uganda without being told to.');
+        $this->assertSame('UGX', $transfer->payout_currency);
+    }
 }

@@ -99,8 +99,13 @@ class TransactionDeskTest extends TestCase
         $atCounter = $this->book($office, ['agent_id' => 'counter']);
         $this->assertSame('UG', $atCounter->country);
 
-        // And an agent booking their own work is on their own desk by the same rule.
-        $this->assertSame('CN', $this->book($china)->country);
+        // And an agent booking their own work is on their own desk by the same rule. The China
+        // hand books the road that starts at their counter: yuan in China, shillings paid here.
+        $this->assertSame('CN', $this->book($china, [
+            'destination' => 'UG',
+            'currency' => 'RMB',
+            'amount' => '6610',
+        ])->country);
     }
 
     public function test_no_form_can_type_a_desk_and_no_row_is_saved_without_one(): void
@@ -108,8 +113,14 @@ class TransactionDeskTest extends TestCase
         $china = $this->user('agent', 'Mei Lin', 'CN');
 
         // The desk is read off the hand the money was booked into, so a payload that carries a
-        // different one is refused the column rather than being believed.
-        $typed = $this->book($china, ['country' => 'UG']);
+        // different one is refused the column rather than being believed. The money itself is yuan
+        // handed over in China, because that is the road a China hand books.
+        $typed = $this->book($china, [
+            'country' => 'UG',
+            'destination' => 'UG',
+            'currency' => 'RMB',
+            'amount' => '6610',
+        ]);
 
         $this->assertNotContains('country', (new Transaction)->getFillable());
         $this->assertSame('CN', $typed->country);

@@ -203,6 +203,15 @@ class Transaction extends Model
         return $this->destination === self::TO_UGANDA ? self::TO_UGANDA : self::TO_CHINA;
     }
 
+    /**
+     * The corridor a desk books when the customer hands the cash over at its own counter:
+     * Uganda sends to China, and China sends to Uganda. The cash never starts at the far end.
+     */
+    public static function destinationForDesk(?string $country): string
+    {
+        return $country === 'CN' ? self::TO_UGANDA : self::TO_CHINA;
+    }
+
     public function isToUganda(): bool
     {
         return $this->destinationCode() === self::TO_UGANDA;

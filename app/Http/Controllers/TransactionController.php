@@ -63,12 +63,14 @@ class TransactionController extends Controller
         $usdUgx = ExchangeRate::usdUgxPair();
         $usdRmb = ExchangeRate::pair('USD', 'RMB');
 
-        // The dashboard opens this form through one of two cards, so which way the money is going
-        // arrives on the query string. Anything else falls back to the corridor the desk has always
-        // run: cash in Uganda, a receiver in China.
-        $destination = $request->input('destination') === Transaction::TO_UGANDA
-            ? Transaction::TO_UGANDA
-            : Transaction::TO_CHINA;
+        // A hand who only books their own desk's money sends the way that desk takes cash in, and
+        // no query string can turn them around. Someone who sees the whole book keys in for either
+        // desk, so the card they followed says which way this booking goes.
+        $viewer = $request->user();
+        $canChooseRoute = $viewer->can('view-all-transactions');
+        $destination = $canChooseRoute
+            ? ($request->input('destination') === Transaction::TO_UGANDA ? Transaction::TO_UGANDA : Transaction::TO_CHINA)
+            : Transaction::destinationForDesk($viewer->country);
 
         // One-time token so a replayed or double-posted submit cannot mint a second receipt.
         $formId = (string) Str::uuid();
@@ -79,7 +81,7 @@ class TransactionController extends Controller
         $default = (float) \App\Models\Setting::get('default_charge_ugx', 0);
         $defaultCharge = $default > 0 ? rtrim(rtrim(number_format($default, 2, '.', ''), '0'), '.') : '';
 
-        return view('transactions.create', compact('usdUgx', 'usdRmb', 'formId', 'defaultCharge', 'destination') + [
+        return view('transactions.create', compact('usdUgx', 'usdRmb', 'formId', 'defaultCharge', 'destination', 'canChooseRoute') + [
             'agents' => $this->bookingAgents(),
         ]);
     }
@@ -112,18 +114,36 @@ class TransactionController extends Controller
         $minAmount = (float) \App\Models\Setting::get('min_transaction_amount', 100);
         $maxAmount = (float) \App\Models\Setting::get('max_transaction_amount', 100000000);
 
+        $viewer = auth()->user();
+
         // Only an agent's hand holds this kind of cash, so a transfer is always written in an
         // agent's name. Somebody signing in at their own desk is their own agent; anyone who can
         // see the whole book is standing at a counter taking money for other people, so they have
         // to say whose before the booking will save.
-        $mustNameHolder = (bool) auth()->user()?->can('view-all-transactions');
+        $mustNameHolder = (bool) $viewer?->can('view-all-transactions');
+
+        // A hand who books only their own desk's money cannot open the other road by editing the
+        // form. The far corridor belongs to the agent who sits where that cash is actually handed
+        // over, so a Uganda agent books to China and a China agent books to Uganda.
+        $canChooseRoute = (bool) $viewer?->can('view-all-transactions');
+        $homeDestination = Transaction::destinationForDesk($viewer?->country);
+
+        if (! $canChooseRoute && $request->filled('destination') && $request->input('destination') !== $homeDestination) {
+            return back()->withErrors([
+                'destination' => $homeDestination === Transaction::TO_UGANDA
+                    ? 'Your China desk sends money to Uganda. The road to China is opened by a Uganda agent, because that is where the cash is handed over.'
+                    : 'Your Uganda desk sends money to China. The road to Uganda is opened by a China agent, because that is where the cash is handed over.',
+            ])->withInput();
+        }
 
         // Which way the money is going decides which money this desk can take in and which money it
         // hands out, so the route is read before the rest of the form is checked. A booking to China
-        // is never taken in from China, and a booking to Uganda never pays out yuan. The wizard always
-        // answers both, and a booking that arrives without them is read as the corridor this desk has
-        // run since it opened, priced in yuan at the far end.
-        $toUganda = $request->input('destination') === Transaction::TO_UGANDA;
+        // is never taken in from China, and a booking to Uganda never pays out yuan. A booking that
+        // arrives without a route is read as the corridor this desk has run since it opened, priced
+        // in yuan at the far end.
+        $toUganda = ($canChooseRoute
+            ? $request->input('destination') === Transaction::TO_UGANDA
+            : $homeDestination === Transaction::TO_UGANDA);
         $intakeChoices = $toUganda ? ['RMB', 'USD'] : ['UGX', 'USD'];
         $payoutChoices = $toUganda ? ['UGX'] : ['RMB', 'USD'];
 
@@ -179,10 +199,10 @@ class TransactionController extends Controller
             'amount.required' => 'Amount is required.',
         ]);
 
-        // The wizard answers the route and the payout every time, so a booking that arrives without
-        // them is one keyed in from somewhere else, and it is read as the corridor this desk has run
-        // since it opened with the money that route has always handed over.
-        $validated['destination'] ??= $toUganda ? Transaction::TO_UGANDA : Transaction::TO_CHINA;
+        // The route is written from the desk the cash was handed over at, never from what a form
+        // posted, and the payout follows it. An older form with no payout gets the one that route
+        // has always handed over.
+        $validated['destination'] = $toUganda ? Transaction::TO_UGANDA : Transaction::TO_CHINA;
         $validated['payout_currency'] ??= $payoutChoices[0];
 
         if (! hash_equals((string) session('transaction_form_id', ''), $validated['form_id'])) {

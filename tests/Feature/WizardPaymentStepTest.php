@@ -30,13 +30,14 @@ class WizardPaymentStepTest extends TestCase
         ExchangeRate::setPair('USD', 'RMB', 7.24, 7.24, 7.24);
     }
 
-    private function page(string $role, string $path = '/transactions/create'): string
+    private function page(string $role, string $path = '/transactions/create', string $country = 'UG'): string
     {
         $user = User::create([
             'name' => 'Desk '.ucfirst($role),
             'email' => strtolower($role).uniqid().'@plussave.test',
             'password' => 'Password123',
             'is_active' => true,
+            'country' => $country,
         ]);
         $user->assignRole($role);
 
@@ -89,43 +90,75 @@ class WizardPaymentStepTest extends TestCase
         // The per-dollar fee rule is gone, so no sentence may point at it.
         $this->assertStringNotContainsString('Settings suggest', $html);
         $this->assertStringNotContainsString('Default from Settings', $html);
-        // One tooltip per field that needs more than its short line: the route, the money handed
-        // over, the charge, the money that travels, the payout and the money it is taken in. The
-        // office picker on the same page carries a seventh, and an agent is not shown it.
-        $this->assertSame(6, substr_count($html, 'role="tooltip"'));
+        // One tooltip per field that needs more than its short line: the money handed over, the
+        // charge, the money that travels, the payout and the money it is taken in. A hand with one
+        // road has no route question to explain, and the office picker is not shown to an agent.
+        $this->assertSame(5, substr_count($html, 'role="tooltip"'));
     }
 
     /**
-     * Which way the money goes is the first thing a desk knows, so it is answered with two cards at
-     * the top of the form rather than buried in a dropdown, and the card that opens the form is the
-     * one the shortcut that opened it named.
+     * The cash is always handed over where the desk stands, so a desk has one road and sees it as
+     * a stated fact rather than a question. Only the office, which keys in for both desks, still
+     * picks from two cards, and a query string cannot turn a hand around.
      */
-    public function test_the_route_is_answered_with_two_cards_and_opens_on_the_one_asked_for(): void
+    public function test_a_desk_is_pinned_to_the_road_that_starts_at_its_own_counter(): void
     {
-        $china = $this->page('agent');
-        $uganda = $this->page('agent', '/transactions/create?destination=UG');
+        $uganda = $this->page('agent');
+        $stubborn = $this->page('agent', '/transactions/create?destination=UG');
+        $china = $this->page('agent', '/transactions/create', 'CN');
 
-        foreach (['Money to a receiver in China', 'Money to a receiver in Uganda'] as $title) {
-            $this->assertStringContainsString($title, $china, $title.' is offered on the plain form.');
-            $this->assertStringContainsString($title, $uganda, $title.' stays offered on the other card.');
+        // A Uganda hand sends to China, and the form says so instead of asking. Neither route card
+        // is drawn, so nothing offers to pay somebody back in Uganda.
+        $this->assertStringNotContainsString('Money to a receiver in China', $uganda);
+        $this->assertStringNotContainsString('Money to a receiver in Uganda', $uganda);
+        $this->assertStringNotContainsString('Which way is the money going?', $uganda);
+        $this->assertSame(1, substr_count($uganda, 'name="destination"'), 'One hidden answer, no cards.');
+        $this->assertMatchesRegularExpression('#<input type="hidden" name="destination" value="CN">#', $uganda);
+        $this->assertStringContainsString('Cash is handed over here in Uganda, in shillings or dollars.', $uganda);
+        $this->assertStringContainsString('<h1 class="text-2xl font-bold text-gray-900" id="page_title">Send Money to China</h1>', $uganda);
+
+        // The shortcut used to carry the route in the address; an agent editing it by hand must
+        // still land on their own road, never the far one.
+        $this->assertMatchesRegularExpression('#<input type="hidden" name="destination" value="CN">#', $stubborn);
+        $this->assertStringContainsString('id="page_title">Send Money to China</h1>', $stubborn);
+
+        // The China desk is the mirror: cash over there, paid here in shillings.
+        $this->assertStringNotContainsString('Money to a receiver in Uganda', $china);
+        $this->assertStringNotContainsString('Money to a receiver in China', $china);
+        $this->assertMatchesRegularExpression('#<input type="hidden" name="destination" value="UG">#', $china);
+        $this->assertStringContainsString('Cash is handed over here in China, in yuan or dollars.', $china);
+        $this->assertStringContainsString('<h1 class="text-2xl font-bold text-gray-900" id="page_title">Send Money to Uganda</h1>', $china);
+
+        // The script reads the hidden answer as the route, or the China desk would calculate the
+        // whole page as if the money were going to China.
+        $this->assertStringContainsString("document.querySelector('input[type=hidden][name=destination]')", $uganda);
+    }
+
+    public function test_the_office_still_picks_between_the_two_roads(): void
+    {
+        $open = $this->page('superadmin');
+        $asked = $this->page('superadmin', '/transactions/create?destination=UG');
+
+        foreach (['Money to a receiver in China', 'Money to a receiver in Uganda', 'Which way is the money going?'] as $title) {
+            $this->assertStringContainsString($title, $open);
         }
 
-        $this->assertMatchesRegularExpression('#name="destination" value="CN"[^>]*checked#', $china);
-        $this->assertMatchesRegularExpression('#name="destination" value="UG"[^>]*checked#', $uganda);
-        $this->assertDoesNotMatchRegularExpression('#name="destination" value="CN"[^>]*checked#', $uganda);
-        $this->assertSame(2, substr_count($uganda, 'name="destination"'), 'Two cards, one question.');
-        $this->assertStringContainsString('<h1 class="text-2xl font-bold text-gray-900" id="page_title">Send Money to Uganda</h1>', $uganda);
+        $this->assertMatchesRegularExpression('#name="destination" value="CN"[^>]*checked#', $open);
+        $this->assertMatchesRegularExpression('#name="destination" value="UG"[^>]*checked#', $asked);
+        $this->assertDoesNotMatchRegularExpression('#name="destination" value="CN"[^>]*checked#', $asked);
+        $this->assertSame(2, substr_count($asked, 'name="destination"'), 'Two cards, one question.');
+        $this->assertStringContainsString('<h1 class="text-2xl font-bold text-gray-900" id="page_title">Send Money to Uganda</h1>', $asked);
 
         // Each card says which money it takes in, so nobody picks a route and then finds the boxes
         // do not hold the money the customer is standing there with.
-        $this->assertStringContainsString('Cash is handed over here in Uganda, in shillings or dollars.', $china);
-        $this->assertStringContainsString('Cash is handed over in China, in yuan or dollars.', $china);
+        $this->assertStringContainsString('Cash is handed over here in Uganda, in shillings or dollars.', $open);
+        $this->assertStringContainsString('Cash is handed over in China, in yuan or dollars.', $open);
     }
 
     public function test_the_payout_is_chosen_on_the_way_to_china_and_fixed_on_the_way_to_uganda(): void
     {
         $china = $this->page('agent');
-        $uganda = $this->page('agent', '/transactions/create?destination=UG');
+        $uganda = $this->page('agent', '/transactions/create', 'CN');
 
         // A receiver in China is paid in either of two currencies, so the form asks. A receiver in
         // Uganda is only ever paid shillings, so the box is still posted for the server to check but

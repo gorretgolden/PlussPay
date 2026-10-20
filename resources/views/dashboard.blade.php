@@ -196,9 +196,16 @@
     // permission error, and a role that books nothing at all gets no card rather than a row of
     // dead links. Every label is the words the screen it opens uses, so one thing never carries
     // two names. Sending opens with the corridor already chosen, since which way the money goes is
-    // the first thing a desk knows about the booking standing in front of it. The spending book
-    // carries its own Record Expense button, so one card opens it rather than two cards competing
-    // for the same job.
+    // the first thing a desk knows about the booking standing in front of it. A desk only ever
+    // sends one way: the cash is handed over where the desk is, so Uganda sends to China and China
+    // sends to Uganda. Offering both roads let a Uganda hand "send money to Uganda", which is a
+    // payment back to the customer standing at their own counter. The spending book carries its
+    // own Record Expense button, so one card opens it rather than two cards competing for the
+    // same job.
+    $sendToUganda = \App\Models\Transaction::destinationForDesk($me->country) === \App\Models\Transaction::TO_UGANDA;
+    $sendAction = $sendToUganda
+        ? ['create-transaction', 'Send Money to Uganda', 'Cash in China, paid in Uganda', route('transactions.create', ['destination' => \App\Models\Transaction::TO_UGANDA]), 'M19 12H5m0 0l5-5m-5 5l5 5']
+        : ['create-transaction', 'Send Money to China', 'Cash in Uganda, paid in China', route('transactions.create', ['destination' => \App\Models\Transaction::TO_CHINA]), 'M5 12h14m0 0l-5-5m5 5l-5 5'];
     $expenseHint = match (true) {
         $me->can('create-expense') && $me->can('view-all-expenses') => 'Record spending, read every entry',
         $me->can('create-expense') => 'Record spending, read your entries',
@@ -206,8 +213,7 @@
         default => 'What you spent',
     };
     $quickActions = array_values(array_filter([
-        ['create-transaction', 'Send Money to China', 'Cash in Uganda, paid in China', route('transactions.create', ['destination' => \App\Models\Transaction::TO_CHINA]), 'M5 12h14m0 0l-5-5m5 5l-5 5'],
-        ['create-transaction', 'Send Money to Uganda', 'Cash in China, paid in Uganda', route('transactions.create', ['destination' => \App\Models\Transaction::TO_UGANDA]), 'M19 12H5m0 0l5-5m-5 5l5 5'],
+        $sendAction,
         ['create-exchange', 'Record Exchange', 'Buy or sell notes', route('exchanges.create'), 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4'],
         ['view-expenses', 'Expenses', $expenseHint, route('expenses.index'), 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
         ['view-exchange-rates', 'Exchange Rates', "Today's prices", route('exchange-rates.index'), 'M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2zm3-14h4m-4 4h4m-4 4h4'],
