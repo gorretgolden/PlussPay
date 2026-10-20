@@ -97,12 +97,13 @@ class ExpenseReachabilityTest extends TestCase
         // Every account here sits at the Uganda desk, so the send shortcut is the road that starts
         // here: cash in Uganda, paid in China. A Uganda hand is never offered a payment back into
         // the country the customer is already standing in.
-        $labels = ['Send Money to China', 'Record Exchange', 'Expenses', 'Exchange Rates', 'Add Customer'];
+        $labels = ['Send Money to China', 'Record Exchange', 'Expenses', 'Exchange Rates', 'Add Customer', 'Transactions'];
 
         $superadmin = $this->html($this->user('superadmin', 'Super Admin'));
         foreach ($labels as $label) {
             $this->assertStringContainsString('>'.$label.'</span>', $superadmin, $label.' is a Super Admin shortcut.');
         }
+        $this->assertStringContainsString('Every transfer in the book', $superadmin);
         $this->assertStringNotContainsString('Send Money to Uganda', $superadmin);
 
         // A desk agent books transfers and logs what they spent out of the cash in hand. The
@@ -116,11 +117,13 @@ class ExpenseReachabilityTest extends TestCase
             $this->assertStringNotContainsString('>'.$label.'</span>', $agent, $label.' is beyond an agent.');
         }
 
-        // The lead agent adds the counter to the same board: he is the one who changes money.
+        // The lead agent adds the counter and the whole book to the same board: he is the one who
+        // changes money and the one who answers for every agent's transfers.
         $lead = $this->html($this->user('super-agent', 'Amina Lead'));
-        foreach (['Send Money to China', 'Record Exchange', 'Expenses'] as $label) {
+        foreach (['Send Money to China', 'Record Exchange', 'Expenses', 'Transactions'] as $label) {
             $this->assertStringContainsString('>'.$label.'</span>', $lead, $label.' is a Super Agent shortcut.');
         }
+        $this->assertStringContainsString('Every transfer in the book', $lead);
         $this->assertStringNotContainsString('>Send Money to Uganda</span>', $lead);
         foreach (['Exchange Rates', 'Add Customer'] as $label) {
             $this->assertStringNotContainsString('>'.$label.'</span>', $lead, $label.' is beyond a Super Agent.');
@@ -166,8 +169,8 @@ class ExpenseReachabilityTest extends TestCase
 
         $this->assertStringContainsString('grid-cols-1 sm:grid-cols-2', $lead);
         $this->assertStringNotContainsString('lg:grid-cols-3', $lead);
-        $this->assertSame(3, substr_count($lead, 'hover:border-green-300'), 'One send card, the counter and the spending book.');
-        $this->assertSame(1, substr_count($lead, 'sm:col-span-2'), 'The odd last card fills its row instead of leaving a gap.');
+        $this->assertSame(4, substr_count($lead, 'hover:border-green-300'), 'The send card, the counter, the spending book and the whole book.');
+        $this->assertStringNotContainsString('sm:col-span-2', $lead, 'Four cards fill two rows exactly.');
 
         $agent = $this->quickActions($this->html($this->user('agent', 'Amina Nabukenya')));
 
