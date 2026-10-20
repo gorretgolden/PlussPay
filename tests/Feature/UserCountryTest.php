@@ -45,6 +45,29 @@ class UserCountryTest extends TestCase
         ];
     }
 
+    public function test_an_admin_can_create_a_super_agent(): void
+    {
+        $this->actingAs($this->actor('admin'))
+            ->get('/users/create')
+            ->assertOk()
+            ->assertSee('Super Agent');
+
+        $this->post('/users', $this->payload('super-agent'))
+            ->assertSessionHasNoErrors();
+
+        $lead = User::where('name', 'Wei Chen')->firstOrFail();
+
+        $this->assertTrue($lead->hasRole('super-agent'));
+        $this->assertSame('UG', $lead->country);
+        $this->assertSame(['UGX', 'USD'], array_keys(\App\Models\Account::walletsFor($lead)));
+
+        // What the role was made for: the exchange desk and the send across are theirs.
+        $this->assertTrue($lead->can('create-exchange'));
+        $this->assertTrue($lead->can('send-to-china'));
+        $this->assertTrue($lead->can('approve-cash-handover'));
+        $this->assertTrue($lead->can('view-all-transactions'));
+    }
+
     public function test_a_superadmin_can_create_a_china_agent_and_the_zone_follows(): void
     {
         $this->actingAs($this->actor('superadmin'))

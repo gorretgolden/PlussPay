@@ -29,6 +29,7 @@ class ChinaSettlementTest extends TestCase
 
     private User $office;
     private User $agent;
+    private User $lead;
     private User $china;
 
     protected function setUp(): void
@@ -42,6 +43,7 @@ class ChinaSettlementTest extends TestCase
 
         $this->office = $this->person('Office Admin', 'admin', 'UG');
         $this->agent = $this->person('Kampala Agent', 'agent', 'UG');
+        $this->lead = $this->person('Lead Agent', 'super-agent', 'UG');
         $this->china = $this->person('China Desk', 'agent', 'CN');
     }
 
@@ -395,15 +397,21 @@ class ChinaSettlementTest extends TestCase
         ])->assertSessionHasErrors('recipient_id');
     }
 
-    public function test_an_agent_in_uganda_is_never_asked_to_confirm_a_payout_they_cannot_make(): void
+    public function test_an_agent_in_uganda_is_never_offered_either_side_of_the_china_desk(): void
     {
         $transaction = $this->booked('PS-UG-0009', $this->agent);
         $this->send($transaction, $this->dollars(1000), $this->china);
 
         $this->actingAs($this->agent)->get('/china')
             ->assertOk()
-            ->assertSee('To hand over in China')
+            ->assertDontSee('To hand over in China')
             ->assertDontSee('In China, unpaid');
+
+        $this->actingAs($this->agent)->post('/china/send', [
+            'transaction_ids' => [$transaction->fresh()->id],
+            'recipient_id' => $this->china->id,
+            'source_account_id' => Account::walletFor($this->agent, 'USD')->id,
+        ])->assertForbidden();
 
         $this->actingAs($this->agent)->post('/china/payout', [
             'transaction_ids' => [$transaction->fresh()->id],
@@ -435,14 +443,20 @@ class ChinaSettlementTest extends TestCase
     public function test_a_tick_from_another_desk_s_book_is_refused_without_its_receipt_number(): void
     {
         $other = $this->person('Mbarara Agent', 'agent', 'UG');
-        $mine = $this->booked('PS-UG-0012', $this->agent);
+
+        // Only the lead agent sends, and only across the book they were given. With the whole-book
+        // reach taken away, this lead is a desk like any other and cannot forward a booking that is
+        // not on their list, however the id got into the form.
+        \Spatie\Permission\Models\Role::findByName('super-agent', 'web')->revokePermissionTo('view-all-transactions');
+
+        $mine = $this->booked('PS-UG-0012', $this->lead);
         $theirs = $this->booked('PS-UG-0013', $other);
 
         // A desk sends out of its own dollar wallet, which is all the send form offers it.
-        $wallet = Account::walletFor($this->agent, 'USD');
+        $wallet = Account::walletFor($this->lead, 'USD');
         AccountLedger::record($wallet, 'opening_balance', '2000.00', 'Dollars collected at the counter');
 
-        $this->actingAs($this->agent)->post('/china/send', [
+        $this->actingAs($this->lead)->post('/china/send', [
             'transaction_ids' => [$mine->id, $theirs->id],
             'recipient_id' => $this->china->id,
             'source_account_id' => $wallet->id,
@@ -557,18 +571,21 @@ class ChinaSettlementTest extends TestCase
             ->assertSee('Dollars arrived, receiver not paid');
     }
 
-    public function test_the_exchange_desk_offers_a_person_their_own_wallets_to_convert(): void
+    public function test_the_exchange_desk_offers_the_lead_agent_their_own_wallets_to_convert(): void
     {
-        $wallets = Account::walletsFor($this->agent);
+        $wallets = Account::walletsFor($this->lead);
 
-        $this->actingAs($this->agent)->get('/exchanges/create')
+        $this->actingAs($this->lead)->get('/exchanges/create')
             ->assertOk()
-            ->assertSee('Kampala Agent (UGX)')
-            ->assertSee('Kampala Agent (USD)');
+            ->assertSee('Lead Agent (UGX)')
+            ->assertSee('Lead Agent (USD)');
 
         // The dollars a transfer is bought with come out of the shillings in hand, so the shilling
         // wallet is what the overdraft guard watches.
         $this->assertSame(['UGX', 'USD'], array_keys($wallets));
+
+        // The ordinary agent no longer runs the exchange desk.
+        $this->actingAs($this->agent)->get('/exchanges/create')->assertForbidden();
     }
 
     public function test_a_desk_in_china_is_seeded_with_a_dollar_and_a_yuan_wallet(): void

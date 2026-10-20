@@ -15,7 +15,7 @@ final class PermissionCatalog
         'Send Money' => ['create-transaction', 'bulk-import-transactions', 'view-exchanges', 'view-all-exchanges', 'create-exchange', 'void-exchange', 'override-exchange-rate', 'export-exchanges'],
         'China Desk' => ['send-to-china', 'confirm-china-payout'],
         'Exchange Rates' => ['view-exchange-rates', 'manage-exchange-rates', 'export-exchange-rates'],
-        'Wallets' => ['view-wallets', 'view-all-wallets', 'adjust-wallets'],
+        'Wallets' => ['view-wallets', 'view-all-wallets', 'adjust-wallets', 'approve-cash-handover'],
         'Receipts' => ['view-receipts', 'print-receipt', 'export-receipts'],
         'Reports' => ['view-reports', 'export-reports', 'view-profit', 'view-agent-performance'],
         'Settings' => ['view-settings', 'manage-settings', 'manage-system-settings'],
@@ -31,7 +31,8 @@ final class PermissionCatalog
         'superadmin' => 'Full access to every module. This protected role cannot be changed.',
         'admin' => 'Manages daily operations, people and permissions. System internals stay with Super Admin.',
         'accountant' => 'Reads every book, the customers, the profit and the prices, and writes customer and account entries. Records no expenses: the spending book is opened to check it and report on it.',
-        'agent' => 'Books transfers and exchanges and logs what they spent out of the cash in hand. Sees only their own transactions, expenses, receipts, reports and wallets.',
+        'agent' => 'Books transfers and logs what they spent out of the cash in hand. Sees only their own transactions, expenses, receipts, reports and wallets.',
+        'super-agent' => 'The lead agent. Books and sends money like an agent, handles the currency exchange desk, sees every agent\'s transfers, and approves the cash they hand in.',
         'staff' => 'Desk staff. Reads their own transactions, receipts and reports; books nothing and changes nothing.',
     ];
 
@@ -87,13 +88,28 @@ final class PermissionCatalog
             ]),
             'agent' => [
                 'view-dashboard', 'create-transaction', 'view-transactions', 'view-own-transactions',
-                'export-transactions', 'view-exchanges', 'create-exchange', 'override-exchange-rate', 'export-exchanges',
+                'export-transactions',
                 'view-wallets', 'view-receipts', 'print-receipt', 'export-receipts', 'view-reports', 'export-reports',
-                'send-to-china', 'confirm-china-payout',
+                'confirm-china-payout',
                 // An agent pays for transport, airtime and mobile money charges out of the cash they
                 // are already holding, so they record that spending themselves. view-expenses opens
                 // their own page of the book; the rows other people entered stay behind
                 // view-all-expenses, and cancelling one stays with the office.
+                'view-expenses', 'create-expense',
+            ],
+            // The lead agent is the hand the others answer to. He keeps the custody pair on his
+            // dashboard because the cash handed in lands in his own wallets, so he is deliberately
+            // not given view-all-wallets: that ability swaps the personal cards for the office list.
+            // What he does need across the whole book is the transfers, because he is the one who
+            // sends for every agent, and the exchange desk, because buying the dollars for those
+            // sends is his job. The hand-in approval is a separate pen from booking the money in.
+            'super-agent' => [
+                'view-dashboard', 'create-transaction', 'view-transactions', 'view-own-transactions',
+                'view-all-transactions', 'export-transactions',
+                'view-exchanges', 'view-all-exchanges', 'create-exchange', 'override-exchange-rate', 'export-exchanges',
+                'view-wallets', 'approve-cash-handover',
+                'view-receipts', 'print-receipt', 'export-receipts', 'view-reports', 'export-reports',
+                'send-to-china',
                 'view-expenses', 'create-expense',
             ],
             // Desk staff booked nothing under the old role gates and saw only their own records,

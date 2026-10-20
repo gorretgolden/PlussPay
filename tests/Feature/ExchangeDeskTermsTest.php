@@ -374,7 +374,7 @@ class ExchangeDeskTermsTest extends TestCase
             ->assertSee('THIS DEAL WAS CANCELLED');
     }
 
-    public function test_a_desk_agent_cannot_open_a_slip_for_a_deal_they_did_not_book(): void
+    public function test_an_ordinary_agent_cannot_open_an_exchange_slip_at_all(): void
     {
         $this->fund(Account::USD_UGANDA, '1000.00');
         $this->fund(Account::UGX_UGANDA, '5000000.00');
@@ -382,8 +382,10 @@ class ExchangeDeskTermsTest extends TestCase
         $this->book(['fee' => '20000']);
         $exchange = CurrencyExchange::latest('id')->firstOrFail();
 
-        $this->actingAs($this->makeUser('agent'))->get('/exchanges/'.$exchange->id.'/receipt')->assertNotFound();
-        $this->actingAs($this->admin)->get('/exchanges/'.$exchange->id.'/receipt')->assertOk();
+        // The exchange desk is the lead agent's job, so a booking agent has no reach here even on
+        // a deal they can see everywhere else in the book.
+        $this->actingAs($this->makeUser('agent'))->get('/exchanges/'.$exchange->id.'/receipt')->assertForbidden();
+        $this->actingAs($this->makeUser('super-agent'))->get('/exchanges/'.$exchange->id.'/receipt')->assertOk();
     }
 
     public function test_the_form_offers_the_commission_the_payment_method_and_the_live_price(): void

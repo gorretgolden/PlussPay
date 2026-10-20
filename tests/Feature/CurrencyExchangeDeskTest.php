@@ -269,21 +269,24 @@ class CurrencyExchangeDeskTest extends TestCase
             ->assertSee('Margin on');
     }
 
-    public function test_a_desk_agent_can_record_a_deal_but_not_cancel_one(): void
+    public function test_the_lead_agent_can_record_a_deal_but_not_cancel_one(): void
     {
-        $agent = $this->makeUser('agent');
+        $lead = $this->makeUser('super-agent');
 
         $this->fund(Account::USD_UGANDA, '1000.00');
         $this->fund(Account::UGX_UGANDA, '5000000.00');
 
-        $this->actingAs($agent)->get('/exchanges/create')->assertOk();
+        $this->actingAs($lead)->get('/exchanges/create')->assertOk();
 
         $exchange = $this->deal();
 
-        $this->actingAs($agent)->post('/exchanges/'.$exchange->id.'/void', ['reason' => 'Not mine to undo'])
+        // Recording the counter deal is the lead agent's work; undoing one stays with the office.
+        $this->actingAs($lead)->post('/exchanges/'.$exchange->id.'/void', ['reason' => 'Not mine to undo'])
             ->assertForbidden();
 
         $this->assertSame('active', $exchange->fresh()->status);
+
+        $this->actingAs($this->makeUser('agent'))->get('/exchanges/create')->assertForbidden();
     }
 
     public function test_someone_outside_the_desks_cannot_open_the_book(): void

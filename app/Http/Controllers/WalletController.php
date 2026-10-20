@@ -19,7 +19,7 @@ class WalletController extends Controller
         $user = auth()->user();
 
         if ($user->can('view-all-wallets')) {
-            $agents = User::role('agent')->where('is_active', true)->get();
+            $agents = User::role(['agent', 'super-agent'])->where('is_active', true)->get();
             $allWallets = [];
 
             $every = [];

@@ -107,16 +107,19 @@ class AgentReportDeskTest extends TestCase
         return ['revenue', 'profit', 'commission', 'agent', 'customer', 'rates'];
     }
 
-    public function test_a_desk_is_offered_his_own_five_reports_and_none_of_the_offices(): void
+    public function test_a_desk_is_offered_only_his_own_reports_and_none_of_the_offices(): void
     {
         $agent = $this->user('Sarah Nalin', 'agent');
         $this->booking($agent, 'DESK-OWN');
 
         $html = $this->actingAs($agent)->get('/reports')->assertOk()->getContent();
 
-        foreach (['My Reports', 'My Transfers', 'My Exchanges', 'My Charge Collected', 'My Wallet Summary', 'My Daily Summary'] as $label) {
+        foreach (['My Reports', 'My Transfers', 'My Charge Collected', 'My Wallet Summary', 'My Daily Summary'] as $label) {
             $this->assertStringContainsString($label, $html);
         }
+
+        // The counter book moved to the super agent, so an ordinary agent is not handed its tab.
+        $this->assertStringNotContainsString('My Exchanges', $html);
 
         foreach (['Reports Hub', 'Transaction Report', 'Revenue Report', 'Profit Report', 'Commission Report', 'Agent Report', 'Customer Report', 'Exchange Rate Report'] as $label) {
             $this->assertStringNotContainsString($label, $html);
@@ -144,15 +147,16 @@ class AgentReportDeskTest extends TestCase
         $this->actingAs($agent)->get('/export/agent-performance')->assertForbidden();
     }
 
-    public function test_a_desks_own_five_reports_all_open(): void
+    public function test_a_desks_own_reports_all_open_but_the_counter_book_is_not_his(): void
     {
         $agent = $this->user('Sarah Nalin', 'agent');
         $this->booking($agent, 'DESK-OPEN');
-        $this->deal($agent, 'Wei Chen');
 
-        foreach (['hub', 'transaction', 'exchanges', 'charge', 'wallet', 'daily'] as $type) {
+        foreach (['hub', 'transaction', 'charge', 'wallet', 'daily'] as $type) {
             $this->actingAs($agent)->get('/reports?type='.$type)->assertOk();
         }
+
+        $this->actingAs($agent)->get('/reports?type=exchanges')->assertForbidden();
     }
 
     public function test_one_desk_never_sees_another_desks_booking_on_screen_or_in_a_file(): void
@@ -261,10 +265,16 @@ class AgentReportDeskTest extends TestCase
         $this->actingAs($agent)->delete('/transactions/'.$booking->id)->assertStatus(405);
     }
 
-    public function test_a_desks_exchange_tab_carries_only_his_own_deals(): void
+    public function test_a_counter_desk_reads_only_its_own_deals_on_the_exchange_tab(): void
     {
-        $mine = $this->user('Sarah Nalin', 'agent');
-        $theirs = $this->user('Peter Okello', 'agent');
+        // A role that runs the counter without reading every agent's book, which is what the desk
+        // side of the report catalog answers. A super agent normally sees every deal, so the
+        // own-only rule is proven with the narrow role the abilities allow.
+        Role::firstOrCreate(['name' => 'exchange-desk', 'guard_name' => 'web'])
+            ->syncPermissions(['view-dashboard', 'view-reports', 'view-transactions', 'view-own-transactions', 'view-exchanges', 'export-exchanges']);
+
+        $mine = $this->user('Sarah Nalin', 'exchange-desk');
+        $theirs = $this->user('Peter Okello', 'exchange-desk');
 
         $this->deal($mine, 'Alice Auma');
         $this->deal($theirs, 'Bob Kato');

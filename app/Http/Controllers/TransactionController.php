@@ -102,7 +102,7 @@ class TransactionController extends Controller
 
         return User::query()
             ->where('is_active', true)
-            ->role('agent')
+            ->role(['agent', 'super-agent'])
             ->orderByRaw('coalesce(country, ?) = ? desc, name asc', [User::DEFAULT_COUNTRY, User::DEFAULT_COUNTRY])
             ->get(['id', 'name', 'country']);
     }

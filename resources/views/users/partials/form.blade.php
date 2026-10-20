@@ -1,6 +1,6 @@
 @php
     $editing = isset($user);
-    $descriptions = ['superadmin' => 'Full access, including roles and system security.', 'admin' => 'Manages accounts, users and daily operations.', 'agent' => 'Handles customer transfers at their assigned desk.', 'accountant' => 'Reviews balances, expenses and financial reports.', 'staff' => 'Uses the tools granted to this role.'];
+    $descriptions = ['superadmin' => 'Full access, including roles and system security.', 'admin' => 'Manages accounts, users and daily operations.', 'agent' => 'Handles customer transfers at their assigned desk.', 'super-agent' => 'The lead agent. Sends money to China, runs the exchange desk and approves the cash other agents hand in.', 'accountant' => 'Reviews balances, expenses and financial reports.', 'staff' => 'Uses the tools granted to this role.'];
 @endphp
 <div class="user-grid">
     <div class="user-field">

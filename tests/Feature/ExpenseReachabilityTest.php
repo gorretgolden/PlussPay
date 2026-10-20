@@ -100,16 +100,24 @@ class ExpenseReachabilityTest extends TestCase
             $this->assertStringContainsString('>'.$label.'</span>', $superadmin, $label.' is a Super Admin shortcut.');
         }
 
-        // A desk agent books transfers, swaps notes and logs what they spent out of the cash in
-        // hand. Prices and the customer list stay with the office.
+        // A desk agent books transfers and logs what they spent out of the cash in hand. The
+        // counter, the prices and the customer list stay with the office and the super agent.
         $agent = $this->html($this->user('agent', 'Amina Nabukenya'));
         $this->assertStringContainsString('>Send Money to China</span>', $agent);
         $this->assertStringContainsString('>Send Money to Uganda</span>', $agent);
-        $this->assertStringContainsString('>Record Exchange</span>', $agent);
         $this->assertStringContainsString('>Record Expense</span>', $agent, 'An agent who spends the desk\'s cash records it themselves.');
         $this->assertStringContainsString('>Expenses</span>', $agent, 'Their own page of the book, reached from the same card.');
-        foreach (['Exchange Rates', 'Add Customer'] as $label) {
+        foreach (['Record Exchange', 'Exchange Rates', 'Add Customer'] as $label) {
             $this->assertStringNotContainsString('>'.$label.'</span>', $agent, $label.' is beyond an agent.');
+        }
+
+        // The lead agent adds the counter to the same board: he is the one who changes money.
+        $lead = $this->html($this->user('super-agent', 'Amina Lead'));
+        foreach (['Send Money to China', 'Send Money to Uganda', 'Record Exchange', 'Record Expense', 'Expenses'] as $label) {
+            $this->assertStringContainsString('>'.$label.'</span>', $lead, $label.' is a Super Agent shortcut.');
+        }
+        foreach (['Exchange Rates', 'Add Customer'] as $label) {
+            $this->assertStringNotContainsString('>'.$label.'</span>', $lead, $label.' is beyond a Super Agent.');
         }
 
         // The accountant checks the spending book and reports on it, so the book is one click away
@@ -129,15 +137,25 @@ class ExpenseReachabilityTest extends TestCase
     {
         $agent = $this->user('agent', 'Amina Nabukenya');
 
-        foreach (['/transactions/create', '/exchanges/create', '/expenses', '/expenses/create'] as $path) {
+        foreach (['/transactions/create', '/expenses', '/expenses/create'] as $path) {
             $this->flushSession();
             $this->actingAs($agent)->get($path)->assertOk();
+        }
+
+        $this->flushSession();
+        $this->actingAs($agent)->get('/exchanges/create')->assertForbidden();
+
+        $lead = $this->user('super-agent', 'Amina Lead');
+
+        foreach (['/transactions/create', '/exchanges/create', '/expenses', '/expenses/create'] as $path) {
+            $this->flushSession();
+            $this->actingAs($lead)->get($path)->assertOk();
         }
     }
 
     public function test_each_corridor_is_offered_once_on_the_dashboard(): void
     {
-        $html = $this->html($this->user('agent', 'Amina Nabukenya'));
+        $html = $this->html($this->user('super-agent', 'Amina Lead'));
 
         // The button that used to sit on the Recent Transactions header booked the same thing
         // under a second name, so the card's entries are now the only ones of those labels. Sidebar

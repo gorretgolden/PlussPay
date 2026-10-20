@@ -192,7 +192,7 @@ class DemoAccountSeederTest extends TestCase
         $this->seed(RoleAndUserSeeder::class);
 
         $this->assertSame(
-            ['accountant', 'admin', 'agent', 'staff', 'superadmin'],
+            ['accountant', 'admin', 'agent', 'staff', 'super-agent', 'superadmin'],
             Role::orderBy('name')->pluck('name')->all()
         );
 
@@ -200,6 +200,17 @@ class DemoAccountSeederTest extends TestCase
         // roles, so the accountant only ever reads the book.
         $this->assertContains('create-transaction', Role::findByName('agent')->permissions->pluck('name')->all());
         $this->assertNotContains('create-transaction', Role::findByName('accountant')->permissions->pluck('name')->all());
+
+        // The exchange desk and the send to China belong to the lead agent now, so the ordinary
+        // agent books and holds cash but does not buy the dollars or forward them.
+        $superAgent = Role::findByName('super-agent')->permissions->pluck('name')->all();
+        $ordinaryAgent = Role::findByName('agent')->permissions->pluck('name')->all();
+        $this->assertContains('create-exchange', $superAgent);
+        $this->assertContains('send-to-china', $superAgent);
+        $this->assertContains('view-all-transactions', $superAgent);
+        $this->assertNotContains('create-exchange', $ordinaryAgent);
+        $this->assertNotContains('send-to-china', $ordinaryAgent);
+
         $this->assertNotEmpty(Role::findByName('admin')->permissions);
         $this->assertNotEmpty(Role::findByName('staff')->permissions);
 

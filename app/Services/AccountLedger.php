@@ -213,8 +213,9 @@ class AccountLedger
 
     /**
      * The agent who physically holds a booking's cash, or null when the booking was taken at the
-     * office desk. Only the agent role keeps money in a wallet, because everyone else books from
-     * behind the counter, where the till is in the same room.
+     * office desk. Only the agent roles keep money in a wallet, because everyone else books from
+     * behind the counter, where the till is in the same room. The super agent holds cash too: it is
+     * the hand the other agents hand theirs in to.
      */
     private static function cashHeldBy(Transaction $transaction): ?User
     {
@@ -224,7 +225,7 @@ class AccountLedger
 
         $collector = User::find($transaction->created_by);
 
-        return $collector && $collector->hasRole('agent') ? $collector : null;
+        return $collector && $collector->hasAnyRole(['agent', 'super-agent']) ? $collector : null;
     }
 
     /**

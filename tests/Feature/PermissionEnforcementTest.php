@@ -161,23 +161,43 @@ class PermissionEnforcementTest extends TestCase
         $this->patch('/exchange-rates/'.$rate->id, [])->assertForbidden();
     }
 
-    public function test_agent_lists_receipts_reports_and_exchange_objects_remain_own_only(): void
+    public function test_agent_lists_receipts_and_reports_remain_own_only(): void
     {
         $agent = $this->user('agent');
         $other = $this->user('agent');
         $own = $this->transfer($agent, 'OWN-ONLY');
         $foreign = $this->transfer($other, 'FOREIGN-PRIVATE');
-        $ownExchange = $this->exchange($agent, 'OWN-EXCHANGE');
-        $foreignExchange = $this->exchange($other, 'FOREIGN-EXCHANGE');
         $this->actingAs($agent)->get('/transactions')->assertOk()->assertSee($own->receipt_number)->assertDontSee($foreign->receipt_number);
         $this->get('/transactions/'.$foreign->id)->assertForbidden();
         $this->get('/receipts')->assertOk()->assertSee($own->receipt_number)->assertDontSee($foreign->receipt_number);
         $this->get('/receipts/'.$foreign->receipt_number.'/print')->assertNotFound();
         $this->get('/reports')->assertOk()->assertSee($own->receipt_number)->assertDontSee($foreign->receipt_number)->assertDontSee('"exchange_ugx":', false);
-        $this->get('/exchanges')->assertOk()->assertSee($ownExchange->reference)->assertDontSee($foreignExchange->reference)->assertDontSee('Margin (UGX)');
-        $this->get('/exchanges/'.$foreignExchange->id)->assertNotFound();
-        $this->get('/exchanges/'.$ownExchange->id)->assertOk()->assertDontSee('Margin on this deal');
+        // The exchange desk moved to the lead agent, so an ordinary agent cannot open it at all.
+        $this->get('/exchanges')->assertForbidden();
+        $this->get('/exchanges/create')->assertForbidden();
         foreach (['/customers', '/accounts', '/settings', '/exchange-rates', '/admin/roles'] as $url) {
+            $this->get($url)->assertForbidden();
+        }
+    }
+
+    public function test_the_lead_agent_sees_every_agents_transfers_and_runs_the_exchange_desk(): void
+    {
+        $lead = $this->user('super-agent');
+        $agent = $this->user('agent');
+        $own = $this->transfer($lead, 'LEAD-BOOK');
+        $foreign = $this->transfer($agent, 'AGENT-BOOK');
+
+        $this->actingAs($lead)->get('/transactions')
+            ->assertOk()
+            ->assertSee($own->receipt_number)
+            ->assertSee($foreign->receipt_number);
+        $this->get('/transactions/'.$foreign->id)->assertOk();
+        $this->get('/exchanges')->assertOk();
+        $this->get('/exchanges/create')->assertOk();
+        $this->get('/china')->assertOk();
+
+        // Oversight of the agents is not oversight of the office books.
+        foreach (['/accounts', '/customers', '/settings', '/admin/roles'] as $url) {
             $this->get($url)->assertForbidden();
         }
     }
