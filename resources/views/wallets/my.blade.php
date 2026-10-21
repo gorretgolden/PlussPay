@@ -61,7 +61,7 @@
     // and an empty wallet leaves the box empty rather than opening at a zero it cannot send.
     $prefill = old('amount', $heldNow > 0 ? (string) round($heldNow, 2) : '');
 @endphp
-<div class="bg-white rounded-lg shadow p-6 mb-8">
+<div id="hand-in" class="bg-white rounded-lg shadow p-6 mb-8 scroll-mt-20">
     <h2 class="text-lg font-semibold text-gray-900">Hand cash in to your super agent</h2>
     @if($superAgents->isEmpty())
         <p class="text-sm text-gray-600 mt-2">No super agent is active yet. Ask the office to set one up before you hand any cash in.</p>

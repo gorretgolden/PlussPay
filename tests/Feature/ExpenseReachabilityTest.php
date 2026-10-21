@@ -99,6 +99,10 @@ class ExpenseReachabilityTest extends TestCase
         // the country the customer is already standing in.
         $labels = ['Send Money to China', 'Record Exchange', 'Expenses', 'Exchange Rates', 'Add Customer', 'Transactions'];
 
+        // The lead agent is made first, because an ordinary agent is offered the hand-in shortcut
+        // only while there is an active super agent to receive the request.
+        $lead = $this->user('super-agent', 'Amina Lead');
+
         $superadmin = $this->html($this->user('superadmin', 'Super Admin'));
         foreach ($labels as $label) {
             $this->assertStringContainsString('>'.$label.'</span>', $superadmin, $label.' is a Super Admin shortcut.');
@@ -113,13 +117,18 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringNotContainsString('>Send Money to Uganda</span>', $agent, 'Uganda is where this agent already stands.');
         $this->assertStringContainsString('>Expenses</span>', $agent, 'Their own page of the book, where the pen sits above their entries.');
         $this->assertStringContainsString('Record spending, read your entries', $agent);
+        $this->assertStringContainsString('>Hand Cash In</span>', $agent, 'An agent hands the desk cash up to the lead agent.');
+        $this->assertStringContainsString('Send cash to your super agent', $agent);
+        $this->assertStringContainsString('/wallet#hand-in', $agent, 'The card opens the form itself.');
         foreach (['Record Exchange', 'Record Expense', 'Exchange Rates', 'Add Customer'] as $label) {
             $this->assertStringNotContainsString('>'.$label.'</span>', $agent, $label.' is beyond an agent.');
         }
 
         // The lead agent adds the counter and the whole book to the same board: he is the one who
-        // changes money and the one who answers for every agent's transfers.
-        $lead = $this->html($this->user('super-agent', 'Amina Lead'));
+        // changes money and the one who answers for every agent's transfers. He receives the cash
+        // rather than handing it up, so the hand-in card is not his.
+        $lead = $this->html($lead);
+        $this->assertStringNotContainsString('>Hand Cash In</span>', $lead, 'The lead agent receives the hand-in.');
         foreach (['Send Money to China', 'Record Exchange', 'Expenses', 'Transactions'] as $label) {
             $this->assertStringContainsString('>'.$label.'</span>', $lead, $label.' is a Super Agent shortcut.');
         }
@@ -174,8 +183,29 @@ class ExpenseReachabilityTest extends TestCase
 
         $agent = $this->quickActions($this->html($this->user('agent', 'Amina Nabukenya')));
 
-        $this->assertSame(2, substr_count($agent, 'hover:border-green-300'), 'The send card and the spending book.');
-        $this->assertStringNotContainsString('sm:col-span-2', $agent, 'Two cards fill one row exactly.');
+        $this->assertSame(3, substr_count($agent, 'hover:border-green-300'), 'The send card, the hand-in card and the spending book.');
+        $this->assertSame(1, substr_count($agent, 'sm:col-span-2'), 'The odd last card fills its row instead of leaving a gap.');
+    }
+
+    public function test_the_hand_in_card_waits_for_an_active_lead_agent(): void
+    {
+        $agent = $this->user('agent', 'Amina Nabukenya');
+
+        $this->assertStringNotContainsString('Hand Cash In', $this->quickActions($this->html($agent)), 'No lead agent, so nowhere to hand the cash.');
+
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $lead->update(['is_active' => false]);
+
+        $this->assertStringNotContainsString('Hand Cash In', $this->quickActions($this->html($agent->fresh())), 'An inactive lead agent does not count.');
+
+        $lead->update(['is_active' => true]);
+
+        $actions = $this->quickActions($this->html($agent->fresh()));
+        $this->assertStringContainsString('>Hand Cash In</span>', $actions);
+        $this->assertStringContainsString('/wallet#hand-in', $actions);
+
+        // The card points at this form, so the anchor has to exist on the wallet page.
+        $this->assertStringContainsString('id="hand-in"', $this->html($agent->fresh(), '/wallet'));
     }
 
     public function test_every_shortcut_a_role_is_handed_open_for_that_role(): void
