@@ -34,7 +34,7 @@
     </div>
 
     <div class="bg-white rounded-lg shadow p-6">
-        <form method="POST" action="{{ $expense ? route('expenses.update', $expense) : route('expenses.store') }}" enctype="multipart/form-data" class="space-y-5">
+        <form method="POST" action="{{ $expense ? route('expenses.update', $expense) : route('expenses.store') }}" enctype="multipart/form-data" class="space-y-5" data-lock data-lock-label="Saving...">
             @csrf
             @if($expense) @method('PUT') @endif
 

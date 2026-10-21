@@ -23,6 +23,12 @@
         :where(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid #15803d; outline-offset: 3px; }
         .admin-confirm::backdrop { background: rgb(0 0 0 / 50%); }
         .admin-confirm { max-width: min(28rem, calc(100vw - 2rem)); }
+        /* A form on its way to the server reads as frozen: no pointer reaches a box, selects and
+           tick boxes grey out, and text fields are read only so their values still post. */
+        .form-locked { cursor: progress; }
+        .form-locked :is(input, select, textarea, button, a, label) { pointer-events: none; }
+        .form-locked :is(button, a) { opacity: .6; }
+        .form-locked :is(input:not([type=hidden]), select, textarea, button[role="combobox"]) { background-color: #f3f4f6; }
         .field-invalid { border-color: #b91c1c !important; }
         .field-invalid:not([type=checkbox]):not([type=radio]) { border-width: 2px; box-shadow: none; background-color: #fff; color: inherit; }
         [data-error-summary]:not(:empty) { border-left: 3px solid #b42318; }

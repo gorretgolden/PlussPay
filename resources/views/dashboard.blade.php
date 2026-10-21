@@ -335,14 +335,36 @@
                 {{ $handover->reference }}
                 @if($handover->note)<span class="text-gray-400"> · </span>{{ $handover->note }}@endif
             </p>
+            @php
+                $handoverRows = [
+                    ['From agent', $handover->agent?->name],
+                    ['Amount', $handover->figure()],
+                    ['Reference', $handover->reference],
+                ];
+                if ($handover->note) {
+                    $handoverRows[] = ['Their note', $handover->note];
+                }
+            @endphp
             <div class="flex flex-wrap items-center gap-2 mt-2">
-                <form method="POST" action="{{ route('cash-handovers.approve', $handover) }}">
+                <form method="POST" action="{{ route('cash-handovers.approve', $handover) }}"
+                    data-confirm-title="Confirm you have received this cash"
+                    data-confirm="Approving moves the money from {{ $handover->agent?->name }}'s wallet into yours. Confirm only once you have counted the cash."
+                    data-confirm-ok="Yes, I have it"
+                    data-confirm-sections="{{ json_encode([['rows' => $handoverRows]]) }}"
+                    data-lock data-lock-label="Approving...">
                     @csrf
                     <button type="submit" class="bg-green-800 text-white px-3 py-1.5 rounded-md text-xs font-semibold hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
                         Approve receipt
                     </button>
                 </form>
-                <form method="POST" action="{{ route('cash-handovers.decline', $handover) }}" class="flex flex-wrap items-center gap-2">
+                <form method="POST" action="{{ route('cash-handovers.decline', $handover) }}" class="flex flex-wrap items-center gap-2"
+                    data-confirm-title="Send this hand-in back?"
+                    data-confirm="The cash stays in {{ $handover->agent?->name }}'s wallet and the agent sees the reason you give."
+                    data-confirm-ok="Send it back"
+                    data-confirm-danger="1"
+                    data-confirm-sections="{{ json_encode([['rows' => $handoverRows]]) }}"
+                    data-confirm-rows="{{ json_encode([['Reason', 'input[name=decision_note]', 'value']]) }}"
+                    data-lock data-lock-label="Sending back...">
                     @csrf
                     <input type="text" name="decision_note" required maxlength="255" placeholder="Why it is going back"
                         aria-label="Reason for declining {{ $handover->reference }}"
@@ -670,7 +692,17 @@
 <div id="hand-in-modal" class="hand-in-modal no-print" @if(! $handInOpen) hidden @endif>
     <div class="hand-in-modal-backdrop" data-hand-in-dismiss aria-hidden="true"></div>
     <div class="hand-in-modal-panel" role="dialog" aria-modal="true" aria-labelledby="hand-in-title" tabindex="-1">
-        <form method="POST" action="{{ route('cash-handovers.store') }}">
+        <form method="POST" action="{{ route('cash-handovers.store') }}"
+            data-confirm-title="Send this cash hand-in for approval?"
+            data-confirm="The money stays in your wallet until the super agent approves it. Check the details before sending."
+            data-confirm-ok="Send for approval"
+            data-confirm-rows="{{ json_encode([
+                ['Super agent', '#hand-in-super-agent', 'option'],
+                ['Wallet', '#hand-in-currency', 'value'],
+                ['Amount', '#hand-in-amount', 'money'],
+                ['Note', '#hand-in-note', 'value'],
+            ]) }}"
+            data-lock data-lock-label="Sending...">
             @csrf
             <div class="hand-in-modal-head">
                 <h2 id="hand-in-title" class="text-lg font-semibold text-gray-900">Hand cash in to your super agent</h2>

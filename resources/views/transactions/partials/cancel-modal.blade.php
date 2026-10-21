@@ -21,7 +21,7 @@
             </div>
         </dl>
 
-        <form method="POST" id="cancelModalForm" action="">
+        <form method="POST" id="cancelModalForm" action="" data-lock data-lock-label="Cancelling...">
             @csrf
             @method('PATCH')
             <input type="hidden" name="status" value="cancelled">

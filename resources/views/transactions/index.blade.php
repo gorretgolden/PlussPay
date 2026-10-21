@@ -410,7 +410,7 @@
                         @can('view-profit')
                         @if($t->status === 'pending')
                         <div class="border-t border-gray-100 my-1"></div>
-                        <form method="POST" action="{{ route('transactions.update-status', $t) }}">
+                        <form method="POST" action="{{ route('transactions.update-status', $t) }}" data-lock data-lock-label="Approving...">
                             @csrf @method('PATCH')
                             <input type="hidden" name="status" value="completed">
                             <button type="submit" class="w-full text-left px-4 py-2 text-sm text-green-700 hover:bg-green-50">

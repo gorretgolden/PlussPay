@@ -70,7 +70,7 @@
         </button>
     </div>
 
-    <form method="POST" action="{{ route('transactions.store') }}" id="transactionForm">
+    <form method="POST" action="{{ route('transactions.store') }}" id="transactionForm" data-lock data-lock-label="Booking...">
         @csrf
         <input type="hidden" name="form_id" value="{{ $formId }}">
 
@@ -1155,10 +1155,6 @@ document.getElementById('transactionForm').addEventListener('submit', function(e
 
     draftCleared = true;
     localStorage.removeItem(DRAFT_KEY);
-
-    const btn = document.getElementById('submitBtn');
-    btn.disabled = true;
-    btn.textContent = 'Booking...';
 });
 
 // ---- Draft save / restore (scoped to the signed-in user) ----

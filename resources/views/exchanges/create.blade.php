@@ -30,7 +30,7 @@
     @endunless
 
     <div class="bg-white rounded-lg shadow p-6">
-        <form method="POST" action="{{ route('exchanges.store') }}" class="space-y-5" id="exchange-form">
+        <form method="POST" action="{{ route('exchanges.store') }}" class="space-y-5" id="exchange-form" data-lock data-lock-label="Saving...">
             @csrf
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

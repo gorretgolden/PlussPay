@@ -38,6 +38,40 @@
         container.classList.toggle('hidden', !sections?.length);
     }
 
+    // A form can hand over the field names it wants read back, so the details on the card are
+    // the figures the person actually typed rather than a second copy assembled in the view.
+    function confirmationSections(form) {
+        let sections = [];
+        if (form.dataset.confirmSections) {
+            try { sections = JSON.parse(form.dataset.confirmSections) || []; } catch (error) { sections = []; }
+        }
+        if (!form.dataset.confirmRows) return sections;
+
+        try {
+            const rows = JSON.parse(form.dataset.confirmRows).map(([label, selector, source]) => {
+                const field = form.querySelector(selector);
+                if (!field) return null;
+                let value = (field.value || '').trim();
+                if (source === 'option') value = field.options?.[field.selectedIndex]?.textContent?.trim() || '';
+                if (source === 'money') value = formatMoney(value, (form.querySelector('[name="currency"]')?.value || '').trim());
+                return value ? [label, value] : null;
+            }).filter(Boolean);
+            if (rows.length) sections.push({ rows });
+        } catch (error) {}
+
+        return sections;
+    }
+
+    function formatMoney(value, currency) {
+        const figure = Number(String(value).replace(/,/g, ''));
+        if (!Number.isFinite(figure)) return value;
+        const decimals = currency === 'UGX' ? 0 : 2;
+        const amount = figure.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        if (currency === 'USD') return '$' + amount;
+        if (currency === 'RMB') return '¥' + amount;
+        return (currency ? currency + ' ' : '') + amount;
+    }
+
     window.askConfirm = (options = {}) => {
         if (resolveDialog) return Promise.resolve(false);
         if (!dialog) {
@@ -251,7 +285,7 @@
         if (form.dataset.confirmed === '1') { delete form.dataset.confirmed; return; }
         event.preventDefault();
         const submitter = event.submitter;
-        window.askConfirm({ title: form.dataset.confirmTitle, message: form.dataset.confirm, confirmText: form.dataset.confirmOk, danger: form.dataset.confirmDanger === '1', typedValue: form.dataset.confirmTyped }).then((yes) => {
+        window.askConfirm({ title: form.dataset.confirmTitle, message: form.dataset.confirm, confirmText: form.dataset.confirmOk, danger: form.dataset.confirmDanger === '1', typedValue: form.dataset.confirmTyped, sections: confirmationSections(form) }).then((yes) => {
             if (!yes) return;
             form.dataset.confirmed = '1';
             form.requestSubmit(submitter);
@@ -270,6 +304,66 @@
             });
         });
     });
+    // Locking freezes the fields while the request is on its way, so a second click cannot send
+    // the same money twice and nobody can retype a figure the books are already taking. The
+    // fields stay enabled and keep their values; a disabled field is one the server never sees.
+    function lockForm(form) {
+        if (form.dataset.locked === '1') return;
+        form.dataset.locked = '1';
+        form.classList.add('form-locked');
+        form.setAttribute('aria-busy', 'true');
+
+        form.querySelectorAll('input, select, textarea, button, a[href]').forEach((field) => {
+            field.dataset.lockedTabindex = field.getAttribute('tabindex') || '';
+            field.setAttribute('tabindex', '-1');
+        });
+        form.querySelectorAll('input, select, textarea').forEach((field) => {
+            if (['hidden', 'submit', 'button', 'reset'].includes(field.type)) return;
+            if (field.matches('select, [type="checkbox"], [type="radio"], [type="file"]')) {
+                field.setAttribute('aria-disabled', 'true');
+                field.classList.add('field-locked');
+            } else {
+                field.readOnly = true;
+            }
+        });
+        form.querySelectorAll('button[type="submit"]').forEach((button) => {
+            button.dataset.lockText = button.textContent.trim();
+            button.disabled = true;
+            if (form.dataset.lockLabel) button.textContent = form.dataset.lockLabel;
+        });
+        if (form.contains(document.activeElement)) document.activeElement.blur();
+    }
+
+    function unlockForm(form) {
+        form.querySelectorAll('[data-locked-tabindex]').forEach((field) => {
+            const tabindex = field.dataset.lockedTabindex;
+            if (tabindex) field.setAttribute('tabindex', tabindex);
+            else field.removeAttribute('tabindex');
+            delete field.dataset.lockedTabindex;
+            field.removeAttribute('aria-disabled');
+            field.classList.remove('field-locked');
+            if (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA') field.readOnly = false;
+        });
+        form.querySelectorAll('button[data-lock-text]').forEach((button) => {
+            button.textContent = button.dataset.lockText;
+            delete button.dataset.lockText;
+            button.disabled = false;
+        });
+        form.classList.remove('form-locked');
+        form.removeAttribute('aria-busy');
+        delete form.dataset.locked;
+    }
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target;
+        if (!form.matches('form[data-lock]')) return;
+        // A confirmation card prevents the first submit, so the lock only falls once the person
+        // has said yes and the request is actually leaving.
+        queueMicrotask(() => {
+            if (!event.defaultPrevented) lockForm(form);
+        });
+    });
+
     document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('form[data-validate]').forEach(initialize));
     window.addEventListener('pageshow', () => {
         document.querySelectorAll('form[aria-busy="true"]').forEach((form) => {
@@ -279,5 +373,6 @@
                 button.disabled = false;
             });
         });
+        document.querySelectorAll('form[data-locked="1"]').forEach(unlockForm);
     });
 })();

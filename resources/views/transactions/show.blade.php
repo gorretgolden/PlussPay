@@ -239,7 +239,7 @@
         <h3 class="text-sm font-medium text-gray-500 mb-3">Actions</h3>
         <div class="flex gap-3">
             @if($transaction->status === 'pending')
-            <form method="POST" action="{{ route('transactions.update-status', $transaction) }}">
+            <form method="POST" action="{{ route('transactions.update-status', $transaction) }}" data-lock data-lock-label="Approving...">
                 @csrf
                 @method('PATCH')
                 <input type="hidden" name="status" value="completed">

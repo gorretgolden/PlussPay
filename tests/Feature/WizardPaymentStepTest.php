@@ -423,7 +423,8 @@ class WizardPaymentStepTest extends TestCase
         $this->assertLessThan($book, $note, 'the warning must sit above the button, not under it');
 
         $this->assertMatchesRegularExpression('/id="submitBtn"[^>]*>\s*Book transfer\s*<\/button>/s', $html);
-        $this->assertStringContainsString("btn.textContent = 'Booking...';", $html);
+        // The button and the fields freeze together once the booking is on its way.
+        $this->assertMatchesRegularExpression('/<form[^>]*id="transactionForm"[^>]*data-lock[^>]*data-lock-label="Booking\.\.\."/s', $html);
         $this->assertStringNotContainsString('Book &amp; Generate Receipt', $html);
         $this->assertStringNotContainsString('Processing...', $html);
 
