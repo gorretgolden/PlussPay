@@ -76,7 +76,13 @@ class UserPasswordController extends Controller
         $this->savePassword($request->user(), $validated['password']);
         $request->session()->regenerate();
 
-        return redirect()->route('dashboard')->with('success', 'Password changed successfully.');
+        // A change started on My Account returns there so the person can read the confirmation.
+        // The forced screen keeps sending them on to the work it interrupted.
+        $next = $request->input('source') === 'account'
+            ? route('account.show')
+            : route('dashboard');
+
+        return redirect($next)->with('success', 'Password changed successfully.');
     }
 
     private function savePassword(User $user, string $password): void
