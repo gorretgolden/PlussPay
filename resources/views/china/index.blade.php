@@ -143,9 +143,9 @@
 @endif
 
 @if($payForm)
-<div class="bg-white rounded-lg shadow mb-8">
+<div id="payouts" class="bg-white rounded-lg shadow mb-8 scroll-mt-6">
     <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-semibold text-gray-900">Confirm the receivers were paid</h2>
+        <h2 class="text-lg font-semibold text-gray-900">Withdraw the money sent from Uganda</h2>
         <p class="text-sm text-gray-500 mt-1">Tick a transfer once the receiver has been handed their money in China, whether that was yuan or dollars. The payment leaves the wallet, in that money, of the
             desk that was sent the dollars for it.</p>
     </div>
@@ -208,8 +208,8 @@
     </form>
 </div>
 @elseif($canPay)
-<div class="bg-white rounded-lg shadow p-6 mb-8">
-    <h2 class="text-lg font-semibold text-gray-900">Nothing waiting in China</h2>
+<div id="payouts" class="bg-white rounded-lg shadow p-6 mb-8 scroll-mt-6">
+    <h2 class="text-lg font-semibold text-gray-900">Nothing waiting to be withdrawn</h2>
     <p class="text-sm text-gray-600 mt-1">Every transfer whose dollars reached China has been paid out to its receiver.</p>
 </div>
 @endif

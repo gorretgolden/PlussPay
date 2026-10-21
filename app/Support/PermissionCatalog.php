@@ -109,7 +109,10 @@ final class PermissionCatalog
                 'view-exchanges', 'view-all-exchanges', 'create-exchange', 'override-exchange-rate', 'export-exchanges',
                 'view-wallets', 'approve-cash-handover',
                 'view-receipts', 'print-receipt', 'export-receipts', 'view-reports', 'export-reports',
-                'send-to-china',
+                // Both halves of the corridor are his: he sends the dollars across, and because he
+                // sees the whole book he may also clear the withdrawal queue in China when a
+                // receiver is handed their money.
+                'send-to-china', 'confirm-china-payout',
                 'view-expenses', 'create-expense',
             ],
             // Desk staff booked nothing under the old role gates and saw only their own records,

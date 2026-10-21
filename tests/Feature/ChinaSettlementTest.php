@@ -420,6 +420,31 @@ class ChinaSettlementTest extends TestCase
         $this->assertNull($transaction->fresh()->delivered_at);
     }
 
+    /**
+     * The lead agent sends the dollars for every Uganda booking, so the withdrawal queue on the
+     * other side is his to clear too. This is the queue the dashboard shortcut opens: money that
+     * came from Uganda, reached a desk in China, and is still owed to its receiver.
+     */
+    public function test_the_lead_agent_clears_the_withdrawal_queue_that_came_from_uganda(): void
+    {
+        $transaction = $this->booked('PS-UG-0060', $this->agent);
+        $this->send($transaction, $this->dollars(1000), $this->china);
+
+        $this->actingAs($this->lead)->get('/china')
+            ->assertOk()
+            ->assertSee('Withdraw the money sent from Uganda')
+            ->assertSee('PS-UG-0060');
+
+        $this->actingAs($this->lead)->post('/china/payout', [
+            'transaction_ids' => [$transaction->fresh()->id],
+        ])->assertRedirect(route('china.index'))->assertSessionHasNoErrors();
+
+        $paid = $transaction->fresh();
+
+        $this->assertNotNull($paid->delivered_at);
+        $this->assertSame('paid', $paid->stage()['key']);
+    }
+
     public function test_the_wallets_of_every_china_desk_stay_with_the_side_that_keeps_the_books(): void
     {
         $transaction = $this->booked('PS-UG-0011', $this->agent);

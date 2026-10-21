@@ -213,22 +213,52 @@
     // permission error, and a role that books nothing at all gets no card rather than a row of
     // dead links. Every label is the words the screen it opens uses, so one thing never carries
     // two names. Sending opens with the corridor already chosen, since which way the money goes is
-    // the first thing a desk knows about the booking standing in front of it. A desk only ever
-    // sends one way: the cash is handed over where the desk is, so Uganda sends to China and China
-    // sends to Uganda. Offering both roads let a Uganda hand "send money to Uganda", which is a
-    // payment back to the customer standing at their own counter. The spending book carries its
-    // own Record Expense button, so one card opens it rather than two cards competing for the
-    // same job.
-    $sendToUganda = \App\Models\Transaction::destinationForDesk($me->country) === \App\Models\Transaction::TO_UGANDA;
-    $sendAction = $sendToUganda
-        ? ['create-transaction', 'Send Money to Uganda', 'Cash in China, paid in Uganda', route('transactions.create', ['destination' => \App\Models\Transaction::TO_UGANDA]), 'M19 12H5m0 0l5-5m-5 5l5 5']
-        : ['create-transaction', 'Send Money to China', 'Cash in Uganda, paid in China', route('transactions.create', ['destination' => \App\Models\Transaction::TO_CHINA]), 'M5 12h14m0 0l-5-5m5 5l-5 5'];
+    // the first thing a desk knows about the booking standing in front of it.
+    //
+    // A hand only ever sends one way: the cash is handed over where the desk is, so an agent in
+    // Uganda sends to China and an agent in China sends to Uganda. Whoever sees the whole book
+    // keys in for either desk, which the booking form already lets them do, so the lead agent and
+    // the office are offered both roads rather than having to turn the form around by hand.
+    $sendToChina = ['create-transaction', 'Send Money to China', 'Cash in Uganda, paid in China', route('transactions.create', ['destination' => \App\Models\Transaction::TO_CHINA]), 'M5 12h14m0 0l-5-5m5 5l-5 5'];
+    $sendToUganda = ['create-transaction', 'Send Money to Uganda', 'Cash in China, paid in Uganda', route('transactions.create', ['destination' => \App\Models\Transaction::TO_UGANDA]), 'M19 12H5m0 0l5-5m-5 5l5 5'];
+    $sendActions = $me->can('view-all-transactions')
+        ? [$sendToChina, $sendToUganda]
+        : [\App\Models\Transaction::destinationForDesk($me->country) === \App\Models\Transaction::TO_UGANDA ? $sendToUganda : $sendToChina];
     $expenseHint = match (true) {
         $me->can('create-expense') && $me->can('view-all-expenses') => 'Record spending, read every entry',
         $me->can('create-expense') => 'Record spending, read your entries',
         $me->can('view-all-expenses') => 'Every expense logged',
         default => 'What you spent',
     };
+
+    // Money that came from Uganda and has reached a desk in China is the receiver's to withdraw.
+    // The shortcut opens the China desk at the payout queue, offered on the same rule the page
+    // uses to show that side, with the same count, so it never leads to a queue the hand cannot
+    // clear or promises work that is not there.
+    $canWithdraw = $me->can('view-transactions') && $me->can('confirm-china-payout')
+        && (($me->country ?: \App\Models\User::DEFAULT_COUNTRY) === 'CN' || $me->can('view-all-transactions'));
+
+    $withdrawAction = $canWithdraw ? [
+        'confirm-china-payout',
+        'Withdraw Money from Uganda',
+        $withdrawalsWaiting > 0
+            ? number_format($withdrawalsWaiting).' receiver'.($withdrawalsWaiting === 1 ? '' : 's').' waiting to be paid'
+            : 'Pay receivers of money sent from Uganda',
+        route('china.index').'#payouts',
+        'M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v10m0 0l-4-4m4 4l4-4',
+    ] : null;
+
+    // The lead agent's queue already sits on this board, one Approve button per request. The
+    // shortcut goes to that card rather than opening a second copy of the same decision.
+    $approveAction = $me->hasRole('super-agent') ? [
+        'approve-cash-handover',
+        'Approve Cash Hand-In',
+        $handoverQueue->isNotEmpty()
+            ? number_format($handoverQueue->count()).' request'.($handoverQueue->count() === 1 ? '' : 's').' waiting for you'
+            : 'Approve the cash agents hand over',
+        '#cash-handed-to-you',
+        'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+    ] : null;
 
     // An ordinary agent hands the desk's cash up to the lead agent. The shortcut opens the same
     // form in a dialog over the board instead of sending them to the wallet page; the wallet page
@@ -237,7 +267,9 @@
     $canHandIn = $superAgents->isNotEmpty() && $wallets !== [];
 
     $quickActions = array_values(array_filter([
-        $sendAction,
+        ...$sendActions,
+        ...($withdrawAction ? [$withdrawAction] : []),
+        ...($approveAction ? [$approveAction] : []),
         ...($canHandIn ? [[
             'view-wallets', 'Hand Cash In', 'Send cash to your super agent', route('wallet.index').'#hand-in',
             'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
@@ -277,7 +309,7 @@
      itself rather than a reminder of one. The card stays on the dashboard while the queue is empty
      so the desk can see where the money will arrive before the first agent ever sends any. --}}
 @if($me->hasRole('super-agent'))
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden">
+<div id="cash-handed-to-you" class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden scroll-mt-6">
     <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 sm:px-5 py-3">
         <h2 class="text-lg font-semibold text-gray-900 mr-auto">Cash Handed To You</h2>
         @if($handoverQueue->isNotEmpty())

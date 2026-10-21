@@ -125,6 +125,19 @@ class DashboardController extends Controller
                 ->all()
             : [];
 
+        // The other half of the corridor: dollars that came from Uganda have reached a desk in
+        // China and the receiver is still to be handed the money. This is the queue the Withdraw
+        // shortcut opens, counted on the same rule the China desk lists it by so the shortcut and
+        // the page it opens never disagree.
+        $withdrawalsWaiting = 0;
+
+        if ($user->can('view-transactions') && $user->can('confirm-china-payout')
+            && (($user->country ?: User::DEFAULT_COUNTRY) === 'CN' || $user->can('view-all-transactions'))) {
+            $withdrawalsWaiting = Transaction::awaitingPayoutInChina()
+                ->when(! $user->can('view-all-transactions'), fn (Builder $q) => $q->where('settled_to', $user->id))
+                ->count();
+        }
+
         // Commission only ever lands in a shilling wallet, whoever booked the transfer, so it is
         // read from that account directly rather than from the wallets this person is shown.
         // A desk in China is shown yuan and dollars but still earns its commission in shillings.
@@ -173,7 +186,7 @@ class DashboardController extends Controller
         // it gets no card at all rather than a figure it cannot check.
         $spending = $user->can('view-expenses') ? $this->spendingToday($user) : ['count' => 0, 'desks' => []];
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts', 'news', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'superAgents'));
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts', 'news', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'superAgents', 'withdrawalsWaiting'));
     }
 
     /**
