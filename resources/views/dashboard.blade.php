@@ -290,12 +290,16 @@
     ], fn (array $a) => $me->can($a[0])));
 @endphp
 @if($quickActions !== [])
+@php
+    // The agent's three shortcuts sit in one row, so the third never waits below the fold.
+    $threeInARow = $me->hasRole('agent') && count($quickActions) === 3;
+@endphp
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div class="grid grid-cols-1 gap-3 {{ $threeInARow ? 'sm:grid-cols-3' : 'sm:grid-cols-2' }}">
         @foreach($quickActions as $action)
         @php [$ability, $label, $hint, $url, $glyph, $opensHandIn] = array_pad($action, 6, null); @endphp
-        <a href="{{ $url }}" @if($opensHandIn) data-hand-in-open aria-controls="hand-in-modal" aria-haspopup="dialog" aria-expanded="false" @endif class="flex items-center gap-3 min-w-0 rounded-lg border border-gray-200 p-3 hover:border-green-300 hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1{{ count($quickActions) % 2 === 1 && $loop->last ? ' sm:col-span-2' : '' }}">
+        <a href="{{ $url }}" @if($opensHandIn) data-hand-in-open aria-controls="hand-in-modal" aria-haspopup="dialog" aria-expanded="false" @endif class="flex items-center gap-3 min-w-0 rounded-lg border border-gray-200 p-3 hover:border-green-300 hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1{{ ! $threeInARow && count($quickActions) % 2 === 1 && $loop->last ? ' sm:col-span-2' : '' }}">
             <span aria-hidden="true" class="w-9 h-9 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $glyph }}"/></svg>
             </span>

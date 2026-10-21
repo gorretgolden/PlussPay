@@ -195,7 +195,8 @@ class ExpenseReachabilityTest extends TestCase
         $agent = $this->quickActions($this->html($this->user('agent', 'Amina Nabukenya')));
 
         $this->assertSame(3, substr_count($agent, 'hover:border-green-300'), 'The send card, the hand-in card and the spending book.');
-        $this->assertSame(1, substr_count($agent, 'sm:col-span-2'), 'The odd last card fills its row instead of leaving a gap.');
+        $this->assertStringContainsString('grid-cols-1 gap-3 sm:grid-cols-3', $agent, 'The agent\'s three shortcuts sit in one row.');
+        $this->assertSame(0, substr_count($agent, 'sm:col-span-2'), 'None of the three needs to fill a row.');
     }
 
     public function test_the_hand_in_shortcut_waits_for_an_active_lead_agent(): void
