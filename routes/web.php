@@ -162,6 +162,8 @@ Route::middleware(['auth', 'account.active'])->group(function () {
 
     Route::get('/settings', [SettingController::class, 'index'])->middleware('can:view-settings')->name('settings.index');
     Route::put('/settings', [SettingController::class, 'update'])->middleware(['can:view-settings', 'can:manage-settings'])->name('settings.update');
+    Route::post('/settings/market-rates/pull', [SettingController::class, 'pullMarketRates'])
+        ->middleware(['can:view-settings', 'can:manage-settings'])->name('settings.market-rates.pull');
 
     Route::middleware('can:view-roles')->group(function () {
         Route::get('/admin/roles', [RolePermissionController::class, 'index'])->name('admin.roles');

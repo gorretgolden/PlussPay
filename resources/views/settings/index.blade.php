@@ -72,7 +72,10 @@
 
     @foreach ($tabs as $tab => $label)
         <section role="tabpanel" id="panel-{{ $tab }}" aria-labelledby="tab-{{ $tab }}" tabindex="0" @if ($activeTab !== $tab) hidden @endif>
-            <form method="POST" action="{{ route('settings.update') }}" data-validate data-settings-form="{{ $tab }}">
+            @if ($tab === 'rates')
+                @include('settings.partials.market-rate', ['market' => $market])
+            @endif
+            <form id="settings-form-{{ $tab }}" method="POST" action="{{ route('settings.update') }}" data-validate data-settings-form="{{ $tab }}">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="settings_tab" value="{{ $tab }}">
@@ -88,10 +91,11 @@
                                     // Three states, because a zero spread is a choice she makes on
                                     // purpose and a reversed one is a mistake.
                                     $spread = $margin === null || $margin > 0 ? 'up' : ($margin == 0 ? 'flat' : 'down');
+                                    $marketRate = $market['pairs'][$currency === 'ugx' ? 'UGX' : 'RMB'];
                                 @endphp
                                 <fieldset class="min-w-0 rounded-lg border border-gray-200 p-4" data-rate-pair="{{ $currency }}" data-margin-warn="{{ $rate['warn'] }}" data-margin-flat="{{ $rate['flat'] }}">
                                     <legend class="px-1 text-base font-semibold text-gray-900">USD → {{ $rate['unit'] }}</legend>
-                                    <p class="mb-4 text-xs text-gray-500">{{ $rate['helper'] }}</p>
+                                    <p class="mb-4 text-xs text-gray-500">{{ $rate['helper'] }} @if ($marketRate['latest']) Market mid <span class="tabular-nums">{{ $marketRate['display'] }}</span> {{ $rate['unit'] }}/USD.@endif</p>
                                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         @foreach (['buying' => 'Buying rate', 'selling' => 'Selling rate'] as $side => $rateLabel)
                                             @php
@@ -199,7 +203,7 @@
                     @endif
                 </div>
                 <div class="sticky bottom-0 z-10 mt-5 flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-5 py-3 shadow-sm">
-                    <p data-save-status role="status" class="text-sm text-gray-500">{{ session('settings_saved_tab') === $tab ? session('success', 'Settings saved.') : 'No unsaved changes' }}</p>
+                    <p data-save-status role="status" class="text-sm text-gray-500">{{ session('settings_saved_tab') === $tab ? session('settings_saved_text', 'Settings saved.') : 'No unsaved changes' }}</p>
                     <button type="submit" data-save disabled class="shrink-0 rounded-md bg-green-800 px-5 py-2 text-sm font-medium text-white hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:opacity-50 disabled:cursor-not-allowed">{{ $tab === 'rates' ? 'Save rates' : 'Save changes' }}</button>
                 </div>
             </form>

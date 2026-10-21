@@ -5,7 +5,10 @@
     const tabs = Array.from(page.querySelectorAll('[data-settings-tab]'));
     const moneyPattern = /^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?$/;
     const raw = (value) => value.replaceAll(',', '').trim();
-    const controls = (form) => Array.from(form.querySelectorAll('[data-original]'));
+    // The automation switch sits in the market card beside its own pull button, so it
+    // carries a form attribute pointing at the rates form and has to be collected by hand.
+    const controls = (form) => Array.from(form.querySelectorAll('[data-original]'))
+        .concat(form.id ? Array.from(page.querySelectorAll(`[data-original][form="${form.id}"]`)) : []);
     const comparable = (field, value) => field.hasAttribute('data-money') && raw(value) !== '' && Number.isFinite(Number(raw(value))) ? String(Number(raw(value))) : value;
     const changed = (field) => comparable(field, field.value) !== comparable(field, field.dataset.original);
     const dirty = (form) => controls(form).some(changed);
@@ -161,6 +164,13 @@
                 warnings.push(`${unit} margin is zero. Both prices are the same, so this leg earns nothing.`);
             }
         });
+        const auto = page.querySelector('#market_buy_auto');
+        if (auto && changed(auto)) {
+            sections.push({
+                title: '',
+                rows: [[labelFor(auto), `${display(auto, auto.dataset.original)} → ${display(auto, auto.value)}`]],
+            });
+        }
         return { sections, message: warnings.join('\n'), danger };
     }
 
@@ -327,6 +337,16 @@
             approved = false;
         });
     });
+
+    const pullForm = page.querySelector('form[action*="market-rates/pull"]');
+    if (pullForm) {
+        pullForm.addEventListener('submit', () => {
+            const button = pullForm.querySelector('button[type="submit"]');
+            if (!button) return;
+            button.disabled = true;
+            button.textContent = 'Pulling...';
+        });
+    }
 
     window.addEventListener('beforeunload', (event) => {
         if (leaving || !forms.some(dirty)) return;

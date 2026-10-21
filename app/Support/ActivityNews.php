@@ -80,6 +80,7 @@ final class ActivityNews
         'exchange_rate_edited' => ['rates', 'A price was corrected'],
         'exchange_rate_activated' => ['rates', 'The price in use changed'],
         'exchange_rate_deactivated' => ['rates', 'A price was taken out of use'],
+        'market_buying_rate_applied' => ['rates', 'The market moved the buying rate'],
         'settings_updated' => ['settings', 'System settings were saved'],
         'user_created' => ['users', 'A new sign-in account was made'],
         'user_updated' => ['users', 'A sign-in account was edited'],

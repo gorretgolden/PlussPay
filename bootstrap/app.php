@@ -40,4 +40,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Keep the log tables bounded without her having to remember. Runs quietly at
         // 03:17 local; the retention window itself lives in System Settings.
         $schedule->command('logs:prune')->dailyAt('03:17');
+
+        // The feed publishes one daily figure, but pulling hourly keeps the card fresh
+        // and lets the automated buying rate follow the market without anyone opening
+        // the page. Without this, the Pull rate now button is the only way in.
+        $schedule->command('rates:pull')->hourlyAt(5)->withoutOverlapping();
     })->create();

@@ -4,23 +4,30 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
+use App\Models\RateSnapshot;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\MarketRateService;
 use Database\Seeders\RoleAndUserSeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class SettingController extends Controller
 {
     private const TAB_FIELDS = [
-        'rates' => ['usd_ugx_buying', 'usd_ugx_selling', 'usd_rmb_buying', 'usd_rmb_selling'],
+        'rates' => ['usd_ugx_buying', 'usd_ugx_selling', 'usd_rmb_buying', 'usd_rmb_selling', 'market_buy_auto'],
         'transactions' => ['min_transaction_amount', 'max_transaction_amount', 'receipt_prefix', 'default_charge_ugx'],
         'company' => ['company_name', 'company_address', 'company_phone', 'company_email', 'company_website'],
         'datetime' => ['timezone'],
         'site' => ['site_mode', 'demo_login_autofill', 'demo_password'],
     ];
+
+    public function __construct(private readonly MarketRateService $marketRates)
+    {
+    }
 
     /**
      * The sign-in page fills these accounts, so saving a demo password has to move the
@@ -40,6 +47,7 @@ class SettingController extends Controller
         $usdUgxPair = ExchangeRate::usdUgxPair();
         $usdRmbPair = ExchangeRate::pair('USD', 'RMB');
         $testingModeBlocked = self::testingModeBlocked($request);
+        $market = $this->marketBoard();
 
         return view('settings.index', compact(
             'settings',
@@ -47,7 +55,8 @@ class SettingController extends Controller
             'usdRmbRow',
             'usdUgxPair',
             'usdRmbPair',
-            'testingModeBlocked'
+            'testingModeBlocked',
+            'market'
         ));
     }
 
@@ -70,6 +79,7 @@ class SettingController extends Controller
             'usd_rmb_buying' => 'nullable|numeric|min:0.000001|max:999999.999999',
             'usd_rmb_selling' => 'nullable|numeric|min:0.000001|max:999999.999999',
             'site_mode' => ['sometimes', 'required', 'in:testing,production'],
+            'market_buy_auto' => ['nullable', 'in:on,off'],
             'demo_login_autofill' => ['nullable', 'in:on,off'],
             'demo_password' => 'nullable|string|min:4|max:60',
             'timezone' => ['nullable', Rule::in(array_keys(Setting::TIMEZONES))],
@@ -120,6 +130,7 @@ class SettingController extends Controller
             ]);
         }
 
+        $autoWasOn = Setting::get('market_buy_auto', 'off') === 'on';
         $changes = [];
         $oldValues = [];
         $newValues = [];
@@ -128,6 +139,7 @@ class SettingController extends Controller
             $type = in_array($key, ['min_transaction_amount', 'max_transaction_amount', 'default_charge_ugx'], true) ? 'float' : 'string';
             $group = match (true) {
                 in_array($key, ['site_mode', 'timezone', 'demo_login_autofill', 'demo_password'], true) => 'display',
+                $key === 'market_buy_auto' => 'rates',
                 str_starts_with($key, 'company_') => 'company',
                 default => 'transaction',
             };
@@ -202,6 +214,13 @@ class SettingController extends Controller
             }
         }
 
+        // Turning the switch on in this save takes effect at once, not at the next hourly
+        // pull. A save while it is already on keeps the typed buying rate; only a pull or
+        // the schedule moves it, so a hand correction is never silently overwritten.
+        if (($validated['market_buy_auto'] ?? null) === 'on' && ! $autoWasOn) {
+            $this->marketRates->applyLatestBuyingRate();
+        }
+
         if ($changes) {
             ActivityLog::create([
                 'user_id' => auth()->id(),
@@ -214,7 +233,164 @@ class SettingController extends Controller
 
         return back()
             ->with('success', $changes ? 'Settings saved.' : 'No changes to save.')
-            ->with('settings_saved_tab', $tab ?? 'rates');
+            ->with('settings_saved_tab', $tab ?? 'rates')
+            ->with('settings_saved_text', $changes ? 'Settings saved.' : 'No changes to save.');
+    }
+
+    /**
+     * Pull a reading now instead of waiting for the hourly run, record both pairs and
+     * let the automation move the buying rate when it is on and safe to do so.
+     */
+    public function pullMarketRates()
+    {
+        try {
+            $result = $this->marketRates->pull();
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['market_rate' => $exception->getMessage()]);
+        }
+
+        $first = reset($result['quotes']);
+        $message = 'Market rates pulled from '.$first->source.'.';
+
+        if ($result['note']) {
+            $message .= ' '.$result['note'];
+        }
+
+        return back()
+            ->with('success', $message)
+            ->with('settings_saved_tab', 'rates')
+            ->with('settings_saved_text', 'Rates refreshed.');
+    }
+
+    /**
+     * Everything the Live market rate card prints: both readings, their daily move,
+     * the points for the sparkline, the recorded days and the automation state.
+     */
+    private function marketBoard(): array
+    {
+        $pairs = [];
+        $histories = [];
+
+        foreach (['UGX', 'RMB'] as $quote) {
+            $latest = RateSnapshot::latestFor('USD', $quote);
+            $history = RateSnapshot::dailyCloses('USD', $quote, 30);
+            $histories[$quote] = $history;
+            $previous = $history->count() > 1 ? $history[$history->count() - 2] : null;
+            $change = $latest && $previous ? (float) $latest->rate - (float) $previous->rate : null;
+            $percent = $change !== null && (float) $previous->rate > 0
+                ? ($change / (float) $previous->rate) * 100
+                : null;
+            $rising = $change !== null && $change > 0;
+            $falling = $change !== null && $change < 0;
+
+            $pairs[$quote] = [
+                'label' => $quote === 'UGX' ? 'Dollar to shilling' : 'Dollar to yuan',
+                'unit' => $quote.' per USD',
+                'latest' => $latest,
+                'display' => $latest ? $this->marketFigure((float) $latest->rate, $quote) : null,
+                'previous' => $previous,
+                'change' => $change,
+                'percent' => $percent,
+                'change_text' => $this->marketChangeText($change, $percent, $previous, $quote),
+                'tone' => $rising ? 'text-green-700' : ($falling ? 'text-red-700' : 'text-gray-500'),
+                'line' => $rising ? 'text-green-700' : ($falling ? 'text-red-700' : 'text-gray-400'),
+                'points' => $history->count() > 1 ? $this->sparkPoints($history) : null,
+                'chart_label' => $history->count() > 1 && $latest
+                    ? 'USD to '.$quote.' from '.$this->marketFigure((float) $history->first()->rate, $quote)
+                        .' on '.$history->first()->rate_date->format('d M').' to '
+                        .$this->marketFigure((float) $latest->rate, $quote).' on '.$latest->rate_date->format('d M').'. '
+                        .$this->marketChangeText($change, $percent, $previous, $quote)
+                    : '',
+            ];
+        }
+
+        $auto = $this->marketRates->buyingRateState();
+        $lastPulled = RateSnapshot::lastPulledAt();
+
+        return [
+            'pairs' => $pairs,
+            'auto' => [
+                'on' => $auto['state'] !== 'off',
+                'state' => $auto['state'],
+                'text' => $auto['text'],
+                'tone' => in_array($auto['state'], ['above', 'stale'], true)
+                    ? 'text-red-700 font-medium'
+                    : ($auto['state'] === 'applied' ? 'text-green-700 font-medium' : 'text-gray-500'),
+            ],
+            'history' => $this->marketHistory($histories),
+            'last_pulled' => $lastPulled,
+            'stale_pull' => $lastPulled !== null && $lastPulled->lt(now()->subHours(26)),
+        ];
+    }
+
+    private function marketChangeText(?float $change, ?float $percent, ?RateSnapshot $previous, string $quote): string
+    {
+        if ($previous === null) {
+            return 'First reading recorded. The day to day comparison starts with the next reading.';
+        }
+
+        if ($change === null || abs($change) < 0.0000005) {
+            return 'Unchanged since '.$previous->rate_date->format('d M').'.';
+        }
+
+        return ($change > 0 ? 'Increased' : 'Decreased').' by '
+            .$this->marketFigure(abs($change), $quote).' ('.number_format(abs((float) $percent), 2).'%) since '
+            .$previous->rate_date->format('d M').'.';
+    }
+
+    /**
+     * Points for a 120 by 36 sparkline. A flat market sits on the middle line instead
+     * of dividing by a zero range.
+     */
+    private function sparkPoints($history): string
+    {
+        $values = $history->map(fn ($reading) => (float) $reading->rate)->values();
+        $count = $values->count();
+        $minimum = (float) $values->min();
+        $range = (float) $values->max() - $minimum;
+
+        return $values->map(function (float $value, int $index) use ($count, $minimum, $range): string {
+            $x = $count === 1 ? 60 : ($index / ($count - 1)) * 120;
+            $y = $range == 0.0 ? 18 : 30 - (($value - $minimum) / $range) * 24;
+
+            return round($x, 2).','.round($y, 2);
+        })->implode(' ');
+    }
+
+    /**
+     * The last recorded reading per market day, with both pairs on one line.
+     */
+    private function marketHistory(array $histories): array
+    {
+        $days = [];
+
+        foreach ($histories as $quote => $readings) {
+            foreach ($readings as $reading) {
+                $key = $reading->rate_date->toDateString();
+                $days[$key] ??= [
+                    'date' => $reading->rate_date,
+                    'UGX' => '-',
+                    'RMB' => '-',
+                    'pulled' => $reading->fetched_at,
+                ];
+                $days[$key][$quote] = $this->marketFigure((float) $reading->rate, $quote);
+
+                if ($reading->fetched_at->gt($days[$key]['pulled'])) {
+                    $days[$key]['pulled'] = $reading->fetched_at;
+                }
+            }
+        }
+
+        krsort($days);
+
+        return array_slice($days, 0, 14);
+    }
+
+    private function marketFigure(float $value, string $quote): string
+    {
+        return $quote === 'UGX'
+            ? number_format($value, 2)
+            : rtrim(rtrim(number_format($value, 4, '.', ''), '0'), '.');
     }
 
     /**
