@@ -393,6 +393,7 @@
             <div class="min-w-0">
                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $currency }} Wallet</div>
                 <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums whitespace-nowrap">{{ $shown }}</div>
+                <x-wallet-updated :at="$account->lastMovementAt()" class="mt-1" />
             </div>
             <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center text-sm font-bold">{{ $glyph }}</span>
         </div>

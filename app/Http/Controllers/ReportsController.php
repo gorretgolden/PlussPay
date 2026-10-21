@@ -296,6 +296,7 @@ class ReportsController extends Controller
                 'handed_in' => $handedIn[$account->id] ?? '0.00',
                 'kept' => $mine,
                 'owed' => bcsub($inHand, $mine, 2),
+                'updated_at' => $account->lastMovementAt(),
             ];
         }
 

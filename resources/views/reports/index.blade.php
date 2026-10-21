@@ -306,6 +306,7 @@
         <div class="rounded-lg border border-gray-200 p-5">
             <div class="text-sm text-gray-500 uppercase tracking-wide">{{ $w['currency'] }} Wallet</div>
             <div class="text-3xl font-bold text-gray-900 mt-2 tabular-nums">{{ \App\Models\Account::format($w['currency'], $w['in_hand']) }}</div>
+            <x-wallet-updated :at="$w['updated_at']" class="mt-2" />
             <dl class="mt-4 space-y-1 text-sm">
                 <div class="flex justify-between gap-3">
                     <dt class="text-gray-600">Commission kept</dt>

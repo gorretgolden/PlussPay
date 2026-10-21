@@ -36,10 +36,12 @@
     </div>
     @endif
     @if($rmbWallet)
-    <div class="bg-white rounded-lg shadow p-4">
+    <div class="col-span-2 bg-white rounded-lg shadow p-4">
         <p class="text-xs uppercase tracking-wide text-gray-500">Your yuan wallet</p>
         <p class="text-xl font-semibold {{ (float) $rmbWallet->balance() < 0 ? 'text-red-700' : 'text-gray-900' }} tabular-nums">{{ \App\Models\Account::format('RMB', $rmbWallet->balance()) }}</p>
-        <p class="text-xs text-gray-500 mt-1">{{ \App\Models\Account::format('USD', $usdWallet->balance()) }} in your dollar wallet</p>
+        <x-wallet-updated :at="$rmbWallet->lastMovementAt()" label="Yuan wallet updated" class="mt-1" />
+        <p class="text-xs text-gray-500 mt-2">{{ \App\Models\Account::format('USD', $usdWallet->balance()) }} in your dollar wallet</p>
+        <x-wallet-updated :at="$usdWallet->lastMovementAt()" label="Dollar wallet updated" class="mt-0.5" />
     </div>
     @endif
 </div>

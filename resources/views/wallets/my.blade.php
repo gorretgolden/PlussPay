@@ -28,6 +28,7 @@
     <div class="bg-white rounded-lg shadow p-6">
         <div class="text-sm text-gray-500 uppercase tracking-wide">{{ $currency }} Wallet</div>
         <div class="text-3xl font-bold text-gray-900 mt-2 tabular-nums">{{ \App\Models\Account::format($currency, $balance) }}</div>
+        <x-wallet-updated :at="$account->lastMovementAt()" class="mt-2" />
         <dl class="mt-4 space-y-1 text-sm">
             @if($isSuperAgent)
             <div class="flex justify-between gap-3">

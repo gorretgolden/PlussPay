@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class Account extends Model
 {
@@ -109,6 +110,18 @@ class Account extends Model
         $out = $this->sumFor('out', $asOfDate);
 
         return bcadd(bcsub((string) $this->opening_balance, '0.00', 2), bcsub($in, $out, 2), 2);
+    }
+
+    /**
+     * When this wallet's balance last changed. Money moves by writing a ledger line, not by
+     * touching the account row, so the newest line's write time is the event; updated_at would
+     * only say when the wallet was opened.
+     */
+    public function lastMovementAt(): ?Carbon
+    {
+        $at = $this->entries()->max('created_at');
+
+        return $at ? Carbon::parse($at) : null;
     }
 
     /**
