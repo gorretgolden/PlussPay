@@ -68,7 +68,12 @@
 @endphp
 <div id="hand-in" class="bg-white rounded-lg shadow p-6 mb-8 scroll-mt-20">
     <h2 class="text-lg font-semibold text-gray-900">Hand cash in to your super agent</h2>
-    @if($superAgents->isEmpty())
+    @if($openHandover)
+        <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p class="font-semibold">A hand-in is already waiting for approval.</p>
+            <p class="mt-1">{{ $openHandover->figure() }} to {{ $openHandover->superAgent?->name }} ({{ $openHandover->reference }}), sent {{ $openHandover->created_at->format('M j, Y g:i A') }}. You can send another once it is approved or sent back.</p>
+        </div>
+    @elseif($superAgents->isEmpty())
         <p class="text-sm text-gray-600 mt-2">No super agent is active yet. Ask the office to set one up before you hand any cash in.</p>
     @else
     <p class="text-sm text-gray-600 mt-1 mb-4">The money stays in your wallet until the super agent approves it. You will see the decision here, and the cash only changes hands when they approve.</p>

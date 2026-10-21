@@ -73,6 +73,10 @@ class WalletController extends Controller
                 ->latest('id')
                 ->limit(50)
                 ->get(),
+            'openHandover' => CashHandover::with('superAgent:id,name')
+                ->openFor($user)
+                ->latest('id')
+                ->first(),
         ]);
     }
 

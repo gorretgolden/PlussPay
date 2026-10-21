@@ -8,6 +8,7 @@ use App\Models\ActivityLog;
 use App\Models\CashHandover;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The link between a minor agent and the super agent who sends the money on. The agent asks, the
@@ -69,13 +70,34 @@ class CashHandoverController extends Controller
             ])->withInput();
         }
 
-        $handover = CashHandover::request(
-            $viewer,
-            $superAgent,
-            $currency,
-            (string) $validated['amount'],
-            $request->input('note') ?: null,
-        );
+        // One hand-in at a time per agent. The agent's own row is locked while the request is
+        // written, so two tabs sending at once cannot both find the drawer without an open
+        // hand-in. The request that loses the race is handed back rather than written twice.
+        $handover = DB::transaction(function () use ($viewer, $superAgent, $currency, $validated, $request) {
+            User::whereKey($viewer->id)->lockForUpdate()->first();
+
+            $open = CashHandover::openFor($viewer)->latest('id')->first();
+
+            if ($open) {
+                return $open;
+            }
+
+            return CashHandover::request(
+                $viewer,
+                $superAgent,
+                $currency,
+                (string) $validated['amount'],
+                $request->input('note') ?: null,
+            );
+        });
+
+        if (! $handover->wasRecentlyCreated) {
+            return back()->withErrors([
+                'handover' => 'You already have '.$handover->figure().' waiting for '
+                    .($handover->superAgent?->name ?: 'your super agent').' to approve or send it back ('
+                    .$handover->reference.'). You can send another hand-in once that request is closed.',
+            ])->withInput();
+        }
 
         ActivityLog::create([
             'user_id' => $viewer->id,

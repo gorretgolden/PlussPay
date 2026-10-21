@@ -62,6 +62,15 @@ class CashHandover extends Model
     }
 
     /**
+     * The one request an agent may have in flight. A second request waits until the first is
+     * approved or sent back, so the same drawer is never promised to two super agents at once.
+     */
+    public function scopeOpenFor(Builder $query, User $agent): Builder
+    {
+        return $query->where('agent_id', $agent->id)->where('status', self::PENDING);
+    }
+
+    /**
      * Two agents typing in the same second can read the same sequence, so a reference collision is
      * retried rather than thrown back at the person as a 500.
      */
