@@ -29,7 +29,7 @@
     .slip p { margin: 0; }
 
     /* Both logos sit on the top line like the old paper pad, and the number block hangs under
-       them on the right with its own text reading left, so No. and Date line up under RECEIPT. */
+       the left logo with its own text reading left, so No. and Date line up under RECEIPT. */
     .slip-head {
         display: grid;
         grid-template-columns: 1fr auto;
@@ -46,7 +46,7 @@
         display: flex;
         flex-direction: column;
         align-items: flex-start;
-        justify-self: end;
+        justify-self: start;
         text-align: left;
     }
     .slip-pill {
