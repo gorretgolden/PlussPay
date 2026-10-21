@@ -49,25 +49,25 @@
 
     {{-- Stepper --}}
     <div class="flex items-center justify-between mb-8 px-4">
-        <div class="flex flex-col items-center step-indicator" data-step="1">
-            <div class="w-10 h-10 rounded-full bg-green-800 text-white flex items-center justify-center font-bold text-sm step-circle">1</div>
+        <button type="button" class="flex flex-col items-center step-indicator cursor-pointer rounded-lg px-1 py-1 transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2" data-step="1" onclick="goToStep(1)" aria-label="Go to step 1: Sender" aria-current="step">
+            <span class="w-10 h-10 rounded-full bg-green-800 text-white flex items-center justify-center font-bold text-sm step-circle">1</span>
             <span class="text-xs mt-1 font-medium text-green-800 step-label">Sender</span>
-        </div>
+        </button>
         <div class="flex-1 border-t-2 border-dashed border-gray-300 mx-2 step-line" data-line="1"></div>
-        <div class="flex flex-col items-center step-indicator" data-step="2">
-            <div class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold text-sm step-circle">2</div>
+        <button type="button" class="flex flex-col items-center step-indicator cursor-pointer rounded-lg px-1 py-1 transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2" data-step="2" onclick="goToStep(2)" aria-label="Go to step 2: Receiver">
+            <span class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold text-sm step-circle">2</span>
             <span class="text-xs mt-1 font-medium text-gray-500 step-label">Receiver</span>
-        </div>
+        </button>
         <div class="flex-1 border-t-2 border-dashed border-gray-300 mx-2 step-line" data-line="2"></div>
-        <div class="flex flex-col items-center step-indicator" data-step="3">
-            <div class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold text-sm step-circle">3</div>
+        <button type="button" class="flex flex-col items-center step-indicator cursor-pointer rounded-lg px-1 py-1 transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2" data-step="3" onclick="goToStep(3)" aria-label="Go to step 3: Payment">
+            <span class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold text-sm step-circle">3</span>
             <span class="text-xs mt-1 font-medium text-gray-500 step-label">Payment</span>
-        </div>
+        </button>
         <div class="flex-1 border-t-2 border-dashed border-gray-300 mx-2 step-line" data-line="3"></div>
-        <div class="flex flex-col items-center step-indicator" data-step="4">
-            <div class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold text-sm step-circle">4</div>
+        <button type="button" class="flex flex-col items-center step-indicator cursor-pointer rounded-lg px-1 py-1 transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2" data-step="4" onclick="goToStep(4)" aria-label="Go to step 4: Confirm">
+            <span class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold text-sm step-circle">4</span>
             <span class="text-xs mt-1 font-medium text-gray-500 step-label">Confirm</span>
-        </div>
+        </button>
     </div>
 
     <form method="POST" action="{{ route('transactions.store') }}" id="transactionForm">
@@ -678,6 +678,11 @@ function showStep(step) {
         const s = parseInt(ind.dataset.step);
         const circle = ind.querySelector('.step-circle');
         const label = ind.querySelector('.step-label');
+        if (s === step) {
+            ind.setAttribute('aria-current', 'step');
+        } else {
+            ind.removeAttribute('aria-current');
+        }
         if (s < step) {
             circle.className = 'w-10 h-10 rounded-full bg-green-200 text-green-800 flex items-center justify-center font-bold text-sm step-circle';
             circle.textContent = '✓';
@@ -711,6 +716,27 @@ function nextStep(from) {
 
 function prevStep(from) {
     showStep(from - 1);
+}
+
+// A step can be clicked from the strip. Going back is always allowed; going forward has to clear
+// every step on the way, so a click cannot skip an empty box or a charge that leaves nothing to
+// send.
+function goToStep(target) {
+    if (target === currentStep) return;
+
+    if (target < currentStep) {
+        showStep(target);
+        return;
+    }
+
+    for (let step = currentStep; step < target; step++) {
+        showStep(step);
+        if (!validateStep(step)) return;
+        if (step === 3 && step3Hint() !== '') return;
+        if (step + 1 === 4) populateReview();
+    }
+
+    showStep(target);
 }
 
 function trimRate(n) {

@@ -68,6 +68,28 @@ class WizardPaymentStepTest extends TestCase
         $this->assertStringContainsString('Payment Details', $html);
     }
 
+    public function test_every_step_in_the_strip_is_a_button_that_knows_where_it_leads(): void
+    {
+        $html = $this->page('agent');
+
+        foreach ([1 => 'Sender', 2 => 'Receiver', 3 => 'Payment', 4 => 'Confirm'] as $step => $label) {
+            $this->assertMatchesRegularExpression(
+                '/<button type="button" class="[^"]*step-indicator[^"]*" data-step="'.$step.'" onclick="goToStep\('.$step.'\)" aria-label="Go to step '.$step.': '.$label.'"/',
+                $html
+            );
+        }
+
+        // The current step is announced as such, and the script keeps that marker in step.
+        $this->assertStringContainsString('aria-current="step"', $html);
+        $this->assertStringContainsString("ind.setAttribute('aria-current', 'step');", $html);
+
+        // Forward has to clear each step on the way; backward is free. The Payment step keeps the
+        // disabled Next button's own rule, so a click cannot walk past a charge that leaves nothing
+        // to send.
+        $this->assertStringContainsString('function goToStep(target)', $html);
+        $this->assertStringContainsString("if (step === 3 && step3Hint() !== '') return;", $html);
+    }
+
     public function test_every_field_carries_one_short_line_and_the_detail_sits_in_a_tooltip(): void
     {
         $html = $this->page('agent');
