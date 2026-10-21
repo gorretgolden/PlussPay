@@ -138,6 +138,8 @@
     </div>
 </div>
 
+<x-live-rate-card />
+
 @if($news['unread'] > 0)
 {{-- The desk opens this page first, so the six newest things other people did are here rather
      than behind a menu. Each line is the notice's own words and links through to the record it
