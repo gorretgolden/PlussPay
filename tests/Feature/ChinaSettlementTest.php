@@ -445,6 +445,46 @@ class ChinaSettlementTest extends TestCase
         $this->assertSame('paid', $paid->stage()['key']);
     }
 
+    /**
+     * The withdrawal is the China desk's own work: the money that came from Uganda is handed to
+     * its receiver there. The shortcut counts that queue, the desk can clear it, and the Uganda-only
+     * hand-in is not offered to a desk that has nothing to hand up.
+     */
+    public function test_the_china_desk_is_the_hand_that_withdraws_money_sent_from_uganda(): void
+    {
+        $transaction = $this->booked('PS-UG-0061', $this->agent);
+        $this->send($transaction, $this->dollars(1000), $this->china);
+
+        $this->actingAs($this->china)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Withdraw Money in China')
+            ->assertSee('1 receiver waiting to be paid')
+            ->assertDontSee('Hand Cash In');
+
+        $this->actingAs($this->china)->get('/wallet')
+            ->assertOk()
+            ->assertDontSee('Hand cash in to your super agent');
+
+        // The road is closed as well as hidden, so a typed hand-in is refused at the counter.
+        $this->actingAs($this->china)->post(route('cash-handovers.store'), [
+            'super_agent_id' => $this->lead->id,
+            'currency' => 'USD',
+            'amount' => 100,
+        ])->assertSessionHasErrors('super_agent_id');
+
+        // The lead agent keeps the same shortcut and count, as the hand that may clear any desk.
+        $this->actingAs($this->lead)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('Withdraw Money in China')
+            ->assertSee('1 receiver waiting to be paid');
+
+        $this->actingAs($this->china)->post('/china/payout', [
+            'transaction_ids' => [$transaction->fresh()->id],
+        ])->assertRedirect(route('china.index'))->assertSessionHasNoErrors();
+
+        $this->assertNotNull($transaction->fresh()->delivered_at);
+    }
+
     public function test_the_wallets_of_every_china_desk_stay_with_the_side_that_keeps_the_books(): void
     {
         $transaction = $this->booked('PS-UG-0011', $this->agent);

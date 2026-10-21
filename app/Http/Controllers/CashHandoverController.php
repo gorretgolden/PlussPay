@@ -20,8 +20,11 @@ class CashHandoverController extends Controller
     {
         $viewer = $request->user();
 
-        if (! $viewer->hasRole('agent') || $viewer->hasRole('super-agent')) {
-            return back()->withErrors(['super_agent_id' => 'Only an agent hands cash in to a super agent.']);
+        // Cash travels the other way in China: the desk there pays receivers out of what was sent
+        // to it, so it has nothing to hand up to a super agent in Uganda.
+        if (! $viewer->hasRole('agent') || $viewer->hasRole('super-agent')
+            || ($viewer->country ?: User::DEFAULT_COUNTRY) === 'CN') {
+            return back()->withErrors(['super_agent_id' => 'Only an agent in Uganda hands cash in to a super agent.']);
         }
 
         $validated = $request->validate([

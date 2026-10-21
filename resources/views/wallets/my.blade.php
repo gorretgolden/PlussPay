@@ -6,6 +6,8 @@
 @php
     $isSuperAgent = auth()->user()->hasRole('super-agent');
     $isAgent = auth()->user()->hasRole('agent') && ! $isSuperAgent;
+    $isChinaDesk = (auth()->user()->country ?: \App\Models\User::DEFAULT_COUNTRY) === 'CN';
+    $handInHere = $isAgent && ! $isChinaDesk;
 @endphp
 
 <div class="mb-6">
@@ -13,6 +15,8 @@
     <p class="text-gray-600">
         @if($isSuperAgent)
             Cash handed to you by the agents stays here until you send it to the China desk. Commission is paid in shillings, whatever currency the transfer was booked in.
+        @elseif($isChinaDesk)
+            Money sent from Uganda arrives here, and the yuan or dollars you hand a receiver leave from here. Commission is paid in shillings, whatever currency the transfer was booked in.
         @else
             Money you collected stays here until the super agent takes it in hand. Commission is paid in shillings, whatever currency the transfer was booked in.
         @endif
@@ -35,7 +39,7 @@
                 <dt class="text-gray-600">Received from agents</dt>
                 <dd class="text-gray-900 tabular-nums">{{ \App\Models\Account::format($currency, $received[$currency] ?? '0.00') }}</dd>
             </div>
-            @else
+            @elseif(! $isChinaDesk)
             <div class="flex justify-between gap-3">
                 <dt class="text-gray-600">Handed in so far</dt>
                 <dd class="text-gray-900 tabular-nums">{{ \App\Models\Account::format($currency, $handedIn[$account->id] ?? '0.00') }}</dd>
@@ -53,7 +57,7 @@
     @endforeach
 </div>
 
-@if($isAgent)
+@if($handInHere)
 @php
     $chosen = old('currency', array_key_first($wallets) ?? '');
     $heldNow = (float) (($wallets[$chosen] ?? null)?->balance() ?? 0);

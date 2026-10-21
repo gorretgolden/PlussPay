@@ -100,7 +100,7 @@ class ExpenseReachabilityTest extends TestCase
     {
         // The office and the lead agent see the whole book, so both corridors and the withdrawal
         // queue are theirs. A hand at one desk is only offered the road that starts at its counter.
-        $labels = ['Send Money to China', 'Send Money to Uganda', 'Withdraw Money from Uganda', 'Record Exchange', 'Expenses', 'Exchange Rates', 'Add Customer', 'Transactions'];
+        $labels = ['Send Money to China', 'Send Money to Uganda', 'Withdraw Money in China', 'Record Exchange', 'Expenses', 'Exchange Rates', 'Add Customer', 'Transactions'];
 
         // The lead agent is made first, because an ordinary agent is offered the hand-in shortcut
         // only while there is an active super agent to receive the request.
@@ -124,7 +124,7 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('>Hand Cash In</span>', $agent, 'An agent hands the desk cash up to the lead agent.');
         $this->assertStringContainsString('Send cash to your super agent', $agent);
         $this->assertStringContainsString('/wallet#hand-in', $agent, 'The card opens the form itself.');
-        $this->assertStringNotContainsString('>Withdraw Money from Uganda</span>', $agent, 'The China queue is not a Uganda agent\'s to clear.');
+        $this->assertStringNotContainsString('>Withdraw Money in China</span>', $agent, 'The China queue is not a Uganda agent\'s to clear.');
         foreach (['Record Exchange', 'Record Expense', 'Exchange Rates', 'Add Customer'] as $label) {
             $this->assertStringNotContainsString('>'.$label.'</span>', $agent, $label.' is beyond an agent.');
         }
@@ -135,7 +135,7 @@ class ExpenseReachabilityTest extends TestCase
         // the agents hand over is.
         $lead = $this->html($lead);
         $this->assertStringNotContainsString('>Hand Cash In</span>', $lead, 'The lead agent receives the hand-in.');
-        foreach (['Send Money to China', 'Send Money to Uganda', 'Withdraw Money from Uganda', 'Approve Cash Hand-In', 'Record Exchange', 'Expenses', 'Transactions'] as $label) {
+        foreach (['Send Money to China', 'Send Money to Uganda', 'Withdraw Money in China', 'Approve Cash Hand-In', 'Record Exchange', 'Expenses', 'Transactions'] as $label) {
             $this->assertStringContainsString('>'.$label.'</span>', $lead, $label.' is a Super Agent shortcut.');
         }
         $this->assertStringContainsString('Every transfer in the book', $lead);
@@ -151,8 +151,9 @@ class ExpenseReachabilityTest extends TestCase
         $china = $this->html($this->user('agent', 'Li Fang', 'CN'));
         $this->assertStringContainsString('>Send Money to Uganda</span>', $china);
         $this->assertStringContainsString('Cash in China, paid in Uganda', $china);
-        $this->assertStringContainsString('>Withdraw Money from Uganda</span>', $china);
+        $this->assertStringContainsString('>Withdraw Money in China</span>', $china);
         $this->assertStringNotContainsString('>Send Money to China</span>', $china);
+        $this->assertStringNotContainsString('>Hand Cash In</span>', $china, 'Cash in China is paid to receivers, not handed up to a super agent.');
 
         // The accountant checks the spending book and reports on it, so the book is one click away
         // while the pen that writes it is not offered.
@@ -161,7 +162,7 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringNotContainsString('>Record Expense</span>', $accountant, 'Recording spending is the desk that paid it out.');
         $this->assertStringNotContainsString('>Send Money to China</span>', $accountant, 'Booking a transfer is beyond an accountant.');
         $this->assertStringNotContainsString('>Send Money to Uganda</span>', $accountant, 'Nor is the other corridor.');
-        $this->assertStringNotContainsString('>Withdraw Money from Uganda</span>', $accountant, 'Nor does an accountant clear the China queue.');
+        $this->assertStringNotContainsString('>Withdraw Money in China</span>', $accountant, 'Nor does an accountant clear the China queue.');
 
         // Desk staff read the day and change nothing, so there is nothing for them to start.
         $staff = $this->html($this->user('staff', 'Peter Mugisha'));
@@ -393,7 +394,7 @@ class ExpenseReachabilityTest extends TestCase
 
         $board = $this->html($lead);
 
-        $this->assertStringContainsString('>Withdraw Money from Uganda</span>', $board);
+        $this->assertStringContainsString('>Withdraw Money in China</span>', $board);
         $this->assertStringContainsString('1 receiver waiting to be paid', $board);
         $this->assertStringContainsString('/china#payouts', $board);
         $this->assertStringContainsString('>Approve Cash Hand-In</span>', $board);
@@ -409,7 +410,7 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('PS-20261021-0001', $desk);
         $this->assertStringContainsString('Mark as paid in China', $desk);
 
-        $this->assertStringNotContainsString('>Withdraw Money from Uganda</span>', $this->html($agent), 'A hand in Uganda does not clear the China queue.');
+        $this->assertStringNotContainsString('>Withdraw Money in China</span>', $this->html($agent), 'A hand in Uganda does not clear the China queue.');
     }
 
     public function test_the_shortcuts_open_the_page_ahead_of_the_balances(): void

@@ -231,16 +231,17 @@
         default => 'What you spent',
     };
 
-    // Money that came from Uganda and has reached a desk in China is the receiver's to withdraw.
-    // The shortcut opens the China desk at the payout queue, offered on the same rule the page
-    // uses to show that side, with the same count, so it never leads to a queue the hand cannot
-    // clear or promises work that is not there.
+    // Money that came from Uganda is withdrawn where the receiver collects it, which is a desk in
+    // China, so the China desk is the hand that clears this queue; anyone who sees the whole book
+    // may clear it too. The shortcut opens the China desk at the payout queue, offered on the same
+    // rule the page uses to show that side, with the same count, so it never leads to a queue the
+    // hand cannot clear or promises work that is not there.
     $canWithdraw = $me->can('view-transactions') && $me->can('confirm-china-payout')
         && (($me->country ?: \App\Models\User::DEFAULT_COUNTRY) === 'CN' || $me->can('view-all-transactions'));
 
     $withdrawAction = $canWithdraw ? [
         'confirm-china-payout',
-        'Withdraw Money from Uganda',
+        'Withdraw Money in China',
         $withdrawalsWaiting > 0
             ? number_format($withdrawalsWaiting).' receiver'.($withdrawalsWaiting === 1 ? '' : 's').' waiting to be paid'
             : 'Pay receivers of money sent from Uganda',
@@ -260,11 +261,13 @@
         'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     ] : null;
 
-    // An ordinary agent hands the desk's cash up to the lead agent. The shortcut opens the same
-    // form in a dialog over the board instead of sending them to the wallet page; the wallet page
-    // stays as the fallback when the script that opens the dialog is not running. It waits for an
-    // active super agent, because without one the form has nobody to send the request to.
-    $canHandIn = $superAgents->isNotEmpty() && $wallets !== [];
+    // An ordinary agent in Uganda hands the desk's cash up to the lead agent. A desk in China is
+    // paid out rather than handed in, so it is never offered this road. The shortcut opens the
+    // same form in a dialog over the board instead of sending them to the wallet page; the wallet
+    // page stays as the fallback when the script that opens the dialog is not running. It waits
+    // for an active super agent, because without one the form has nobody to send the request to.
+    $canHandIn = $superAgents->isNotEmpty() && $wallets !== []
+        && ($me->country ?: \App\Models\User::DEFAULT_COUNTRY) !== 'CN';
 
     $quickActions = array_values(array_filter([
         ...$sendActions,
@@ -402,9 +405,13 @@
         @endif
         @if(auth()->user()->hasRole('agent'))
         <div class="text-xs text-gray-500 mt-1">
-            In your hand until you hand it in.
-            @if(bccomp((string) ($handedIn[$account->id] ?? '0'), '0', 2) > 0)
-                Handed in so far: {{ \App\Models\Account::format($currency, $handedIn[$account->id]) }}.
+            @if(($me->country ?: \App\Models\User::DEFAULT_COUNTRY) === 'CN')
+                In your hand until you pay a receiver.
+            @else
+                In your hand until you hand it in.
+                @if(bccomp((string) ($handedIn[$account->id] ?? '0'), '0', 2) > 0)
+                    Handed in so far: {{ \App\Models\Account::format($currency, $handedIn[$account->id]) }}.
+                @endif
             @endif
         </div>
         @if((float) ($pendingHandIn[$currency] ?? 0) > 0)
