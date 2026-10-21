@@ -331,12 +331,16 @@
                 @endif
 
                 @if($errors->any() && (!View::hasSection('inline-validation') || $errors->has('error')))
-                    <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded no-print">
-                        <ul class="list-disc list-inside">
+                    <div id="flash-error" class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded no-print flex items-start gap-3 transition-opacity duration-500" role="alert">
+                        <ul class="list-disc list-inside flex-1">
                             @foreach(View::hasSection('inline-validation') ? $errors->get('error') : $errors->all() as $error)
                                 <li>{{ $error }}</li>
                             @endforeach
                         </ul>
+                        <button type="button" onclick="dismissFlashError()" aria-label="Dismiss this message"
+                            class="-mr-1 -mt-1 p-1 rounded text-red-700 hover:bg-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
                     </div>
                 @endif
 
@@ -756,6 +760,18 @@
             if (toast) {
                 setTimeout(function() { toast.classList.add('opacity-0'); }, 3000);
                 setTimeout(function() { toast.remove(); }, 3500);
+            }
+
+            // An error can run to a whole sentence or two, so it stays far longer than the success
+            // toast, but it still leaves on its own and can be closed by hand.
+            const errorBanner = document.getElementById('flash-error');
+            if (errorBanner) {
+                const close = function() {
+                    errorBanner.classList.add('opacity-0');
+                    setTimeout(function() { errorBanner.remove(); }, 500);
+                };
+                window.dismissFlashError = close;
+                setTimeout(close, 10000);
             }
         })();
 
