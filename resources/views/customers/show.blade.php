@@ -158,7 +158,7 @@
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Other party</th>
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Charge (UGX)</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Progress</th>
             </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -174,12 +174,7 @@
                 <td class="px-4 py-3 text-sm text-right text-gray-900 whitespace-nowrap">{{ $transfer->principalLabel() }}</td>
                 <td class="px-4 py-3 text-sm text-right text-gray-900 whitespace-nowrap">{{ number_format((float) $transfer->charge_ugx) }}</td>
                 <td class="px-4 py-3 text-sm">
-                    <span class="px-2 py-1 text-xs rounded-full
-                        @if($transfer->status === 'completed') bg-green-100 text-green-800
-                        @elseif($transfer->status === 'pending') bg-yellow-100 text-yellow-800
-                        @else bg-red-100 text-red-800 @endif">
-                        {{ ucfirst($transfer->status) }}
-                    </span>
+                    <x-progress-badge :transaction="$transfer" />
                 </td>
             </tr>
             @empty

@@ -26,6 +26,18 @@
     </div>
 </div>
 
+@if($transaction->delivered_at)
+<div class="mb-4 flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 max-w-3xl">
+    <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <div>
+        <p class="text-sm font-semibold text-green-900">Paid in {{ $transaction->destinationLabel() }}</p>
+        <p class="mt-0.5 text-sm text-green-800">{{ $transaction->payoutLabel() }} was handed to {{ $transaction->receiver_name }} on {{ $transaction->delivered_at->format('M j, Y g:i A') }}. This transfer is finished on both sides, and the receipt above still prints for the customer.</p>
+    </div>
+</div>
+@endif
+
 <div class="bg-white rounded-lg shadow p-6 max-w-3xl">
     <div class="grid grid-cols-2 gap-6 mb-6">
         <div>
@@ -64,13 +76,8 @@
             <div><span class="text-gray-500">Dollars Credited:</span> ${{ number_format($transaction->total_usd_equivalent, 1) }}</div>
             @endif
             <div>
-                <span class="text-gray-500">Status:</span>
-                <span class="px-2 py-1 text-xs rounded-full
-                    @if($transaction->status === 'completed') bg-green-100 text-green-800
-                    @elseif($transaction->status === 'pending') bg-yellow-100 text-yellow-800
-                    @else bg-red-100 text-red-800 @endif">
-                    {{ ucfirst($transaction->status) }}
-                </span>
+                <span class="text-gray-500">Progress:</span>
+                <x-progress-badge :transaction="$transaction" />
             </div>
         </div>
     </div>
@@ -237,6 +244,11 @@
     @if($transaction->status !== 'cancelled')
     <div class="border-t pt-4 mt-4">
         <h3 class="text-sm font-medium text-gray-500 mb-3">Actions</h3>
+        @if($transaction->hasLeftUganda())
+        <p class="text-sm text-gray-600">{{ $transaction->delivered_at
+            ? 'The receiver has been paid, so this transfer is closed and cannot be cancelled.'
+            : 'The dollars have been sent to '.$transaction->destinationLabel().', so this transfer cannot be cancelled from here. The desk there has to bring the money back first.' }}</p>
+        @else
         <div class="flex gap-3">
             @if($transaction->status === 'pending')
             <form method="POST" action="{{ route('transactions.update-status', $transaction) }}" data-lock data-lock-label="Approving...">
@@ -254,6 +266,7 @@
                 data-total="{{ $transaction->collectedAmount() }}"
                 class="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700">Cancel transfer</button>
         </div>
+        @endif
     </div>
     @endif
     @endcan

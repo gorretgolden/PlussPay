@@ -406,9 +406,9 @@ class ExpenseReachabilityTest extends TestCase
         $desk = $this->html($lead, '/china');
 
         $this->assertStringContainsString('id="payouts"', $desk);
-        $this->assertStringContainsString('Withdraw the money sent from Uganda', $desk);
+        $this->assertStringContainsString('Pay receivers in China', $desk);
         $this->assertStringContainsString('PS-20261021-0001', $desk);
-        $this->assertStringContainsString('Mark as paid in China', $desk);
+        $this->assertStringContainsString('Mark as paid', $desk);
 
         $this->assertStringNotContainsString('>Withdraw Money in China</span>', $this->html($agent), 'A hand in Uganda does not clear the China queue.');
     }

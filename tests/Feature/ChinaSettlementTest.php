@@ -149,7 +149,7 @@ class ChinaSettlementTest extends TestCase
 
         $this->actingAs($this->office)->get('/china')
             ->assertOk()
-            ->assertSee('To hand over in China')
+            ->assertSee('Cash taken, not yet sent')
             ->assertSee('PS-UG-0001');
     }
 
@@ -216,7 +216,7 @@ class ChinaSettlementTest extends TestCase
         $this->actingAs($this->china)->post('/china/payout', [
             'transaction_ids' => [$waiting->id],
         ])->assertRedirect(route('china.index'))
-            ->assertSessionHas('success', fn (string $flash) => str_contains($flash, '$1,000.00 paid out in China for PS-UG-0040'));
+            ->assertSessionHas('success', fn (string $flash) => str_contains($flash, '$1,000.00 paid in China for PS-UG-0040'));
 
         $paid = $transaction->fresh();
 
@@ -249,7 +249,7 @@ class ChinaSettlementTest extends TestCase
 
         $this->actingAs($this->office)->post('/china/payout', [
             'transaction_ids' => [$yuan->fresh()->id, $dollars->fresh()->id],
-        ])->assertSessionHas('success', fn (string $flash) => str_contains($flash, '¥6,750.00 and $250.00 paid out'));
+        ])->assertSessionHas('success', fn (string $flash) => str_contains($flash, '¥6,750.00 and $250.00 paid in China'));
 
         $this->assertSame('-6750.00', Account::walletFor($this->china, 'RMB')->fresh()->balance());
 
@@ -277,7 +277,7 @@ class ChinaSettlementTest extends TestCase
 
         $this->actingAs($this->office)->get('/china')
             ->assertOk()
-            ->assertSee('In China, unpaid')
+            ->assertSee('Waiting to be paid')
             // Two wallets hold the money, so the waiting figure is two lines rather than one total
             // in a currency nobody has.
             ->assertSee('¥6,750.00')
@@ -427,8 +427,8 @@ class ChinaSettlementTest extends TestCase
 
         $this->actingAs($this->agent)->get('/china')
             ->assertOk()
-            ->assertDontSee('To hand over in China')
-            ->assertDontSee('In China, unpaid');
+            ->assertDontSee('Cash taken, not yet sent')
+            ->assertDontSee('Waiting to be paid');
 
         $this->actingAs($this->agent)->post('/china/send', [
             'transaction_ids' => [$transaction->fresh()->id],
@@ -455,7 +455,7 @@ class ChinaSettlementTest extends TestCase
 
         $this->actingAs($this->lead)->get('/china')
             ->assertOk()
-            ->assertSee('Withdraw the money sent from Uganda')
+            ->assertSee('Pay receivers in China')
             ->assertSee('PS-UG-0060');
 
         $this->actingAs($this->lead)->post('/china/payout', [
@@ -561,7 +561,7 @@ class ChinaSettlementTest extends TestCase
     {
         $this->actingAs($this->china)->get('/china')
             ->assertOk()
-            ->assertDontSee('To hand over in China');
+            ->assertDontSee('Cash taken, not yet sent');
 
         $this->actingAs($this->china)->post('/china/send', [
             'transaction_ids' => [$this->booked('PS-UG-0010', $this->agent)->id],
@@ -592,6 +592,101 @@ class ChinaSettlementTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $this->assertSame('cancelled', $held->fresh()->status);
+    }
+
+    /**
+     * The book used to call a booking "Completed" the moment the counter took the cash, while the
+     * receiver in China was still waiting. The lists follow the money instead: Cash taken, then
+     * Waiting in China, then Paid, and the paid transfer says so on its own page.
+     */
+    public function test_the_lists_read_cash_taken_then_waiting_in_china_then_paid(): void
+    {
+        $transaction = $this->booked('PS-UG-0070', $this->agent);
+
+        $this->actingAs($this->office)->get('/transactions')
+            ->assertOk()
+            ->assertSee('>Cash taken</span>', false)
+            ->assertDontSee('>Waiting in China</span>', false)
+            ->assertDontSee('>Paid</span>', false)
+            ->assertDontSee('>Completed</span>', false);
+
+        $this->send($transaction, $this->dollars(1000), $this->china)->assertSessionHasNoErrors();
+
+        $this->actingAs($this->office)->get('/transactions')
+            ->assertOk()
+            ->assertSee('>Waiting in China</span>', false)
+            ->assertDontSee('>Cash taken</span>', false);
+
+        $this->actingAs($this->china)->post('/china/payout', [
+            'transaction_ids' => [$transaction->fresh()->id],
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->office)->get('/transactions')
+            ->assertOk()
+            ->assertSee('>Paid</span>', false)
+            ->assertDontSee('>Waiting in China</span>', false);
+
+        $this->actingAs($this->office)->get('/transactions/'.$transaction->fresh()->id)
+            ->assertOk()
+            ->assertSee('Paid in China')
+            ->assertSee('was handed to Receiver PS-UG-0070')
+            ->assertSee('This transfer is finished on both sides');
+    }
+
+    /**
+     * The progress filter cuts the list on the same three stamps the badges are read from, so a
+     * desk can ask for the money still in its hand, the money waiting in China, or the money that
+     * has finished, and the desk totals beside the list narrow with it.
+     */
+    public function test_the_progress_filter_cuts_the_list_to_the_stage_chosen(): void
+    {
+        $this->booked('PS-UG-0071', $this->agent);
+        $waiting = $this->booked('PS-UG-0072', $this->agent);
+        $paid = $this->booked('PS-UG-0073', $this->agent);
+
+        $source = $this->dollars(2000);
+        $this->send($waiting, $source, $this->china)->assertSessionHasNoErrors();
+        $this->send($paid, $source, $this->china)->assertSessionHasNoErrors();
+        AccountLedger::payOutInChina($paid->fresh(), Account::walletFor($this->china, 'RMB'));
+
+        $this->actingAs($this->office)->get('/transactions?stage=cash')
+            ->assertOk()
+            ->assertSee('PS-UG-0071')
+            ->assertDontSee('PS-UG-0072')
+            ->assertDontSee('PS-UG-0073');
+
+        $this->actingAs($this->office)->get('/transactions?stage=waiting')
+            ->assertOk()
+            ->assertSee('PS-UG-0072')
+            ->assertDontSee('PS-UG-0071')
+            ->assertDontSee('PS-UG-0073');
+
+        $this->actingAs($this->office)->get('/transactions?stage=paid')
+            ->assertOk()
+            ->assertSee('PS-UG-0073')
+            ->assertDontSee('PS-UG-0071')
+            ->assertDontSee('PS-UG-0072');
+    }
+
+    /**
+     * The list no longer offers a cancellation the server would refuse: once the dollars have
+     * crossed, the row menu drops the action and the transfer page says why it is gone.
+     */
+    public function test_the_lists_stop_offering_a_cancel_once_the_money_has_left(): void
+    {
+        $this->booked('PS-UG-0074', $this->agent);
+        $sent = $this->booked('PS-UG-0075', $this->agent);
+
+        $this->send($sent, $this->dollars(2000), $this->china)->assertSessionHasNoErrors();
+
+        // Only the transfer still in the till offers it, so the action is named once, not twice.
+        $list = $this->actingAs($this->office)->get('/transactions')->assertOk()->getContent();
+        $this->assertSame(1, substr_count($list, 'Cancel transfer'));
+
+        $this->actingAs($this->office)->get('/transactions/'.$sent->fresh()->id)
+            ->assertOk()
+            ->assertSee('cannot be cancelled from here')
+            ->assertDontSee('Cancel transfer');
     }
 
     public function test_a_hand_written_yuan_line_in_the_cash_books_stamps_the_transfer_as_paid(): void

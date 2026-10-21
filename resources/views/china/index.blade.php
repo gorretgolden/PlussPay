@@ -18,19 +18,19 @@
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     @if($canSend)
     <div class="bg-white rounded-lg shadow p-4">
-        <p class="text-xs uppercase tracking-wide text-gray-500">To hand over in China</p>
+        <p class="text-xs uppercase tracking-wide text-gray-500">Cash taken, not yet sent</p>
         @include('china.partials.payout-figures', ['payouts' => $outboundPayouts])
         <p class="text-xs text-gray-500 mt-1">{{ number_format($outbound->count()) }} transfer{{ $outbound->count() === 1 ? '' : 's' }} still in Uganda, worth {{ \App\Models\Account::format('USD', $usdTo) }}</p>
     </div>
     @endif
     @if($canPay)
     <div class="bg-white rounded-lg shadow p-4">
-        <p class="text-xs uppercase tracking-wide text-gray-500">In China, unpaid</p>
+        <p class="text-xs uppercase tracking-wide text-gray-500">Waiting to be paid</p>
         @include('china.partials.payout-figures', ['payouts' => $inboundPayouts])
         <p class="text-xs text-gray-500 mt-1">{{ number_format($inbound->count()) }} transfer{{ $inbound->count() === 1 ? '' : 's' }} waiting to be handed over</p>
     </div>
     <div class="bg-white rounded-lg shadow p-4">
-        <p class="text-xs uppercase tracking-wide text-gray-500">Paid in China</p>
+        <p class="text-xs uppercase tracking-wide text-gray-500">Paid</p>
         @include('china.partials.payout-figures', ['payouts' => $paid['payouts']])
         <p class="text-xs text-gray-500 mt-1">{{ number_format($paid['count']) }} transfer{{ $paid['count'] === 1 ? '' : 's' }} closed on both sides</p>
     </div>
@@ -147,7 +147,7 @@
 @if($payForm)
 <div id="payouts" class="bg-white rounded-lg shadow mb-8 scroll-mt-6">
     <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-semibold text-gray-900">Withdraw the money sent from Uganda</h2>
+        <h2 class="text-lg font-semibold text-gray-900">Pay receivers in China</h2>
         <p class="text-sm text-gray-500 mt-1">Tick a transfer once the receiver has been handed their money in China, whether that was yuan or dollars. The payment leaves the wallet, in that money, of the
             desk that was sent the dollars for it.</p>
     </div>
@@ -201,7 +201,7 @@
                 @error('entry_date') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
             <div class="flex justify-end md:col-span-3">
-                <button type="submit" class="bg-green-800 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition">Mark as paid in China</button>
+                <button type="submit" class="bg-green-800 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition">Mark as paid</button>
             </div>
             <p class="md:col-span-4 text-sm text-gray-600">Ticked: <span data-sum="count" class="font-medium text-gray-900">0</span>
                 transfer(s), <span data-payout-line data-empty="nothing to hand over" class="font-medium text-gray-900">nothing to hand over</span>.</p>
@@ -211,8 +211,8 @@
 </div>
 @elseif($canPay)
 <div id="payouts" class="bg-white rounded-lg shadow p-6 mb-8 scroll-mt-6">
-    <h2 class="text-lg font-semibold text-gray-900">Nothing waiting to be withdrawn</h2>
-    <p class="text-sm text-gray-600 mt-1">Every transfer whose dollars reached China has been paid out to its receiver.</p>
+    <h2 class="text-lg font-semibold text-gray-900">Nothing waiting to be paid</h2>
+    <p class="text-sm text-gray-600 mt-1">Every transfer whose dollars reached China has been paid to its receiver.</p>
 </div>
 @endif
 

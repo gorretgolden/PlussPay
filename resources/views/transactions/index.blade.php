@@ -24,12 +24,14 @@
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
         </div>
         <div>
-            <label class="block text-sm text-gray-600 mb-1">Status</label>
-            <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+            <label class="block text-sm text-gray-600 mb-1">Progress</label>
+            <select name="stage" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All</option>
-                <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
-                <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Completed</option>
-                <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                <option value="cash" {{ request('stage') === 'cash' ? 'selected' : '' }}>Cash taken</option>
+                <option value="waiting" {{ request('stage') === 'waiting' ? 'selected' : '' }}>Waiting to be paid</option>
+                <option value="paid" {{ request('stage') === 'paid' ? 'selected' : '' }}>Paid</option>
+                <option value="pending" {{ request('stage') === 'pending' ? 'selected' : '' }}>Pending</option>
+                <option value="cancelled" {{ request('stage') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
             </select>
         </div>
         <div>
@@ -107,7 +109,7 @@
     </form>
     <div class="flex gap-2 mt-3 pt-3 border-t border-gray-200">
         @php
-            $quickBase = array_filter(request()->only(['search', 'status', 'currency', 'created_by', 'payment_method', 'usd_rate', 'rmb_rate', 'country']), fn($v) => $v !== '');
+            $quickBase = array_filter(request()->only(['search', 'stage', 'currency', 'created_by', 'payment_method', 'usd_rate', 'rmb_rate', 'country']), fn($v) => $v !== '');
             $ranges = [
                 'Today' => [today()->toDateString(), today()->toDateString()],
                 'Yesterday' => [today()->subDay()->toDateString(), today()->subDay()->toDateString()],
@@ -348,7 +350,7 @@
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Exchange Profit</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Overall Profit</th>
                 @endcan
-                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="How far this transfer has got, from the cash being taken to the receiver being paid">Progress</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Date</th>
                 @can('view-profit')
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Whoever the booking was written into. Their desk is the column beside Receipt #">Booked By</th>
@@ -386,12 +388,7 @@
                 <td class="px-2 py-4 text-sm font-medium whitespace-nowrap {{ $toneClass[$profit['total']['tone']] }}">{{ $profit['total']['text'] }}</td>
                 @endcan
                 <td class="px-2 py-4">
-                    <span class="px-2 py-1 text-xs rounded-full
-                        @if($t->status === 'completed') bg-green-100 text-green-800
-                        @elseif($t->status === 'pending') bg-yellow-100 text-yellow-800
-                        @else bg-red-100 text-red-800 @endif">
-                        {{ ucfirst($t->status) }}
-                    </span>
+                    <x-progress-badge :transaction="$t" />
                 </td>
                 <td class="px-2 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('M d, Y h:i A') }}</td>
                 @can('view-profit')
@@ -419,7 +416,7 @@
                         </form>
                         @endif
 
-                        @if($t->status !== 'cancelled')
+                        @if($t->status !== 'cancelled' && ! $t->hasLeftUganda())
                         <div class="border-t border-gray-100 my-1"></div>
                         <button type="button" onclick="openCancelModal(this)"
                             data-action="{{ route('transactions.update-status', $t) }}"

@@ -71,7 +71,7 @@ final class ActivityNews
     private const BY_ACTION = [
         'bulk_import' => ['transfers', 'Transfers were imported in bulk'],
         'sent_to_china' => ['china', 'Dollars were sent to the China desk'],
-        'china_payout_recorded' => ['china', 'Yuan was paid out in China'],
+        'china_payout_recorded' => ['china', 'Receiver was paid in China'],
         'wallet_adjusted' => ['wallets', 'A wallet balance was corrected'],
         'cash_handed_in' => ['wallets', 'Cash was handed in'],
         'cash_handover_requested' => ['wallets', 'An agent asked to hand cash in'],

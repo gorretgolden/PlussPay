@@ -641,6 +641,37 @@ class Transaction extends Model
     }
 
     /**
+     * The stage a transfer has reached, in the one or two words a list badge can carry. The books
+     * call a booking completed the moment the counter takes the cash, but that is not the same as
+     * finished: the receiver is still waiting until the money has crossed and been handed over.
+     * The badge follows the journey instead, so the same row reads Cash taken, then Waiting in
+     * China, then Paid. The stage is read off the destination, so the reverse corridor reads
+     * Waiting in Uganda rather than borrowing China's name.
+     *
+     * @return array{key: string, label: string}
+     */
+    public function progress(): array
+    {
+        if ($this->status === 'cancelled') {
+            return ['key' => 'cancelled', 'label' => 'Cancelled'];
+        }
+
+        if ($this->status !== 'completed') {
+            return ['key' => 'pending', 'label' => 'Pending'];
+        }
+
+        if ($this->delivered_at !== null) {
+            return ['key' => 'paid', 'label' => 'Paid'];
+        }
+
+        if ($this->settled_at !== null) {
+            return ['key' => 'waiting', 'label' => 'Waiting in '.$this->destinationLabel()];
+        }
+
+        return ['key' => 'cash', 'label' => 'Cash taken'];
+    }
+
+    /**
      * The three profit figures for this transfer as display text: what the exchange came to,
      * what was charged, and the two added. The legs are stored separately so the trail behind
      * the exchange figure survives, but the office reports one profit per transfer, so the
@@ -753,6 +784,20 @@ class Transaction extends Model
             if ($request->filled($filter)) {
                 $query->where($filter, $request->input($filter));
             }
+        }
+
+        // The journey a transfer is on, cut by the same three stamps the badge beside each row is
+        // worked out from. A stage and a raw status are never offered together, but both are read
+        // here so an older link or a download cannot lose its filter.
+        if ($request->filled('stage')) {
+            match ($request->input('stage')) {
+                'cash' => $query->where('status', 'completed')->whereNull('settled_at')->whereNull('delivered_at'),
+                'waiting' => $query->where('status', 'completed')->whereNotNull('settled_at')->whereNull('delivered_at'),
+                'paid' => $query->where('status', 'completed')->whereNotNull('delivered_at'),
+                'pending' => $query->where('status', 'pending'),
+                'cancelled' => $query->where('status', 'cancelled'),
+                default => $query->whereRaw('1 = 0'),
+            };
         }
 
         // Which selling price a transfer went out at. The buying price is not a filter any more

@@ -221,8 +221,8 @@ class ChinaDeskController extends Controller
         ]);
 
         return redirect()->route('china.index')->with('success', $figures
-            .' paid out in China for '.implode(', ', $paid->all())
-            .'. Those transfers are closed on both sides of the corridor.');
+            .' paid in China for '.implode(', ', $paid->all())
+            .'. '.($paid->count() === 1 ? 'That transfer now reads Paid.' : 'Those transfers now read Paid.'));
     }
 
     /**
