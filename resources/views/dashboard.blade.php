@@ -2,7 +2,7 @@
 
 @section('title', 'Dashboard')
 
-{{-- A failed hand-in carries its own summary inside the open card, so the page-level banner is
+{{-- A failed hand-in carries its own summary inside the open dialog, so the page-level banner is
      not repeated above the board. A handover decision made here still uses the banner. --}}
 @if($errors->hasAny(['super_agent_id', 'currency', 'amount', 'note']))
 @section('inline-validation', true)
@@ -191,6 +191,19 @@
        A browser without container queries keeps the 1.5rem above and behaves as it did before. */
     .stat-card { container-type: inline-size; }
     .stat-value { font-size: 1.5rem; font-size: clamp(.875rem, calc(100cqi / (var(--len) * .52)), 1.5rem); }
+
+    /* The hand-in form opens over the board the way a Bootstrap modal does: a dimmed page behind
+       a centred card. The dialog scrolls inside itself so a phone in landscape is never left with
+       a submit button below the screen edge. */
+    .hand-in-modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+    .hand-in-modal[hidden] { display: none; }
+    .hand-in-modal-backdrop { position: absolute; inset: 0; background: rgba(17, 24, 39, .55); }
+    .hand-in-modal-panel { position: relative; width: 100%; max-width: 40rem; max-height: calc(100vh - 2rem); max-height: calc(100dvh - 2rem); overflow-y: auto; border-radius: .75rem; background: #fff; box-shadow: 0 25px 50px -12px rgb(0 0 0 / .35); }
+    .hand-in-modal-panel:focus { outline: none; }
+    .hand-in-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; padding: 1rem 1.25rem; border-bottom: 1px solid #e5e7eb; }
+    .hand-in-modal-body { padding: 1.25rem; }
+    .hand-in-modal-foot { display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.25rem; border-top: 1px solid #e5e7eb; }
+    @media (min-width: 640px) { .hand-in-modal-foot { flex-direction: row; justify-content: flex-end; } }
 </style>
 
 @php
@@ -217,10 +230,10 @@
         default => 'What you spent',
     };
 
-    // An ordinary agent hands the desk's cash up to the lead agent. The card opens the same form
-    // right here instead of sending them to the wallet page; the wallet page stays as the fallback
-    // when the script that opens the card is not running. It waits for an active super agent,
-    // because without one the form has nobody to send the request to.
+    // An ordinary agent hands the desk's cash up to the lead agent. The shortcut opens the same
+    // form in a dialog over the board instead of sending them to the wallet page; the wallet page
+    // stays as the fallback when the script that opens the dialog is not running. It waits for an
+    // active super agent, because without one the form has nobody to send the request to.
     $canHandIn = $superAgents->isNotEmpty() && $wallets !== [];
 
     $quickActions = array_values(array_filter([
@@ -245,7 +258,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         @foreach($quickActions as $action)
         @php [$ability, $label, $hint, $url, $glyph, $opensHandIn] = array_pad($action, 6, null); @endphp
-        <a href="{{ $url }}" @if($opensHandIn) data-hand-in-open aria-controls="hand-in-card" aria-expanded="false" @endif class="flex items-center gap-3 min-w-0 rounded-lg border border-gray-200 p-3 hover:border-green-300 hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1{{ count($quickActions) % 2 === 1 && $loop->last ? ' sm:col-span-2' : '' }}">
+        <a href="{{ $url }}" @if($opensHandIn) data-hand-in-open aria-controls="hand-in-modal" aria-haspopup="dialog" aria-expanded="false" @endif class="flex items-center gap-3 min-w-0 rounded-lg border border-gray-200 p-3 hover:border-green-300 hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1{{ count($quickActions) % 2 === 1 && $loop->last ? ' sm:col-span-2' : '' }}">
             <span aria-hidden="true" class="w-9 h-9 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $glyph }}"/></svg>
             </span>
@@ -257,87 +270,6 @@
         @endforeach
     </div>
 </div>
-@endif
-
-@if($canHandIn)
-@php
-    $chosen = old('currency', array_key_first($wallets) ?? '');
-    $heldNow = (float) (($wallets[$chosen] ?? null)?->balance() ?? 0);
-    // Handing in the whole bag is the usual case, so the box opens at what the chosen wallet
-    // holds. A figure typed before a failed submit always wins over the guess.
-    $prefill = old('amount', $heldNow > 0 ? (string) round($heldNow, 2) : '');
-    // A failed submission comes back to this page, so the card is already open with its field
-    // errors visible instead of being folded away behind the shortcut.
-    $handInOpen = $errors->hasAny(['super_agent_id', 'currency', 'amount', 'note']);
-    $handInFields = ['super_agent_id' => ['Super agent', 'hand-in-super-agent'], 'currency' => ['Wallet', 'hand-in-currency'], 'amount' => ['Amount', 'hand-in-amount'], 'note' => ['Note', 'hand-in-note']];
-    $handInFailed = array_filter($handInFields, fn ($field) => $errors->has($field), ARRAY_FILTER_USE_KEY);
-@endphp
-{{-- The form the shortcut used to open on the wallet page. It lives here so an agent can send
-     the request without leaving the board; the shortcut keeps its wallet link as a fallback for
-     any browser where the small script below does not run. --}}
-<section id="hand-in-card" @if(! $handInOpen) hidden @endif aria-labelledby="hand-in-title" class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6 scroll-mt-20">
-    <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-            <h2 id="hand-in-title" tabindex="-1" class="text-lg font-semibold text-gray-900 focus:outline-none">Hand cash in to your super agent</h2>
-            <p class="text-sm text-gray-600 mt-1">The money stays in your wallet until the super agent approves it. The cash only changes hands when they approve. Follow the decision on <a href="{{ route('wallet.index') }}" class="font-medium text-green-800 underline underline-offset-4">My Wallet</a>.</p>
-        </div>
-        <button type="button" data-hand-in-close class="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300">Close</button>
-    </div>
-
-    {{-- The card can open below the fold, so the failed field is named and linked here rather
-         than in a banner at the top of the page. --}}
-    @if($handInFailed)
-    <div data-error-summary role="alert" class="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-gray-800 no-print">
-        <p class="font-medium text-red-800">Nothing was sent. Check {{ count($handInFailed) === 1 ? 'this field' : 'these fields' }}.</p>
-        <ul class="mt-1 space-y-0.5">
-            @foreach($handInFailed as $field => [$label, $anchor])
-            <li><a href="#{{ $anchor }}">{{ $label }}</a>: {{ $errors->first($field) }}</li>
-            @endforeach
-        </ul>
-    </div>
-    @endif
-
-    <form method="POST" action="{{ route('cash-handovers.store') }}" class="mt-5">
-        @csrf
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-                <label for="hand-in-super-agent" class="block text-sm font-medium text-gray-700 mb-1">Super agent</label>
-                <select id="hand-in-super-agent" name="super_agent_id" required @if($errors->has('super_agent_id')) aria-invalid="true" @endif class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('super_agent_id') ? ' field-invalid' : '' }}">
-                    @foreach($superAgents as $superAgent)
-                    <option value="{{ $superAgent->id }}" @selected((string) old('super_agent_id') === (string) $superAgent->id)>{{ $superAgent->name }}</option>
-                    @endforeach
-                </select>
-                @error('super_agent_id') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <label for="hand-in-currency" class="block text-sm font-medium text-gray-700 mb-1">Wallet</label>
-                <select id="hand-in-currency" name="currency" required @if($errors->has('currency')) aria-invalid="true" @endif class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('currency') ? ' field-invalid' : '' }}">
-                    @foreach($wallets as $currency => $account)
-                    <option value="{{ $currency }}" data-balance="{{ (string) round((float) $account->balance(), 2) }}" @selected($chosen === $currency)>{{ $currency }} ({{ \App\Models\Account::format($currency, $account->balance()) }} in hand)</option>
-                    @endforeach
-                </select>
-                @error('currency') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <label for="hand-in-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                <input type="number" id="hand-in-amount" name="amount" step="0.01" min="0.01" max="{{ $heldNow > 0 ? $heldNow : '' }}" required value="{{ $prefill }}"
-                    aria-describedby="hand-in-amount-hint" @if($errors->has('amount')) aria-invalid="true" @endif
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('amount') ? ' field-invalid' : '' }}">
-                <p id="hand-in-amount-hint" class="text-xs text-gray-400 mt-1">Cannot be more than the {{ $chosen }} wallet holds right now.</p>
-                @error('amount') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-        </div>
-        <div class="mt-4">
-            <label for="hand-in-note" class="block text-sm font-medium text-gray-700 mb-1">Note, optional</label>
-            <input type="text" id="hand-in-note" name="note" maxlength="255" value="{{ old('note') }}" placeholder="e.g. Full day's collections"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('note') ? ' field-invalid' : '' }}">
-            @error('note') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-        </div>
-        <div class="mt-5 flex justify-end">
-            <button type="submit" class="w-full sm:w-auto bg-green-800 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition">Send for approval</button>
-        </div>
-    </form>
-</section>
 @endif
 
 {{-- The super agent's first job of the day: the cash the agents say they are bringing. A request
@@ -679,6 +611,96 @@
     </div>
 </div>
 
+@if($canHandIn)
+@php
+    $chosen = old('currency', array_key_first($wallets) ?? '');
+    $heldNow = (float) (($wallets[$chosen] ?? null)?->balance() ?? 0);
+    // Handing in the whole bag is the usual case, so the box opens at what the chosen wallet
+    // holds. A figure typed before a failed submit always wins over the guess.
+    $prefill = old('amount', $heldNow > 0 ? (string) round($heldNow, 2) : '');
+    // A failed submission comes back to this page, so the dialog renders open with its field
+    // errors visible rather than waiting to be found behind the shortcut.
+    $handInOpen = $errors->hasAny(['super_agent_id', 'currency', 'amount', 'note']);
+    $handInFields = ['super_agent_id' => ['Super agent', 'hand-in-super-agent'], 'currency' => ['Wallet', 'hand-in-currency'], 'amount' => ['Amount', 'hand-in-amount'], 'note' => ['Note', 'hand-in-note']];
+    $handInFailed = array_filter($handInFields, fn ($field) => $errors->has($field), ARRAY_FILTER_USE_KEY);
+@endphp
+{{-- The form the shortcut used to open on the wallet page, now a dialog over the board so the
+     request is made without leaving the till. The shortcut keeps its wallet link as the fallback
+     for any browser where the small script below does not run. --}}
+<div id="hand-in-modal" class="hand-in-modal no-print" @if(! $handInOpen) hidden @endif>
+    <div class="hand-in-modal-backdrop" data-hand-in-dismiss aria-hidden="true"></div>
+    <div class="hand-in-modal-panel" role="dialog" aria-modal="true" aria-labelledby="hand-in-title" tabindex="-1">
+        <form method="POST" action="{{ route('cash-handovers.store') }}">
+            @csrf
+            <div class="hand-in-modal-head">
+                <h2 id="hand-in-title" class="text-lg font-semibold text-gray-900">Hand cash in to your super agent</h2>
+                <button type="button" data-hand-in-dismiss aria-label="Close"
+                    class="shrink-0 -mr-1 -mt-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-2xl leading-none text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="hand-in-modal-body">
+                <p class="text-sm text-gray-600">The money stays in your wallet until the super agent approves it. The cash only changes hands when they approve. Follow the decision on <a href="{{ route('wallet.index') }}" class="font-medium text-green-800 underline underline-offset-4">My Wallet</a>.</p>
+
+                {{-- The dialog covers the page, so the failed field is named and linked here rather
+                     than in a banner at the top of the board. --}}
+                @if($handInFailed)
+                <div data-error-summary role="alert" tabindex="-1" class="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-gray-800 focus:outline-none">
+                    <p class="font-medium text-red-800">Nothing was sent. Check {{ count($handInFailed) === 1 ? 'this field' : 'these fields' }}.</p>
+                    <ul class="mt-1 space-y-0.5">
+                        @foreach($handInFailed as $field => [$label, $anchor])
+                        <li><a href="#{{ $anchor }}">{{ $label }}</a>: {{ $errors->first($field) }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+                @endif
+
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label for="hand-in-super-agent" class="block text-sm font-medium text-gray-700 mb-1">Super agent</label>
+                        <select id="hand-in-super-agent" name="super_agent_id" required @if($errors->has('super_agent_id')) aria-invalid="true" @endif class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('super_agent_id') ? ' field-invalid' : '' }}">
+                            @foreach($superAgents as $superAgent)
+                            <option value="{{ $superAgent->id }}" @selected((string) old('super_agent_id') === (string) $superAgent->id)>{{ $superAgent->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('super_agent_id') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label for="hand-in-currency" class="block text-sm font-medium text-gray-700 mb-1">Wallet</label>
+                        <select id="hand-in-currency" name="currency" required @if($errors->has('currency')) aria-invalid="true" @endif class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('currency') ? ' field-invalid' : '' }}">
+                            @foreach($wallets as $currency => $account)
+                            <option value="{{ $currency }}" data-balance="{{ (string) round((float) $account->balance(), 2) }}" @selected($chosen === $currency)>{{ $currency }} ({{ \App\Models\Account::format($currency, $account->balance()) }} in hand)</option>
+                            @endforeach
+                        </select>
+                        @error('currency') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label for="hand-in-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                        <input type="number" id="hand-in-amount" name="amount" step="0.01" min="0.01" max="{{ $heldNow > 0 ? $heldNow : '' }}" required value="{{ $prefill }}"
+                            aria-describedby="hand-in-amount-hint" @if($errors->has('amount')) aria-invalid="true" @endif
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('amount') ? ' field-invalid' : '' }}">
+                        <p id="hand-in-amount-hint" class="text-xs text-gray-400 mt-1">Cannot be more than the {{ $chosen }} wallet holds right now.</p>
+                        @error('amount') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <label for="hand-in-note" class="block text-sm font-medium text-gray-700 mb-1">Note, optional</label>
+                    <input type="text" id="hand-in-note" name="note" maxlength="255" value="{{ old('note') }}" placeholder="e.g. Full day's collections"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('note') ? ' field-invalid' : '' }}">
+                    @error('note') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                </div>
+            </div>
+
+            <div class="hand-in-modal-foot">
+                <button type="button" data-hand-in-dismiss class="w-full sm:w-auto rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300">Cancel</button>
+                <button type="submit" class="w-full sm:w-auto bg-green-800 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300">Send for approval</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
     const chartData = @json($chartData);
@@ -835,49 +857,94 @@
     }
 
     (function () {
-        var card = document.getElementById('hand-in-card');
+        var modal = document.getElementById('hand-in-modal');
         var opener = document.querySelector('[data-hand-in-open]');
 
-        if (!card || !opener) { return; }
+        if (!modal || !opener) { return; }
 
-        var title = document.getElementById('hand-in-title');
-        var close = card.querySelector('[data-hand-in-close]');
+        var panel = modal.querySelector('.hand-in-modal-panel');
+        var previousOverflow = '';
+        var lastFocus = opener;
 
-        // A failed submission renders the card open so the errors are not hidden behind the
-        // shortcut. The shortcut's own state has to say the same thing, and on a phone the
-        // board is brought down to the card rather than left at the quick actions above it.
-        if (!card.hidden) {
-            opener.setAttribute('aria-expanded', 'true');
-            if (title) { title.focus({ preventScroll: true }); }
-            card.scrollIntoView({ block: 'start' });
+        // A failed submission names the field in the summary, so focus starts there; a fresh open
+        // starts on the dialog itself rather than a select, which would throw the phone's picker
+        // up before the person has read what is being asked.
+        function focusStart() {
+            var summary = modal.querySelector('[data-error-summary]');
+            (summary || panel).focus({ preventScroll: true });
         }
 
-        function openCard() {
-            card.hidden = false;
+        function openDialog() {
+            if (!modal.hidden) { return; }
+
+            lastFocus = document.activeElement && document.activeElement !== document.body
+                ? document.activeElement
+                : opener;
+
+            modal.hidden = false;
+            previousOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
             opener.setAttribute('aria-expanded', 'true');
-            // Focus moves to the heading rather than a select, which would open the phone's
-            // picker before the person has read what the card is asking for.
-            if (title) { title.focus({ preventScroll: true }); }
-            card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            focusStart();
         }
 
-        function closeCard() {
-            card.hidden = true;
+        function closeDialog() {
+            if (modal.hidden) { return; }
+
+            modal.hidden = true;
+            document.body.style.overflow = previousOverflow;
             opener.setAttribute('aria-expanded', 'false');
-            opener.focus();
+            lastFocus.focus({ preventScroll: true });
+        }
+
+        // A failed submission comes back with the dialog already open and the page behind it
+        // still locked, so the errors are not skipped past by a scroll at the top of the board.
+        if (!modal.hidden) {
+            lastFocus = opener;
+            previousOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            opener.setAttribute('aria-expanded', 'true');
+            focusStart();
         }
 
         opener.addEventListener('click', function (event) {
             // Leave modified clicks alone: the wallet page is still the fallback the link names.
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) { return; }
             event.preventDefault();
-            openCard();
+            openDialog();
         });
 
-        close.addEventListener('click', closeCard);
+        modal.addEventListener('click', function (event) {
+            if (event.target.closest('[data-hand-in-dismiss]')) { closeDialog(); }
+        });
 
-        card.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape') { closeCard(); }
+        modal.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeDialog();
+                return;
+            }
+
+            if (event.key !== 'Tab') { return; }
+
+            // aria-modal hides the board from a screen reader, but the keyboard still walks out
+            // of the panel without this, so Tab wraps between the first and last control.
+            var items = Array.prototype.filter.call(
+                panel.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+                function (item) { return item.offsetParent !== null; }
+            );
+
+            if (items.length === 0) { event.preventDefault(); return; }
+
+            var at = items.indexOf(document.activeElement);
+
+            if (event.shiftKey && at <= 0) {
+                event.preventDefault();
+                items[items.length - 1].focus();
+            } else if (!event.shiftKey && at === items.length - 1) {
+                event.preventDefault();
+                items[0].focus();
+            }
         });
 
         var money = document.getElementById('hand-in-currency');

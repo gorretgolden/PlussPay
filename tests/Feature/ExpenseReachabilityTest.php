@@ -190,7 +190,7 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertSame(1, substr_count($agent, 'sm:col-span-2'), 'The odd last card fills its row instead of leaving a gap.');
     }
 
-    public function test_the_hand_in_card_waits_for_an_active_lead_agent(): void
+    public function test_the_hand_in_shortcut_waits_for_an_active_lead_agent(): void
     {
         $agent = $this->user('agent', 'Amina Nabukenya');
 
@@ -207,11 +207,11 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('>Hand Cash In</span>', $actions);
         $this->assertStringContainsString('/wallet#hand-in', $actions);
 
-        // The wallet page still carries the same form as the fallback the card names.
+        // The wallet page still carries the same form as the fallback the shortcut names.
         $this->assertStringContainsString('id="hand-in"', $this->html($agent->fresh(), '/wallet'));
     }
 
-    public function test_the_hand_in_shortcut_opens_the_form_on_the_board_itself(): void
+    public function test_the_hand_in_shortcut_opens_a_dialog_over_the_board(): void
     {
         $lead = $this->user('super-agent', 'Amina Lead');
         $agent = $this->user('agent', 'Amina Nabukenya');
@@ -219,17 +219,24 @@ class ExpenseReachabilityTest extends TestCase
 
         $board = $this->html($agent);
 
-        // The shortcut is an opener for a card on this page, not a second link to the wallet.
+        // The shortcut opens a dialog over the page rather than unfolding a card below the board,
+        // and the wallet link stays underneath as the no-script fallback.
         $this->assertStringContainsString('data-hand-in-open', $board);
-        $this->assertStringContainsString('id="hand-in-card"', $board);
+        $this->assertStringContainsString('aria-controls="hand-in-modal"', $board);
+        $this->assertStringContainsString('aria-haspopup="dialog"', $board);
+        $this->assertMatchesRegularExpression('#<div id="hand-in-modal"[^>]*\bhidden\b#', $board, 'The dialog stays closed until the shortcut is used.');
+        $this->assertStringContainsString('role="dialog"', $board);
+        $this->assertStringContainsString('aria-modal="true"', $board);
+        $this->assertStringContainsString('aria-labelledby="hand-in-title"', $board);
         $this->assertStringContainsString('action="'.route('cash-handovers.store').'"', $board);
         $this->assertStringContainsString('>Hand cash in to your super agent</h2>', $board);
         $this->assertStringContainsString('>Amina Lead</option>', $board);
         $this->assertStringContainsString('UGX (UGX 500,000 in hand)', $board);
         $this->assertStringContainsString('value="500000"', $board);
+        $this->assertStringNotContainsString('id="hand-in-card"', $board, 'The form is not left in the page as a card.');
 
-        // A figure over the drawer comes back to the same open card, with the box marked and a
-        // summary that links to it. The page-level banner above the board is not repeated.
+        // A figure over the drawer comes back to the same dialog, already open, with the box
+        // marked and a summary that links to it. The page-level banner is not repeated.
         $failed = $this->actingAs($agent)->from(route('dashboard'))->followingRedirects()
             ->post(route('cash-handovers.store'), [
                 'super_agent_id' => $lead->id,
@@ -237,6 +244,7 @@ class ExpenseReachabilityTest extends TestCase
                 'amount' => '9999',
             ])->assertOk()->getContent();
 
+        $this->assertMatchesRegularExpression('#<div id="hand-in-modal"(?![^>]*\bhidden\b)#', $failed, 'A failed submit reopens the dialog with its errors.');
         $this->assertStringContainsString('<div data-error-summary', $failed);
         $this->assertStringContainsString('href="#hand-in-amount"', $failed);
         $this->assertMatchesRegularExpression('#id="hand-in-amount"[^>]*aria-invalid="true"#', $failed);
