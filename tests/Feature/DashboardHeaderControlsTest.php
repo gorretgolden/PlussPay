@@ -129,17 +129,39 @@ class DashboardHeaderControlsTest extends TestCase
         $this->assertStringNotContainsString('max-w-[12rem]', $html, 'A name chip beside a role chip says the same thing twice.');
     }
 
+    public function test_an_account_named_only_by_its_role_is_never_greeted_by_a_truncated_word(): void
+    {
+        // A name cut to its first word reads like a placeholder somebody never filled in. Several
+        // desks share one role, so the board must use the whole name, and where the name is nothing
+        // but the role it must say the role's own display name, not the leading word of it.
+        $this->travelTo(now()->setTime(13, 5));
+
+        $super = $this->board('superadmin', 'Super Admin');
+        $this->assertMatchesRegularExpression('#<p class="text-gray-600 mt-1">Good afternoon, Super Admin\.</p>#', $super);
+        $this->assertStringNotContainsString('Good afternoon, Super.', $super, 'A role name is never cut to its first word.');
+
+        $this->flushSession();
+        $agent = $this->board('agent', 'Agent');
+        $this->assertMatchesRegularExpression('#<p class="text-gray-600 mt-1">Good afternoon, Agent\.</p>#', $agent);
+
+        $this->flushSession();
+        $named = $this->board('agent', 'Charles Kato Mulondo');
+        $this->assertMatchesRegularExpression('#<p class="text-gray-600 mt-1">Good afternoon, Charles Kato Mulondo\.</p>#', $named);
+    }
+
     public function test_the_clock_is_stamped_to_the_minute_with_no_running_second(): void
     {
         $this->travelTo(now()->setTime(19, 12, 45));
 
         $html = $this->board();
 
-        preg_match('#id="liveClock">(.*?)</span>#', $html, $stamp);
+        // The clock element carries a data-zone-offset for the script that keeps it ticking, so the
+        // capture skips the attributes and reads only what sits between the tags.
+        preg_match('#id="liveClock"[^>]*>(.*?)</span>#', $html, $stamp);
         $this->assertMatchesRegularExpression(
-            '/^(Sun|Mon|Tue|Wed|Thu|Fri|Sat), \d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} · \d{1,2}:\d{2} (AM|PM)$/',
+            '/^(Sun|Mon|Tue|Wed|Thu|Fri|Sat), \d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} · \d{1,2}:\d{2} (AM|PM) EAT$/',
             $stamp[1] ?? '',
-            'The stamp reads Fri, 16 Oct 2026 · 7:12 PM: the hour and minute, never the second.'
+            'The stamp reads Fri, 16 Oct 2026 · 7:12 PM EAT: the hour and minute and the zone the desk keeps, never the second.'
         );
 
         // Nothing on the page redraws it every second, so the figure cannot twitch while it is read.

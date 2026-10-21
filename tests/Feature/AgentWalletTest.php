@@ -356,10 +356,16 @@ class AgentWalletTest extends TestCase
 
         $this->booking($agent, 'COM-007', '7520');
 
-        $this->actingAs($agent)
-            ->get('/dashboard')
-            ->assertOk()
-            ->assertSee('Charge kept this month: UGX 7,520');
+        $html = $this->actingAs($agent)->get('/dashboard')->assertOk()->getContent();
+
+        // The figure is not enough on its own: the card names the stretch of days it covers, so a
+        // fee line beside a today figure cannot read as a contradiction.
+        $this->assertSame(
+            1,
+            preg_match('#Fees this month \(([^)]+)\)</span>\s*<span[^>]*>UGX 7,520</span>#', $html, $m),
+            'The wallet card prints the charge kept beside the period it was kept over.'
+        );
+        $this->assertMatchesRegularExpression('/^\d{1,2} \w{3} to \d{1,2} \w{3} \d{4}$/', $m[1]);
     }
 
     public function test_an_admin_can_credit_an_agent_wallet_and_the_balance_moves(): void

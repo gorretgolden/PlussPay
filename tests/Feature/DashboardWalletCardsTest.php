@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\CashHandover;
 use App\Models\ExchangeRate;
 use App\Models\User;
+use App\Services\AccountLedger;
 use App\Support\PermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
@@ -29,7 +31,7 @@ class DashboardWalletCardsTest extends TestCase
             Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
-        foreach (['superadmin', 'admin', 'accountant', 'agent', 'staff'] as $role) {
+        foreach (['superadmin', 'admin', 'accountant', 'agent', 'super-agent', 'staff'] as $role) {
             $model = Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
             $model->syncPermissions(PermissionCatalog::defaults()[$role] ?? []);
         }
@@ -84,8 +86,82 @@ class DashboardWalletCardsTest extends TestCase
 
         $this->assertStringContainsString('UGX Wallet', $html);
         $this->assertStringContainsString('USD Wallet', $html);
-        $this->assertStringContainsString('In your hand until you hand it in.', $html);
+        $this->assertStringContainsString('Cash on hand, not yet deposited', $html);
         $this->assertSame(2, Account::agentWallets()->count());
+    }
+
+    public function test_both_wallet_cards_print_the_same_rows_in_the_same_order(): void
+    {
+        $html = $this->board($this->person('agent', 'Amina Nabukenya'));
+
+        // Two cards, so every row that names a slice of the balance is printed exactly twice. A row
+        // that dropped off one card would leave the pair at different heights and read as though
+        // one wallet were being described differently from the other.
+        foreach ([
+            'Of which awaiting approval',
+            'Ready to hand in',
+            'Fees this month',
+            'Handed in so far',
+        ] as $row) {
+            $this->assertSame(2, substr_count($html, $row), "Both cards should print the {$row} row.");
+        }
+    }
+
+    public function test_the_lead_agent_s_cards_read_the_road_from_his_end(): void
+    {
+        $lead = $this->person('super-agent', 'Amina Lead');
+
+        // Cash comes up to him from the desks below and leaves from his own counter, so a row that
+        // says "hand in" would name a road he never travels.
+        $html = $this->board($lead);
+
+        $this->assertStringContainsString('Ready to send on', $html);
+        $this->assertStringContainsString('Sent on so far', $html);
+        $this->assertStringNotContainsString('Ready to hand in', $html);
+        $this->assertStringNotContainsString('Handed in so far', $html);
+        $this->assertSame(2, substr_count($html, 'Ready to send on'), 'Both of his cards print the same rows.');
+    }
+
+    public function test_the_pending_amount_is_described_as_part_of_the_balance_not_as_extra(): void
+    {
+        $agent = $this->person('agent', 'Amina Nabukenya');
+        $lead = $this->person('super-agent', 'Amina Lead');
+
+        // 300,000 real in the drawer, and a request for 200,000 of it that the lead has not
+        // approved. A request moves no money, so the whole 300,000 is still the balance and the
+        // 200,000 is a slice of it, never 300,000 plus another 200,000.
+        AccountLedger::record(Account::walletFor($agent, 'UGX'), 'adjustment_in', '300000', 'Cash float');
+        CashHandover::request($agent, $lead, 'UGX', '200000');
+
+        $html = $this->board($agent);
+
+        $this->assertStringContainsString('UGX 300,000', $html, 'The balance still counts the money a request is waiting on.');
+        $this->assertStringContainsString('Of which awaiting approval', $html, 'The pending figure is named as part of the balance.');
+        $this->assertStringContainsString('UGX 200,000', $html);
+        $this->assertStringContainsString('Ready to hand in', $html);
+        $this->assertStringContainsString('UGX 100,000', $html, 'Ready is the balance with the pending slice taken off it.');
+
+        // Nothing on the card may imply the waiting money sits beside the balance rather than in it:
+        // the old caption that framed it as separate cash, and the old "charge kept" line, are gone.
+        $this->assertStringNotContainsString('waiting for the super agent', strtolower($html));
+        $this->assertStringNotContainsString('Charge kept this month', $html);
+    }
+
+    public function test_a_second_agents_hand_ins_never_appear_on_this_desk_board(): void
+    {
+        // Guard the slice framing against a wrong scoping: only the signed-in agent's pending rows
+        // belong on the card. See DashboardHandInInsightTest for the fuller reach test.
+        $mine = $this->person('agent', 'Amina Nabukenya');
+        $other = $this->person('agent', 'Peter Okello');
+        $lead = $this->person('super-agent', 'Amina Lead');
+
+        CashHandover::request($mine, $lead, 'UGX', '150000');
+        CashHandover::request($other, $lead, 'UGX', '990000');
+
+        $html = $this->board($mine);
+
+        $this->assertStringContainsString('UGX 150,000', $html);
+        $this->assertStringNotContainsString('UGX 990,000', $html, "Another desk's pending request leaked onto this board.");
     }
 
     public function test_desk_staff_holding_money_keep_their_cards(): void

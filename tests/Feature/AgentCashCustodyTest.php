@@ -442,7 +442,7 @@ class AgentCashCustodyTest extends TestCase
 
         $this->actingAs($agent)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('In your hand until you hand it in')
+            ->assertSee('Cash on hand, not yet deposited')
             ->assertSee('UGX 500,000');
     }
 }

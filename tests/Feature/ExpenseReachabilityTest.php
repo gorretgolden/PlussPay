@@ -114,18 +114,21 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('Pay receivers of money sent from Uganda', $superadmin);
         $this->assertStringNotContainsString('>Approve Cash Hand-In</span>', $superadmin, 'That queue belongs to the lead agent.');
 
-        // A desk agent books transfers and logs what they spent out of the cash in hand. The
-        // counter, the prices and the customer list stay with the office and the super agent.
-        $agent = $this->html($this->user('agent', 'Amina Nabukenya'));
+        // A desk agent books transfers and logs what they spent out of the cash in hand, so the
+        // spending tile hands him the pen. The counter, the prices and the customer list stay with
+        // the office and the super agent. Each check reads the shortcut card itself, because the
+        // sidebar carries the same words further up the page.
+        $agentPage = $this->html($this->user('agent', 'Amina Nabukenya'));
+        $agent = $this->quickActions($agentPage);
         $this->assertStringContainsString('>Send Money to China</span>', $agent);
         $this->assertStringNotContainsString('>Send Money to Uganda</span>', $agent, 'Uganda is where this agent already stands.');
-        $this->assertStringContainsString('>Expenses</span>', $agent, 'Their own page of the book, where the pen sits above their entries.');
-        $this->assertStringContainsString('Record spending, read your entries', $agent);
+        $this->assertStringContainsString('>Record Expense</span>', $agent, 'The desk that paid the cash out is the desk that records it.');
+        $this->assertStringContainsString('Log what you spent today', $agent);
         $this->assertStringContainsString('>Hand Cash In</span>', $agent, 'An agent hands the desk cash up to the lead agent.');
         $this->assertStringContainsString('Send cash to your super agent', $agent);
         $this->assertStringContainsString('/wallet#hand-in', $agent, 'The card opens the form itself.');
         $this->assertStringNotContainsString('>Withdraw Money in China</span>', $agent, 'The China queue is not a Uganda agent\'s to clear.');
-        foreach (['Record Exchange', 'Record Expense', 'Exchange Rates', 'Add Customer'] as $label) {
+        foreach (['Record Exchange', 'Exchange Rates', 'Add Customer', 'Transactions'] as $label) {
             $this->assertStringNotContainsString('>'.$label.'</span>', $agent, $label.' is beyond an agent.');
         }
 
@@ -133,9 +136,9 @@ class ExpenseReachabilityTest extends TestCase
         // changes money, sends for every agent and answers for the withdrawal queue. He receives
         // the cash rather than handing it up, so the hand-in card is not his, but approving what
         // the agents hand over is.
-        $lead = $this->html($lead);
+        $lead = $this->quickActions($this->html($lead));
         $this->assertStringNotContainsString('>Hand Cash In</span>', $lead, 'The lead agent receives the hand-in.');
-        foreach (['Send Money to China', 'Send Money to Uganda', 'Withdraw Money in China', 'Approve Cash Hand-In', 'Record Exchange', 'Expenses', 'Transactions'] as $label) {
+        foreach (['Send Money to China', 'Send Money to Uganda', 'Withdraw Money in China', 'Approve Cash Hand-In', 'Record Exchange', 'Record Expense', 'Transactions'] as $label) {
             $this->assertStringContainsString('>'.$label.'</span>', $lead, $label.' is a Super Agent shortcut.');
         }
         $this->assertStringContainsString('Every transfer in the book', $lead);
@@ -174,29 +177,38 @@ class ExpenseReachabilityTest extends TestCase
         $start = strpos($html, '>Quick Actions</h2>');
         $this->assertIsInt($start);
 
-        $end = strpos($html, 'Cash Handed To You', $start);
+        // The shortcuts now sit under the wallet cards, so the block is bounded by whatever card
+        // comes after it rather than by the wallets above. Every following section opens with its
+        // own heading, and the last one on the board is the recent work table.
+        $end = strpos($html, '<h2 ', $start + 20);
         if ($end === false) {
-            $end = strpos($html, 'Wallet</div>', $start);
+            $end = strpos($html, '</body>', $start);
         }
         $this->assertIsInt($end);
 
         return substr($html, $start, $end - $start);
     }
 
-    public function test_quick_actions_sit_two_to_a_row_and_fill_the_last_row(): void
+    public function test_quick_actions_sit_three_to_a_row_and_never_stretch(): void
     {
-        $lead = $this->quickActions($this->html($this->user('super-agent', 'Amina Lead')));
+        foreach (['super-agent' => 'Amina Lead', 'agent' => 'Amina Nabukenya'] as $role => $name) {
+            $block = $this->quickActions($this->html($this->user($role, $name)));
+            $tiles = substr_count($block, 'hover:border-green-300');
 
-        $this->assertStringContainsString('grid-cols-1 sm:grid-cols-2', $lead);
-        $this->assertStringNotContainsString('lg:grid-cols-3', $lead);
-        $this->assertSame(7, substr_count($lead, 'hover:border-green-300'), 'Two send cards, the withdrawal queue, the hand-in queue, the counter, the spending book and the whole book.');
-        $this->assertSame(1, substr_count($lead, 'sm:col-span-2'), 'The odd last card fills its row instead of leaving a gap.');
+            $this->assertSame(0, substr_count($block, 'sm:col-span-2'), $role.': a tile keeps its size instead of filling the row.');
+
+            // The rule the layout follows: exactly three shortcuts get one row from the small
+            // breakpoint up, anything else waits for the wide board before it gets a third column.
+            $this->assertStringContainsString(
+                $tiles === 3 ? 'grid-cols-1 gap-3 sm:grid-cols-3' : 'grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3',
+                $block,
+                $role.': '.$tiles.' shortcuts.'
+            );
+        }
 
         $agent = $this->quickActions($this->html($this->user('agent', 'Amina Nabukenya')));
-
         $this->assertSame(3, substr_count($agent, 'hover:border-green-300'), 'The send card, the hand-in card and the spending book.');
-        $this->assertStringContainsString('grid-cols-1 gap-3 sm:grid-cols-3', $agent, 'The agent\'s three shortcuts sit in one row.');
-        $this->assertSame(0, substr_count($agent, 'sm:col-span-2'), 'None of the three needs to fill a row.');
+        $this->assertStringContainsString('sm:col-span-1', $agent, 'The primary tile is pinned to one column.');
     }
 
     public function test_the_hand_in_shortcut_waits_for_an_active_lead_agent(): void
@@ -414,16 +426,17 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringNotContainsString('>Withdraw Money in China</span>', $this->html($agent), 'A hand in Uganda does not clear the China queue.');
     }
 
-    public function test_the_shortcuts_open_the_page_ahead_of_the_balances(): void
+    public function test_the_balances_sit_ahead_of_the_shortcuts(): void
     {
         $html = $this->html($this->user('agent', 'Amina Nabukenya'));
 
-        // The desk books first and reads the till afterwards, so the shortcuts are the top card.
+        // A desk counts its till first and then decides what to do with what is in it, so the
+        // wallet cards are the top card and the shortcuts come under them.
         $actions = strpos($html, '>Quick Actions</h2>');
         $wallets = strpos($html, 'Wallet</div>');
 
         $this->assertIsInt($actions);
         $this->assertIsInt($wallets);
-        $this->assertLessThan($wallets, $actions, 'Quick Actions renders above the wallet cards.');
+        $this->assertLessThan($actions, $wallets, 'The wallet cards render above Quick Actions.');
     }
 }

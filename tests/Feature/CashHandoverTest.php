@@ -128,15 +128,27 @@ class CashHandoverTest extends TestCase
         $lead = $this->person('super-agent', 'Amina Lead');
         $handover = $this->request($agent, $lead);
 
-        $this->actingAs($agent)->get('/dashboard')->assertOk()
-            ->assertSee("waiting for the super agent's approval", false)
-            ->assertSee('UGX 480,000');
+        // The card prints the same four rows whatever the numbers are, so what the test pins is the
+        // figure beside "awaiting approval", not whether the line is there. It falls to zero when
+        // the lead agent approves, and the wallet total never changes at that moment.
+        $awaitingOnCard = function (User $viewer): string {
+            $this->flushSession();
+            $html = $this->actingAs($viewer)->get('/dashboard')->assertOk()->getContent();
+            $this->assertSame(
+                1,
+                preg_match('#Of which awaiting approval</span>\s*<span[^>]*>([^<]+)</span>#', $html, $m),
+                'The wallet card names the part of the balance a super agent has not taken yet.'
+            );
+
+            return $m[1];
+        };
+
+        $this->assertSame('UGX 480,000', $awaitingOnCard($agent));
+        $this->assertStringContainsString('UGX 500,000', $this->actingAs($agent)->get('/dashboard')->getContent());
 
         $handover->approve();
 
-        $this->flushSession();
-        $this->actingAs($agent)->get('/dashboard')->assertOk()
-            ->assertDontSee("waiting for the super agent's approval", false);
+        $this->assertSame('UGX 0', $awaitingOnCard($agent));
     }
 
     public function test_a_super_agent_does_not_hand_cash_to_another_super_agent(): void

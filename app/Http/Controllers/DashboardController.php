@@ -24,7 +24,11 @@ class DashboardController extends Controller
         $user = auth()->user();
         // The badge is read by people, so it carries the same display name the sidebar and the
         // Users table use instead of the raw role slug.
-        $role = RolePermissionController::displayName($user->getRoleNames()->first() ?? 'user');
+        $slug = (string) $user->getRoleNames()->first();
+        $role = RolePermissionController::displayName($slug !== '' ? $slug : 'user');
+        // The greeting gets the same treatment: a desk is greeted by its whole name, and an account
+        // named after nothing but its own role is greeted by that role's display name.
+        $greetAs = $this->greetAs($user, $slug);
         $usdToUgx = $this->usdToUgxRate();
 
         // The board prints every figure once, out of the window the reader has picked. The
@@ -115,15 +119,15 @@ class DashboardController extends Controller
         }
 
         // An ordinary agent sees what they are still waiting on, so a request that has not been
-        // decided is not mistaken for cash already handed over.
-        $pendingHandIn = $user->hasRole('agent')
-            ? CashHandover::where('agent_id', $user->id)
-                ->where('status', CashHandover::PENDING)
-                ->selectRaw('currency, COALESCE(SUM(amount), 0) as total')
-                ->groupBy('currency')
-                ->pluck('total', 'currency')
-                ->all()
-            : [];
+        // decided is not mistaken for cash already handed over. It is read for anybody holding a
+        // wallet rather than only for the agent role, because the figure is a slice of the balance
+        // on the card and the card is handed to every desk that holds money.
+        $pendingHandIn = $holdsMoney ? $this->pendingHandInByCurrency($user) : [];
+
+        // The same insight for the whole hand-in book: what this person asked, in how many pieces,
+        // and the last one they sent. Read from their own rows here rather than from anything the
+        // address bar carries, so one desk's board cannot be pointed at another desk's cash.
+        $handoverInsight = $user->hasRole('agent') ? $this->handoverInsight($user) : null;
 
         // The other half of the corridor: dollars that came from Uganda have reached a desk in
         // China and the receiver is still to be handed the money. This is the queue the Withdraw
@@ -138,17 +142,13 @@ class DashboardController extends Controller
                 ->count();
         }
 
-        // Commission only ever lands in a shilling wallet, whoever booked the transfer, so it is
-        // read from that account directly rather than from the wallets this person is shown.
-        // A desk in China is shown yuan and dollars but still earns its commission in shillings.
-        $custodyWallet = $holdsMoney ? Account::walletFor($user, 'UGX') : null;
-        $commissionMonth = $custodyWallet ? (float) AccountEntry::query()
-            ->where('account_id', $custodyWallet->id)
-            ->whereIn('type', ['agent_fee', 'agent_fee_reversal'])
-            ->whereDate('entry_date', '>=', now()->startOfMonth()->toDateString())
-            ->whereDate('entry_date', '<=', now()->toDateString())
-            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'agent_fee' THEN amount ELSE -amount END), 0) as net")
-            ->value('net') : 0.0;
+        // What the charge pen has kept this month, kept apart by the wallet it landed in so each
+        // card prints its own figure and a card with nothing to report prints a zero rather than
+        // dropping its row. Commission is only ever typed into a shilling wallet, so the dollar
+        // and yuan cards honestly read nil; the old query reached for a shilling account a China
+        // desk is never shown, which printed nothing anywhere and opened the account on sight.
+        $feesMonth = $this->feesThisMonth($wallets);
+        $feesPeriod = now()->startOfMonth()->format('j M') . ' to ' . now()->format('j M Y');
 
         // Admins manage people, so a spike of failed sign-ins belongs on the page they open
         // first; only the Super Admin sees the machine errors, matching the Logs tabs.
@@ -186,7 +186,129 @@ class DashboardController extends Controller
         // it gets no card at all rather than a figure it cannot check.
         $spending = $user->can('view-expenses') ? $this->spendingToday($user) : ['count' => 0, 'desks' => []];
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts', 'news', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'superAgents', 'withdrawalsWaiting'));
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'profit', 'windows', 'logAlerts', 'news', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'greetAs'));
+    }
+
+    /**
+     * The name the board greets this person by.
+     *
+     * The whole account name is used, never its first word: several desks share one role, so a
+     * first word that happens to be the role cannot say whose hand the balances below are in, and
+     * a truncated one reads like a placeholder somebody forgot to fill in. Where the name says
+     * nothing beyond the role, the role's own display name is printed instead of whatever casing
+     * was typed into the name box. That is the general case rather than one string, so the shared
+     * office sign-in ("Super Admin"), a demo desk ("Agent Ug.") and an account simply called
+     * "agent" are all handled the same way.
+     */
+    private function greetAs(User $user, string $slug): string
+    {
+        $name = trim($user->name);
+
+        if ($name === '') {
+            return RolePermissionController::displayName($slug !== '' ? $slug : 'user');
+        }
+
+        if ($slug === '') {
+            return $name;
+        }
+
+        // Only the letters matter, so "Super Admin", "superadmin" and "super-admin" all say the
+        // same thing. A desk code beside the role (UG, CN) is the same statement with a location
+        // pinned on, so it is dropped before the comparison.
+        $typed = preg_replace('/[^a-z]/i', '', str_replace('-', ' ', $name));
+        $bare = preg_replace('/\b(ug|cn)\b/i', '', $name);
+
+        foreach ([str_replace('-', ' ', $slug), RolePermissionController::displayName($slug)] as $role) {
+            if (strcasecmp(preg_replace('/[^a-z]/i', '', $role), $typed) === 0
+                || strcasecmp(preg_replace('/[^a-z]/i', '', $role), $bare) === 0) {
+                return RolePermissionController::displayName($slug);
+            }
+        }
+
+        return $name;
+    }
+
+    /**
+     * Cash this person has asked to hand over that is still waiting to be approved, apart by
+     * wallet. A request moves no money until the lead agent approves it, so every figure here is
+     * already inside the balance on the card above it. It is a slice, never money on top.
+     *
+     * @return array<string, string>
+     */
+    private function pendingHandInByCurrency(User $user): array
+    {
+        return CashHandover::where('agent_id', $user->id)
+            ->where('status', CashHandover::PENDING)
+            ->selectRaw('currency, COALESCE(SUM(amount), 0) as total')
+            ->groupBy('currency')
+            ->pluck('total', 'currency')
+            ->all();
+    }
+
+    /**
+     * The hand-in book read small: how many requests this person has sent in each state, what
+     * they come to in each wallet, and the last one they sent with the time since. Their own rows
+     * only, taken from the signed-in account rather than from the request.
+     *
+     * @return array{statuses: array<string, array{count: int, totals: array<string, string>}>, latest: ?CashHandover, sent: int}
+     */
+    private function handoverInsight(User $user): array
+    {
+        $rows = CashHandover::where('agent_id', $user->id)
+            ->selectRaw('status, currency, COUNT(*) as requests, COALESCE(SUM(amount), 0) as total')
+            ->groupBy('status', 'currency')
+            ->get();
+
+        // The three states are always in this order, and a state with nothing in it stays on the
+        // card at zero so the reader is not left wondering which one went missing.
+        $statuses = [
+            CashHandover::PENDING => ['count' => 0, 'totals' => []],
+            CashHandover::APPROVED => ['count' => 0, 'totals' => []],
+            CashHandover::DECLINED => ['count' => 0, 'totals' => []],
+        ];
+
+        foreach ($rows as $row) {
+            if (! isset($statuses[$row->status])) {
+                $statuses[$row->status] = ['count' => 0, 'totals' => []];
+            }
+
+            $statuses[$row->status]['count'] += (int) $row->requests;
+            $statuses[$row->status]['totals'][$row->currency] = (string) $row->total;
+        }
+
+        return [
+            'statuses' => $statuses,
+            'latest' => CashHandover::where('agent_id', $user->id)->latest('id')->first(),
+            'sent' => array_sum(array_column($statuses, 'count')),
+        ];
+    }
+
+    /**
+     * What the charge pen kept from the first of the month to today, in each of the wallets this
+     * board prints. Reversals come back off, so a cancelled booking does not keep counting as
+     * earnings in a figure a person reads as theirs.
+     *
+     * @param  array<string, Account>  $wallets
+     * @return array<string, float>
+     */
+    private function feesThisMonth(array $wallets): array
+    {
+        if ($wallets === []) {
+            return [];
+        }
+
+        $net = AccountEntry::query()
+            ->whereIn('account_id', collect($wallets)->pluck('id')->all())
+            ->whereIn('type', ['agent_fee', 'agent_fee_reversal'])
+            ->whereDate('entry_date', '>=', now()->startOfMonth()->toDateString())
+            ->whereDate('entry_date', '<=', now()->toDateString())
+            ->selectRaw('account_id, COALESCE(SUM(CASE WHEN type = \'agent_fee\' THEN amount ELSE -amount END), 0) as total')
+            ->groupBy('account_id')
+            ->pluck('total', 'account_id');
+
+        return collect($wallets)
+            ->mapWithKeys(fn (Account $account, string $currency) => [$currency => (float) ($net[$account->id] ?? 0)])
+            ->all();
     }
 
     /**
