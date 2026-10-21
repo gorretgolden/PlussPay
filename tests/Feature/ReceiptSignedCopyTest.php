@@ -118,6 +118,23 @@ class ReceiptSignedCopyTest extends TestCase
     }
 
     /**
+     * The route band's words with its tags removed, so the countries are checked in the order the
+     * reader sees them and with the code that sits beside each name.
+     */
+    private function routeBand(string $html): string
+    {
+        $this->assertMatchesRegularExpression(
+            '/<h1 class="slip-route"[^>]*>.*?<\/h1>/s',
+            $html,
+            'the slip has no route band'
+        );
+
+        preg_match('/<h1 class="slip-route"[^>]*>(.*?)<\/h1>/s', $html, $match);
+
+        return trim(preg_replace('/\s+/', ' ', strip_tags($match[1])));
+    }
+
+    /**
      * The words that say whose hand took the money, with the name that follows them.
      */
     private function takenBy(string $html): string
@@ -134,6 +151,9 @@ class ReceiptSignedCopyTest extends TestCase
             foreach (['PARTICULARS', 'RATE', 'CHARGE', 'AMOUNT (USD/RMB)'] as $heading) {
                 $this->assertStringContainsString($heading, $html, 'the paper column heading is missing: '.$heading);
             }
+
+            // The band names the country the money starts in and the country it is sent to.
+            $this->assertSame('From Uganda UG To China CN', $this->routeBand($html));
 
             // The particulars name the corridor, the rates are the two prices the shillings were
             // turned at, the charge stands alone, and the amount cell says what travelled and what
@@ -179,8 +199,10 @@ class ReceiptSignedCopyTest extends TestCase
         foreach ([$this->screen('PS-SIGN-UG-1'), $this->slip('PS-SIGN-UG-1')] as $html) {
             $slip = $this->slipOnly($html);
 
-            $this->assertStringContainsString('<h1 class="slip-title">Send money to Uganda</h1>', $slip);
-            $this->assertStringNotContainsString('Send money to China', $slip);
+            // This money was handed over in China and is sent the other way round.
+            $this->assertSame('From China CN To Uganda UG', $this->routeBand($slip));
+            $this->assertStringContainsString('aria-label="Money sent from China to Uganda"', $slip);
+            $this->assertStringNotContainsString('aria-label="Money sent from Uganda to China"', $slip);
             $this->assertStringContainsString('AMOUNT (RMB/UGX)', $slip);
             $this->assertStringContainsString('RMB 500', $slip);
             $this->assertStringContainsString('(UGX 240,416)', $slip);

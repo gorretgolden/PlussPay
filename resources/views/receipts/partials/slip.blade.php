@@ -9,6 +9,9 @@
     // The slip is signed by the person who wrote the booking, not by whoever opens the receipt.
     $issuedBy = $transaction->creator?->name ?: 'The office';
     $destination = $transaction->destinationLabel();
+    $origin = $transaction->originLabel();
+    $originCode = $transaction->originCode();
+    $destinationCode = $transaction->destinationCode();
     $toUganda = $transaction->isToUganda();
     $intake = strtoupper((string) $transaction->currency);
     $payoutCurrency = $transaction->payoutCurrency();
@@ -79,7 +82,30 @@
         </p>
     @endif
 
-    <h1 class="slip-title">Send money to {{ $destination }}</h1>
+    {{-- The route is the first thing on the slip after the number: which country the cash was
+         handed over in, and which country the receiver is paid in. --}}
+    <h1 class="slip-route" aria-label="Money sent from {{ $origin }} to {{ $destination }}">
+        <span class="slip-route-end">
+            <span class="slip-route-text">
+                <span class="slip-route-kicker">From</span>
+                <span class="slip-route-name">{{ $origin }}</span>
+            </span>
+            <span class="slip-route-code">{{ $originCode }}</span>
+        </span>
+        <span class="slip-route-thread" aria-hidden="true">
+            <svg viewBox="0 0 64 12" preserveAspectRatio="none" focusable="false">
+                <path d="M0 6h56" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                <path d="M52 1.5 58 6l-6 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </span>
+        <span class="slip-route-end">
+            <span class="slip-route-text">
+                <span class="slip-route-kicker">To</span>
+                <span class="slip-route-name">{{ $destination }}</span>
+            </span>
+            <span class="slip-route-code">{{ $destinationCode }}</span>
+        </span>
+    </h1>
 
     <div class="slip-parties">
         <div class="slip-party">

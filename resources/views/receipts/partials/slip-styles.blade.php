@@ -67,15 +67,53 @@
     }
     .slip-ident-value { font-weight: 700; font-variant-numeric: tabular-nums; }
 
-    .slip-title {
-        margin: 14px 0 10px;
-        font-size: clamp(17px, 2.5vw, 24px);
+    /* The route band reads from Uganda to China in one glance, the name of each country over its
+       code, with the line between them carrying the direction. */
+    .slip-route {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: clamp(8px, 2.4vw, 18px);
+        margin: 13px 0 10px;
+        padding: 7px 10px;
+        border-top: 1px solid var(--slip-line);
+        border-bottom: 1px solid var(--slip-line);
+        background: #f5f8f2;
+        font-size: inherit;
+        font-weight: inherit;
+    }
+    .slip-route-end { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+    .slip-route-text { display: flex; flex-direction: column; min-width: 0; text-align: left; }
+    .slip-route-kicker {
+        color: var(--slip-muted);
+        font-size: 8px;
         font-weight: 800;
-        letter-spacing: .08em;
-        line-height: 1.15;
-        text-align: center;
+        letter-spacing: .16em;
+        line-height: 1.3;
         text-transform: uppercase;
     }
+    .slip-route-name {
+        overflow-wrap: anywhere;
+        font-size: clamp(15px, 2.3vw, 21px);
+        font-weight: 800;
+        letter-spacing: .05em;
+        line-height: 1.1;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    .slip-route-code {
+        flex: none;
+        padding: 1px 5px;
+        border: 1px solid #b9cdb8;
+        border-radius: 2px;
+        background: #fff;
+        color: var(--slip-green);
+        font-size: 9.5px;
+        font-weight: 800;
+        letter-spacing: .08em;
+    }
+    .slip-route-thread { flex: 0 1 74px; min-width: 22px; height: 12px; color: var(--slip-green); }
+    .slip-route-thread svg { display: block; width: 100%; height: 12px; }
 
     .slip-status {
         margin-top: 10px;
@@ -290,7 +328,7 @@
             text-align: left;
         }
         .slip-ident-line { justify-content: flex-start; margin-top: 0; }
-        .slip-title { margin: 11px 0 9px; }
+        .slip-route { margin: 11px 0 9px; }
         .slip-parties { grid-template-columns: 1fr; }
         .slip-party + .slip-party {
             margin-top: 7px;
@@ -314,13 +352,24 @@
         .slip-foot-address { text-align: left; }
     }
 
+    /* On the counter phone the band keeps both countries on one line, so the direction is never
+       lost to a wrapped second row. */
+    @media (max-width: 380px) {
+        .slip-route { gap: 7px; padding: 6px 7px; }
+        .slip-route-end { gap: 5px; }
+        .slip-route-thread { flex-basis: 18px; min-width: 12px; }
+        .slip-route-name { font-size: 14px; letter-spacing: .03em; }
+    }
+
     @media print {
         .slip-pluspay { height: 28px; }
         .slip-company { height: 44px; }
         .slip-head { padding-bottom: 6px; }
         .slip-pill { padding: 3px 12px; font-size: 10px; }
         .slip-ident-line { margin-top: 2px; }
-        .slip-title { margin: 7px 0 5px; font-size: 18px; }
+        .slip-route { margin: 6px 0 5px; padding: 5px 8px; }
+        .slip-route-name { font-size: 16px; }
+        .slip-route-kicker { font-size: 7.5px; }
         .slip .slip-status { margin-top: 6px; padding: 4px 8px; font-size: 10px; }
         .slip-parties { padding-bottom: 5px; }
         .slip-name { font-size: 14px; }

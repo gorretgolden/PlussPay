@@ -331,6 +331,64 @@ class TransactionDeskTest extends TestCase
         );
     }
 
+    public function test_the_route_is_read_on_the_list_the_transfer_and_the_download(): void
+    {
+        $boss = $this->user('superadmin', 'The Boss');
+        $office = $this->user('admin', 'Desk Admin');
+        $china = $this->user('agent', 'Mei Lin', 'CN');
+
+        // The office books into a China hand. The money still starts in Uganda, which is a
+        // different fact from the desk that holds it.
+        $toChina = $this->book($office, ['agent_id' => $china->id]);
+        $toUganda = $this->book($china, ['destination' => 'UG', 'currency' => 'RMB', 'amount' => '6610']);
+
+        $list = $this->actingAs($boss)->get('/transactions')->assertOk()->getContent();
+
+        $this->assertStringContainsString('>Route</th>', $list);
+        $this->assertStringContainsString(
+            '<span class="text-gray-900">Uganda</span><span class="px-1 text-gray-400">→</span><span class="text-gray-600">China</span>',
+            $list,
+            'the list says the money starts in Uganda and is sent to China'
+        );
+        $this->assertStringContainsString(
+            '<span class="text-gray-900">China</span><span class="px-1 text-gray-400">→</span><span class="text-gray-600">Uganda</span>',
+            $list,
+            'the list says the reverse corridor the other way round'
+        );
+
+        // The single transfer names the route at the top, in the same two country names.
+        $this->actingAs($boss)->get("/transactions/{$toChina->id}")->assertOk()
+            ->assertSee('From <span class="font-semibold text-gray-900">Uganda</span> to <span class="font-semibold text-gray-900">China</span>', false);
+        $this->actingAs($boss)->get("/transactions/{$toUganda->id}")->assertOk()
+            ->assertSee('From <span class="font-semibold text-gray-900">China</span> to <span class="font-semibold text-gray-900">Uganda</span>', false);
+
+        // The receipt the customer keeps carries the same route in its band.
+        $this->assertStringContainsString(
+            'aria-label="Money sent from Uganda to China"',
+            $this->actingAs($boss)->get("/receipts/{$toChina->receipt_number}/print")->assertOk()->getContent()
+        );
+        $this->assertStringContainsString(
+            'aria-label="Money sent from China to Uganda"',
+            $this->actingAs($boss)->get("/receipts/{$toUganda->receipt_number}/print")->assertOk()->getContent()
+        );
+
+        // The download carries the route beside the desk, so a sheet read away from the screen
+        // still says where the money came from.
+        $rows = $this->sheet($this->actingAs($boss)->get('/export/transactions')->streamedContent());
+        $headers = $rows[5];
+        $routeAt = array_search('Route', $headers);
+        $deskAt = array_search('Desk', $headers);
+        $this->assertNotFalse($routeAt);
+        $this->assertSame($deskAt + 1, $routeAt, 'the route sits beside the desk it belongs with');
+
+        $data = collect($rows)->slice(5)
+            ->reject(fn ($row) => trim((string) $row[0]) === '')
+            ->keyBy(fn ($row) => trim((string) $row[0]));
+
+        $this->assertSame('Uganda to China', $data[$toChina->receipt_number][$routeAt]);
+        $this->assertSame('China to Uganda', $data[$toUganda->receipt_number][$routeAt]);
+    }
+
     public function test_the_booking_book_prints_the_desk_the_money_came_in_at(): void
     {
         $office = $this->user('admin', 'Desk Admin');

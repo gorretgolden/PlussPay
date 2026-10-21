@@ -17,6 +17,7 @@
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Transaction: {{ $transaction->receipt_number }}</h1>
         <p class="text-gray-600">{{ $transaction->created_at->format('M d, Y h:i A') }}</p>
+        <p class="mt-1 text-sm text-gray-600">From <span class="font-semibold text-gray-900">{{ $transaction->originLabel() }}</span> to <span class="font-semibold text-gray-900">{{ $transaction->destinationLabel() }}</span></p>
     </div>
     <div class="flex gap-2">
         <a href="{{ route('receipts.print', $transaction->receipt_number) }}" target="_blank"

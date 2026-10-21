@@ -331,7 +331,8 @@
                 {{-- The book is wider than any screen, so the number a teller reads out over the phone
                      is pinned to the left edge and stays put while the rest slides under it. --}}
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap sticky left-0 z-20 bg-gray-50 border-r border-gray-200">Receipt #</th>
-                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Where the transfer originated, read off the hand holding the money">Desk</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="The desk holding the money, stamped when the booking was written">Desk</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="The country the money starts in and the country it is sent to">Route</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Sender</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receiver</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Reason</th>
@@ -365,6 +366,7 @@
                 {{-- The desk is read off the transfer, not off the person who booked it, so moving
                      somebody between desks cannot rewrite where their older money was taken. --}}
                 <td class="px-2 py-4 text-sm whitespace-nowrap"><span class="text-gray-900">{{ $t->deskLabel() }}</span><span class="text-gray-400"> · {{ $t->deskCode() }}</span></td>
+                <td class="px-2 py-4 text-sm whitespace-nowrap"><span class="text-gray-900">{{ $t->originLabel() }}</span><span class="px-1 text-gray-400">→</span><span class="text-gray-600">{{ $t->destinationLabel() }}</span></td>
                 <td class="px-2 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
                 <td class="px-2 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
                 <td class="px-2 py-4 text-sm text-gray-700">{{ $t->purpose ?: '-' }}</td>
@@ -435,7 +437,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="{{ auth()->user()->can('view-profit') ? 17 : 12 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
+                <td colspan="{{ auth()->user()->can('view-profit') ? 18 : 13 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
             </tr>
             @endforelse
         </tbody>

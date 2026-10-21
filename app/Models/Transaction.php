@@ -231,9 +231,14 @@ class Transaction extends Model
      * whose hand typed it in, and a booking made at the office for a receiver in Uganda can only
      * have been paid for in China.
      */
+    public function originCode(): string
+    {
+        return $this->isToUganda() ? self::TO_CHINA : self::TO_UGANDA;
+    }
+
     public function originLabel(): string
     {
-        return static::DESTINATIONS[$this->isToUganda() ? self::TO_CHINA : self::TO_UGANDA] ?? 'Unknown';
+        return static::DESTINATIONS[$this->originCode()] ?? 'Unknown';
     }
 
     /**
