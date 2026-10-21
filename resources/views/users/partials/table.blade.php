@@ -37,21 +37,6 @@
         <td class="user-actions">
             @if($canManage && (auth()->user()->can('edit-user') || auth()->user()->can('delete-user')))
             <button type="button" class="user-menu-button" data-user-menu="user-menu-{{ $user->id }}" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-{{ $user->id }}" aria-label="Actions for {{ $user->name }}">⋮</button>
-            <div id="user-menu-{{ $user->id }}" class="user-menu" hidden>
-                @can('edit-user')
-                <a href="{{ route('users.edit', $user) }}">Edit user</a>
-                <a href="{{ route('users.edit', $user) }}#password">Reset password</a>
-                <form method="POST" action="{{ route('users.reset-password', $user) }}" data-user-confirm data-confirm-message="Email a set-password link to 1 account?">@csrf<input type="hidden" name="send_password_link" value="1"><button type="submit">Email password link</button></form>
-                @if(!$protected)
-                <form method="POST" action="{{ route('users.toggle-active', $user) }}" data-user-confirm data-confirm-message="{{ $user->is_active ? 'Deactivate' : 'Activate' }} 1 account: {{ $user->name }}?">@csrf @method('PATCH')<button type="submit" class="{{ $user->is_active ? 'danger' : '' }}">{{ $user->is_active ? 'Deactivate' : 'Activate' }}</button></form>
-                <form method="POST" action="{{ route('users.toggle-lock', $user) }}" data-user-confirm data-confirm-message="{{ $user->isLocked() ? 'Unlock' : 'Lock' }} 1 account: {{ $user->name }}?">@csrf @method('PATCH')<button type="submit">{{ $user->isLocked() ? 'Unlock account' : 'Lock account' }}</button></form>
-                @endif
-                <a href="{{ route('users.two-factor', $user) }}">{{ $user->two_factor_enabled ? 'Manage 2FA' : 'Set up 2FA' }}</a>
-                @if($user->two_factor_enabled)<form method="POST" action="{{ route('users.two-factor.disable', $user) }}" data-user-confirm data-confirm-message="Turn off 2FA for 1 account: {{ $user->name }}? This reduces sign-in protection.">@csrf @method('DELETE')<button type="submit" class="danger">Turn off 2FA</button></form>@endif
-                @endcan
-                @can('delete-user')@if(!$protected && !$user->hasRole('superadmin'))<form method="POST" action="{{ route('users.destroy', $user) }}" data-user-confirm data-confirm-message="Delete 1 account: {{ $user->name }}? This cannot be undone.">@csrf @method('DELETE')<button type="submit" class="danger">Delete user</button></form>@endif
-                @endcan
-            </div>
             @else<span class="text-xs text-gray-400">Protected</span>@endif
         </td>
     </tr>
@@ -60,5 +45,30 @@
     @endforelse
     </tbody>
 </table>
+</div>
+{{-- The row cards sit outside the table on purpose. Inside a sticky actions cell, a later row's
+     cell paints over the open card and eats the end of its longest labels. Kept in this partial so
+     the AJAX reload that replaces the results replaces the cards with it. --}}
+<div data-user-menus>
+    @foreach($users as $user)
+    @php $protected = $user->id === auth()->id() || ($user->hasRole('superadmin') && !auth()->user()->hasRole('superadmin')); $canManage = !$user->hasRole('superadmin') || auth()->user()->hasRole('superadmin'); @endphp
+    @if($canManage && (auth()->user()->can('edit-user') || auth()->user()->can('delete-user')))
+    <div id="user-menu-{{ $user->id }}" class="user-menu" hidden>
+        @can('edit-user')
+        <a href="{{ route('users.edit', $user) }}">Edit user</a>
+        <a href="{{ route('users.edit', $user) }}#password">Reset password</a>
+        <form method="POST" action="{{ route('users.reset-password', $user) }}" data-user-confirm data-confirm-message="Email a set-password link to 1 account?">@csrf<input type="hidden" name="send_password_link" value="1"><button type="submit">Email password link</button></form>
+        @if(!$protected)
+        <form method="POST" action="{{ route('users.toggle-active', $user) }}" data-user-confirm data-confirm-message="{{ $user->is_active ? 'Deactivate' : 'Activate' }} 1 account: {{ $user->name }}?">@csrf @method('PATCH')<button type="submit" class="{{ $user->is_active ? 'danger' : '' }}">{{ $user->is_active ? 'Deactivate' : 'Activate' }}</button></form>
+        <form method="POST" action="{{ route('users.toggle-lock', $user) }}" data-user-confirm data-confirm-message="{{ $user->isLocked() ? 'Unlock' : 'Lock' }} 1 account: {{ $user->name }}?">@csrf @method('PATCH')<button type="submit">{{ $user->isLocked() ? 'Unlock account' : 'Lock account' }}</button></form>
+        @endif
+        <a href="{{ route('users.two-factor', $user) }}">{{ $user->two_factor_enabled ? 'Manage 2FA' : 'Set up 2FA' }}</a>
+        @if($user->two_factor_enabled)<form method="POST" action="{{ route('users.two-factor.disable', $user) }}" data-user-confirm data-confirm-message="Turn off 2FA for 1 account: {{ $user->name }}? This reduces sign-in protection.">@csrf @method('DELETE')<button type="submit" class="danger">Turn off 2FA</button></form>@endif
+        @endcan
+        @can('delete-user')@if(!$protected && !$user->hasRole('superadmin'))<form method="POST" action="{{ route('users.destroy', $user) }}" data-user-confirm data-confirm-message="Delete 1 account: {{ $user->name }}? This cannot be undone.">@csrf @method('DELETE')<button type="submit" class="danger">Delete user</button></form>@endif
+        @endcan
+    </div>
+    @endif
+    @endforeach
 </div>
 <div class="mt-4" data-users-pagination>{{ $users->links() }}</div>

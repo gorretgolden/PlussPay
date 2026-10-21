@@ -29,17 +29,23 @@ class FrontendLayoutGuardsTest extends TestCase
      * stylesheet asked for, "Email password link" ran straight out past its own border. The card
      * now takes the width its longest label needs, and the script measures that width instead of
      * assuming 200 when it works out where to put the card on screen.
+     *
+     * It also has to sit outside the table. Left in the actions cell, the sticky cells of later
+     * rows paint white over the open card and cut the end off exactly the longest labels.
      */
     public function test_the_row_menu_widens_for_its_words_instead_of_losing_them(): void
     {
         $css = $this->read('public'.DIRECTORY_SEPARATOR.'user-management.css');
         $js = $this->read('public'.DIRECTORY_SEPARATOR.'user-management.js');
+        $table = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'users'.DIRECTORY_SEPARATOR.'partials'.DIRECTORY_SEPARATOR.'table.blade.php');
 
         $this->assertMatchesRegularExpression('/\.user-menu\{[^}]*width:max-content;min-width:200px;max-width:min\(320px,calc\(100vw - 16px\)\)/', $css, 'The card must grow with its labels and stay inside the window.');
         $this->assertMatchesRegularExpression('/\.user-menu a,\.user-menu button\{[^}]*overflow-wrap:break-word/', $css, 'A label gives up at a space, not mid-word.');
 
         $this->assertStringNotContainsString('innerWidth - 208', $js, 'Positioning must not assume a 200px card.');
         $this->assertStringContainsString('const menuWidth = menu.offsetWidth;', $js);
+
+        $this->assertLessThan(strpos($table, 'id="user-menu-'), strpos($table, '</table>'), 'The row card must render outside the table, where later sticky cells cannot paint over it.');
     }
 
     public function test_validation_banners_keep_their_slot_so_fields_do_not_move_under_a_click(): void
