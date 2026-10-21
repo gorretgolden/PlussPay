@@ -295,12 +295,12 @@
                     </select>
                     <p class="text-xs text-gray-500 mt-1">How the money reached this desk.</p>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1" for="payment_reference" id="payment-reference-label">Confirmation number</label>
+                <div id="payment_reference_wrap" class="{{ in_array(old('payment_method'), \App\Models\Transaction::MOBILE_MONEY_METHODS, true) ? '' : 'hidden' }}">
+                    <label class="block text-sm font-medium text-gray-700 mb-1" for="payment_reference" id="payment-reference-label">Confirmation number *</label>
                     <input type="text" name="payment_reference" id="payment_reference" maxlength="60" value="{{ old('payment_reference') }}"
                         placeholder="e.g. MoMo ID 48219355" autocomplete="off"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    <p class="text-xs text-gray-500 mt-1" id="payment_reference_help">The code from the payment alert, bank reference, or cheque number.</p>
+                    <p class="text-xs text-gray-500 mt-1" id="payment_reference_help">The code from the mobile money alert.</p>
                 </div>
                 <div>
                     <label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose (optional)</label>
@@ -618,35 +618,23 @@ function syncPurposeOther() {
 purposeSelect.addEventListener('change', syncPurposeOther);
 syncPurposeOther();
 
-// Cash is counted across the counter, so it is the one payment with nothing to quote back.
-// Every other way arrives with a confirmation number, and the box only asks for it when the
-// method needs one.
-const cashPayment = @json(\App\Models\Transaction::CASH_PAYMENT);
+// Only the two mobile money answers arrive with a confirmation number. Cash is counted here, and
+// a bank transfer or an answer under Other is booked without one, so the box stays out of sight
+// until one of those two is chosen.
+const mobileMoneyPayments = @json(\App\Models\Transaction::MOBILE_MONEY_METHODS);
 const paymentSelect = document.getElementById('payment_method');
 const paymentRef = document.getElementById('payment_reference');
-const paymentRefLabel = document.getElementById('payment-reference-label');
-const paymentRefHelp = document.getElementById('payment_reference_help');
+const paymentRefWrap = document.getElementById('payment_reference_wrap');
 
 function paymentNeedsReference() {
-    return paymentSelect.value !== '' && paymentSelect.value !== cashPayment;
+    return mobileMoneyPayments.includes(paymentSelect.value);
 }
 
 function syncPaymentReference() {
     const needed = paymentNeedsReference();
+    paymentRefWrap.classList.toggle('hidden', !needed);
     paymentRef.required = needed;
-    paymentRefLabel.textContent = needed ? 'Confirmation number *' : 'Confirmation number';
-
-    // Three states, because the desk has to be told something different before it answers,
-    // when it says cash, and when it says anything else.
-    if (needed) {
-        paymentRefHelp.textContent = 'The code from the payment alert, bank reference, or cheque number.';
-    } else if (paymentSelect.value === cashPayment) {
-        paymentRefHelp.textContent = 'Cash is counted here, so there is nothing to quote. Fill this in only if you have a number.';
-        paymentRef.value = '';
-    } else {
-        paymentRefHelp.textContent = 'Ask it once the way of paying is chosen.';
-    }
-
+    if (!needed) paymentRef.value = '';
     syncStep3();
 }
 paymentSelect.addEventListener('change', syncPaymentReference);

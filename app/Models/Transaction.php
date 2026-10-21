@@ -17,12 +17,15 @@ class Transaction extends Model
     use SoftDeletes;
 
     /**
-     * How the customer handed this desk the money. Cash needs no proof because the desk counted
-     * it; every other way arrives with a confirmation number the cashier writes down.
+     * How the customer handed this desk the money. Only the two mobile money answers arrive with
+     * a confirmation number from the payment alert; cash is counted at the counter, and a bank
+     * transfer or an answer under Other is booked without one.
      */
     public const PAYMENT_METHODS = ['Cash', 'MTN Mobile Money', 'Airtel Money', 'Bank transfer', 'Other'];
 
     public const CASH_PAYMENT = 'Cash';
+
+    public const MOBILE_MONEY_METHODS = ['MTN Mobile Money', 'Airtel Money'];
 
     /**
      * Which end of the corridor the money is on its way to. A booking says this once, at the desk

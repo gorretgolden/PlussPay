@@ -16,8 +16,8 @@ use Tests\TestCase;
 /**
  * The desk takes money in more ways than over the counter now, and a till that does not say how it
  * was filled cannot be checked against a MoMo statement or a bank alert. So the Payment step asks
- * how the customer paid, and every answer except cash has to carry the confirmation number from
- * the payment alert. The pair travels with the booking: on the transfers list, on the download, on
+ * how the customer paid, and the two mobile money answers carry the confirmation number from the
+ * payment alert. The pair travels with the booking: on the transfers list, on the download, on
  * the customer's receipt and in the booking's own book.
  */
 class PaymentMethodBookingTest extends TestCase
@@ -152,6 +152,17 @@ class PaymentMethodBookingTest extends TestCase
         $this->assertStringContainsString('id="rev_payment"', $html);
     }
 
+    public function test_the_confirmation_box_opens_only_for_the_two_mobile_money_answers(): void
+    {
+        $html = $this->actingAs($this->desk)->get('/transactions/create')->assertOk()->getContent();
+
+        // The box is part of the Payment step but starts out of sight. The script opens it for the
+        // two mobile money answers and closes it for cash, bank transfer and anything else.
+        $this->assertMatchesRegularExpression('/<div id="payment_reference_wrap" class="hidden">/', $html);
+        $this->assertStringContainsString('const mobileMoneyPayments = ["MTN Mobile Money","Airtel Money"];', $html);
+        $this->assertStringContainsString('return mobileMoneyPayments.includes(paymentSelect.value);', $html);
+    }
+
     public function test_cash_is_the_one_answer_with_nothing_to_quote(): void
     {
         $cash = $this->book();
@@ -168,12 +179,25 @@ class PaymentMethodBookingTest extends TestCase
 
     public function test_mobile_money_is_refused_until_the_number_is_written(): void
     {
-        $this->actingAs($this->desk)->post('/transactions', $this->payload([
-            'payment_method' => 'MTN Mobile Money',
-        ]))->assertSessionHasErrors('payment_reference');
+        foreach (Transaction::MOBILE_MONEY_METHODS as $method) {
+            $this->actingAs($this->desk)->post('/transactions', $this->payload([
+                'payment_method' => $method,
+            ]))->assertSessionHasErrors('payment_reference');
+        }
 
         $this->assertStringContainsString('confirmation number', $this->flashedError('payment_reference'));
         $this->assertSame(0, Transaction::count());
+    }
+
+    public function test_bank_transfer_and_other_are_booked_without_a_confirmation_number(): void
+    {
+        $bank = $this->book(['payment_method' => 'Bank transfer']);
+        $this->assertSame('Bank transfer', $bank->payment_method);
+        $this->assertNull($bank->payment_reference);
+
+        $other = $this->book(['payment_method' => 'Other', 'sender_name' => 'Other Caller']);
+        $this->assertSame('Other', $other->payment_method);
+        $this->assertNull($other->payment_reference);
     }
 
     public function test_a_booking_cannot_be_made_without_saying_how_the_money_arrived(): void
@@ -233,7 +257,7 @@ class PaymentMethodBookingTest extends TestCase
     public function test_a_booking_is_found_by_its_confirmation_number(): void
     {
         $momo = $this->book([
-            'payment_method' => 'Bank transfer',
+            'payment_method' => 'MTN Mobile Money',
             'payment_reference' => 'TRX-7712009',
         ]);
         $other = $this->book(['sender_name' => 'Cash Caller']);
@@ -319,30 +343,36 @@ class PaymentMethodBookingTest extends TestCase
     {
         $csv = "sender_name,sender_contact,receiver_name,receiver_contact,currency,amount,charge_ugx,payment_method,payment_reference\n"
             ."Imported Sender,0700111001,Imported Receiver,8613800000011,UGX,3780000,20000,Cash,\n"
-            ."MoMo Sender,0700111002,MoMo Receiver,8613800000012,UGX,3780000,20000,Airtel Money,AG55512203\n";
+            ."MoMo Sender,0700111002,MoMo Receiver,8613800000012,UGX,3780000,20000,Airtel Money,AG55512203\n"
+            ."Bank Sender,0700111003,Bank Receiver,8613800000013,UGX,3780000,20000,Bank transfer,\n";
 
         $this->actingAs($this->desk)->post('/transactions/bulk/import', [
             'file' => UploadedFile::fake()->createWithContent('book.csv', $csv),
         ])->assertSessionHasNoErrors();
 
         $rows = Transaction::orderBy('id')->get();
-        $this->assertSame(2, $rows->count());
+        $this->assertSame(3, $rows->count());
         $this->assertSame('Cash', $rows[0]->payment_method);
         $this->assertNull($rows[0]->payment_reference);
         $this->assertSame('Airtel Money', $rows[1]->payment_method);
         $this->assertSame('AG55512203', $rows[1]->payment_reference);
+        $this->assertSame('Bank transfer', $rows[2]->payment_method);
+        $this->assertNull($rows[2]->payment_reference);
     }
 
-    public function test_a_bulk_import_row_needs_a_confirmation_number_when_it_is_not_cash(): void
+    public function test_a_bulk_import_row_needs_a_confirmation_number_when_it_is_mobile_money(): void
     {
         $csv = "sender_name,receiver_name,currency,amount,charge_ugx,payment_method\n"
-            ."MoMo Sender,MoMo Receiver,UGX,3780000,20000,MTN Mobile Money\n";
+            ."MoMo Sender,MoMo Receiver,UGX,3780000,20000,MTN Mobile Money\n"
+            ."Bank Sender,Bank Receiver,UGX,3780000,20000,Bank transfer\n";
 
         $this->actingAs($this->desk)->post('/transactions/bulk/import', [
             'file' => UploadedFile::fake()->createWithContent('book.csv', $csv),
         ])->assertSessionHasNoErrors();
 
-        $this->assertSame(0, Transaction::count());
+        // The mobile money row is held back for its number; the bank row needs none and books.
+        $this->assertSame(1, Transaction::count());
+        $this->assertSame('Bank transfer', Transaction::first()->payment_method);
         $this->assertStringContainsString('confirmation number', implode(' ', session()->get('import_errors', [])));
     }
 }

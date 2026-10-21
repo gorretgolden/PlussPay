@@ -161,7 +161,7 @@ class TransactionController extends Controller
             'purpose' => 'nullable|string|max:100',
             'purpose_other' => 'required_if:purpose,Other|nullable|string|max:100',
             'payment_method' => ['required', Rule::in(Transaction::PAYMENT_METHODS)],
-            'payment_reference' => ['required_unless:payment_method,'.Transaction::CASH_PAYMENT, 'nullable', 'string', 'max:60'],
+            'payment_reference' => ['required_if:payment_method,'.implode(',', Transaction::MOBILE_MONEY_METHODS), 'nullable', 'string', 'max:60'],
             'notes' => 'nullable|string|max:500',
             'agent_id' => $mustNameHolder ? 'required' : 'nullable',
         ], [
@@ -184,7 +184,7 @@ class TransactionController extends Controller
             'purpose_other.required_if' => 'Please say what the other reason is.',
             'payment_method.required' => 'Say how the customer paid you, so the money in the till matches the way it arrived.',
             'payment_method.in' => 'That is not one of the ways this desk takes money. Choose Cash, MTN Mobile Money, Airtel Money, Bank transfer, or Other.',
-            'payment_reference.required_unless' => 'Write the confirmation number from the payment alert, such as the MoMo transaction ID or the bank reference. Cash is the only payment that needs none.',
+            'payment_reference.required_if' => 'Write the confirmation number from the mobile money alert, such as the MoMo transaction ID.',
             'payment_reference.max' => 'The confirmation number is at most 60 characters.',
             'sender_name.required' => 'Sender name is required.',
             'sender_name.min' => 'Sender name must be at least 2 characters.',
@@ -504,11 +504,11 @@ class TransactionController extends Controller
                     'charge_ugx' => 'nullable|numeric|min:0|max:'.$maxAmount,
                     'purpose' => 'nullable|string|max:100',
                     'payment_method' => ['required', Rule::in(Transaction::PAYMENT_METHODS)],
-                    'payment_reference' => ['required_unless:payment_method,'.Transaction::CASH_PAYMENT, 'nullable', 'string', 'max:60'],
+                    'payment_reference' => ['required_if:payment_method,'.implode(',', Transaction::MOBILE_MONEY_METHODS), 'nullable', 'string', 'max:60'],
                     'notes' => 'nullable|string|max:500',
                 ], [
                     'payment_method.in' => 'payment_method must be Cash, MTN Mobile Money, Airtel Money, Bank transfer, or Other.',
-                    'payment_reference.required_unless' => 'payment_reference holds the confirmation number, which every payment that is not cash has to carry.',
+                    'payment_reference.required_if' => 'payment_reference holds the confirmation number a mobile money payment has to carry.',
                 ]);
 
                 if ($checked->fails()) {
