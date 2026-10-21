@@ -72,16 +72,25 @@ class TransactionDeskTest extends TestCase
     }
 
     /**
-     * A desk name and its code are printed as one cell, the code in the quieter tone. The same
-     * shape is read by the list column and the money strip, so both are matched here.
+     * A desk is printed as its code on a quiet chip and its name beside it. The same shape is
+     * read by the card and the list column, so both are matched here.
      */
     private function assertDeskPrinted(string $html, string $desk, string $code): void
     {
         $this->assertMatchesRegularExpression(
-            '/>'.$desk.'<\/span><span class="text-gray-400"> · '.$code.'<\/span>/',
+            '/>'.$code.'<\/span>\s*<span[^>]*>'.$desk.'<\/span>/',
             $html,
             "Expected the {$desk} ({$code}) cell on the page."
         );
+    }
+
+    /**
+     * The card's words without its tags, so a figure is checked as the reader sees it even though
+     * the unit and the number are set apart for the eye.
+     */
+    private function cardText(string $html): string
+    {
+        return trim(preg_replace('/\s+/', ' ', strip_tags($html)));
     }
 
     public function test_a_transfer_is_booked_to_the_desk_of_the_hand_it_was_written_into(): void
@@ -217,23 +226,25 @@ class TransactionDeskTest extends TestCase
 
         // 500,000 handed over and 20,000 of it kept, at each desk, and the line under them adds
         // the two back together rather than quietly showing one.
-        $this->assertStringContainsString('UGX 500,000', $strip);
-        $this->assertStringContainsString('UGX 20,000', $strip);
-        $this->assertStringContainsString('UGX 1,000,000', $strip);
-        $this->assertStringContainsString('UGX 40,000', $strip);
-        $this->assertStringContainsString('Both desks', $strip);
+        $text = $this->cardText($strip);
+        $this->assertStringContainsString('UGX 500,000', $text);
+        $this->assertStringContainsString('UGX 20,000', $text);
+        $this->assertStringContainsString('UGX 1,000,000', $text);
+        $this->assertStringContainsString('UGX 40,000', $text);
+        $this->assertStringContainsString('Both desks', $text);
 
         // The yuan that the two desks owe in China is its own column, so the shillings kept here
         // and the money owed there are never read as one figure.
         $this->assertStringContainsString('Yuan to China', $strip);
-        $this->assertMatchesRegularExpression('/¥1,7\d\d\.\d/', $strip);
+        $this->assertMatchesRegularExpression('/¥1,7\d\d\.\d/', $text);
 
-        // Narrowed to one desk, the strip shows that desk alone and drops the total line.
+        // Narrowed to one desk, the card shows that desk alone and drops the total line.
         $chinaOnly = $this->strip($this->actingAs($boss)->get('/transactions?country=CN')->getContent());
-        $this->assertStringContainsString('UGX 500,000', $chinaOnly);
-        $this->assertStringNotContainsString('UGX 1,000,000', $chinaOnly);
-        $this->assertStringNotContainsString('Both desks', $chinaOnly);
-        $this->assertStringNotContainsString('Uganda', $chinaOnly);
+        $chinaText = $this->cardText($chinaOnly);
+        $this->assertStringContainsString('UGX 500,000', $chinaText);
+        $this->assertStringNotContainsString('UGX 1,000,000', $chinaText);
+        $this->assertStringNotContainsString('Both desks', $chinaText);
+        $this->assertStringNotContainsString('Uganda', $chinaText);
     }
 
     public function test_a_cancelled_booking_counts_as_a_booking_and_not_as_money(): void
@@ -245,10 +256,11 @@ class TransactionDeskTest extends TestCase
         $cancelled->update(['status' => 'cancelled']);
 
         $strip = $this->strip($this->actingAs($boss)->get('/transactions')->getContent());
+        $text = $this->cardText($strip);
 
         // One booking did happen, and no money is standing anywhere because it gave its cash back.
-        $this->assertMatchesRegularExpression('/>Uganda<\/span>.*?<td[^>]*>1<\/td>\s*<td[^>]*>UGX 0<\/td>/s', $strip);
-        $this->assertStringNotContainsString('UGX 500,000', $strip);
+        $this->assertMatchesRegularExpression('/Uganda\s+1\s+UGX 0/', $text);
+        $this->assertStringNotContainsString('UGX 500,000', $text);
     }
 
     public function test_the_download_names_the_desk_and_obeys_the_desk_filter(): void

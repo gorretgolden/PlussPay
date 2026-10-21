@@ -123,8 +123,7 @@
     </div>
 </div>
 
-<div class="bg-white rounded-lg shadow p-4 mb-6 overflow-x-auto no-print">
-    <h2 class="text-sm font-semibold text-gray-900 mb-1">Money by desk</h2>
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 no-print">
     {{-- Uganda money and China money are read apart, because the two desks hold different notes:
          shillings come in here and yuan go out there. The same filters that cut the list cut this,
          so a desk narrowed to China shows what China took in and nothing else. --}}
@@ -147,48 +146,176 @@
             'rmb_out' => $deskRows->sum('rmb_out'),
         ];
 
-        $shillings = fn ($value) => 'UGX '.number_format((float) $value);
-        $dollars = fn ($value) => 'USD '.number_format((float) $value, 1);
-        $yuan = fn ($value) => '¥'.number_format((float) $value, 1);
+        // The unit is read apart from the figure so the money itself stays the darkest thing in
+        // the cell. Yuan is the exception: its symbol sits tight against the number it prices.
+        $ugx = fn ($value) => ['UGX', number_format((float) $value)];
+        $usd = fn ($value) => ['USD', number_format((float) $value, 1)];
+        $cny = fn ($value) => '¥'.number_format((float) $value, 1);
+
+        $totalUgx = $ugx($all['cash_ugx']);
+        $totalUsd = $usd($all['cash_usd']);
+        $totalCharges = $ugx($all['charges_ugx']);
     @endphp
+    <div class="flex items-start justify-between gap-3 px-4 py-4 sm:px-5">
+        <div class="flex min-w-0 items-center gap-3">
+            <span class="hidden h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-800 ring-1 ring-inset ring-green-100 sm:inline-flex" aria-hidden="true">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            </span>
+            <div class="min-w-0">
+                <h2 class="text-base font-semibold text-gray-900">Money by desk</h2>
+                <p class="mt-0.5 text-xs text-gray-500">The same filters as the list below.</p>
+            </div>
+        </div>
+        <span class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-600 ring-1 ring-inset ring-gray-200">
+            <span class="h-1.5 w-1.5 rounded-full bg-green-600" aria-hidden="true"></span>
+            {{ $deskRows->count() }} {{ \Illuminate\Support\Str::plural('desk', $deskRows->count()) }}
+        </span>
+    </div>
     @if($deskRows->isEmpty())
-        <p class="text-sm text-gray-500 py-2">No transfers on these filters.</p>
+        <div class="border-t border-gray-100 px-4 py-10 text-center">
+            <svg class="mx-auto h-8 w-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+            <p class="mt-2 text-sm text-gray-500">No transfers on these filters.</p>
+        </div>
     @else
-        <table class="min-w-full mt-1">
-            <thead>
-                <tr class="text-left text-xs font-medium text-gray-500 uppercase">
-                    <th class="py-2 pr-3 whitespace-nowrap font-medium">Desk</th>
-                    <th class="py-2 pr-3 text-right whitespace-nowrap font-medium">Bookings</th>
-                    <th class="py-2 pr-3 text-right whitespace-nowrap font-medium" title="The shillings this desk is holding, with the charge still inside them">Shillings handed over</th>
-                    <th class="py-2 pr-3 text-right whitespace-nowrap font-medium" title="The dollars this desk is holding, forwarded whole by a dollar booking">Dollars handed over</th>
-                    <th class="py-2 pr-3 text-right whitespace-nowrap font-medium" title="What this desk kept from the money it took in">Charges earned</th>
-                    <th class="py-2 text-right whitespace-nowrap font-medium" title="What the transfers priced here promise to receivers in China">Yuan to China</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 text-sm tabular-nums">
-                @foreach($deskRows as $row)
-                <tr>
-                    <td class="py-2 pr-3 whitespace-nowrap"><span class="text-gray-900 font-medium">{{ $row->label }}</span><span class="text-gray-400"> · {{ $row->country }}</span></td>
-                    <td class="py-2 pr-3 text-right text-gray-900">{{ number_format((int) $row->bookings) }}</td>
-                    <td class="py-2 pr-3 text-right text-gray-900">{{ $shillings($row->cash_ugx) }}</td>
-                    <td class="py-2 pr-3 text-right text-gray-900">{{ $dollars($row->cash_usd) }}</td>
-                    <td class="py-2 pr-3 text-right text-gray-900">{{ $shillings($row->charges_ugx) }}</td>
-                    <td class="py-2 text-right text-gray-900">{{ $yuan($row->rmb_out) }}</td>
-                </tr>
-                @endforeach
-                @if($deskRows->count() > 1)
-                <tr class="border-t-2 border-gray-300 font-medium">
-                    <td class="py-2 pr-3 whitespace-nowrap text-gray-900">Both desks</td>
-                    <td class="py-2 pr-3 text-right text-gray-900">{{ number_format((int) $all['bookings']) }}</td>
-                    <td class="py-2 pr-3 text-right text-gray-900">{{ $shillings($all['cash_ugx']) }}</td>
-                    <td class="py-2 pr-3 text-right text-gray-900">{{ $dollars($all['cash_usd']) }}</td>
-                    <td class="py-2 pr-3 text-right text-gray-900">{{ $shillings($all['charges_ugx']) }}</td>
-                    <td class="py-2 text-right text-gray-900">{{ $yuan($all['rmb_out']) }}</td>
-                </tr>
-                @endif
-            </tbody>
-        </table>
-        <p class="text-xs text-gray-500 mt-2">A transfer stands under the desk of the hand it was booked into. A cancelled booking gave its money back, so it counts among the bookings and not in the shillings, dollars or yuan. The charge a desk kept sits inside the shillings that were handed over, and arrives alongside the dollars on a dollar booking. The yuan figure is what the transfers priced here promise to receivers, wherever that money has reached so far.</p>
+        {{-- Wide enough for six columns once the sidebar and page gutters have taken their share. --}}
+        <div class="hidden lg:block">
+            <table class="w-full">
+                <caption class="sr-only">Bookings and money by desk</caption>
+                <thead>
+                    <tr class="border-y border-gray-100 bg-gray-50/80 text-[11px] uppercase tracking-wide text-gray-500">
+                        <th scope="col" class="py-2.5 pl-4 pr-3 text-left font-semibold sm:pl-5">Desk</th>
+                        <th scope="col" class="px-3 py-2.5 text-right font-semibold">Bookings</th>
+                        <th scope="col" class="px-3 py-2.5 text-right font-semibold" title="Cash handed over in shillings, with the charge still inside it">Shillings</th>
+                        <th scope="col" class="px-3 py-2.5 text-right font-semibold" title="Dollars handed over on a dollar booking">Dollars</th>
+                        <th scope="col" class="px-3 py-2.5 text-right font-semibold" title="What this desk kept from the money it took in">Charges</th>
+                        <th scope="col" class="py-2.5 pl-3 pr-4 text-right font-semibold sm:pr-5" title="What the transfers priced here promise to receivers in China">Yuan to China</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @foreach($deskRows as $row)
+                    @php
+                        $cashUgx = $ugx($row->cash_ugx);
+                        $cashUsd = $usd($row->cash_usd);
+                        $charges = $ugx($row->charges_ugx);
+                    @endphp
+                    <tr class="group transition-colors hover:bg-green-50/40">
+                        <td class="whitespace-nowrap py-3 pl-4 pr-3 sm:pl-5">
+                            <span class="inline-flex items-center gap-2.5">
+                                <span class="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-green-50 px-1.5 text-[11px] font-bold text-green-800 ring-1 ring-inset ring-green-100">{{ $row->country }}</span>
+                                <span class="text-sm font-semibold text-gray-900">{{ $row->label }}</span>
+                            </span>
+                        </td>
+                        <td class="px-3 py-3 text-right">
+                            <span class="inline-flex min-w-[2rem] justify-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700 tabular-nums transition-colors group-hover:bg-white">{{ number_format((int) $row->bookings) }}</span>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                            <span class="text-[11px] font-medium text-gray-400">{{ $cashUgx[0] }}</span> <span class="text-sm font-semibold text-gray-900">{{ $cashUgx[1] }}</span>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                            <span class="text-[11px] font-medium text-gray-400">{{ $cashUsd[0] }}</span> <span class="text-sm font-semibold text-gray-900">{{ $cashUsd[1] }}</span>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                            <span class="text-[11px] font-medium text-gray-400">{{ $charges[0] }}</span> <span class="text-sm font-semibold text-gray-900">{{ $charges[1] }}</span>
+                        </td>
+                        <td class="whitespace-nowrap py-3 pl-3 pr-4 text-right text-sm font-semibold text-gray-900 tabular-nums sm:pr-5">{{ $cny($row->rmb_out) }}</td>
+                    </tr>
+                    @endforeach
+                    @if($deskRows->count() > 1)
+                    <tr class="border-t border-green-100 bg-green-50/60">
+                        <td class="whitespace-nowrap py-3 pl-4 pr-3 sm:pl-5">
+                            <span class="inline-flex items-center gap-2.5">
+                                <span class="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-green-800 px-1.5 text-[10px] font-bold tracking-wide text-white">ALL</span>
+                                <span class="text-sm font-semibold text-green-900">Both desks</span>
+                            </span>
+                        </td>
+                        <td class="px-3 py-3 text-right">
+                            <span class="inline-flex min-w-[2rem] justify-center rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-green-900 tabular-nums ring-1 ring-inset ring-green-200">{{ number_format((int) $all['bookings']) }}</span>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                            <span class="text-[11px] font-medium text-gray-500">{{ $totalUgx[0] }}</span> <span class="text-sm font-bold text-gray-900">{{ $totalUgx[1] }}</span>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                            <span class="text-[11px] font-medium text-gray-500">{{ $totalUsd[0] }}</span> <span class="text-sm font-bold text-gray-900">{{ $totalUsd[1] }}</span>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                            <span class="text-[11px] font-medium text-gray-500">{{ $totalCharges[0] }}</span> <span class="text-sm font-bold text-gray-900">{{ $totalCharges[1] }}</span>
+                        </td>
+                        <td class="whitespace-nowrap py-3 pl-3 pr-4 text-right text-sm font-bold text-gray-900 tabular-nums sm:pr-5">{{ $cny($all['rmb_out']) }}</td>
+                    </tr>
+                    @endif
+                </tbody>
+            </table>
+        </div>
+
+        {{-- Narrow screens read each desk as its own card, two figures to a row so a desk fits a
+             phone without sideways scrolling. --}}
+        <div class="divide-y divide-gray-100 lg:hidden">
+            @foreach($deskRows as $row)
+            @php
+                $cashUgx = $ugx($row->cash_ugx);
+                $cashUsd = $usd($row->cash_usd);
+                $charges = $ugx($row->charges_ugx);
+            @endphp
+            <div class="px-4 py-4">
+                <div class="flex items-center justify-between gap-3">
+                    <span class="inline-flex items-center gap-2.5">
+                        <span class="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-green-50 px-1.5 text-[11px] font-bold text-green-800 ring-1 ring-inset ring-green-100">{{ $row->country }}</span>
+                        <span class="text-sm font-semibold text-gray-900">{{ $row->label }}</span>
+                    </span>
+                    <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-600">{{ number_format((int) $row->bookings) }} {{ \Illuminate\Support\Str::plural('booking', (int) $row->bookings) }}</span>
+                </div>
+                <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+                    <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Shillings</dt>
+                        <dd class="mt-0.5 truncate text-sm font-semibold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-400">{{ $cashUgx[0] }}</span> {{ $cashUgx[1] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Dollars</dt>
+                        <dd class="mt-0.5 truncate text-sm font-semibold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-400">{{ $cashUsd[0] }}</span> {{ $cashUsd[1] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Charges</dt>
+                        <dd class="mt-0.5 truncate text-sm font-semibold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-400">{{ $charges[0] }}</span> {{ $charges[1] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Yuan to China</dt>
+                        <dd class="mt-0.5 truncate text-sm font-semibold text-gray-900 tabular-nums">{{ $cny($row->rmb_out) }}</dd>
+                    </div>
+                </dl>
+            </div>
+            @endforeach
+            @if($deskRows->count() > 1)
+            <div class="bg-green-50/60 px-4 py-4">
+                <div class="flex items-center justify-between gap-3">
+                    <span class="inline-flex items-center gap-2.5">
+                        <span class="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-green-800 px-1.5 text-[10px] font-bold tracking-wide text-white">ALL</span>
+                        <span class="text-sm font-semibold text-green-900">Both desks</span>
+                    </span>
+                    <span class="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-green-900 ring-1 ring-inset ring-green-200">{{ number_format((int) $all['bookings']) }} {{ \Illuminate\Support\Str::plural('booking', (int) $all['bookings']) }}</span>
+                </div>
+                <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+                    <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Shillings</dt>
+                        <dd class="mt-0.5 truncate text-sm font-bold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-500">{{ $totalUgx[0] }}</span> {{ $totalUgx[1] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Dollars</dt>
+                        <dd class="mt-0.5 truncate text-sm font-bold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-500">{{ $totalUsd[0] }}</span> {{ $totalUsd[1] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Charges</dt>
+                        <dd class="mt-0.5 truncate text-sm font-bold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-500">{{ $totalCharges[0] }}</span> {{ $totalCharges[1] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Yuan to China</dt>
+                        <dd class="mt-0.5 truncate text-sm font-bold text-gray-900 tabular-nums">{{ $cny($all['rmb_out']) }}</dd>
+                    </div>
+                </dl>
+            </div>
+            @endif
+        </div>
+
+        <p class="border-t border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500 sm:px-5">Cancelled bookings count in Bookings only.</p>
     @endif
 </div>
 
