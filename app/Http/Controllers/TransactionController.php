@@ -344,6 +344,10 @@ class TransactionController extends Controller
 
     public function updateStatus(Request $request, Transaction $transaction)
     {
+        // The click and the page follow the same rule: a transfer off this desk's list cannot be
+        // moved by typing its id, even for someone granted the approving pen.
+        abort_unless($this->canView($request, $transaction), 403, 'You can only change transactions you created.');
+
         $validated = $request->validate([
             'status' => 'required|in:pending,completed,cancelled',
             'reason' => 'nullable|string|max:300',

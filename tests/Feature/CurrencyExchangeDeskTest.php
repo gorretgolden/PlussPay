@@ -233,6 +233,45 @@ class CurrencyExchangeDeskTest extends TestCase
         $this->assertSame(0, CurrencyExchange::count());
     }
 
+    /**
+     * The form offers the office books and the desk's own wallets. Another agent's drawer is not on
+     * that list, so an id typed into the form must be refused rather than move that agent's cash.
+     */
+    public function test_an_exchange_cannot_be_booked_against_another_agents_wallet_by_id(): void
+    {
+        $shillings = $this->fund(Account::UGX_UGANDA, '5000000.00');
+        $dollars = $this->fund(Account::USD_UGANDA, '1000.00');
+
+        $agent = $this->makeUser('agent');
+        $theirShillings = Account::walletFor($agent, 'UGX');
+        $theirDollars = Account::walletFor($agent, 'USD');
+        AccountLedger::record($theirShillings, 'opening_balance', '1000000.00', 'Cash in the agent\'s hand');
+
+        $deal = [
+            'exchange_date' => now()->toDateString(),
+            'person_name' => 'Typed Id',
+            'in_currency' => 'UGX',
+            'in_amount' => '1000000',
+            'in_account_id' => $theirShillings->id,
+            'out_currency' => 'USD',
+            'out_amount' => '265.96',
+            'out_account_id' => $dollars->id,
+        ];
+
+        $this->actingAs($this->admin)->post('/exchanges', $deal)
+            ->assertSessionHasErrors('in_account_id');
+
+        $this->assertStringContainsString('accounts listed on this form', $this->flashedError('in_account_id'));
+
+        $this->actingAs($this->admin)->post('/exchanges', array_merge($deal, [
+            'in_account_id' => $shillings->id,
+            'out_account_id' => $theirDollars->id,
+        ]))->assertSessionHasErrors('out_account_id');
+
+        $this->assertSame(0, CurrencyExchange::count());
+        $this->assertSame('1000000.00', $theirShillings->fresh()->balance());
+    }
+
     public function test_a_deal_is_left_unpriced_when_no_rate_card_is_saved(): void
     {
         $this->fund(Account::USD_UGANDA, '1000.00');

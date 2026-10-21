@@ -319,6 +319,10 @@ class ExpenseController extends Controller
 
     public function void(Request $request, Expense $expense)
     {
+        // Cancelling puts money back into an account, so the same rule as reading the entry holds:
+        // a desk may only close its own spending unless it may read the whole spending book.
+        abort_unless($this->canRead($expense), 403, 'You can only cancel an expense you recorded.');
+
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:255'],
         ], [

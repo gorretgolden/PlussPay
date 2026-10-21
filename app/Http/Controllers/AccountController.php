@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Services\AccountLedger;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Validation\Rule;
 
 class AccountController extends Controller
 {
@@ -104,10 +105,15 @@ class AccountController extends Controller
     {
         $kind = $request->input('kind');
 
+        // The form offers the four office books, so the click has to hold to that list: an id
+        // typed into the form must not post cash into somebody else's wallet. A wallet moves
+        // through the wallet screens, where its own rules and audit trail apply.
+        $offered = collect(Account::ordered())->pluck('id')->map(fn ($id) => (int) $id)->all();
+
         $validated = $request->validate([
             'kind' => 'required|in:opening_balance,money_in,money_out,transfer,exchange,adjustment_in,adjustment_out',
-            'account_id' => 'required|integer|exists:accounts,id',
-            'counterparty_id' => 'nullable|required_if:kind,transfer,exchange|integer|exists:accounts,id|different:account_id',
+            'account_id' => ['required', 'integer', Rule::in($offered)],
+            'counterparty_id' => ['nullable', 'required_if:kind,transfer,exchange', 'integer', Rule::in($offered), 'different:account_id'],
             'amount' => 'required|numeric|min:0.01',
             'second_amount' => 'nullable|required_if:kind,exchange|numeric|min:0.01',
             'entry_date' => 'nullable|date',
@@ -115,7 +121,9 @@ class AccountController extends Controller
             'description' => 'required|string|max:255',
         ], [
             'account_id.required' => 'Choose which account this movement belongs to.',
+            'account_id.in' => 'Choose one of the office accounts listed on this form.',
             'counterparty_id.required' => 'Choose the other account.',
+            'counterparty_id.in' => 'Choose one of the office accounts listed on this form.',
             'counterparty_id.different' => 'The two accounts must be different.',
             'amount.min' => 'The amount must be greater than zero.',
             'second_amount.required' => 'Enter the amount received in the other currency.',

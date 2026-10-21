@@ -397,6 +397,29 @@ class ChinaSettlementTest extends TestCase
         ])->assertSessionHasErrors('recipient_id');
     }
 
+    /**
+     * The dropdown offers a China desk because it can pay receivers, so the same list guards the
+     * click: dollars sent to a China user with no payout pen would sit in a queue nobody there can
+     * clear, and the sender would be told the money had arrived.
+     */
+    public function test_a_china_user_who_cannot_pay_receivers_never_receives_the_dollars(): void
+    {
+        $staff = $this->person('China Staff', 'staff', 'CN');
+        $source = $this->dollars(1000);
+        $transaction = $this->booked('PS-UG-0062', $this->agent);
+
+        $this->actingAs($this->office)->get('/china')
+            ->assertOk()
+            ->assertDontSee('China Staff');
+
+        $this->send($transaction, $source, $staff)->assertSessionHasErrors('recipient_id');
+
+        $this->assertStringContainsString('cannot pay receivers', $this->flashedError('recipient_id'));
+        $this->assertSame('1000.00', $source->fresh()->balance());
+        $this->assertSame('0.00', Account::walletFor($staff, 'USD')->fresh()->balance());
+        $this->assertNull($transaction->fresh()->settled_at);
+    }
+
     public function test_an_agent_in_uganda_is_never_offered_either_side_of_the_china_desk(): void
     {
         $transaction = $this->booked('PS-UG-0009', $this->agent);

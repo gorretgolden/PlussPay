@@ -240,6 +240,80 @@ class AgentExpenseDeskTest extends TestCase
         $this->actingAs($amina)->get('/export/expenses')->assertForbidden();
     }
 
+    /**
+     * The export pen is a separate grant from reading the whole book, so a desk can be allowed to
+     * download its own spending without being handed everyone else's. The file follows the screen:
+     * own rows only until view-all-expenses opens the rest.
+     */
+    public function test_a_desk_allowed_to_export_downloads_only_its_own_expenses(): void
+    {
+        $amina = $this->user('agent', 'Amina Nabukenya');
+        $wallet = $this->wallet($amina);
+        $this->typed($amina, $wallet)->assertSessionHasNoErrors();
+        $hers = Expense::latest('id')->firstOrFail();
+
+        $office = $this->user('admin', 'Grace Naigaga');
+        $this->flushSession();
+        $this->typed($office, $this->fund(Account::UGX_UGANDA, '5000000.00'))->assertSessionHasNoErrors();
+        $officeEntry = Expense::latest('id')->firstOrFail();
+
+        Role::findByName('agent', 'web')->givePermissionTo('export-expenses');
+
+        $this->flushSession();
+        $response = $this->actingAs($amina->fresh())->get('/export/expenses');
+        $this->assertSame(200, $response->getStatusCode());
+
+        $path = storage_path('app/expense-export-check.xlsx');
+        file_put_contents($path, $response->streamedContent());
+        $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path)->getActiveSheet();
+        unlink($path);
+
+        $cells = [];
+        foreach ($sheet->getRowIterator() as $row) {
+            $iterator = $row->getCellIterator();
+            $iterator->setIterateOnlyExistingCells(false);
+            foreach ($iterator as $cell) {
+                $cells[] = (string) $cell->getValue();
+            }
+        }
+
+        $this->assertContains($hers->reference, $cells);
+        $this->assertNotContains($officeEntry->reference, $cells, 'The whole spending book needs view-all-expenses.');
+    }
+
+    /**
+     * The cancel pen is separate from reading the whole book. A desk granted it must not be able
+     * to put another desk's money back by typing the entry's id, and must still close its own.
+     */
+    public function test_a_desk_with_the_cancel_pen_cannot_cancel_another_desks_entry(): void
+    {
+        Role::firstOrCreate(['name' => 'bookkeeper', 'guard_name' => 'web'])
+            ->syncPermissions(['view-expenses', 'create-expense', 'void-expense']);
+
+        $amina = $this->user('bookkeeper', 'Amina Nabukenya');
+        $owen = $this->user('bookkeeper', 'Owen Okello');
+
+        $this->typed($amina, $this->wallet($amina))->assertSessionHasNoErrors();
+        $hers = Expense::latest('id')->firstOrFail();
+
+        $this->flushSession();
+        $this->typed($owen, $this->wallet($owen, 'USD'))->assertSessionHasNoErrors();
+        $his = Expense::latest('id')->firstOrFail();
+
+        $this->flushSession();
+        $this->actingAs($owen->fresh())
+            ->post('/expenses/'.$hers->id.'/void', ['reason' => 'Typed id'])
+            ->assertForbidden();
+
+        $this->assertSame(Expense::ACTIVE, $hers->fresh()->status);
+
+        $this->actingAs($owen->fresh())
+            ->post('/expenses/'.$his->id.'/void', ['reason' => 'Paid twice'])
+            ->assertRedirect('/expenses');
+
+        $this->assertSame(Expense::VOID, $his->fresh()->status);
+    }
+
     public function test_the_office_still_pays_its_own_spending_out_of_its_own_accounts(): void
     {
         $office = $this->user('admin', 'Grace Naigaga');

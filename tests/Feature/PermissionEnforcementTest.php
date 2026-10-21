@@ -180,6 +180,35 @@ class PermissionEnforcementTest extends TestCase
         }
     }
 
+    /**
+     * The approving pen is a separate grant from reading the whole book, so the row it is pointed
+     * at has to be on the approver's own list. Without that, an id typed into the form would move
+     * another desk's transfer, including cancelling money that desk is still holding.
+     */
+    public function test_an_approving_pen_cannot_move_another_desks_transfer_by_id(): void
+    {
+        $manager = $this->user('manager');
+        $this->role('manager')->syncPermissions(['view-transactions', 'approve-transaction']);
+        $other = $this->user('agent');
+
+        $theirs = $this->transfer($other, 'FOREIGN-APPROVAL');
+        $mine = $this->transfer($manager, 'OWN-APPROVAL');
+
+        $this->actingAs($manager->fresh())->patch('/transactions/'.$theirs->id.'/status', [
+            'status' => 'cancelled',
+            'reason' => 'Typed id',
+        ])->assertForbidden();
+
+        $this->assertSame('completed', $theirs->fresh()->status);
+
+        $this->actingAs($manager->fresh())->patch('/transactions/'.$mine->id.'/status', [
+            'status' => 'cancelled',
+            'reason' => 'Customer asked for the money back',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('cancelled', $mine->fresh()->status);
+    }
+
     public function test_the_lead_agent_sees_every_agents_transfers_and_runs_the_exchange_desk(): void
     {
         $lead = $this->user('super-agent');

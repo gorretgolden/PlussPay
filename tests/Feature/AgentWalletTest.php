@@ -416,6 +416,57 @@ class AgentWalletTest extends TestCase
         $this->assertSame('adjustment_out', $entries[1]->type);
     }
 
+    public function test_an_admin_can_credit_a_lead_agents_wallet_from_the_same_form(): void
+    {
+        Role::firstOrCreate(['name' => 'super-agent', 'guard_name' => 'web']);
+
+        $lead = User::create([
+            'name' => 'Lead Agent',
+            'email' => 'lead'.uniqid().'@plussave.test',
+            'password' => 'Password123',
+            'is_active' => true,
+            'country' => 'UG',
+        ]);
+        $lead->assignRole('super-agent');
+
+        $admin = $this->admin();
+        $wallet = Account::walletFor($lead, 'UGX');
+
+        $this->actingAs($admin)
+            ->get(route('wallet.index'))
+            ->assertOk()
+            ->assertSee('Lead Agent');
+
+        $this->actingAs($admin)
+            ->post(route('wallets.adjust'), [
+                'agent_id' => $lead->id,
+                'direction' => 'credit',
+                'amount' => '50000',
+                'description' => 'Advance payment for October',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('50000.00', (string) $wallet->fresh()->balance());
+    }
+
+    public function test_an_inactive_agent_cannot_be_adjusted_by_typing_their_id(): void
+    {
+        $agent = $this->agent();
+        $agent->update(['is_active' => false]);
+
+        $this->actingAs($this->admin())
+            ->post(route('wallets.adjust'), [
+                'agent_id' => $agent->id,
+                'direction' => 'credit',
+                'amount' => '50000',
+                'description' => 'Typed id',
+            ])
+            ->assertSessionHasErrors('agent_id');
+
+        $this->assertSame(0, Account::where('owner_id', $agent->id)->count());
+    }
+
     public function test_an_agent_cannot_adjust_anyone_wallet(): void
     {
         $agent = $this->agent();

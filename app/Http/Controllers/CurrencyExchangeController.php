@@ -81,25 +81,34 @@ class CurrencyExchangeController extends Controller
 
     public function store(Request $request)
     {
+        // The form offers the office books plus the desk's own wallets, and the click has to hold
+        // to that list: an id typed into the form must not move cash out of somebody else's drawer.
+        $offered = collect(array_merge(Account::ordered(), array_values(Account::walletsFor($request->user()))))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
         $validated = $request->validate([
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'person_name' => ['nullable', 'string', 'max:120'],
             'exchange_date' => ['required', 'date'],
             'in_currency' => ['required', Rule::in(ExchangeCalculator::CURRENCIES)],
             'in_amount' => ['required', 'numeric', 'min:0.01'],
-            'in_account_id' => ['required', 'integer', 'exists:accounts,id'],
+            'in_account_id' => ['required', 'integer', Rule::in($offered)],
             'fee' => ['nullable', 'numeric', 'min:0'],
             'out_currency' => ['required', 'different:in_currency', Rule::in(ExchangeCalculator::CURRENCIES)],
             'out_amount' => ['required', 'numeric', 'min:0.01'],
-            'out_account_id' => ['required', 'integer', 'different:in_account_id', 'exists:accounts,id'],
+            'out_account_id' => ['required', 'integer', 'different:in_account_id', Rule::in($offered)],
             'payment_method' => ['nullable', Rule::in(CurrencyExchange::PAYMENT_METHODS)],
             'rate_reason' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:500'],
         ], [
             'out_currency.different' => 'The two sides have to be different currencies. Take one currency in and hand another back.',
             'in_account_id.required' => 'Choose which account the money came into.',
+            'in_account_id.in' => 'Choose one of the accounts listed on this form to take the money in.',
             'out_account_id.required' => 'Choose which account the money was handed over from.',
             'out_account_id.different' => 'The money cannot leave the account it came into.',
+            'out_account_id.in' => 'Choose one of the accounts listed on this form to hand the money out of.',
             'in_amount.min' => 'Enter how much they handed over.',
             'out_amount.min' => 'Enter how much you handed back.',
             'fee.min' => 'The commission cannot be less than nothing.',

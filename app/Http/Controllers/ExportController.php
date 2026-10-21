@@ -349,7 +349,17 @@ class ExportController extends Controller
 
     public function expenses(Request $request)
     {
-        $rows = Expense::with(['account', 'creator', 'categoryGroup'])->filtered($request)
+        $viewer = $request->user();
+
+        $query = Expense::with(['account', 'creator', 'categoryGroup'])->filtered($request);
+
+        // The screen shows a desk only its own entries unless it may read the whole spending book,
+        // and the download has to be the same page in a file rather than the whole book by id.
+        if (! $viewer->can('view-all-expenses')) {
+            $query->where('created_by', $viewer->id);
+        }
+
+        $rows = $query
             ->get()
             ->sortByDesc('id')
             ->sortByDesc('expense_date')

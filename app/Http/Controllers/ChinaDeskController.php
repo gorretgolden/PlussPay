@@ -86,13 +86,15 @@ class ChinaDeskController extends Controller
         $validated = $request->validate([
             'transaction_ids' => ['required', 'array', 'min:1'],
             'transaction_ids.*' => ['integer', 'exists:transactions,id'],
-            'recipient_id' => ['required', 'integer', Rule::exists('users', 'id')->where('country', 'CN')->where('is_active', true)],
+            // The dropdown only offers desks that can pay receivers, so the click has to hold to
+            // the same list: dollars sent to anyone else would land in a queue no one can clear.
+            'recipient_id' => ['required', 'integer', Rule::in($this->chinaDesks()->pluck('id')->all())],
             'source_account_id' => ['required', 'integer', Rule::in(collect($this->sendableAccounts($viewer))->pluck('id')->all())],
             'entry_date' => ['nullable', 'date'],
         ], [
             'transaction_ids.required' => 'Tick the transfers whose dollars are going to China.',
             'recipient_id.required' => 'Choose which desk in China is receiving the money.',
-            'recipient_id.exists' => 'That person is not an active desk in China. Pick someone whose country is China.',
+            'recipient_id.in' => 'That person cannot pay receivers in China yet. Pick a desk that handles payouts.',
             'source_account_id.required' => 'Choose which dollar account the money leaves from.',
             'source_account_id.in' => 'That account is not one of your dollar accounts or the office dollar book.',
         ]);

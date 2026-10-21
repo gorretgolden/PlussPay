@@ -91,8 +91,8 @@ class WalletController extends Controller
 
         $agent = User::findOrFail($validated['agent_id']);
 
-        if (! $agent->hasRole('agent')) {
-            return back()->withErrors(['agent_id' => 'That person is not an agent.']);
+        if (! $agent->is_active || ! $agent->hasAnyRole(['agent', 'super-agent'])) {
+            return back()->withErrors(['agent_id' => 'Choose an active agent or lead agent.']);
         }
 
         $wallet = Account::walletFor($agent, 'UGX');

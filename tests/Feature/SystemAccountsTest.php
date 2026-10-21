@@ -259,4 +259,37 @@ class SystemAccountsTest extends TestCase
         $this->assertSame('62889200.00', $account->fresh()->balance());
         $this->assertSame('opening_balance', AccountEntry::where('account_id', $account->id)->firstOrFail()->type);
     }
+
+    public function test_the_entry_form_cannot_post_into_an_agents_wallet_by_id(): void
+    {
+        $agent = User::create([
+            'name' => 'Amina Nabukenya',
+            'email' => 'amina'.uniqid().'@plussave.test',
+            'password' => 'Password123',
+            'is_active' => true,
+            'country' => 'UG',
+        ]);
+        $agent->assignRole('agent');
+
+        $wallet = Account::walletFor($agent, 'UGX');
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->post('/accounts/entries', [
+            'kind' => 'adjustment_in',
+            'account_id' => $wallet->id,
+            'amount' => '50000',
+            'description' => 'Typed id',
+        ])->assertSessionHasErrors('account_id');
+
+        $this->actingAs($admin)->post('/accounts/entries', [
+            'kind' => 'transfer',
+            'account_id' => $this->ugxCash()->id,
+            'counterparty_id' => $wallet->id,
+            'amount' => '50000',
+            'description' => 'Typed id',
+        ])->assertSessionHasErrors('counterparty_id');
+
+        $this->assertSame('0.00', (string) $wallet->fresh()->balance());
+        $this->assertSame(0, AccountEntry::where('account_id', $wallet->id)->count());
+    }
 }
