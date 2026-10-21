@@ -86,6 +86,13 @@ class DashboardController extends Controller
         $wallets = $holdsMoney ? Account::walletsFor($user) : [];
         $handedIn = AccountEntry::handedInFor($wallets);
 
+        // The hand-in form opens on this page for an ordinary agent, so the lead agents it can
+        // address are read here as well as on the wallet screen. Both use the same rule: only an
+        // active super agent can receive the request.
+        $superAgents = $user->hasRole('agent') && ! $user->hasRole('super-agent') && $user->can('view-wallets')
+            ? User::role('super-agent')->where('is_active', true)->orderBy('name')->get(['id', 'name'])
+            : collect();
+
         // The super agent's queue is the cash the agents say they are bringing. It is shown here
         // rather than only on the wallet page because this is the screen the super agent opens
         // first, and the money should not wait on somebody remembering to look elsewhere. What was
@@ -166,7 +173,7 @@ class DashboardController extends Controller
         // it gets no card at all rather than a figure it cannot check.
         $spending = $user->can('view-expenses') ? $this->spendingToday($user) : ['count' => 0, 'desks' => []];
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts', 'news', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn'));
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'commissionMonth', 'profit', 'windows', 'logAlerts', 'news', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'superAgents'));
     }
 
     /**

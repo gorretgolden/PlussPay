@@ -71,34 +71,35 @@
         @csrf
         <div>
             <label for="hand-in-super-agent" class="block text-sm font-medium text-gray-700 mb-1">Super agent</label>
-            <select id="hand-in-super-agent" name="super_agent_id" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            <select id="hand-in-super-agent" name="super_agent_id" required @if($errors->has('super_agent_id')) aria-invalid="true" @endif class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('super_agent_id') ? ' field-invalid' : '' }}">
                 @foreach($superAgents as $superAgent)
                 <option value="{{ $superAgent->id }}" @selected((string) old('super_agent_id') === (string) $superAgent->id)>{{ $superAgent->name }}</option>
                 @endforeach
             </select>
-            @error('super_agent_id') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+            @error('super_agent_id') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
         </div>
         <div>
             <label for="hand-in-currency" class="block text-sm font-medium text-gray-700 mb-1">Wallet</label>
-            <select id="hand-in-currency" name="currency" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            <select id="hand-in-currency" name="currency" required @if($errors->has('currency')) aria-invalid="true" @endif class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('currency') ? ' field-invalid' : '' }}">
                 @foreach($wallets as $currency => $account)
                 <option value="{{ $currency }}" data-balance="{{ (string) round((float) $account->balance(), 2) }}" @selected($chosen === $currency)>{{ $currency }} ({{ \App\Models\Account::format($currency, $account->balance()) }} in hand)</option>
                 @endforeach
             </select>
-            @error('currency') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+            @error('currency') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
         </div>
         <div>
             <label for="hand-in-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
             <input type="number" id="hand-in-amount" name="amount" step="0.01" min="0.01" max="{{ $heldNow > 0 ? $heldNow : '' }}" required value="{{ $prefill }}"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
-            <p class="text-xs text-gray-400 mt-1">Cannot be more than the {{ $chosen }} wallet holds right now.</p>
-            @error('amount') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                aria-describedby="hand-in-amount-hint" @if($errors->has('amount')) aria-invalid="true" @endif
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('amount') ? ' field-invalid' : '' }}">
+            <p id="hand-in-amount-hint" class="text-xs text-gray-400 mt-1">Cannot be more than the {{ $chosen }} wallet holds right now.</p>
+            @error('amount') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
         </div>
         <div class="md:col-span-3">
             <label for="hand-in-note" class="block text-sm font-medium text-gray-700 mb-1">Note, optional</label>
             <input type="text" id="hand-in-note" name="note" maxlength="255" value="{{ old('note') }}" placeholder="e.g. Full day's collections"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
-            @error('note') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('note') ? ' field-invalid' : '' }}">
+            @error('note') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
         </div>
         <div class="md:col-span-1 flex md:justify-end">
             <button type="submit" class="w-full md:w-auto bg-green-800 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition">Send for approval</button>
@@ -298,6 +299,7 @@
     (function () {
         var money = document.getElementById('hand-in-currency');
         var amount = document.getElementById('hand-in-amount');
+        var hint = document.getElementById('hand-in-amount-hint');
 
         if (!money || !amount) { return; }
 
@@ -317,6 +319,7 @@
             }
             money.dataset.held = held();
             amount.max = held();
+            if (hint) { hint.textContent = 'Cannot be more than the ' + money.value + ' wallet holds right now.'; }
         });
     })();
 </script>

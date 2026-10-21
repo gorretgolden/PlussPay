@@ -2,7 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
+use App\Models\CashHandover;
 use App\Models\User;
+use App\Services\AccountLedger;
 use App\Support\PermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -204,8 +207,70 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('>Hand Cash In</span>', $actions);
         $this->assertStringContainsString('/wallet#hand-in', $actions);
 
-        // The card points at this form, so the anchor has to exist on the wallet page.
+        // The wallet page still carries the same form as the fallback the card names.
         $this->assertStringContainsString('id="hand-in"', $this->html($agent->fresh(), '/wallet'));
+    }
+
+    public function test_the_hand_in_shortcut_opens_the_form_on_the_board_itself(): void
+    {
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $agent = $this->user('agent', 'Amina Nabukenya');
+        AccountLedger::record(Account::walletFor($agent, 'UGX'), 'adjustment_in', '500000.00', 'Float from the office');
+
+        $board = $this->html($agent);
+
+        // The shortcut is an opener for a card on this page, not a second link to the wallet.
+        $this->assertStringContainsString('data-hand-in-open', $board);
+        $this->assertStringContainsString('id="hand-in-card"', $board);
+        $this->assertStringContainsString('action="'.route('cash-handovers.store').'"', $board);
+        $this->assertStringContainsString('>Hand cash in to your super agent</h2>', $board);
+        $this->assertStringContainsString('>Amina Lead</option>', $board);
+        $this->assertStringContainsString('UGX (UGX 500,000 in hand)', $board);
+        $this->assertStringContainsString('value="500000"', $board);
+
+        // A figure over the drawer comes back to the same open card, with the box marked and a
+        // summary that links to it. The page-level banner above the board is not repeated.
+        $failed = $this->actingAs($agent)->from(route('dashboard'))->followingRedirects()
+            ->post(route('cash-handovers.store'), [
+                'super_agent_id' => $lead->id,
+                'currency' => 'USD',
+                'amount' => '9999',
+            ])->assertOk()->getContent();
+
+        $this->assertStringContainsString('<div data-error-summary', $failed);
+        $this->assertStringContainsString('href="#hand-in-amount"', $failed);
+        $this->assertMatchesRegularExpression('#id="hand-in-amount"[^>]*aria-invalid="true"#', $failed);
+        $this->assertMatchesRegularExpression('#id="hand-in-amount"[^>]*field-invalid#', $failed);
+        $this->assertStringNotContainsString('bg-red-100 border border-red-400', $failed);
+
+        // A request sent from the board comes straight back to the board.
+        $this->actingAs($agent)->from(route('dashboard'))->post(route('cash-handovers.store'), [
+            'super_agent_id' => $lead->id,
+            'currency' => 'UGX',
+            'amount' => '500000',
+            'note' => "Day's collections",
+        ])->assertRedirect(route('dashboard'))->assertSessionHas('success');
+
+        $this->assertDatabaseHas('cash_handovers', [
+            'agent_id' => $agent->id,
+            'super_agent_id' => $lead->id,
+            'currency' => 'UGX',
+            'amount' => '500000.00',
+            'status' => CashHandover::PENDING,
+        ]);
+
+        // The hand-in summary replaces the page banner only for its own fields. A lead agent
+        // declining a hand-in from this same board still gets the page banner for that message.
+        $peter = $this->user('super-agent', 'Peter Lead');
+        $handover = CashHandover::request($agent, $peter, 'UGX', '100000');
+
+        $declined = $this->actingAs($peter)->from(route('dashboard'))->followingRedirects()
+            ->post(route('cash-handovers.decline', $handover), ['decision_note' => ''])
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Say why you are sending this hand-in back.', $declined);
+        $this->assertStringContainsString('bg-red-100 border border-red-400', $declined);
     }
 
     public function test_every_shortcut_a_role_is_handed_open_for_that_role(): void
