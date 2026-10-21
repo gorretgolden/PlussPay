@@ -20,7 +20,7 @@
             align-items: center;
             justify-content: space-between;
             gap: 10px;
-            max-width: 210mm;
+            max-width: 148mm;
             margin: 0 auto 12px;
             font-size: 13px;
             color: #374151;
@@ -42,10 +42,10 @@
         .slip-tools button:hover { background: #166534; }
         .slip-tools a:focus-visible,
         .slip-tools button:focus-visible { outline: 2px solid #15803d; outline-offset: 3px; }
-        .slip-sheet { max-width: 210mm; margin: 0 auto; }
+        .slip-sheet { max-width: 148mm; margin: 0 auto; }
 
         @media print {
-            @page { size: A5 landscape; margin: 6mm; }
+            @page { size: A5 portrait; margin: 6mm; }
             body { padding: 0; background: #fff; }
             .slip-tools { display: none !important; }
             .slip-sheet { max-width: none; margin: 0; }
@@ -64,7 +64,7 @@
     <div class="slip-tools">
         <div>
             <p class="slip-tools-title">Receipt {{ $transaction->receipt_number }}</p>
-            <p class="slip-tools-sub">A5 landscape, print at 100%.</p>
+            <p class="slip-tools-sub">A5 portrait, print at 100%.</p>
         </div>
         <div class="slip-tools-actions">
             <a href="{{ route('receipts.show', $transaction->receipt_number) }}">Back to receipt</a>

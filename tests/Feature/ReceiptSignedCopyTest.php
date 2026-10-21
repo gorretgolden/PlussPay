@@ -278,4 +278,25 @@ class ReceiptSignedCopyTest extends TestCase
         $this->assertStringContainsString('Nakato Grace', $html);
         $this->assertStringContainsString('School fees', $html);
     }
+
+    public function test_the_sheet_prints_portrait_and_keeps_the_office_address_in_the_footer(): void
+    {
+        Setting::set('company_phone', '+256 393 256 744 | +256 702 799 326', 'string', 'company');
+        Setting::set('company_address', "Level 3 Room TA, Saasa Plaza Nabugabo Street\nLevel 2, Old Taxi Park - Aponye Mall", 'string', 'company');
+        Setting::set('company_website', 'www.plussavefinancialsolutions.com', 'string', 'company');
+
+        $slip = $this->slip();
+        $this->assertStringContainsString('A5 portrait, print at 100%.', $slip);
+        $this->assertStringContainsString('@page { size: A5 portrait; margin: 6mm; }', $slip);
+        $this->assertStringNotContainsString('A5 landscape', $slip);
+
+        $paper = $this->slipOnly($slip);
+        $this->assertStringContainsString('Call / WhatsApp: +256 393 256 744 | +256 702 799 326', $paper);
+        $this->assertStringContainsString('Level 3 Room TA, Saasa Plaza Nabugabo Street', $paper);
+        $this->assertStringContainsString('Level 2, Old Taxi Park - Aponye Mall', $paper);
+        $this->assertStringContainsString('www.plussavefinancialsolutions.com', $paper);
+
+        // Printing straight from the receipt page must ask for the same portrait sheet.
+        $this->assertStringContainsString('@page { size: A5 portrait; margin: 6mm; }', $this->screen());
+    }
 }

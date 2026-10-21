@@ -9,7 +9,7 @@
         position: relative;
         box-sizing: border-box;
         width: 100%;
-        max-width: 210mm;
+        max-width: 148mm;
         margin: 0 auto;
         padding: clamp(16px, 3vw, 28px);
         overflow: hidden;
@@ -28,17 +28,27 @@
     .slip *::after { box-sizing: border-box; }
     .slip p { margin: 0; }
 
+    /* Both logos sit on the top line like the old paper pad, and the number block hangs under
+       them on the right with its own text reading left, so No. and Date line up under RECEIPT. */
     .slip-head {
         display: grid;
-        grid-template-columns: 1fr auto auto;
+        grid-template-columns: 1fr auto;
         align-items: center;
-        gap: 14px;
+        gap: 8px 14px;
         padding-bottom: 12px;
         border-bottom: 1px solid var(--slip-line);
     }
-    .slip-pluspay { display: block; width: auto; height: 34px; }
-    .slip-company { display: block; justify-self: end; width: auto; height: 58px; }
-    .slip-ident { text-align: center; }
+    .slip-pluspay { grid-column: 1; grid-row: 1; display: block; justify-self: start; width: auto; height: 34px; }
+    .slip-company { grid-column: 2; grid-row: 1; display: block; justify-self: end; width: auto; height: 58px; }
+    .slip-ident {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-self: end;
+        text-align: left;
+    }
     .slip-pill {
         display: inline-block;
         padding: 4px 14px;
@@ -52,13 +62,14 @@
     }
     .slip-ident-line {
         display: flex;
-        justify-content: center;
-        gap: 5px;
+        justify-content: flex-start;
+        gap: 6px;
         margin-top: 3px;
         font-size: 10.5px;
         white-space: nowrap;
     }
     .slip-ident-label {
+        min-width: 30px;
         color: var(--slip-muted);
         font-size: 9px;
         font-weight: 700;
@@ -310,24 +321,11 @@
     .slip-foot span { display: block; overflow-wrap: anywhere; }
     .slip-foot-address { text-align: right; }
 
-    /* A5 landscape lays out at about 748px, so the phone breakpoint must stay below it or print stacks the slip. */
-    @media (max-width: 640px) {
+    /* A5 portrait lays out at about 559px, but only about 514px stands between its 6mm margins,
+       so the phone breakpoint must stay below both or print stacks the slip. */
+    @media (max-width: 480px) {
         .slip { padding: 16px 14px; border-left-width: 4px; }
-        .slip-head { grid-template-columns: 1fr auto; gap: 10px; }
         .slip-company { height: 48px; }
-        .slip-ident {
-            order: 3;
-            grid-column: 1 / -1;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-            gap: 4px 10px;
-            padding-top: 8px;
-            border-top: 1px dashed #d5d0c0;
-            text-align: left;
-        }
-        .slip-ident-line { justify-content: flex-start; margin-top: 0; }
         .slip-route { margin: 11px 0 9px; }
         .slip-parties { grid-template-columns: 1fr; }
         .slip-party + .slip-party {
@@ -362,26 +360,26 @@
     }
 
     @media print {
-        .slip-pluspay { height: 28px; }
-        .slip-company { height: 44px; }
-        .slip-head { padding-bottom: 6px; }
+        .slip-pluspay { height: 30px; }
+        .slip-company { height: 46px; }
+        .slip-head { gap: 6px 12px; padding-bottom: 8px; }
         .slip-pill { padding: 3px 12px; font-size: 10px; }
         .slip-ident-line { margin-top: 2px; }
-        .slip-route { margin: 6px 0 5px; padding: 5px 8px; }
-        .slip-route-name { font-size: 16px; }
-        .slip-route-kicker { font-size: 7.5px; }
-        .slip .slip-status { margin-top: 6px; padding: 4px 8px; font-size: 10px; }
-        .slip-parties { padding-bottom: 5px; }
-        .slip-name { font-size: 14px; }
-        .slip-meta { padding-top: 5px; }
-        .slip-well { margin-top: 8px; }
+        .slip-route { margin: 9px 0 8px; padding: 6px 9px; }
+        .slip-route-name { font-size: 18px; }
+        .slip-route-kicker { font-size: 8px; }
+        .slip .slip-status { margin-top: 7px; padding: 4px 8px; font-size: 10px; }
+        .slip-parties { padding-bottom: 7px; }
+        .slip-name { font-size: 15px; }
+        .slip-meta { padding-top: 6px; }
+        .slip-well { margin-top: 9px; }
         .slip-table th,
-        .slip-table td { padding: 4px 7px; }
-        .slip .slip-note { margin-top: 4px; }
-        .slip-official { margin-top: 7px; }
-        .slip-sign { padding: 5px 8px 5px; }
-        .slip-sign-line { height: 12px; }
-        .slip .slip-reminder { margin-top: 4px; }
-        .slip-foot { margin-top: 5px; padding-top: 5px; }
+        .slip-table td { padding: 6px 8px; }
+        .slip .slip-note { margin-top: 5px; }
+        .slip-official { margin-top: 9px; }
+        .slip-sign { padding: 7px 9px 6px; }
+        .slip-sign-line { height: 16px; }
+        .slip .slip-reminder { margin-top: 5px; }
+        .slip-foot { margin-top: 7px; padding-top: 7px; }
     }
 </style>

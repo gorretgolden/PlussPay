@@ -6,6 +6,8 @@
 @include('receipts.partials.slip-styles')
 <style>
     .receipt-stage {
+        max-width: 162mm;
+        margin: 0 auto;
         padding: clamp(10px, 2.5vw, 26px);
         border-radius: 12px;
         background: #e9e6dc;
@@ -19,7 +21,7 @@
         main { padding: 0 !important; }
         .receipt-stage { padding: 0 !important; border-radius: 0 !important; background: #fff !important; }
         .slip { max-width: none !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; }
-        @page { size: A5 landscape; margin: 6mm; }
+        @page { size: A5 portrait; margin: 6mm; }
     }
 </style>
 @endpush
