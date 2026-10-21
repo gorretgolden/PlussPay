@@ -13,9 +13,12 @@ use Tests\TestCase;
  * A receipt is signed, so it has to say who signed it. The hand that took the money is whoever the
  * booking was written into: the clerk standing at the counter, or the agent the office booked for.
  * That name is saved on the transfer, so the line keeps the same person however many accounts open
- * the copy afterwards. The customer's side carries the sender's name for the same reason. The money
- * underneath both names is one figure to a line, because a table that puts the charge, the price and
- * the amount in four columns against each other gets read as arithmetic nobody checked.
+ * the copy afterwards. The customer's side carries the sender's name for the same reason.
+ *
+ * The money is set out the way the paper receipt book at the counter sets it out: particulars, rate,
+ * charge and amount each get a column of their own, and the amount column says both what travelled
+ * and what the receiver is handed. The heading changes with the corridor and the payout currency,
+ * because a slip for the Uganda desk and a slip for the China desk are not the same promise.
  */
 class ReceiptSignedCopyTest extends TestCase
 {
@@ -69,16 +72,16 @@ class ReceiptSignedCopyTest extends TestCase
         ]);
     }
 
-    private function screen(): string
+    private function screen(string $number = 'PS-SIGN-1'): string
     {
         return $this->actingAs($this->desk)
-            ->get('/receipts/PS-SIGN-1')->assertOk()->getContent();
+            ->get('/receipts/'.$number)->assertOk()->getContent();
     }
 
-    private function slip(): string
+    private function slip(string $number = 'PS-SIGN-1'): string
     {
         return $this->actingAs($this->desk)
-            ->get('/receipts/PS-SIGN-1/print')->assertOk()->getContent();
+            ->get('/receipts/'.$number.'/print')->assertOk()->getContent();
     }
 
     public function test_both_names_stand_on_their_own_line_with_the_label_underneath(): void
@@ -125,26 +128,117 @@ class ReceiptSignedCopyTest extends TestCase
         return substr($html, $at, 160);
     }
 
-    public function test_the_money_reads_as_one_figure_to_a_line(): void
+    public function test_the_paper_table_keeps_every_figure_in_its_own_column(): void
     {
         foreach ([$this->screen(), $this->slip()] as $html) {
-            $labels = ['SENDING MONEY TO CHINA', 'SENDING CHARGE', 'TOTAL HANDED OVER', 'PAID OUT IN CHINA'];
-            $found = 0;
-
-            foreach ($labels as $label) {
-                $found += (int) str_contains(strtolower($html), strtolower($label));
+            foreach (['PARTICULARS', 'RATE', 'CHARGE', 'AMOUNT (USD/RMB)'] as $heading) {
+                $this->assertStringContainsString($heading, $html, 'the paper column heading is missing: '.$heading);
             }
 
-            $this->assertSame(4, $found, 'the money is not split into its own lines');
+            // The particulars name the corridor, the rates are the two prices the shillings were
+            // turned at, the charge stands alone, and the amount cell says what travelled and what
+            // the receiver is handed. The total is its own row under the table.
+            $this->assertStringContainsString('Sending money to China', $html);
+            $this->assertStringContainsString('UGX 3760', $html);
+            $this->assertStringContainsString('RMB 7.3', $html);
+            $this->assertStringContainsString('UGX 20,000', $html);
+            $this->assertStringContainsString('USD 250.5', $html);
+            $this->assertStringContainsString('¥1,850.5 RMB', $html);
+            $this->assertStringContainsString('Total cash handed over', $html);
+            $this->assertStringContainsString('USD 250.5 plus UGX 20,000', $html);
 
-            // The four-column header that left the charge and the price fighting for one cell.
-            $this->assertStringNotContainsString('AMOUNT (USD/RMB)', $html);
-            $this->assertStringNotContainsString('PARTICULARS', $html);
+            // A dollar customer pays the charge beside the money, rather than out of it.
+            $this->assertStringContainsString('The charge is paid alongside the cash handed over.', $html);
+            $this->assertStringContainsString('For official use only', $html);
         }
+    }
 
-        $this->assertStringContainsString('USD 250.5', $this->screen());
-        $this->assertStringContainsString('UGX 20,000', $this->screen());
-        $this->assertStringContainsString('¥1,850.5', $this->screen());
+    public function test_a_booking_into_uganda_is_titled_the_old_way_round_and_pays_shillings(): void
+    {
+        Transaction::create([
+            'receipt_number' => 'PS-SIGN-UG-1',
+            'sender_name' => 'Li Wei',
+            'sender_contact' => '8613800000002',
+            'receiver_name' => 'Nakato Grace',
+            'receiver_contact' => '0700000002',
+            'currency' => 'RMB',
+            'amount' => 500,
+            'exchange_rate' => 7.20,
+            'rate_sell_ugx' => 3760,
+            'rmb_buying_rate' => 7.20,
+            'rmb_amount' => 0,
+            'ugx_amount' => 240416,
+            'total_usd_equivalent' => 69.44,
+            'charge_ugx' => 20000,
+            'destination' => Transaction::TO_UGANDA,
+            'payout_currency' => 'UGX',
+            'status' => 'completed',
+            'created_by' => $this->agent->id,
+        ]);
+
+        foreach ([$this->screen('PS-SIGN-UG-1'), $this->slip('PS-SIGN-UG-1')] as $html) {
+            $slip = $this->slipOnly($html);
+
+            $this->assertStringContainsString('<h1 class="slip-title">Send money to Uganda</h1>', $slip);
+            $this->assertStringNotContainsString('Send money to China', $slip);
+            $this->assertStringContainsString('AMOUNT (RMB/UGX)', $slip);
+            $this->assertStringContainsString('RMB 500', $slip);
+            $this->assertStringContainsString('(UGX 240,416)', $slip);
+            $this->assertStringContainsString('UGX 3760', $slip);
+            $this->assertStringContainsString('RMB 7.2', $slip);
+
+            // The charge comes out of the shillings the receiver is handed on this route, so the
+            // slip says so rather than repeating the China-route note.
+            $this->assertStringContainsString('The charge is taken out of the shillings the receiver is paid.', $slip);
+            $this->assertStringNotContainsString('¥', $slip);
+        }
+    }
+
+    public function test_a_dollar_payout_to_china_never_prints_a_yuan_price(): void
+    {
+        Transaction::create([
+            'receipt_number' => 'PS-SIGN-USD-1',
+            'sender_name' => 'Asuma Aggrey',
+            'sender_contact' => '0700000003',
+            'receiver_name' => 'Wei Ming',
+            'receiver_contact' => '8613800000003',
+            'currency' => 'USD',
+            'amount' => 250.5,
+            'exchange_rate' => 0,
+            'rate_sell_ugx' => 3760,
+            'rmb_amount' => 0,
+            'total_usd_equivalent' => 250.5,
+            'charge_ugx' => 20000,
+            'destination' => Transaction::TO_CHINA,
+            'payout_currency' => 'USD',
+            'status' => 'completed',
+            'created_by' => $this->agent->id,
+        ]);
+
+        foreach ([$this->screen('PS-SIGN-USD-1'), $this->slip('PS-SIGN-USD-1')] as $html) {
+            $slip = $this->slipOnly($html);
+
+            $this->assertStringContainsString('AMOUNT (USD)', $slip);
+            $this->assertStringContainsString('($250.5 USD)', $slip);
+            $this->assertStringContainsString('UGX 3760', $slip);
+            $this->assertStringNotContainsString('RMB 7', $slip);
+            $this->assertStringNotContainsString('¥', $slip);
+        }
+    }
+
+    /**
+     * The slip inside either copy, so a wallet card in the surrounding page cannot satisfy or
+     * break a claim about what the customer's paper says.
+     */
+    private function slipOnly(string $html): string
+    {
+        $start = strpos($html, '<article class="slip"');
+        $this->assertNotFalse($start, 'the copy has no paper slip');
+
+        $end = strpos($html, '</article>', $start);
+        $this->assertNotFalse($end, 'the paper slip is not closed');
+
+        return substr($html, $start, $end - $start);
     }
 
     public function test_a_booking_is_timed_and_not_merely_dated(): void

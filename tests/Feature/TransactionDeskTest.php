@@ -310,9 +310,12 @@ class TransactionDeskTest extends TestCase
             'the receipt names the hand and the desk it held the money at'
         );
 
-        // The signature line keeps the person alone, so only the desk line gains the extra words.
-        $this->assertMatchesRegularExpression('/<span class="label">Origin desk:<\/span>\s*<span class="value">China \(CN\)<\/span>/',
-            $this->actingAs($office)->get("/receipts/{$transfer->receipt_number}/print")->assertOk()->getContent()
+        // The print copy is the same paper slip, so it carries the same line rather than a second
+        // desk field the screen never shows.
+        $this->assertMatchesRegularExpression(
+            '/Money taken by <span[^>]*>Mei Lin<\/span> at the <span[^>]*>China<\/span> desk/',
+            $this->actingAs($office)->get("/receipts/{$transfer->receipt_number}/print")->assertOk()->getContent(),
+            'the printed slip names the same hand and desk as the screen copy'
         );
     }
 
