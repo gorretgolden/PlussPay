@@ -145,7 +145,7 @@
                     <th class="slip-col-particulars" scope="col">PARTICULARS</th>
                     <th class="slip-col-rate" scope="col">RATE</th>
                     <th class="slip-col-charge" scope="col">CHARGE</th>
-                    <th class="slip-col-amount slip-right" scope="col">{{ $amountHeading }}</th>
+                    <th class="slip-col-amount" scope="col">{{ $amountHeading }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -163,7 +163,7 @@
                     <td>
                         <span class="slip-figure">{{ $transaction->feeLabel() }}</span>
                     </td>
-                    <td class="slip-right">
+                    <td>
                         <span class="slip-figure">{{ $transaction->principalLabel() }}</span>
                         <span class="slip-payout">({{ $payoutText }})</span>
                     </td>
@@ -172,7 +172,7 @@
             <tfoot>
                 <tr>
                     <th colspan="3" class="slip-right slip-total-label" scope="row">Total cash handed over</th>
-                    <td class="slip-right slip-total">{{ $transaction->collectedAmount() }}</td>
+                    <td class="slip-total">{{ $transaction->collectedAmount() }}</td>
                 </tr>
             </tfoot>
         </table>

@@ -319,7 +319,9 @@
         text-transform: uppercase;
     }
     .slip-foot span { display: block; overflow-wrap: anywhere; }
-    .slip-foot-address { text-align: right; }
+    /* The address keeps the right half of the footer but reads from its own left edge, so the
+       heading and every line share one margin instead of stepping in and out. */
+    .slip-foot-address { text-align: left; }
 
     /* A5 portrait lays out at about 559px, but only about 514px stands between its 6mm margins,
        so the phone breakpoint must stay below both or print stacks the slip. */
@@ -347,7 +349,6 @@
         .slip-signatures { grid-template-columns: 1fr; }
         .slip-sign + .slip-sign { border-top: 1px solid var(--slip-rule); border-left: 0; }
         .slip-foot { grid-template-columns: 1fr; gap: 8px; }
-        .slip-foot-address { text-align: left; }
     }
 
     /* On the counter phone the band keeps both countries on one line, so the direction is never
