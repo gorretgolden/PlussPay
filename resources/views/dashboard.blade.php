@@ -328,33 +328,15 @@
      country, so the local currency is always the first card. The controller hands an empty list to
      anyone who reads every wallet instead of holding one, and the row is left out for them.
 
-     Both cards print the same rows in the same order, at the same size, so the pair sits level and
-     the eye can read down one column of figures and compare. A row with nothing in it prints a zero
-     instead of disappearing, because a missing line is its own kind of answer. --}}
+     A card is one figure, its stamp and its links. The splits that used to stand under the balance
+     (awaiting approval, fees, handed in) live on the wallet page and the reports, so the board
+     stays clean. --}}
 @if($wallets !== [])
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
     @foreach($wallets as $currency => $account)
     @php
         $balance = (string) $account->balance();
-        // The pending figure is a slice of the balance above it, never money on top of it: a hand-in
-        // only moves cash when the super agent approves it, so until then it is still in this drawer.
-        $awaiting = (string) ($pendingHandIn[$currency] ?? '0');
-        $ready = bcsub($balance, $awaiting, 2);
         $figure = fn (string|int|float $value) => \App\Models\Account::format($currency, $value);
-        // The lead agent reads the same card from the other end of the road: the cash arrives to
-        // him from the desks below and leaves from his own counter, so the two rows that name a
-        // direction name his, not an agent's.
-        $isLead = $me->hasRole('super-agent');
-        $readyLabel = match (true) {
-            $cnDesk => 'Ready to pay receivers',
-            $isLead => 'Ready to send on',
-            default => 'Ready to hand in',
-        };
-        $givenLabel = match (true) {
-            $cnDesk => 'Paid out so far',
-            $isLead => 'Sent on so far',
-            default => 'Handed in so far',
-        };
     @endphp
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div class="flex items-start justify-between gap-3">
@@ -369,35 +351,6 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
             </span>
         </div>
-
-        <p class="text-[13px] text-gray-700 mt-2">{{ $cnDesk ? 'Cash on hand, not yet paid to a receiver' : 'Cash on hand, not yet deposited' }}.</p>
-        @if($me->hasRole('super-agent'))
-        <p class="text-[13px] text-gray-700 mt-1">Cash handed to you by the agents. Send it on from the China desk.</p>
-        @endif
-
-        <ul class="mt-3 space-y-1.5 border-t border-gray-100 pt-3">
-            {{-- The one line on this card that is not plain ink, and deliberately so: it is the part
-                 of the balance somebody else still has to say yes to. Orange 800 rather than the
-                 amber that was here, which washed out against white. --}}
-            <li class="flex items-baseline justify-between gap-3">
-                <span class="text-[13px] text-gray-700">Of which awaiting approval</span>
-                <span class="text-[13px] font-semibold text-orange-800 tabular-nums whitespace-nowrap">{{ $figure($awaiting) }}</span>
-            </li>
-            <li class="flex items-baseline justify-between gap-3">
-                <span class="text-[13px] text-gray-700">{{ $readyLabel }}</span>
-                <span class="text-[13px] font-semibold text-gray-900 tabular-nums whitespace-nowrap">{{ $figure($ready) }}</span>
-            </li>
-            {{-- The period is always spelled out: the Overview card further down prints a today
-                 figure, and two months-and-days side by side read as a contradiction. --}}
-            <li class="flex items-baseline justify-between gap-3">
-                <span class="text-[13px] text-gray-700">Fees this month ({{ $feesPeriod }})</span>
-                <span class="text-[13px] font-semibold text-gray-900 tabular-nums whitespace-nowrap">{{ $figure($feesMonth[$currency] ?? 0) }}</span>
-            </li>
-            <li class="flex items-baseline justify-between gap-3">
-                <span class="text-[13px] text-gray-700">{{ $givenLabel }}</span>
-                <span class="text-[13px] font-semibold text-gray-900 tabular-nums whitespace-nowrap">{{ \App\Models\Account::format($currency, $handedIn[$account->id] ?? 0) }}</span>
-            </li>
-        </ul>
 
         @if(bccomp($balance, '0', 2) <= 0)
         <p class="text-[13px] text-gray-700 mt-2">No balance yet. @can('adjust-wallets')<a href="{{ route('accounts.entries.create') }}" class="font-semibold text-gray-800 underline underline-offset-2">Add money</a>@endcan</p>

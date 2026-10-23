@@ -128,27 +128,35 @@ class CashHandoverTest extends TestCase
         $lead = $this->person('super-agent', 'Amina Lead');
         $handover = $this->request($agent, $lead);
 
-        // The card prints the same four rows whatever the numbers are, so what the test pins is the
-        // figure beside "awaiting approval", not whether the line is there. It falls to zero when
-        // the lead agent approves, and the wallet total never changes at that moment.
-        $awaitingOnCard = function (User $viewer): string {
+        // The wallet card is one figure now; the money a lead has not taken yet is named on the
+        // hand-in insight card below it. The test pins the figure beside "Waiting on approval"
+        // there. It falls to zero when the lead agent approves, and the wallet total never changes
+        // at that moment.
+        $pendingOnBoard = function (User $viewer): string {
             $this->flushSession();
             $html = $this->actingAs($viewer)->get('/dashboard')->assertOk()->getContent();
+
+            $start = strpos($html, 'Cash You Hand In');
+            $end = strpos($html, 'Quick Actions', $start);
+            $this->assertNotFalse($start, 'The hand-in insight card is on the board.');
+            $this->assertNotFalse($end, 'Quick Actions follows the hand-in insight card.');
+
+            $insight = substr($html, $start, $end - $start);
             $this->assertSame(
                 1,
-                preg_match('#Of which awaiting approval</span>\s*<span[^>]*>([^<]+)</span>#', $html, $m),
-                'The wallet card names the part of the balance a super agent has not taken yet.'
+                preg_match('#Waiting on approval</div>.*?<div class="text-\[13px\] text-gray-700 mt-0\.5 tabular-nums">([^<]+)</div>#s', $insight, $m),
+                'The insight card names the part of the balance a super agent has not taken yet.'
             );
 
             return $m[1];
         };
 
-        $this->assertSame('UGX 480,000', $awaitingOnCard($agent));
+        $this->assertSame('UGX 480,000', $pendingOnBoard($agent));
         $this->assertStringContainsString('UGX 500,000', $this->actingAs($agent)->get('/dashboard')->getContent());
 
         $handover->approve();
 
-        $this->assertSame('UGX 0', $awaitingOnCard($agent));
+        $this->assertSame('UGX 0', $pendingOnBoard($agent));
     }
 
     public function test_a_super_agent_does_not_hand_cash_to_another_super_agent(): void
@@ -188,7 +196,7 @@ class CashHandoverTest extends TestCase
 
         $page = $this->actingAs($lead)->get('/wallet')->assertOk()->getContent();
 
-        $this->assertStringContainsString('Received from agents', $page);
+        $this->assertStringContainsString('UGX Wallet', $page);
         $this->assertStringContainsString('UGX 480,000', $page);
         $this->assertStringContainsString('Cash hand-in requests', $page);
         $this->assertStringContainsString('Sarah Nalin', $page);

@@ -350,7 +350,7 @@ class AgentWalletTest extends TestCase
             ->assertDontSee('22,560');
     }
 
-    public function test_the_wallet_card_on_sign_in_states_this_month_commission(): void
+    public function test_the_wallet_card_on_sign_in_prints_the_balance_and_nothing_more(): void
     {
         $agent = $this->agent();
 
@@ -358,14 +358,11 @@ class AgentWalletTest extends TestCase
 
         $html = $this->actingAs($agent)->get('/dashboard')->assertOk()->getContent();
 
-        // The figure is not enough on its own: the card names the stretch of days it covers, so a
-        // fee line beside a today figure cannot read as a contradiction.
-        $this->assertSame(
-            1,
-            preg_match('#Fees this month \(([^)]+)\)</span>\s*<span[^>]*>UGX 7,520</span>#', $html, $m),
-            'The wallet card prints the charge kept beside the period it was kept over.'
-        );
-        $this->assertMatchesRegularExpression('/^\d{1,2} \w{3} to \d{1,2} \w{3} \d{4}$/', $m[1]);
+        // The card keeps one figure: the balance. The fees and the handed-in split live on the
+        // wallet page and the reports, not on the sign-in board.
+        $this->assertStringContainsString('UGX 7,520', $html);
+        $this->assertStringNotContainsString('Fees this month', $html);
+        $this->assertStringNotContainsString('Of which awaiting approval', $html);
     }
 
     public function test_an_admin_can_credit_an_agent_wallet_and_the_balance_moves(): void

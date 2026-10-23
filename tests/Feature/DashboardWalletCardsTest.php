@@ -86,60 +86,64 @@ class DashboardWalletCardsTest extends TestCase
 
         $this->assertStringContainsString('UGX Wallet', $html);
         $this->assertStringContainsString('USD Wallet', $html);
-        $this->assertStringContainsString('Cash on hand, not yet deposited', $html);
+        $this->assertStringContainsString('Open the wallet', $html);
         $this->assertSame(2, Account::agentWallets()->count());
     }
 
-    public function test_both_wallet_cards_print_the_same_rows_in_the_same_order(): void
+    public function test_both_wallet_cards_print_only_the_balance_and_their_links(): void
     {
         $html = $this->board($this->person('agent', 'Amina Nabukenya'));
 
-        // Two cards, so every row that names a slice of the balance is printed exactly twice. A row
-        // that dropped off one card would leave the pair at different heights and read as though
-        // one wallet were being described differently from the other.
+        // Two cards, one clean shape each: the balance and the links. The splits that used to stand
+        // under the figure live on the wallet page and the reports, so nothing wordy is left on the
+        // board.
         foreach ([
             'Of which awaiting approval',
             'Ready to hand in',
             'Fees this month',
             'Handed in so far',
         ] as $row) {
-            $this->assertSame(2, substr_count($html, $row), "Both cards should print the {$row} row.");
+            $this->assertStringNotContainsString($row, $html, "The card still prints the {$row} row.");
+        }
+
+        foreach (['History', 'Open the wallet'] as $link) {
+            $this->assertSame(2, substr_count($html, $link), "Both cards should offer the {$link} link.");
         }
     }
 
-    public function test_the_lead_agent_s_cards_read_the_road_from_his_end(): void
+    public function test_the_lead_agent_s_cards_keep_the_same_clean_shape(): void
     {
         $lead = $this->person('super-agent', 'Amina Lead');
 
-        // Cash comes up to him from the desks below and leaves from his own counter, so a row that
-        // says "hand in" would name a road he never travels.
+        // Cash comes up to him from the desks below, but the card says so with the balance alone:
+        // the directional rows are gone from every card, whoever is reading it.
         $html = $this->board($lead);
 
-        $this->assertStringContainsString('Ready to send on', $html);
-        $this->assertStringContainsString('Sent on so far', $html);
-        $this->assertStringNotContainsString('Ready to hand in', $html);
-        $this->assertStringNotContainsString('Handed in so far', $html);
-        $this->assertSame(2, substr_count($html, 'Ready to send on'), 'Both of his cards print the same rows.');
+        $this->assertStringContainsString('UGX Wallet', $html);
+        $this->assertStringContainsString('USD Wallet', $html);
+        foreach (['Ready to send on', 'Sent on so far', 'Ready to hand in', 'Handed in so far', 'Received from agents'] as $row) {
+            $this->assertStringNotContainsString($row, $html);
+        }
     }
 
-    public function test_the_pending_amount_is_described_as_part_of_the_balance_not_as_extra(): void
+    public function test_the_balance_stays_whole_and_the_pending_pile_is_named_on_the_insight_card(): void
     {
         $agent = $this->person('agent', 'Amina Nabukenya');
         $lead = $this->person('super-agent', 'Amina Lead');
 
         // 300,000 real in the drawer, and a request for 200,000 of it that the lead has not
         // approved. A request moves no money, so the whole 300,000 is still the balance and the
-        // 200,000 is a slice of it, never 300,000 plus another 200,000.
+        // 200,000 is named on the hand-in insight card below, never beside the balance.
         AccountLedger::record(Account::walletFor($agent, 'UGX'), 'adjustment_in', '300000', 'Cash float');
         CashHandover::request($agent, $lead, 'UGX', '200000');
 
         $html = $this->board($agent);
 
         $this->assertStringContainsString('UGX 300,000', $html, 'The balance still counts the money a request is waiting on.');
-        $this->assertStringContainsString('Of which awaiting approval', $html, 'The pending figure is named as part of the balance.');
+        $this->assertStringContainsString('Cash You Hand In', $html, 'The pending figure is named on the insight card.');
         $this->assertStringContainsString('UGX 200,000', $html);
-        $this->assertStringContainsString('Ready to hand in', $html);
-        $this->assertStringContainsString('UGX 100,000', $html, 'Ready is the balance with the pending slice taken off it.');
+        $this->assertStringNotContainsString('Of which awaiting approval', $html);
+        $this->assertStringNotContainsString('Ready to hand in', $html);
 
         // Nothing on the card may imply the waiting money sits beside the balance rather than in it:
         // the old caption that framed it as separate cash, and the old "charge kept" line, are gone.

@@ -368,7 +368,7 @@ class AgentCashCustodyTest extends TestCase
         ])->assertSessionHasErrors('super_agent_id');
     }
 
-    public function test_the_wallet_page_shows_the_drawer_split_into_what_is_held_and_what_was_handed_in(): void
+    public function test_the_wallet_page_shows_the_drawer_the_requests_and_the_history(): void
     {
         $agent = $this->agent();
         $lead = $this->superAgent();
@@ -384,8 +384,6 @@ class AgentCashCustodyTest extends TestCase
         $this->assertStringContainsString('Cash history', $page);
         $this->assertStringContainsString('Left in hand', $page);
         $this->assertStringContainsString('UGX 20,000', $page);
-        $this->assertStringContainsString('Commission kept', $page);
-        $this->assertStringContainsString('Handed in so far', $page);
         // The words a person standing at a counter would use, not the words the books use.
         $this->assertStringContainsString('Handed in', $page);
         $this->assertStringNotContainsString('Sent to another account', $page);
@@ -435,14 +433,18 @@ class AgentCashCustodyTest extends TestCase
         $this->assertStringNotContainsString('Record cash an agent handed in', $page);
     }
 
-    public function test_the_dashboard_says_whose_hand_the_money_is_in(): void
+    public function test_the_dashboard_wallet_card_prints_the_balance_and_nothing_more(): void
     {
         $agent = $this->agent();
         $this->booking($agent, 'CUS-015', 'UGX', '480000', '20000');
 
         $this->actingAs($agent)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Cash on hand, not yet deposited')
-            ->assertSee('UGX 500,000');
+            ->assertSee('UGX Wallet')
+            ->assertSee('UGX 500,000')
+            ->assertDontSee('Cash on hand, not yet deposited')
+            ->assertDontSee('Of which awaiting approval')
+            ->assertDontSee('Fees this month')
+            ->assertDontSee('Handed in so far');
     }
 }

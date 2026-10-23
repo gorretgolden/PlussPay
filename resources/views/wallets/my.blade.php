@@ -27,39 +27,11 @@
     @foreach($wallets as $currency => $account)
     @php
         $balance = (string) $account->balance();
-        $kept = $commission[$account->id] ?? null;
     @endphp
     <div class="bg-white rounded-lg shadow p-6">
         <div class="text-sm text-gray-500 uppercase tracking-wide">{{ $currency }} Wallet</div>
         <div class="text-3xl font-bold text-gray-900 mt-2 tabular-nums">{{ \App\Models\Account::format($currency, $balance) }}</div>
         <x-wallet-updated :at="$account->lastMovementAt()" class="mt-2" />
-        <dl class="mt-4 space-y-1 text-sm">
-            @if($isSuperAgent)
-            <div class="flex justify-between gap-3">
-                <dt class="text-gray-600">Received from agents</dt>
-                <dd class="text-gray-900 tabular-nums">{{ \App\Models\Account::format($currency, $received[$currency] ?? '0.00') }}</dd>
-            </div>
-            {{-- Charges are collected in shillings whatever money the booking was taken in, so they
-                 land in this wallet only, and they are the pile that never goes on to China. --}}
-            @if($currency === 'UGX' && (float) $chargesKept > 0)
-            <div class="flex justify-between gap-3">
-                <dt class="text-gray-600" title="Added up from the ledger lines that say charges received, so it is the money this wallet actually took in">Charges kept from your agents</dt>
-                <dd class="text-gray-900 tabular-nums">{{ \App\Models\Account::format('UGX', $chargesKept) }}</dd>
-            </div>
-            @endif
-            @elseif(! $isChinaDesk)
-            <div class="flex justify-between gap-3">
-                <dt class="text-gray-600">Handed in so far</dt>
-                <dd class="text-gray-900 tabular-nums">{{ \App\Models\Account::format($currency, $handedIn[$account->id] ?? '0.00') }}</dd>
-            </div>
-            @endif
-            @if($kept !== null)
-            <div class="flex justify-between gap-3">
-                <dt class="text-gray-600">Commission kept</dt>
-                <dd class="text-gray-900 tabular-nums">{{ \App\Models\Account::format('UGX', $kept) }}</dd>
-            </div>
-            @endif
-        </dl>
         <div class="text-xs text-gray-400 mt-3">Account: {{ $account->code }}</div>
     </div>
     @endforeach
