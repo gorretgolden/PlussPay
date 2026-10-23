@@ -44,8 +44,21 @@
     </a>
 </div>
 
-<form method="GET" action="{{ route('cash-handovers.index') }}" class="bg-white rounded-lg shadow p-4 mb-5 no-print">
-    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+<form method="GET" action="{{ route('cash-handovers.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 mb-6 no-print">
+    {{-- The period is the first cut a desk makes, so the presets sit on their own row above the
+         finer boxes, and the Filter and Clear buttons close the card on the right like every
+         toolbar. A preset link keeps the search, the status and the currency already picked. --}}
+    <div class="flex flex-wrap items-center gap-2">
+        @foreach($periods as $key => $label)
+            <a href="{{ route('cash-handovers.index', array_merge($keepFilters, ['period' => $key])) }}"
+                class="px-3 py-1 text-xs rounded-full border {{ ! $typedDates && $activePeriod === $key ? 'bg-green-800 border-green-800 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50' }}">{{ $label }}</a>
+        @endforeach
+        @if($dateFrom || $dateTo)
+        <span class="text-xs text-gray-500 ml-1">Showing {{ $dateFrom ?: 'the earliest record' }} to {{ $dateTo ?: 'today' }}.</span>
+        @endif
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
         <div>
             <label class="block text-sm text-gray-600 mb-1" for="filter-search">Search</label>
             <input type="text" id="filter-search" name="search" value="{{ request('search') }}"
@@ -90,26 +103,16 @@
             <input type="date" id="filter-to" name="date_to" value="{{ request('date_to') }}"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
         </div>
-        <div class="flex items-end gap-2">
-            <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Filter</button>
-            <a href="{{ route('cash-handovers.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Clear</a>
-        </div>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-200">
-        <span class="text-sm text-gray-600 mr-1">Period:</span>
-        @foreach($periods as $key => $label)
-            <a href="{{ route('cash-handovers.index', array_merge($keepFilters, ['period' => $key])) }}"
-                class="px-3 py-1 text-xs rounded-full {{ ! $typedDates && $activePeriod === $key ? 'bg-green-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">{{ $label }}</a>
-        @endforeach
-        @if($dateFrom || $dateTo)
-        <span class="text-xs text-gray-600 ml-1">Showing {{ $dateFrom ?: 'the earliest record' }} to {{ $dateTo ?: 'today' }}.</span>
-        @endif
+    <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-gray-100">
+        <a href="{{ route('cash-handovers.index') }}" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-200">Clear</a>
+        <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Filter</button>
     </div>
 </form>
 
-<div class="bg-white rounded-lg shadow p-4 mb-5">
-    <div class="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 mb-6">
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div>
             <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Requests</span>
             <span class="block text-xl font-bold text-gray-900 tabular-nums mt-0.5">{{ number_format($totalRequests) }} {{ $totalRequests === 1 ? 'request' : 'requests' }}</span>
@@ -117,7 +120,7 @@
         @if($totals !== [])
             @foreach($totals as $code => $group)
             <div>
-                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Total {{ $code }}</span>
+                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Total</span>
                 <span class="block text-xl font-bold text-gray-900 tabular-nums mt-0.5">{{ \App\Models\Account::format($code, $group['amount']) }}</span>
                 <span class="block text-xs text-gray-500 tabular-nums">{{ number_format($group['count']) }} {{ $group['count'] === 1 ? 'request' : 'requests' }}</span>
             </div>
@@ -138,16 +141,14 @@
             </div>
         @endif
     </div>
-    <p class="text-[13px] text-gray-600 mt-3">
-        {{ number_format($totalHandovers) }} of these {{ $totalHandovers === 1 ? 'is' : 'are' }} still waiting. A pending hand in is
-        already inside the agent's wallet balance and is not extra to it. The two wallets only move when it is approved.
-        The charges come up with the cash and then stay here: of the money a lead has been handed, only what the transfers
-        are worth is ever sent on to China.
+    <p class="text-[13px] text-gray-600 mt-4 pt-4 border-t border-gray-100">
+        {{ number_format($totalHandovers) }} of these {{ $totalHandovers === 1 ? 'is' : 'are' }} still waiting. A pending hand-in is
+        already inside the agent's wallet balance; nothing moves until it is approved.
     </p>
 </div>
 
 @if($bulkTargets->isNotEmpty())
-<form method="POST" action="{{ route('cash-handovers.bulk') }}" id="bulk-handovers" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-3"
+<form method="POST" action="{{ route('cash-handovers.bulk') }}" id="bulk-handovers" class="bg-green-50 border border-green-200 rounded-xl p-4 mb-6"
     data-confirm-title="Approve the selected hand ins"
     data-confirm="Each one moves the cash out of the agent's wallet into the wallet of the lead the request names, and that request's charges into the lead's shilling wallet. Confirm only the rows you have counted in hand."
     data-confirm-ok="Approve them"
@@ -158,15 +159,19 @@
     {{-- Read back into the confirm card, so the dialog names the rows being moved rather than
          asking about a count nobody checked. The script below keeps it current. --}}
     <input type="hidden" name="bulk_summary" value="">
-    <div class="flex flex-wrap gap-x-4 gap-y-2 items-center">
-        <span class="text-sm font-semibold text-green-800">{{ number_format($bulkTargets->count()) }} waiting for you here.</span>
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <span class="inline-flex items-center gap-2 text-sm font-semibold text-green-900">
+            <span class="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full bg-green-800 text-white text-xs font-bold tabular-nums">{{ number_format($bulkTargets->count()) }}</span>
+            waiting for you here.
+        </span>
         <label class="flex items-center gap-2 text-sm text-green-900">
             <input type="checkbox" id="bulk-all-handovers" class="h-4 w-4 rounded border-gray-300">
             Tick every row
         </label>
-        <span id="bulk-tally" class="text-sm text-green-900" aria-live="polite">Nothing ticked yet.</span>
+        <span id="bulk-tally" class="text-sm text-gray-600" aria-live="polite">Nothing ticked yet.</span>
+        <span class="flex-1"></span>
         <button type="submit" id="bulk-approve" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50">Approve the ticked rows</button>
-        <button type="button" data-clear-selection class="text-sm underline text-gray-600">Clear selection</button>
+        <button type="button" data-clear-selection class="text-sm underline underline-offset-2 text-gray-600 hover:text-gray-900">Clear selection</button>
     </div>
 </form>
 @endif
@@ -178,23 +183,23 @@
     $showLeadColumn = $everyone;
     $columnCount = 7 + ($bulkTargets->isNotEmpty() ? 1 : 0) + ($showLeadColumn ? 1 : 0);
 @endphp
-<div class="bg-white rounded-lg shadow overflow-x-auto">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
     <table class="w-full min-w-[1050px] text-sm">
-        <thead class="bg-gray-50 text-gray-600">
+        <thead class="bg-gray-50">
             <tr>
                 @if($bulkTargets->isNotEmpty())
-                <th scope="col" class="px-3 py-3 text-left"><span class="text-xs font-semibold uppercase tracking-wide">Select</span></th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">Select</th>
                 @endif
-                <th scope="col" class="px-3 py-3 text-left tracking-wide whitespace-nowrap">Request</th>
-                <th scope="col" class="px-3 py-3 text-left tracking-wide whitespace-nowrap">Status</th>
-                <th scope="col" class="px-3 py-3 text-left tracking-wide whitespace-nowrap">Agent</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">Request</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">Status</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">Agent</th>
                 @if($showLeadColumn)
-                <th scope="col" class="px-3 py-3 text-left tracking-wide whitespace-nowrap">Super agent</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">Super agent</th>
                 @endif
-                <th scope="col" class="px-3 py-3 text-right tracking-wide whitespace-nowrap" title="The money these transfers are worth, added together. This is the pile that goes on to China when the lead sends it.">Amount</th>
-                <th scope="col" class="px-3 py-3 text-right tracking-wide whitespace-nowrap" title="What those transfers charged the customers. It rides up with the cash and stays with the lead in Uganda.">Charges (UGX)</th>
-                <th scope="col" class="px-3 py-3 text-left tracking-wide whitespace-nowrap" title="The bookings whose cash this request carries. Approving them makes each one Ready to send to China.">Transfers</th>
-                <th scope="col" class="px-3 py-3 text-left tracking-wide whitespace-nowrap sticky right-0 z-20 bg-gray-50 border-l border-gray-200">Actions</th>
+                <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap" title="The money these transfers are worth, added together. This is the pile that goes on to China when the lead sends it.">Amount</th>
+                <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap" title="What those transfers charged the customers. It rides up with the cash and stays with the lead in Uganda.">Charges (UGX)</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap" title="The bookings whose cash this request carries. Approving them makes each one Ready to send to China.">Transfers</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap sticky right-0 z-20 bg-gray-50 border-l border-gray-200">Actions</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
@@ -218,7 +223,7 @@
             @endphp
             <tr>
                 @if($bulkTargets->isNotEmpty())
-                <td class="px-3 py-3">
+                <td class="px-4 py-3">
                     @if($isMineToDecide)
                     <input type="checkbox" form="bulk-handovers" name="handover_ids[]" value="{{ $handover->id }}"
                         data-figure="{{ $handover->figure() }}{{ (float) $handover->charge_ugx > 0 ? ' + '.$handover->chargeFigure().' charges' : '' }}"
@@ -226,7 +231,7 @@
                     @endif
                 </td>
                 @endif
-                <td class="px-3 py-3">
+                <td class="px-4 py-3">
                     <span class="block font-medium text-gray-900 whitespace-nowrap">{{ $handover->reference }}</span>
                     <span class="block text-xs text-gray-500 tabular-nums mt-0.5">{{ $handover->created_at->format('M j, Y, g:i A') }}</span>
                     @if($handover->note)
@@ -242,7 +247,7 @@
                         <span class="block text-xs mt-1 text-gray-400">No note with it</span>
                     @endif
                 </td>
-                <td class="px-3 py-3 whitespace-nowrap">
+                <td class="px-4 py-3 whitespace-nowrap">
                     @if($handover->status === \App\Models\CashHandover::APPROVED)
                         <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Approved</span>
                     @elseif($handover->status === \App\Models\CashHandover::DECLINED)
@@ -260,15 +265,15 @@
                         @endif
                     </span>
                 </td>
-                <td class="px-3 py-3 whitespace-nowrap">{{ $handover->agent?->name ?: 'Removed agent' }}</td>
+                <td class="px-4 py-3 whitespace-nowrap">{{ $handover->agent?->name ?: 'Removed agent' }}</td>
                 @if($showLeadColumn)
-                <td class="px-3 py-3 whitespace-nowrap">{{ $handover->superAgent?->name ?: 'No super agent on it' }}</td>
+                <td class="px-4 py-3 whitespace-nowrap">{{ $handover->superAgent?->name ?: 'No super agent on it' }}</td>
                 @endif
-                <td class="px-3 py-3 text-right whitespace-nowrap tabular-nums font-semibold text-gray-900">{{ \App\Models\Account::format($handover->currency, $handover->amount) }}</td>
-                <td class="px-3 py-3 text-right whitespace-nowrap tabular-nums {{ (float) $handover->charge_ugx > 0 ? 'text-gray-900' : 'text-gray-400' }}">
+                <td class="px-4 py-3 text-right whitespace-nowrap tabular-nums font-semibold text-gray-900">{{ \App\Models\Account::format($handover->currency, $handover->amount) }}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap tabular-nums {{ (float) $handover->charge_ugx > 0 ? 'text-gray-900' : 'text-gray-400' }}">
                     {{ (float) $handover->charge_ugx > 0 ? $handover->chargeFigure() : 'UGX 0' }}
                 </td>
-                <td class="px-3 py-3">
+                <td class="px-4 py-3">
                     @if($namedCount === 0)
                         <span class="text-gray-400">No transfer named on it</span>
                     @else
@@ -276,7 +281,7 @@
                         <span class="block text-xs text-gray-500 mt-1 max-w-[13rem] truncate" title="{{ $named->implode(', ') }}">{{ $named->implode(', ') }}</span>
                     @endif
                 </td>
-                <td class="px-3 py-3 whitespace-nowrap sticky right-0 z-10 bg-white border-l border-gray-200">
+                <td class="px-4 py-3 whitespace-nowrap sticky right-0 z-10 bg-white border-l border-gray-200">
                     @if($isMineToDecide)
                     <div class="space-y-2">
                         <form method="POST" action="{{ route('cash-handovers.approve', $handover) }}"
