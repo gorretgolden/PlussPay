@@ -355,7 +355,7 @@ class CashHandoverController extends Controller
     }
 
     /**
-     * The usual way to hand cash in: tick the transfers whose money is in front of you and send
+     * The usual way to hand cash in: name the transfers whose money is in front of you and send
      * those names up, rather than a figure nobody can check. The request carries the whole of what
      * those bookings are worth, which is the cash they put in your hand plus the charges they earned,
      * because both of those piles are sitting in your drawer.
@@ -379,8 +379,8 @@ class CashHandoverController extends Controller
             'note' => 'nullable|string|max:255',
         ], [
             'super_agent_id.required' => 'Choose the super agent you are handing the cash to.',
-            'transaction_ids.required' => 'Tick the transfers whose cash you are handing in.',
-            'transaction_ids.min' => 'Tick at least one transfer.',
+            'transaction_ids.required' => 'Choose the transfer whose cash you are handing in.',
+            'transaction_ids.min' => 'Choose at least one transfer.',
         ]);
 
         $superAgent = User::find($validated['super_agent_id']);
@@ -402,7 +402,7 @@ class CashHandoverController extends Controller
         if ($bookings->count() !== $ids->count()) {
             return back()->withErrors([
                 'transaction_ids' => 'Some of those transfers are not yours to hand in. Reload the list and'
-                    .' tick them again.',
+                    .' choose them again.',
             ])->withInput();
         }
 
@@ -421,7 +421,7 @@ class CashHandoverController extends Controller
         if ($spokenFor->isNotEmpty()) {
             return back()->withErrors([
                 'transaction_ids' => 'These transfers are already named on a hand-in: '.$this->receiptList($spokenFor)
-                    .'. Cancel that request ('.$spokenFor->first()->cashHandover?->reference.') first, or tick others.',
+                    .'. Cancel that request ('.$spokenFor->first()->cashHandover?->reference.') first, or hand in other transfers.',
             ])->withInput();
         }
 
@@ -429,7 +429,7 @@ class CashHandoverController extends Controller
 
         if ($currencies->count() > 1) {
             return back()->withErrors([
-                'transaction_ids' => 'One hand-in carries one money. You ticked '
+                'transaction_ids' => 'One hand-in carries one money. You named '
                     .$currencies->implode(', ').' bookings, so send them as one hand-in per money.',
             ])->withInput();
         }
@@ -462,21 +462,25 @@ class CashHandoverController extends Controller
             return back()->withErrors(['transaction_ids' => $short])->withInput();
         }
 
-        [$handover, $open] = $this->raiseOnce($viewer, fn () => CashHandover::request(
-            $viewer,
-            $superAgent,
-            $currency,
-            $principal,
-            $request->input('note') ?: null,
-            $charges,
-            $bookings->pluck('receipt_number')->all(),
-        ));
+        // Each request names its own transfers, so several can be in flight at once: a second
+        // request cannot promise the same cash twice because the rows it names are already spoken
+        // for. The request and the pointing of the bookings at it are written together, so the two
+        // can never land apart.
+        $handover = DB::transaction(function () use ($viewer, $superAgent, $currency, $principal, $request, $charges, $bookings) {
+            $handover = CashHandover::request(
+                $viewer,
+                $superAgent,
+                $currency,
+                $principal,
+                $request->input('note') ?: null,
+                $charges,
+                $bookings->pluck('receipt_number')->all(),
+            );
 
-        if ($open) {
-            return back()->withErrors(['handover' => $this->openHandInMessage($open)])->withInput();
-        }
+            $handover->link($bookings->pluck('id')->all());
 
-        $handover->link($bookings->pluck('id')->all());
+            return $handover;
+        });
 
         ActivityLog::create([
             'user_id' => $viewer->id,
@@ -562,36 +566,6 @@ class CashHandoverController extends Controller
         }
 
         return null;
-    }
-
-    /**
-     * The lock and the one-request-at-a-time rule, shared by both ways of raising a hand-in. The
-     * agent's own row is the thing locked, because the drawer that must not be promised twice is
-     * theirs rather than any one wallet's.
-     *
-     * @param  callable(): CashHandover  $create
-     * @return array{0: ?CashHandover, 1: ?CashHandover} the request just raised, or the one already open
-     */
-    private function raiseOnce(User $viewer, callable $create): array
-    {
-        return DB::transaction(function () use ($viewer, $create) {
-            User::whereKey($viewer->id)->lockForUpdate()->first();
-
-            $open = CashHandover::openFor($viewer)->latest('id')->first();
-
-            if ($open) {
-                return [null, $open];
-            }
-
-            return [$create(), null];
-        });
-    }
-
-    private function openHandInMessage(CashHandover $open): string
-    {
-        return 'You already have '.$open->figure().' waiting for '
-            .($open->superAgent?->name ?: 'your super agent').' to approve or send it back ('
-            .$open->reference.'). You can send another hand-in once that request is closed.';
     }
 
     /**

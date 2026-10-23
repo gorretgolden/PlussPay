@@ -17,7 +17,7 @@
         @elseif($isChinaDesk)
             Money sent from Uganda arrives here, and the yuan or dollars you hand a receiver leave from here. Commission is paid in shillings, whatever currency the transfer was booked in.
         @else
-            Money you collected stays here until the super agent takes it in hand. Hand cash in by ticking the transfers on the <a href="{{ route('transactions.index') }}" class="text-green-800 underline">Transactions</a> page. Commission is paid in shillings, whatever currency the transfer was booked in.
+            Money you collected stays here until the super agent takes it in hand. Hand cash in by opening a transfer on the <a href="{{ route('transactions.index') }}" class="text-green-800 underline">Transactions</a> page and choosing Hand in this cash. Commission is paid in shillings, whatever currency the transfer was booked in.
         @endif
     </p>
 </div>

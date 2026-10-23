@@ -268,8 +268,8 @@
         'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     ] : null;
 
-    // Handing cash in happens on the Transactions page, where the transfers that earned the cash
-    // are ticked and the request carries them. There is no flat-amount hand-in anymore.
+    // Handing cash in happens on the Transactions page, where a transfer's own row opens the
+    // modal that raises the request. There is no flat-amount hand-in anymore.
 
     $quickActions = array_values(array_filter([
         ...$sendActions,

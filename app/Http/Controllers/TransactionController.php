@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\ActivityLog;
-use App\Models\CashHandover;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
@@ -35,8 +34,8 @@ class TransactionController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        // The cash an agent holds is handed in from this very list, by ticking the transfers it came
-        // from, so the desk names a hand-in is sent to are offered here as well.
+        // The cash an agent holds is handed in from this very list, one transfer at a time through
+        // the modal, so the leads a hand-in can be sent to are offered here as well.
         [$mayHandIn, $superAgents] = $this->handInDesk($viewer);
 
         // The dropdown offers the names the list can actually be cut to, so a desk that only
@@ -60,9 +59,7 @@ class TransactionController extends Controller
         // viewer is actually looking at and not some other slice of the book.
         $deskTotals = Transaction::visibleTo($viewer)->filtered($request)->deskTotals();
 
-        return view('transactions.index', compact('transactions', 'creators', 'usdPrices', 'rmbPrices', 'deskTotals', 'mayHandIn', 'superAgents') + [
-            'openHandIn' => $mayHandIn ? CashHandover::openFor($viewer)->latest('id')->first() : null,
-        ]);
+        return view('transactions.index', compact('transactions', 'creators', 'usdPrices', 'rmbPrices', 'deskTotals', 'mayHandIn', 'superAgents'));
     }
 
     /**

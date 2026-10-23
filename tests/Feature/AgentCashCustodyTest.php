@@ -227,7 +227,7 @@ class AgentCashCustodyTest extends TestCase
         $lead = $this->superAgent();
         $this->booking($agent, 'CUS-007', 'UGX', '480000', '20000');
 
-        // The request screen refuses when the drawer does not cover the ticks, but the approval
+        // The request screen refuses when the drawer does not cover the transfers, but the approval
         // carries the same guard: money can never leave a drawer that does not hold it, whichever
         // door the request came through.
         $handover = CashHandover::request($agent, $lead, 'UGX', '500001');
@@ -312,7 +312,7 @@ class AgentCashCustodyTest extends TestCase
         $agent = $this->agent();
         $lead = $this->superAgent();
 
-        // An RMB row can only exist beside a Uganda desk by accident, but the tick flow refuses it
+        // An RMB row can only exist beside a Uganda desk by accident, but the request flow refuses it
         // all the same: a Uganda hand-in carries shillings or dollars, never yuan.
         $transaction = $this->booking($agent, 'CUS-010', 'RMB', '100', '0');
 
@@ -352,7 +352,7 @@ class AgentCashCustodyTest extends TestCase
         $lead = $this->superAgent();
         $transaction = $this->booking($agent, 'CUS-011', 'UGX', '480000', '20000');
 
-        // A desk that took no cash has no hand-in to raise, and ticking another person's transfers
+        // A desk that took no cash has no hand-in to raise, and naming another person's transfers
         // does not give it one.
         $this->actingAs($staff)->post(route('cash-handovers.from-transactions'), [
             'super_agent_id' => $lead->id,
@@ -372,7 +372,7 @@ class AgentCashCustodyTest extends TestCase
 
         $page = $this->actingAs($agent)->get(route('wallet.index'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('ticking the transfers', $page);
+        $this->assertStringContainsString('Hand in this cash', $page);
         $this->assertStringContainsString('Cash hand-in requests', $page);
         $this->assertStringContainsString('Approved', $page);
         $this->assertStringContainsString('Cash history', $page);
@@ -388,7 +388,8 @@ class AgentCashCustodyTest extends TestCase
         $agent = $this->agent();
 
         // Without a lead the old page offered a notice and nothing else; with one it offered the
-        // typed form. Both are gone: the wallet page points at the tick flow and never opens a box.
+        // typed form. Both are gone: the wallet page points at the per-transfer modal and never
+        // opens a box.
         $page = $this->actingAs($agent)->get(route('wallet.index'))->assertOk()->getContent();
         $this->assertStringNotContainsString('hand-in-amount', $page);
         $this->assertStringNotContainsString('Send for approval', $page);
@@ -397,7 +398,7 @@ class AgentCashCustodyTest extends TestCase
         $lead = $this->superAgent();
         $this->flushSession();
         $page = $this->actingAs($agent)->get(route('wallet.index'))->assertOk()->getContent();
-        $this->assertStringContainsString('ticking the transfers', $page);
+        $this->assertStringContainsString('Hand in this cash', $page);
         $this->assertStringNotContainsString('hand-in-amount', $page);
         $this->assertStringNotContainsString('Send for approval', $page);
         $this->assertStringNotContainsString($lead->name, $page, 'The super agent list no longer rides on the wallet page.');

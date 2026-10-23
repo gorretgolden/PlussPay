@@ -81,7 +81,7 @@ class SuperAgentDemoFlowTest extends TestCase
         $agent = User::where('email', 'agent@plussave.com')->sole();
         $lead = User::where('email', 'superagent@plussave.com')->sole();
 
-        // Cash taken in at the counter first, so the agent has a transfer to tick on the
+        // Cash taken in at the counter first, so the agent has a transfer to hand in from the
         // Transactions page. The charge is zero so the whole 120,000 is the hand-in.
         $transaction = Transaction::create([
             'receipt_number' => 'DEMO-001',
@@ -106,7 +106,7 @@ class SuperAgentDemoFlowTest extends TestCase
         $this->signIn('agent@plussave.com');
 
         $this->get('/wallet')->assertOk()
-            ->assertSee('ticking the transfers');
+            ->assertSee('Hand in this cash');
 
         $this->post(route('cash-handovers.from-transactions'), [
             'super_agent_id' => $lead->id,

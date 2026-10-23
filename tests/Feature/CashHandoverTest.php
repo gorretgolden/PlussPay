@@ -55,7 +55,7 @@ class CashHandoverTest extends TestCase
     }
 
     /**
-     * Money already taken in at the counter, the same shape the Transactions page ticks.
+     * Money already taken in at the counter, the same shape the Transactions page hands in.
      */
     private function booked(string $receipt, User $creator, string $principal = '480000'): Transaction
     {

@@ -116,14 +116,14 @@ class ExpenseReachabilityTest extends TestCase
         // spending tile hands him the pen. The counter, the prices and the customer list stay with
         // the office and the super agent. Each check reads the shortcut card itself, because the
         // sidebar carries the same words further up the page. Handing cash in is not a tile: it is
-        // the ticks on the Transactions page.
+        // the per-transfer modal on the Transactions page.
         $agentPage = $this->html($this->user('agent', 'Amina Nabukenya'));
         $agent = $this->quickActions($agentPage);
         $this->assertStringContainsString('>Send Money to China</span>', $agent);
         $this->assertStringNotContainsString('>Send Money to Uganda</span>', $agent, 'Uganda is where this agent already stands.');
         $this->assertStringContainsString('>Record Expense</span>', $agent, 'The desk that paid the cash out is the desk that records it.');
         $this->assertStringContainsString('Log what you spent today', $agent);
-        $this->assertStringNotContainsString('>Hand Cash In</span>', $agent, 'The typed hand-in tile is gone; the ticks on the Transactions page are the way in.');
+        $this->assertStringNotContainsString('>Hand Cash In</span>', $agent, 'The typed hand-in tile is gone; the modal on the Transactions page is the way in.');
         $this->assertStringNotContainsString('>Withdraw Money in China</span>', $agent, 'The China queue is not a Uganda agent\'s to clear.');
         foreach (['Record Exchange', 'Exchange Rates', 'Add Customer', 'Transactions'] as $label) {
             $this->assertStringNotContainsString('>'.$label.'</span>', $agent, $label.' is beyond an agent.');

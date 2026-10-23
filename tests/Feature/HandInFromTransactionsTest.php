@@ -16,7 +16,7 @@ use Tests\TestCase;
 /**
  * Handing cash in by naming the transfers it came from, rather than typing a figure nobody can
  * check. The request is the pair of piles the booking put in the agent's hand: the money that
- * travels on, and the charge that does not. These tests pin that the ticks become a request, that
+ * travels on, and the charge that does not. These tests pin that the names become a request, that
  * the request is the only thing that moves the money, that the agent can call it back, and that a
  * charge never crosses to China whatever the desk does afterwards.
  */
@@ -108,7 +108,7 @@ class HandInFromTransactionsTest extends TestCase
         return Account::walletFor($who, $currency)->fresh()->balance();
     }
 
-    public function test_ticking_transfers_raises_one_request_for_the_cash_and_the_charges(): void
+    public function test_naming_transfers_raises_one_request_for_the_cash_and_the_charges(): void
     {
         $first = $this->booked('HT-001', $this->agent, 'UGX', '480000', '20000');
         $second = $this->booked('HT-002', $this->agent, 'UGX', '240000', '10000');
@@ -138,9 +138,13 @@ class HandInFromTransactionsTest extends TestCase
         $this->assertSame('0.00', $this->balance($this->lead, 'UGX'));
         $this->assertSame(0, AccountEntry::whereIn('type', ['handover_out', 'handover_in', 'fee_handover_out', 'fee_handover_in'])->count());
 
+        // The list reads the booking as waiting, and no longer offers to hand its cash in.
         $page = $this->actingAs($this->agent)->get('/transactions')->assertOk()->getContent();
-        $this->assertStringContainsString('is waiting for Lead Agent to approve it', $page);
-        $this->assertStringContainsString($handover->reference, $page);
+        $this->assertStringContainsString('Waiting for hand-in approval', $page);
+        $this->assertStringNotContainsString('>Hand in this cash</button>', $page);
+
+        // The request and its reference are the agent's own record on the wallet page.
+        $this->assertStringContainsString($handover->reference, $this->actingAs($this->agent)->get('/wallet')->assertOk()->getContent());
     }
 
     public function test_approving_moves_the_cash_to_the_lead_and_the_charges_into_his_shillings(): void
@@ -304,7 +308,7 @@ class HandInFromTransactionsTest extends TestCase
         $this->assertSame('0.00', $this->balance($this->lead, 'UGX'));
     }
 
-    public function test_the_ticks_are_read_back_from_the_book_and_not_from_the_form(): void
+    public function test_the_names_are_read_back_from_the_book_and_not_from_the_form(): void
     {
         $mine = $this->booked('HT-070', $this->agent, 'UGX', '480000', '20000');
         $theirs = $this->booked('HT-071', $this->other, 'UGX', '300000', '10000');
@@ -326,14 +330,14 @@ class HandInFromTransactionsTest extends TestCase
 
         $this->handIn($this->agent, [$mine->id])->assertSessionHas('success');
 
-        // The agent is allowed one open request at a time.
-        $this->handIn($this->agent, [$usd->id])->assertSessionHasErrors('handover');
-        $this->assertSame(1, CashHandover::count());
+        // A second request rides while the first is open, because each one names its own transfers.
+        $this->handIn($this->agent, [$usd->id])->assertSessionHas('success');
+        $this->assertSame(2, CashHandover::count());
 
         // And a booking already named on that request cannot be spoken for again.
         $this->flushSession();
         $this->handIn($this->agent, [$mine->id])->assertSessionHasErrors('transaction_ids');
-        $this->assertSame(1, CashHandover::count());
+        $this->assertSame(2, CashHandover::count());
     }
 
     public function test_the_office_can_decide_a_request_and_the_money_goes_to_the_lead_it_names(): void

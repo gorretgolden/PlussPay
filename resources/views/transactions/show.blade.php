@@ -307,42 +307,14 @@
         <div class="border-t pt-4 mt-4">
             <h3 class="text-sm font-medium text-gray-500 mb-1">Hand this cash in for approval</h3>
             <p class="text-xs text-gray-500 mb-3">Your lead approves the cash and his wallets hold it. Only the money that travels goes on to China later; the charge stays with him.</p>
-            <form method="POST" action="{{ route('cash-handovers.from-transactions') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3 md:items-end"
-                data-lock data-lock-label="Sending...">
-                @csrf
-                <input type="hidden" name="transaction_ids[]" value="{{ $transaction->id }}">
-                <div>
-                    <label for="hand_in_super_agent" class="block text-sm text-gray-600 mb-1">Handing to <span class="text-red-600">*</span></label>
-                    <select id="hand_in_super_agent" name="super_agent_id" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                        <option value="">Choose the super agent</option>
-                        @foreach($superAgents as $lead)
-                        <option value="{{ $lead->id }}">{{ $lead->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label for="hand_in_note" class="block text-sm text-gray-600 mb-1">Note <span class="font-normal text-gray-400">(optional)</span></label>
-                    <input type="text" id="hand_in_note" name="note" maxlength="255" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                        placeholder="e.g. Counter cash for today">
-                </div>
-                <div class="md:justify-self-end">
-                    <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-green-700">Hand in for approval</button>
-                </div>
-                <dl class="md:col-span-3 grid grid-cols-[auto_auto_1fr] items-baseline gap-x-3 gap-y-1.5 text-sm rounded-lg bg-gray-50 p-3 ring-1 ring-inset ring-gray-200">
-                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Cash to hand in</dt>
-                    <dd class="text-right font-semibold text-gray-900 tabular-nums">{{ $transaction->principalLabel() }}</dd>
-                    <dd class="text-[11px] text-gray-500">what this transfer was worth when it was booked.</dd>
-                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Charges with it</dt>
-                    <dd class="text-right font-semibold text-gray-900 tabular-nums">{{ $transaction->feeLabel() }}</dd>
-                    <dd class="text-[11px] text-gray-500">
-                        @if($transaction->isToUganda())
-                        a booking into Uganda never collected its charge as cash, so none of it rides up.
-                        @else
-                        what this transfer earned you; it goes up with the cash and stays with your lead.
-                        @endif
-                    </dd>
-                </dl>
-            </form>
+            <button type="button" onclick="openHandInModal(this)"
+                data-id="{{ $transaction->id }}"
+                data-receipt="{{ $transaction->receipt_number }}"
+                data-route="{{ $transaction->sender_name }} to {{ $transaction->receiver_name }}"
+                data-principal="{{ $transaction->principalLabel() }}"
+                data-charge="{{ $transaction->isToUganda() ? 'UGX 0' : $transaction->feeLabel() }}"
+                data-collected="{{ $transaction->collectedAmount() }}"
+                class="bg-green-800 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-green-700">Hand this cash in</button>
         </div>
         @elseif($mine && $handIn?->status === \App\Models\CashHandover::PENDING)
         <div class="border-t pt-4 mt-4">
@@ -363,6 +335,8 @@
             </form>
         </div>
         @endif
+
+        @include('transactions.partials.hand-in-modal')
     @endif
 
     @if($transaction->activityLogs->isNotEmpty())

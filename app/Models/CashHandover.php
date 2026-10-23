@@ -14,10 +14,10 @@ use Illuminate\Support\Facades\DB;
  * request is therefore a row of its own, waiting, while the ledger still says the money is in the
  * agent's wallet; only an approval moves it, and a decline leaves every figure where it was.
  *
- * A request usually names the transfers it stands for, so the rows an agent ticked are the rows the
- * super agent reads before approving. The bookings keep their own pointer back to the request while
- * it is open, which is how a transaction list can say "waiting for hand-in approval" without joining
- * a queue to find out.
+ * A request usually names the transfers it stands for, so the rows an agent handed in are the rows
+ * the super agent reads before approving. The bookings keep their own pointer back to the request
+ * while it is open, which is how a transaction list can say "waiting for hand-in approval" without
+ * joining a queue to find out.
  */
 class CashHandover extends Model
 {
@@ -113,15 +113,6 @@ class CashHandover extends Model
     public function scopePendingFor(Builder $query, User $superAgent): Builder
     {
         return $query->where('super_agent_id', $superAgent->id)->where('status', self::PENDING);
-    }
-
-    /**
-     * The one request an agent may have in flight. A second request waits until the first is
-     * approved or sent back, so the same drawer is never promised to two super agents at once.
-     */
-    public function scopeOpenFor(Builder $query, User $agent): Builder
-    {
-        return $query->where('agent_id', $agent->id)->where('status', self::PENDING);
     }
 
     /**
