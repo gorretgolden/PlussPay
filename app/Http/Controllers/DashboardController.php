@@ -132,14 +132,12 @@ class DashboardController extends Controller
         // The other half of the corridor: dollars that came from Uganda have reached a desk in
         // China and the receiver is still to be handed the money. This is the queue the Withdraw
         // shortcut opens, counted on the same rule the China desk lists it by so the shortcut and
-        // the page it opens never disagree.
+        // the page it opens never disagree: the payout pen sees the whole waiting list, wherever
+        // its desk stands.
         $withdrawalsWaiting = 0;
 
-        if ($user->can('view-transactions') && $user->can('confirm-china-payout')
-            && (($user->country ?: User::DEFAULT_COUNTRY) === 'CN' || $user->can('view-all-transactions'))) {
-            $withdrawalsWaiting = Transaction::awaitingPayoutInChina()
-                ->when(! $user->can('view-all-transactions'), fn (Builder $q) => $q->where('settled_to', $user->id))
-                ->count();
+        if ($user->can('view-transactions') && $user->can('confirm-china-payout')) {
+            $withdrawalsWaiting = Transaction::awaitingPayoutInChina()->count();
         }
 
         // What the charge pen has kept this month, kept apart by the wallet it landed in so each

@@ -184,9 +184,9 @@ class CashHandoverTest extends TestCase
             $html = $this->actingAs($viewer)->get('/dashboard')->assertOk()->getContent();
 
             $start = strpos($html, 'Cash You Hand In');
-            $end = strpos($html, 'Quick Actions', $start);
+            $end = strpos($html, '<h2 ', $start);
             $this->assertNotFalse($start, 'The hand-in insight card is on the board.');
-            $this->assertNotFalse($end, 'Quick Actions follows the hand-in insight card.');
+            $this->assertNotFalse($end, 'A later section heading bounds the hand-in insight card.');
 
             $insight = substr($html, $start, $end - $start);
             $this->assertSame(

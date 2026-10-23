@@ -14,10 +14,10 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * The two cards under Quick Actions are custody: shillings and dollars sitting in one person's
- * hand waiting to be handed in. A desk that reads every wallet does that on the Wallets and
- * Accounts screens, so the board used to hand Super Admin two empty cards of their own and,
- * because wallets are created on sight, quietly register two accounts nobody holds money in.
+ * The wallet cards are custody: shillings and dollars sitting in one person's hand waiting to be
+ * handed in. A desk that reads every wallet does that on the Wallets and Accounts screens, so the
+ * board used to hand Super Admin two empty cards of their own and, because wallets are created on
+ * sight, quietly register two accounts nobody holds money in.
  */
 class DashboardWalletCardsTest extends TestCase
 {

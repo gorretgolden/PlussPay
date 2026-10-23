@@ -14,13 +14,10 @@
         $hour >= 18 => 'Good evening',
         default => 'Hello',
     };
-    // Cash travels the other way at the far desk: a hand in China is paid out to receivers rather
-    // than handed up, so the wording of the balances and the shortcuts both follow this one test.
     // The desk's name itself is not printed here any more, because the sidebar footer under it
     // already reads "Agent · Uganda". The one exception is a desk whose country was never filled
     // in: the balances below follow Uganda by default, so the board has to say the country is
     // unset rather than leave a reader guessing which till they are looking at.
-    $cnDesk = ($me->country ?: \App\Models\User::DEFAULT_COUNTRY) === 'CN';
     $desk = $me->countryLabel();
 
 
@@ -87,52 +84,52 @@
     $clockDate = now()->format('D, j M Y');
     $clockTime = now()->format('g:i A');
 @endphp
-{{-- The board has to give room to the balances, so this card is one line tall on a wide desk: the
-     greeting, the role, the hour and the two controls. The page title is kept for a screen reader
-     and the sidebar already says which screen this is, so the big word "Dashboard" is gone. The
-     desk's country and the account name are not repeated here either, because the sidebar footer
-     under them carries both, word for word. --}}
-<div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm p-3 sm:p-4">
+{{-- The board opens with a brand-green hero: the greeting, the role, the hour and the two controls.
+     The page title is kept for a screen reader and the sidebar already says which screen this is,
+     so the big word "Dashboard" is gone. The desk's country and the account name are not repeated
+     here either, because the sidebar footer under them carries both, word for word. --}}
+<div class="mb-6 rounded-xl bg-gradient-to-r from-green-900 via-green-800 to-green-700 shadow-md p-3 sm:p-4">
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 class="sr-only">Dashboard</h1>
         {{-- The mark follows the same hour bands as the words: a sun for the desk hours, a moon
              for the night shift. It carries no text, so it cannot repeat anything on the page. --}}
         <div class="flex min-w-0 items-center gap-3 mr-auto">
-            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full flex items-center justify-center {{ $hour >= 6 && $hour < 18 ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600' }}">
+            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full flex items-center justify-center bg-white/15 {{ $hour >= 6 && $hour < 18 ? 'text-amber-100' : 'text-indigo-100' }}">
                 @if($hour >= 6 && $hour < 18)
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66l1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14l-1.41-1.41M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                 @else
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.5 13.5A8.5 8.5 0 1110.5 3.5a7 7 0 0010 10z"/></svg>
                 @endif
             </span>
-            <p class="text-gray-600 mt-1">{{ $greeting }}, {{ $greetAs }}.</p>
+            <p class="text-white mt-1">{{ $greeting }}, {{ $greetAs }}.</p>
         </div>
         {{-- The badge is kept even though the sidebar footer names the role too: it is the board's
              statement of what this account may do, and it sits beside the balances it governs. --}}
-        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize">{{ $role }}</span>
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-green-50 capitalize ring-1 ring-inset ring-white/20">{{ $role }}</span>
         {{-- No seconds: the figure only has to be right to the minute, and a digit running every
              second pulls the eye away from the balances. The zone is printed because every figure
              on this board is kept in Kampala time, whatever the machine reading it is set to. --}}
         <div class="text-right leading-tight">
-            <span class="block text-[13px] text-gray-600 tabular-nums" id="liveClock" data-zone-offset="180">{{ $clockDate }} · {{ $clockTime }} EAT</span>
+            <span class="block text-[13px] text-green-100 tabular-nums" id="liveClock" data-zone-offset="180">{{ $clockDate }} · {{ $clockTime }} EAT</span>
             {{-- Set once the board has been pulled again. Until then the line is empty rather than
                  guessing at a time nobody asked for. --}}
-            <span class="block text-[13px] text-gray-500 tabular-nums" id="lastRefreshed"></span>
+            <span class="block text-[13px] text-green-100/70 tabular-nums" id="lastRefreshed"></span>
         </div>
         {{-- Log out and Reload sit here as well as at the bottom of the sidebar, because the
              sidebar is hidden on a phone and the clock line is where eyes already land. --}}
         <div class="flex items-center gap-2 ml-auto sm:ml-0 no-print">
-            {{-- A phone gets the two glyphs at 40px each with the words dropped; the sign-out is
-                 the quieter of the pair and only colours up once it is actually being aimed at. --}}
+            {{-- A phone gets the two glyphs at 40px each with the words dropped. Reload is the
+                 solid one, and the sign-out is the ghost that only colours up once it is actually
+                 being aimed at. --}}
             <button type="button" onclick="reloadDashboard(this)" aria-label="Reload this board"
-                class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold bg-white text-green-800 hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-1">
                 <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 <span class="hidden sm:inline">Reload</span>
             </button>
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" aria-label="Log out"
-                    class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold border border-gray-200 bg-white text-gray-500 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                    class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold border border-white/25 bg-white/10 text-green-100 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-1">
                     <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                     <span class="hidden sm:inline">Log out</span>
                 </button>
@@ -142,9 +139,121 @@
     @unless($desk)
     {{-- Only the missing case is printed. When a country is set the sidebar footer already names it,
          and a second copy beside the greeting is the duplication she asked to take out. --}}
-    <p class="text-[13px] text-gray-700 mt-2">{{ $desk ?: 'Desk country not set' }}. The balances below follow Uganda by default, so set the country on your account to see the right till.</p>
+    <p class="text-[13px] text-green-100/90 mt-2">{{ $desk ?: 'Desk country not set' }}. The balances below follow Uganda by default, so set the country on your account to see the right till.</p>
     @endunless
 </div>
+
+@php
+    // Shortcuts to the work people come here to do, the first card under the greeting: the actions
+    // open the board rather than waiting under the till it describes. Each one is dropped when its
+    // ability is missing, so nobody is handed a button that bounces back with a permission error,
+    // and a role that books nothing at all gets no card rather than a row of dead links. Every
+    // label starts with the verb for what the tile does, and is the words the screen it opens uses,
+    // so one thing never carries two names. Sending opens with the corridor already chosen, since
+    // which way the money goes is the first thing a desk knows about the booking standing in front
+    // of it, and it is the job the whole board exists for, so it is the one tile filled in with the
+    // brand green.
+    //
+    // A hand only ever sends one way: the cash is handed over where the desk is, so an agent in
+    // Uganda sends to China and an agent in China sends to Uganda. Whoever sees the whole book
+    // keys in for either desk, which the booking form already lets them do, so the lead agent and
+    // the office are offered both roads rather than having to turn the form around by hand.
+    //
+    // The mark on the send tile is a note with a road leaving it, not a plain right arrow: an
+    // arrow alone reads as "next", and this tile is the desk's main job rather than a step.
+    $sendToChina = ['create-transaction', 'Send Money to China', 'Cash in Uganda, paid in China', route('transactions.create', ['destination' => \App\Models\Transaction::TO_CHINA]), 'M4 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM8 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM13.5 12.5L20 5.5M15.5 5H20v4.5', true];
+    $sendToUganda = ['create-transaction', 'Send Money to Uganda', 'Cash in China, paid in Uganda', route('transactions.create', ['destination' => \App\Models\Transaction::TO_UGANDA]), 'M11 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2h-4.5a2 2 0 01-2-2v-4zM15 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM10.5 12.5L4 5.5M8.5 5H4v4.5', true];
+    $sendActions = $me->can('view-all-transactions')
+        ? [$sendToChina, $sendToUganda]
+        : [\App\Models\Transaction::destinationForDesk($me->country) === \App\Models\Transaction::TO_UGANDA ? $sendToUganda : $sendToChina];
+
+    // The spending tile is named for the pen its reader holds. A desk that records its own
+    // spending is offered the recording; a role that only reads the book is offered the book.
+    $canWriteExpense = $me->can('create-expense') && ! $me->can('view-all-expenses');
+    $expenseLabel = $canWriteExpense ? 'Record Expense' : 'Expenses';
+    $expenseHint = match (true) {
+        $canWriteExpense => 'Log what you spent today',
+        $me->can('create-expense') && $me->can('view-all-expenses') => 'Record spending, read every entry',
+        $me->can('view-all-expenses') => 'Every expense logged',
+        default => 'What you spent',
+    };
+
+    // Money that came from Uganda is withdrawn where the receiver collects it, which is a desk in
+    // China. The payout pen clears this queue wherever its own desk stands, because one person
+    // often runs both ends of the corridor. The shortcut opens the China desk at the payout queue,
+    // offered on the same rule the page uses to show that side, with the same count, so it never
+    // leads to a queue the hand cannot clear or promises work that is not there.
+    $canWithdraw = $me->can('view-transactions') && $me->can('confirm-china-payout');
+
+    $withdrawAction = $canWithdraw ? [
+        'confirm-china-payout',
+        'Withdraw Money in China',
+        $withdrawalsWaiting > 0
+            ? number_format($withdrawalsWaiting).' receiver'.($withdrawalsWaiting === 1 ? '' : 's').' waiting to be paid'
+            : 'Pay receivers of money sent from Uganda',
+        route('china.index').'#payouts',
+        'M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v10m0 0l-4-4m4 4l4-4',
+    ] : null;
+
+    // The lead agent's queue already sits on this board, one Approve button per request. The
+    // shortcut goes to that card rather than opening a second copy of the same decision.
+    $approveAction = $me->hasRole('super-agent') ? [
+        'approve-cash-handover',
+        'Approve Cash Hand-In',
+        $handoverQueue->isNotEmpty()
+            ? number_format($handoverQueue->count()).' request'.($handoverQueue->count() === 1 ? '' : 's').' waiting for you'
+            : 'Approve the cash agents hand over',
+        '#cash-handed-to-you',
+        'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+    ] : null;
+
+    // Handing cash in happens on the Transactions page, where a transfer's own row opens the
+    // modal that raises the request. There is no flat-amount hand-in anymore.
+
+    $quickActions = array_values(array_filter([
+        ...$sendActions,
+        ...($withdrawAction ? [$withdrawAction] : []),
+        ...($approveAction ? [$approveAction] : []),
+        ['create-exchange', 'Record Exchange', 'Buy or sell notes', route('exchanges.create'), 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4'],
+        ['view-expenses', $expenseLabel, $expenseHint, route('expenses.index'), 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
+        ['view-exchange-rates', 'Exchange Rates', "Today's prices", route('exchange-rates.index'), 'M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2zm3-14h4m-4 4h4m-4 4h4'],
+        ['create-customer', 'Add Customer', 'Save a person', route('customers.create'), 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
+        // The lead agent is the one person besides the office who reads every agent's work, so the
+        // whole book is a shortcut of its own rather than a trip through the sidebar.
+        ['view-all-transactions', 'Transactions', 'Every transfer in the book', route('transactions.index'), 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'],
+    ], fn (array $a) => $me->can($a[0])));
+@endphp
+
+@if($quickActions !== [])
+@php
+    // A desk with exactly three shortcuts puts all three in one row from the small breakpoint up,
+    // so the third never waits below the fold. Any other count steps up a column at lg instead.
+    $tilesPerRow = count($quickActions) === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2 lg:grid-cols-3';
+@endphp
+<div class="rounded-xl border border-green-100 bg-gradient-to-b from-green-50/70 to-white shadow-sm p-4 sm:p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+    {{-- A tile never stretches across the row on its own, because a full-width card looks like a
+         heading rather than something to press. --}}
+    <div class="grid grid-cols-1 gap-3 {{ $tilesPerRow }}">
+        @foreach($quickActions as $action)
+        @php [$ability, $label, $hint, $url, $glyph, $primary] = array_pad($action, 6, null); @endphp
+        <a href="{{ $url }}" class="group flex items-center gap-3 min-w-0 rounded-lg border p-3 transition hover:border-green-300 hover:bg-green-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1{{ $primary ? ' bg-green-800 border-green-800 hover:bg-green-700 sm:col-span-1' : ' border-gray-200 bg-white' }}">
+            <span aria-hidden="true" class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center {{ $primary ? 'bg-white/15 text-white' : 'bg-green-100 text-green-800' }}">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $glyph }}"/></svg>
+            </span>
+            <span class="min-w-0 flex-1">
+                <span class="block text-sm font-semibold {{ $primary ? 'text-white' : 'text-gray-900' }}">{{ $label }}</span>
+                <span class="block text-[13px] {{ $primary ? 'text-green-100' : 'text-gray-700' }}">{{ $hint }}</span>
+            </span>
+            {{-- The chevron is what says "this goes somewhere". Nothing else on a card is a link,
+                 and a tile that only changes colour under the cursor says nothing until the
+                 cursor is already on it. --}}
+            <svg class="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 {{ $primary ? 'text-green-100' : 'text-gray-400 group-hover:text-green-700' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </a>
+        @endforeach
+    </div>
+</div>
+@endif
 
 <x-live-rate-card />
 
@@ -203,92 +312,11 @@
     .stat-value { font-size: 1.5rem; font-size: clamp(.875rem, calc(100cqi / (var(--len) * .52)), 1.5rem); }
 </style>
 
-@php
-    // Shortcuts to the work people come here to do. The balances are read first and the shortcuts
-    // sit under them, because a desk checks the till before it decides what to do with it. Each one
-    // is dropped when its ability is missing, so nobody is handed a button that bounces back with a
-    // permission error, and a role that books nothing at all gets no card rather than a row of
-    // dead links. Every label starts with the verb for what the tile does, and is the words the
-    // screen it opens uses, so one thing never carries two names. Sending opens with the corridor
-    // already chosen, since which way the money goes is the first thing a desk knows about the
-    // booking standing in front of it, and it is the job the whole board exists for, so it is the
-    // one tile filled in with the brand green.
-    //
-    // A hand only ever sends one way: the cash is handed over where the desk is, so an agent in
-    // Uganda sends to China and an agent in China sends to Uganda. Whoever sees the whole book
-    // keys in for either desk, which the booking form already lets them do, so the lead agent and
-    // the office are offered both roads rather than having to turn the form around by hand.
-    //
-    // The mark on the send tile is a note with a road leaving it, not a plain right arrow: an
-    // arrow alone reads as "next", and this tile is the desk's main job rather than a step.
-    $sendToChina = ['create-transaction', 'Send Money to China', 'Cash in Uganda, paid in China', route('transactions.create', ['destination' => \App\Models\Transaction::TO_CHINA]), 'M4 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM8 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM13.5 12.5L20 5.5M15.5 5H20v4.5', true];
-    $sendToUganda = ['create-transaction', 'Send Money to Uganda', 'Cash in China, paid in Uganda', route('transactions.create', ['destination' => \App\Models\Transaction::TO_UGANDA]), 'M11 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2h-4.5a2 2 0 01-2-2v-4zM15 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM10.5 12.5L4 5.5M8.5 5H4v4.5', true];
-    $sendActions = $me->can('view-all-transactions')
-        ? [$sendToChina, $sendToUganda]
-        : [\App\Models\Transaction::destinationForDesk($me->country) === \App\Models\Transaction::TO_UGANDA ? $sendToUganda : $sendToChina];
-
-    // The spending tile is named for the pen its reader holds. A desk that records its own
-    // spending is offered the recording; a role that only reads the book is offered the book.
-    $canWriteExpense = $me->can('create-expense') && ! $me->can('view-all-expenses');
-    $expenseLabel = $canWriteExpense ? 'Record Expense' : 'Expenses';
-    $expenseHint = match (true) {
-        $canWriteExpense => 'Log what you spent today',
-        $me->can('create-expense') && $me->can('view-all-expenses') => 'Record spending, read every entry',
-        $me->can('view-all-expenses') => 'Every expense logged',
-        default => 'What you spent',
-    };
-
-    // Money that came from Uganda is withdrawn where the receiver collects it, which is a desk in
-    // China, so the China desk is the hand that clears this queue; anyone who sees the whole book
-    // may clear it too. The shortcut opens the China desk at the payout queue, offered on the same
-    // rule the page uses to show that side, with the same count, so it never leads to a queue the
-    // hand cannot clear or promises work that is not there.
-    $canWithdraw = $me->can('view-transactions') && $me->can('confirm-china-payout')
-        && ($cnDesk || $me->can('view-all-transactions'));
-
-    $withdrawAction = $canWithdraw ? [
-        'confirm-china-payout',
-        'Withdraw Money in China',
-        $withdrawalsWaiting > 0
-            ? number_format($withdrawalsWaiting).' receiver'.($withdrawalsWaiting === 1 ? '' : 's').' waiting to be paid'
-            : 'Pay receivers of money sent from Uganda',
-        route('china.index').'#payouts',
-        'M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v10m0 0l-4-4m4 4l4-4',
-    ] : null;
-
-    // The lead agent's queue already sits on this board, one Approve button per request. The
-    // shortcut goes to that card rather than opening a second copy of the same decision.
-    $approveAction = $me->hasRole('super-agent') ? [
-        'approve-cash-handover',
-        'Approve Cash Hand-In',
-        $handoverQueue->isNotEmpty()
-            ? number_format($handoverQueue->count()).' request'.($handoverQueue->count() === 1 ? '' : 's').' waiting for you'
-            : 'Approve the cash agents hand over',
-        '#cash-handed-to-you',
-        'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-    ] : null;
-
-    // Handing cash in happens on the Transactions page, where a transfer's own row opens the
-    // modal that raises the request. There is no flat-amount hand-in anymore.
-
-    $quickActions = array_values(array_filter([
-        ...$sendActions,
-        ...($withdrawAction ? [$withdrawAction] : []),
-        ...($approveAction ? [$approveAction] : []),
-        ['create-exchange', 'Record Exchange', 'Buy or sell notes', route('exchanges.create'), 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4'],
-        ['view-expenses', $expenseLabel, $expenseHint, route('expenses.index'), 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
-        ['view-exchange-rates', 'Exchange Rates', "Today's prices", route('exchange-rates.index'), 'M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2zm3-14h4m-4 4h4m-4 4h4'],
-        ['create-customer', 'Add Customer', 'Save a person', route('customers.create'), 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
-        // The lead agent is the one person besides the office who reads every agent's work, so the
-        // whole book is a shortcut of its own rather than a trip through the sidebar.
-        ['view-all-transactions', 'Transactions', 'Every transfer in the book', route('transactions.index'), 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'],
-    ], fn (array $a) => $me->can($a[0])));
-@endphp
-
-{{-- The balances come first and the shortcuts come under them: a desk checks its till, then decides
-     what to do with what is in it. Account::currenciesFor() orders the wallets by the desk's
-     country, so the local currency is always the first card. The controller hands an empty list to
-     anyone who reads every wallet instead of holding one, and the row is left out for them.
+{{-- The till sits under the prices and the shortcuts: the desk opens with its actions, reads the
+     counter price, then the wallets it has to work with. Account::currenciesFor() orders the
+     wallets by the desk's country, so the local currency is always the first card. The controller
+     hands an empty list to anyone who reads every wallet instead of holding one, and the row is
+     left out for them.
 
      A card is one figure, its stamp and its links. The splits that used to stand under the balance
      (awaiting approval, fees, handed in) live on the wallet page and the reports, so the board
@@ -372,37 +400,6 @@
     @else
     <p class="text-[13px] text-gray-700 mt-3">Nothing handed in yet. Cash you send stays in your balance until the lead agent approves it.</p>
     @endif
-</div>
-@endif
-
-@if($quickActions !== [])
-@php
-    // A desk with exactly three shortcuts puts all three in one row from the small breakpoint up,
-    // so the third never waits below the fold. Any other count steps up a column at lg instead.
-    $tilesPerRow = count($quickActions) === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2 lg:grid-cols-3';
-@endphp
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-    {{-- A tile never stretches across the row on its own, because a full-width card looks like a
-         heading rather than something to press. --}}
-    <div class="grid grid-cols-1 gap-3 {{ $tilesPerRow }}">
-        @foreach($quickActions as $action)
-        @php [$ability, $label, $hint, $url, $glyph, $primary] = array_pad($action, 6, null); @endphp
-        <a href="{{ $url }}" class="group flex items-center gap-3 min-w-0 rounded-lg border p-3 transition hover:border-green-300 hover:bg-green-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1{{ $primary ? ' bg-green-800 border-green-800 hover:bg-green-700 sm:col-span-1' : ' border-gray-200 bg-white' }}">
-            <span aria-hidden="true" class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center {{ $primary ? 'bg-white/15 text-white' : 'bg-green-100 text-green-800' }}">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $glyph }}"/></svg>
-            </span>
-            <span class="min-w-0 flex-1">
-                <span class="block text-sm font-semibold {{ $primary ? 'text-white' : 'text-gray-900' }}">{{ $label }}</span>
-                <span class="block text-[13px] {{ $primary ? 'text-green-100' : 'text-gray-700' }}">{{ $hint }}</span>
-            </span>
-            {{-- The chevron is what says "this goes somewhere". Nothing else on a card is a link,
-                 and a tile that only changes colour under the cursor says nothing until the
-                 cursor is already on it. --}}
-            <svg class="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 {{ $primary ? 'text-green-100' : 'text-gray-400 group-hover:text-green-700' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-        </a>
-        @endforeach
-    </div>
 </div>
 @endif
 

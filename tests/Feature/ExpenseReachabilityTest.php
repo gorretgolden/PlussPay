@@ -99,7 +99,8 @@ class ExpenseReachabilityTest extends TestCase
     public function test_quick_actions_offer_a_role_only_the_things_it_may_do(): void
     {
         // The office and the lead agent see the whole book, so both corridors and the withdrawal
-        // queue are theirs. A hand at one desk is only offered the road that starts at its counter.
+        // queue are theirs. A hand at one desk is only offered the send that starts at its counter,
+        // while the payout pen clears the China queue wherever its own desk stands.
         $labels = ['Send Money to China', 'Send Money to Uganda', 'Withdraw Money in China', 'Record Exchange', 'Expenses', 'Exchange Rates', 'Add Customer', 'Transactions'];
 
         $lead = $this->user('super-agent', 'Amina Lead');
@@ -124,7 +125,7 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('>Record Expense</span>', $agent, 'The desk that paid the cash out is the desk that records it.');
         $this->assertStringContainsString('Log what you spent today', $agent);
         $this->assertStringNotContainsString('>Hand Cash In</span>', $agent, 'The typed hand-in tile is gone; the modal on the Transactions page is the way in.');
-        $this->assertStringNotContainsString('>Withdraw Money in China</span>', $agent, 'The China queue is not a Uganda agent\'s to clear.');
+        $this->assertStringContainsString('>Withdraw Money in China</span>', $agent, 'The payout pen clears the China queue from any desk.');
         foreach (['Record Exchange', 'Exchange Rates', 'Add Customer', 'Transactions'] as $label) {
             $this->assertStringNotContainsString('>'.$label.'</span>', $agent, $label.' is beyond an agent.');
         }
@@ -146,8 +147,8 @@ class ExpenseReachabilityTest extends TestCase
         }
 
         // The mirror holds at the other desk: a hand in China sends to Uganda and is never offered
-        // the road that would pay a receiver back in China. The withdrawal queue is theirs because
-        // they are the ones handing the money over.
+        // the road that would pay a receiver back in China. The withdrawal queue is theirs too,
+        // since one person often runs both ends of the corridor and the log names who paid.
         $china = $this->html($this->user('agent', 'Li Fang', 'CN'));
         $this->assertStringContainsString('>Send Money to Uganda</span>', $china);
         $this->assertStringContainsString('Cash in China, paid in Uganda', $china);
@@ -174,9 +175,10 @@ class ExpenseReachabilityTest extends TestCase
         $start = strpos($html, '>Quick Actions</h2>');
         $this->assertIsInt($start);
 
-        // The shortcuts now sit under the wallet cards, so the block is bounded by whatever card
-        // comes after it rather than by the wallets above. Every following section opens with its
-        // own heading, and the last one on the board is the recent work table.
+        // The shortcuts sit above the rate card now, so the block is bounded by the heading of
+        // whatever section comes after it rather than by the wallets below. Every following
+        // section opens with its own heading, and the last one on the board is the recent work
+        // table.
         $end = strpos($html, '<h2 ', $start + 20);
         if ($end === false) {
             $end = strpos($html, '</body>', $start);
@@ -204,7 +206,7 @@ class ExpenseReachabilityTest extends TestCase
         }
 
         $agent = $this->quickActions($this->html($this->user('agent', 'Amina Nabukenya')));
-        $this->assertSame(2, substr_count($agent, 'hover:border-green-300'), 'The send card and the spending book.');
+        $this->assertSame(3, substr_count($agent, 'hover:border-green-300'), 'The send card, the withdrawal and the spending book.');
         $this->assertStringContainsString('sm:col-span-1', $agent, 'The primary tile is pinned to one column.');
     }
 
@@ -373,20 +375,23 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('PS-20261021-0001', $desk);
         $this->assertStringContainsString('Mark as paid', $desk);
 
-        $this->assertStringNotContainsString('>Withdraw Money in China</span>', $this->html($agent), 'A hand in Uganda does not clear the China queue.');
+        $this->assertStringContainsString('>Withdraw Money in China</span>', $this->html($agent), 'A hand in Uganda holds the payout pen too, so the queue is theirs to clear.');
     }
 
-    public function test_the_balances_sit_ahead_of_the_shortcuts(): void
+    public function test_the_shortcuts_sit_above_the_rates_and_the_till_under_both(): void
     {
         $html = $this->html($this->user('agent', 'Amina Nabukenya'));
 
-        // A desk counts its till first and then decides what to do with what is in it, so the
-        // wallet cards are the top card and the shortcuts come under them.
+        // A desk opens with what it can do, reads the counter price it works from, and only then
+        // looks at the till those two run on.
         $actions = strpos($html, '>Quick Actions</h2>');
+        $rates = strpos($html, 'id="dashboard-rate-heading"');
         $wallets = strpos($html, 'Wallet</div>');
 
         $this->assertIsInt($actions);
+        $this->assertIsInt($rates);
         $this->assertIsInt($wallets);
-        $this->assertLessThan($actions, $wallets, 'The wallet cards render above Quick Actions.');
+        $this->assertLessThan($rates, $actions, 'Quick Actions renders above the rate card.');
+        $this->assertLessThan($wallets, $rates, 'The rate card renders above the wallet cards.');
     }
 }

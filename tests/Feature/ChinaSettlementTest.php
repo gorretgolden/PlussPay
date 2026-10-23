@@ -420,15 +420,19 @@ class ChinaSettlementTest extends TestCase
         $this->assertNull($transaction->fresh()->settled_at);
     }
 
-    public function test_an_agent_in_uganda_is_never_offered_either_side_of_the_china_desk(): void
+    public function test_a_uganda_agent_clears_the_payout_queue_but_never_sends_the_dollars(): void
     {
         $transaction = $this->booked('PS-UG-0009', $this->agent);
         $this->send($transaction, $this->dollars(1000), $this->china);
 
+        // One person often runs both ends of the corridor, so the payout pen clears the waiting
+        // list wherever its desk stands. Sending the dollars is the Uganda office's job and the
+        // road stays closed.
         $this->actingAs($this->agent)->get('/china')
             ->assertOk()
             ->assertDontSee('Cash taken, not yet sent')
-            ->assertDontSee('Waiting to be paid');
+            ->assertSee('Waiting to be paid')
+            ->assertSee('PS-UG-0009');
 
         $this->actingAs($this->agent)->post('/china/send', [
             'transaction_ids' => [$transaction->fresh()->id],
@@ -438,9 +442,9 @@ class ChinaSettlementTest extends TestCase
 
         $this->actingAs($this->agent)->post('/china/payout', [
             'transaction_ids' => [$transaction->fresh()->id],
-        ])->assertForbidden();
+        ])->assertRedirect(route('china.index'))->assertSessionHasNoErrors();
 
-        $this->assertNull($transaction->fresh()->delivered_at);
+        $this->assertNotNull($transaction->fresh()->delivered_at);
     }
 
     /**

@@ -62,10 +62,11 @@ class ChinaDeskController extends Controller
     }
 
     /**
-     * Which half of the corridor a person is shown. Both desk roles are granted the two settlement
-     * abilities so a duty shift can cover either side, but an agent in Kampala is never asked to
-     * confirm a payout they cannot make, and a desk in China is never offered dollars that are not
-     * theirs to send. Anyone who may see the whole book can work either side.
+     * Which half of the corridor a person is shown. Sending keeps its desk rule: dollars leave only
+     * from Uganda, and a desk in China is never offered dollars that are not theirs to send. The
+     * payout side is the payout pen alone: one person often runs both ends of the corridor, so any
+     * hand holding confirm-china-payout sees the whole waiting list and may clear it, wherever its
+     * desk stands. The log still names who marked a receiver paid.
      *
      * @return array{0: bool, 1: bool} may send, may pay out
      */
@@ -75,7 +76,7 @@ class ChinaDeskController extends Controller
 
         return [
             ! $inChina && $viewer->can('send-to-china'),
-            $viewer->can('confirm-china-payout') && ($inChina || $viewer->can('view-all-transactions')),
+            $viewer->can('confirm-china-payout'),
         ];
     }
 
@@ -205,9 +206,9 @@ class ChinaDeskController extends Controller
     {
         $viewer = $request->user();
 
-        // Confirming a payout is claiming the receiver was handed their yuan in China, so only the
-        // desk there, or the office that sees the whole book, may say it.
-        abort_unless($this->sides($viewer)[1], 403, 'Only the desk in China confirms a payout.');
+        // Confirming a payout is claiming the receiver was handed their money in China, so only a
+        // hand holding the payout pen may say it.
+        abort_unless($this->sides($viewer)[1], 403, 'Only a hand with the payout pen confirms a payout.');
 
         $validated = $request->validate([
             'transaction_ids' => ['required', 'array', 'min:1'],
@@ -222,8 +223,7 @@ class ChinaDeskController extends Controller
 
         if ($transactions->count() !== $ids->count()) {
             return back()->withErrors([
-                'transaction_ids' => $this->staleSelection($ids, $transactions,
-                    fn ($q) => $q->when(! $viewer->can('view-all-transactions'), fn ($rows) => $rows->where('settled_to', $viewer->id))),
+                'transaction_ids' => $this->staleSelection($ids, $transactions, fn ($q) => $q),
             ]);
         }
 
@@ -280,7 +280,6 @@ class ChinaDeskController extends Controller
     private function awaitingPayout(User $viewer)
     {
         return Transaction::awaitingPayoutInChina()
-            ->when(! $viewer->can('view-all-transactions'), fn ($q) => $q->where('settled_to', $viewer->id))
             ->with(['settledDesk', 'creator'])
             ->orderBy('settled_at')
             ->orderBy('id')
@@ -302,7 +301,6 @@ class ChinaDeskController extends Controller
     {
         $rows = Transaction::where('status', 'completed')
             ->whereNotNull('delivered_at')
-            ->when(! $viewer->can('view-all-transactions'), fn ($q) => $q->where('settled_to', $viewer->id))
             ->owingPayout()
             ->get(['id', 'rmb_amount', 'total_usd_equivalent', 'ugx_amount', 'payout_currency', 'destination']);
 
@@ -372,7 +370,6 @@ class ChinaDeskController extends Controller
     private function payable(User $viewer, $ids)
     {
         return Transaction::awaitingPayoutInChina()
-            ->when(! $viewer->can('view-all-transactions'), fn ($q) => $q->where('settled_to', $viewer->id))
             ->whereIn('id', $ids->all())
             ->lockForUpdate()
             ->orderBy('id')
