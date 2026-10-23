@@ -48,6 +48,10 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     // An agent asks the super agent to take the cash; the super agent decides it. Nothing reaches
     // the ledger until the approval, so a pending request is not a movement of money.
     Route::post('/cash-handovers', [CashHandoverController::class, 'store'])->middleware('can:view-wallets')->name('cash-handovers.store');
+    // The usual way in: the agent ticks the transfers whose cash is in hand and sends those names up,
+    // and may call the request back again while nobody has decided it.
+    Route::post('/cash-handovers/from-transactions', [CashHandoverController::class, 'storeFromTransactions'])->middleware('can:view-wallets')->name('cash-handovers.from-transactions');
+    Route::post('/cash-handovers/{cashHandover}/cancel', [CashHandoverController::class, 'cancel'])->middleware('can:view-wallets')->name('cash-handovers.cancel');
     // The desk page for the requests, the sheet off the same filters, and one pen for approving a
     // stack of them. The words export and bulk are never read as a hand-in id.
     Route::get('/cash-handovers', [CashHandoverController::class, 'index'])->middleware('can:view-wallets')->name('cash-handovers.index');

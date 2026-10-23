@@ -340,6 +340,16 @@ class Transaction extends Model
         return $this->belongsTo(User::class, 'settled_to');
     }
 
+    /**
+     * The hand-in request that this booking was named on. It is only set while that request is open
+     * or has just been approved, because a sent-back or cancelled request gives its bookings back so
+     * they can be handed in again on a fresh one.
+     */
+    public function cashHandover(): BelongsTo
+    {
+        return $this->belongsTo(CashHandover::class);
+    }
+
     public function activityLogs(): HasMany
     {
         return $this->hasMany(ActivityLog::class);
@@ -648,6 +658,11 @@ class Transaction extends Model
      * China, then Paid. The stage is read off the destination, so the reverse corridor reads
      * Waiting in Uganda rather than borrowing China's name.
      *
+     * Two more steps belong to the hand the cash is in rather than to the corridor: a booking an
+     * agent has named on a hand-in waits for that approval, and once it is approved the money has
+     * changed hands inside Uganda and is ready to be sent. Both are read off the stamp the request
+     * left on this row, so no badge has to look the queue up to say where the cash stands.
+     *
      * @return array{key: string, label: string}
      */
     public function progress(): array
@@ -668,7 +683,37 @@ class Transaction extends Model
             return ['key' => 'waiting', 'label' => 'Waiting in '.$this->destinationLabel()];
         }
 
+        if ($this->hand_in_status === CashHandover::PENDING) {
+            return ['key' => 'hand_in', 'label' => 'Waiting for hand-in approval'];
+        }
+
+        if ($this->hand_in_status === CashHandover::APPROVED) {
+            return ['key' => 'ready', 'label' => 'Ready to send to '.$this->destinationLabel()];
+        }
+
         return ['key' => 'cash', 'label' => 'Cash taken'];
+    }
+
+    /**
+     * The bookings a hand-in request is still waiting on. The desk that sends money to China refuses
+     * these: the cash they stand for has been promised to a super agent who has not said yes yet, and
+     * moving it across before then would spend money the books still count as another desk's.
+     */
+    public function scopeNamedOnOpenHandIn(Builder $query): Builder
+    {
+        return $query->where('hand_in_status', CashHandover::PENDING);
+    }
+
+    /**
+     * Bookings whose cash is in the super agent's hand and have not yet crossed, which is the pile a
+     * lead is choosing from when he decides what to send.
+     */
+    public function scopeReadyToSend(Builder $query): Builder
+    {
+        return $query->where('status', 'completed')
+            ->where('hand_in_status', CashHandover::APPROVED)
+            ->whereNull('settled_at')
+            ->whereNull('delivered_at');
     }
 
     /**
@@ -786,12 +831,21 @@ class Transaction extends Model
             }
         }
 
-        // The journey a transfer is on, cut by the same three stamps the badge beside each row is
-        // worked out from. A stage and a raw status are never offered together, but both are read
-        // here so an older link or a download cannot lose its filter.
+        // The journey a transfer is on, cut by the same stamps the badge beside each row is worked
+        // out from. A stage and a raw status are never offered together, but both are read here so an
+        // older link or a download cannot lose its filter. Each option has to return exactly the rows
+        // that print that badge, so the money-in-hand stages are cut on the hand-in stamp as well.
         if ($request->filled('stage')) {
             match ($request->input('stage')) {
-                'cash' => $query->where('status', 'completed')->whereNull('settled_at')->whereNull('delivered_at'),
+                'cash' => $query->where('status', 'completed')
+                    ->whereNull('settled_at')
+                    ->whereNull('delivered_at')
+                    ->whereNull('hand_in_status'),
+                'hand_in' => $query->where('status', 'completed')
+                    ->whereNull('settled_at')
+                    ->whereNull('delivered_at')
+                    ->where('hand_in_status', CashHandover::PENDING),
+                'ready' => $query->readyToSend(),
                 'waiting' => $query->where('status', 'completed')->whereNotNull('settled_at')->whereNull('delivered_at'),
                 'paid' => $query->where('status', 'completed')->whereNotNull('delivered_at'),
                 'pending' => $query->where('status', 'pending'),

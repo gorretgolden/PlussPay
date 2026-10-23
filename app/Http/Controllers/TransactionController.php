@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\ActivityLog;
+use App\Models\CashHandover;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
 use App\Models\User;
@@ -27,12 +28,16 @@ class TransactionController extends Controller
     {
         $viewer = $request->user();
 
-        $transactions = Transaction::with('creator')
+        $transactions = Transaction::with(['creator', 'cashHandover:id,reference,status,super_agent_id,agent_id,currency,amount,charge_ugx'])
             ->visibleTo($viewer)
             ->filtered($request)
             ->latest()
             ->paginate(20)
             ->withQueryString();
+
+        // The cash an agent holds is handed in from this very list, by ticking the transfers it came
+        // from, so the desk names a hand-in is sent to are offered here as well.
+        [$mayHandIn, $superAgents] = $this->handInDesk($viewer);
 
         // The dropdown offers the names the list can actually be cut to, so a desk that only
         // books its own work sees itself and nobody else's.
@@ -55,7 +60,30 @@ class TransactionController extends Controller
         // viewer is actually looking at and not some other slice of the book.
         $deskTotals = Transaction::visibleTo($viewer)->filtered($request)->deskTotals();
 
-        return view('transactions.index', compact('transactions', 'creators', 'usdPrices', 'rmbPrices', 'deskTotals'));
+        return view('transactions.index', compact('transactions', 'creators', 'usdPrices', 'rmbPrices', 'deskTotals', 'mayHandIn', 'superAgents') + [
+            'openHandIn' => $mayHandIn ? CashHandover::openFor($viewer)->latest('id')->first() : null,
+        ]);
+    }
+
+    /**
+     * Whether this person hands cash up to a super agent, and whose names they can send it to. The
+     * transactions list and one booking of their own offer the same pen: an ordinary agent in Uganda
+     * answers to a lead, while a lead holds the cash others have already given him and a desk in
+     * China pays receivers out of what was sent to it.
+     *
+     * @return array{0: bool, 1: \Illuminate\Support\Collection<int, User>}
+     */
+    private function handInDesk(User $viewer): array
+    {
+        $mayHandIn = $viewer->can('view-wallets') && $viewer->hasRole('agent') && ! $viewer->hasRole('super-agent')
+            && ($viewer->country ?: User::DEFAULT_COUNTRY) !== 'CN';
+
+        return [
+            $mayHandIn,
+            $mayHandIn
+                ? User::role('super-agent')->where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                : collect(),
+        ];
     }
 
     public function create(Request $request)
@@ -302,7 +330,9 @@ class TransactionController extends Controller
     {
         abort_unless($this->canView($request, $transaction), 403, 'You can only open transactions you created.');
 
-        $transaction->load('activityLogs.user');
+        $transaction->load(['activityLogs.user', 'cashHandover.agent:id,name', 'cashHandover.superAgent:id,name']);
+
+        [$mayHandIn, $superAgents] = $this->handInDesk($request->user());
 
         // The till side of a transfer posts itself the moment it is completed, but the money handed
         // over at the far end is a separate piece of cash that only the desk there knows has left.
@@ -339,6 +369,8 @@ class TransactionController extends Controller
             'payoutRecorded' => $legs->contains(fn (AccountEntry $leg) => $leg->type === 'money_out'
                 && $leg->account?->currency === $payoutCurrency),
             'stage' => $transaction->stage(),
+            'mayHandIn' => $mayHandIn,
+            'superAgents' => $superAgents,
         ]);
     }
 
@@ -383,6 +415,21 @@ class TransactionController extends Controller
                 'status' => $transaction->receipt_number.' has already been sent to China'
                     .($transaction->delivered_at ? ' and paid to '.$transaction->receiver_name : '')
                     .', so it cannot be cancelled from here. The desk in China has to bring the money back first.',
+            ]);
+        }
+
+        // A hand-in request has promised this booking's cash to a super agent who has not said yes
+        // yet. Cancelling it now would leave that request naming money that no longer exists, so the
+        // request is called back first and the agent can cancel the transfer after. Once the request
+        // is approved the cash is physically in the lead's hand, and a cancellation here would take
+        // back shillings from a drawer that no longer holds them.
+        if ($newStatus === 'cancelled' && $transaction->hand_in_status !== null) {
+            $lead = $transaction->cashHandover?->superAgent?->name ?? 'the super agent';
+
+            return back()->withErrors([
+                'status' => $transaction->receipt_number.' is named on the hand-in '
+                    .$transaction->cashHandover?->reference.', whose cash is already with '.$lead
+                    .'. The money has to come back to your hand before this transfer can be cancelled.',
             ]);
         }
 

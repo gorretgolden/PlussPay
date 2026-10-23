@@ -39,6 +39,14 @@
                 <dt class="text-gray-600">Received from agents</dt>
                 <dd class="text-gray-900 tabular-nums">{{ \App\Models\Account::format($currency, $received[$currency] ?? '0.00') }}</dd>
             </div>
+            {{-- Charges are collected in shillings whatever money the booking was taken in, so they
+                 land in this wallet only, and they are the pile that never goes on to China. --}}
+            @if($currency === 'UGX' && (float) $chargesKept > 0)
+            <div class="flex justify-between gap-3">
+                <dt class="text-gray-600" title="Added up from the ledger lines that say charges received, so it is the money this wallet actually took in">Charges kept from your agents</dt>
+                <dd class="text-gray-900 tabular-nums">{{ \App\Models\Account::format('UGX', $chargesKept) }}</dd>
+            </div>
+            @endif
             @elseif(! $isChinaDesk)
             <div class="flex justify-between gap-3">
                 <dt class="text-gray-600">Handed in so far</dt>
@@ -69,14 +77,39 @@
 <div id="hand-in" class="bg-white rounded-lg shadow p-6 mb-8 scroll-mt-20">
     <h2 class="text-lg font-semibold text-gray-900">Hand cash in to your super agent</h2>
     @if($openHandover)
+        @php $openNamed = $openHandover->receiptNumbers(); @endphp
         <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <p class="font-semibold">A hand-in is already waiting for approval.</p>
             <p class="mt-1">{{ $openHandover->figure() }} to {{ $openHandover->superAgent?->name }} ({{ $openHandover->reference }}), sent {{ $openHandover->created_at->format('M j, Y g:i A') }}. You can send another once it is approved or sent back.</p>
+            @if((float) $openHandover->charge_ugx > 0 || $openNamed->isNotEmpty())
+            <p class="mt-1">
+                {{ $openHandover->chargeFigure() }} in charges ride with it @if($openNamed->isNotEmpty()), named on {{ number_format($openNamed->count()) }} {{ \Illuminate\Support\Str::plural('transfer', $openNamed->count()) }} ({{ $openNamed->implode(', ') }})@endif.
+            </p>
+            @endif
+            <form method="POST" action="{{ route('cash-handovers.cancel', $openHandover) }}" class="mt-3 flex flex-wrap items-end gap-2"
+                data-confirm-title="Call hand-in {{ $openHandover->reference }} back?"
+                data-confirm="Nothing has moved yet. The cash stays in your wallet and the transfers on it go back to reading as cash taken."
+                data-confirm-ok="Call it back" data-confirm-danger="1"
+                data-lock data-lock-label="Cancelling...">
+                @csrf
+                <div>
+                    <label for="hand-in-cancel-reason" class="block text-xs font-medium text-amber-800 mb-1">Why, for the trail, optional</label>
+                    <input type="text" id="hand-in-cancel-reason" name="reason" maxlength="255" placeholder="e.g. One transfer needs correcting first"
+                        class="w-full sm:w-64 px-3 py-2 border border-amber-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                <button type="submit" class="bg-white text-red-700 border border-red-300 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50">Cancel this hand-in</button>
+            </form>
         </div>
     @elseif($superAgents->isEmpty())
         <p class="text-sm text-gray-600 mt-2">No super agent is active yet. Ask the office to set one up before you hand any cash in.</p>
     @else
     <p class="text-sm text-gray-600 mt-1 mb-4">The money stays in your wallet until the super agent approves it. You will see the decision here, and the cash only changes hands when they approve.</p>
+    <p class="text-sm text-gray-600 mb-4">
+        The usual way is to tick the transfers whose cash is in your hand on the
+        <a href="{{ route('transactions.index') }}" class="text-green-800 underline">Transactions</a> page: the request then carries those
+        receipt numbers, the money they are worth and the charges they earned, instead of a figure you typed.
+        This box is for a flat amount that names no transfers, such as the whole till at the end of a day.
+    </p>
     <form method="POST" action="{{ route('cash-handovers.store') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end"
         data-confirm-title="Send this cash hand-in for approval?"
         data-confirm="The money stays in your wallet until the super agent approves it. Check the details before sending."
@@ -131,80 +164,65 @@
 
 @if(($isAgent || $isSuperAgent) && $handovers->isNotEmpty())
 <div class="bg-white rounded-lg shadow mb-8 overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-semibold text-gray-900">Cash hand-in requests</h2>
-        <p class="text-sm text-gray-500 mt-1">A request moves no money until it is approved. A decline leaves the cash in the agent's wallet.</p>
+    <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900">Cash hand-in requests</h2>
+            <p class="text-sm text-gray-500 mt-1">A request moves no money until it is approved. A decline leaves the cash in the agent's wallet.</p>
+        </div>
+        {{-- The deciding has one home, the hand-in desk, where a stack of requests can be approved at
+             once. This card is the wallet's own record of what went up and what became of it. --}}
+        @if($isSuperAgent)
+        <a href="{{ route('cash-handovers.index') }}" class="border border-gray-300 bg-white text-gray-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-gray-50 whitespace-nowrap">Open the hand-in desk</a>
+        @endif
     </div>
     <div class="overflow-x-auto">
-        <table class="min-w-[720px] divide-y divide-gray-200">
+        <table class="min-w-[860px] divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requested</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Request</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ $isSuperAgent ? 'From agent' : 'To super agent' }}</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" title="What the transfers on this request are worth. This is the pile that can go on to China.">Amount</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" title="What those transfers charged. It comes up with the cash and stays in Uganda with the lead.">Charges (UGX)</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transfers</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Note</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @foreach($handovers as $handover)
+                @php $named = $handover->receiptNumbers(); @endphp
                 <tr>
-                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{{ $handover->created_at->format('M d, Y') }}<span class="text-gray-500">, {{ $handover->created_at->format('h:i A') }}</span></td>
-                    <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{{ $handover->reference }}</td>
+                    <td class="px-4 py-3 text-sm whitespace-nowrap">
+                        <span class="block font-medium text-gray-900">{{ $handover->reference }}</span>
+                        <span class="block text-xs text-gray-500 mt-0.5">{{ $handover->created_at->format('M d, Y, h:i A') }}</span>
+                    </td>
                     <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{{ $isSuperAgent ? $handover->agent?->name : $handover->superAgent?->name }}</td>
                     <td class="px-4 py-3 text-sm text-gray-900 tabular-nums whitespace-nowrap">{{ $handover->figure() }}</td>
+                    <td class="px-4 py-3 text-sm tabular-nums whitespace-nowrap {{ (float) $handover->charge_ugx > 0 ? 'text-gray-900' : 'text-gray-400' }}">{{ (float) $handover->charge_ugx > 0 ? $handover->chargeFigure() : 'UGX 0' }}</td>
+                    <td class="px-4 py-3 text-sm whitespace-nowrap">
+                        @if($named->isEmpty())
+                            <span class="text-gray-400">None named</span>
+                        @else
+                            <span class="text-gray-900">{{ number_format($named->count()) }}</span>
+                            <span class="block text-xs text-gray-500 max-w-[11rem] truncate" title="{{ $named->implode(', ') }}">{{ $named->implode(', ') }}</span>
+                        @endif
+                    </td>
                     <td class="px-4 py-3 text-sm whitespace-nowrap">
                         @if($handover->status === \App\Models\CashHandover::APPROVED)
                             <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Approved</span>
                         @elseif($handover->status === \App\Models\CashHandover::DECLINED)
                             <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Declined</span>
+                        @elseif($handover->status === \App\Models\CashHandover::CANCELLED)
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Cancelled by you</span>
                         @else
                             <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Pending</span>
                         @endif
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-600">
                         @if($handover->decision_note)
-                            {{ $handover->decision_note }}
+                            <span class="block max-w-[11rem] truncate" title="{{ $handover->decision_note }}">{{ $handover->decision_note }}</span>
                         @elseif($handover->note)
-                            {{ $handover->note }}
-                        @endif
-                        @if($isSuperAgent && $handover->isPending())
-                        @php
-                            $handoverRows = [
-                                ['From agent', $handover->agent?->name],
-                                ['Amount', $handover->figure()],
-                                ['Reference', $handover->reference],
-                            ];
-                            if ($handover->note) {
-                                $handoverRows[] = ['Their note', $handover->note];
-                            }
-                        @endphp
-                        <div class="flex flex-wrap gap-2 mt-2">
-                            <form method="POST" action="{{ route('cash-handovers.approve', $handover) }}"
-                                data-confirm-title="Confirm you have received this cash"
-                                data-confirm="Approving moves the money from {{ $handover->agent?->name }}'s wallet into yours. Confirm only once you have counted the cash."
-                                data-confirm-ok="Yes, I have it"
-                                data-confirm-sections="{{ json_encode([['rows' => $handoverRows]]) }}"
-                                data-lock data-lock-label="Approving...">
-                                @csrf
-                                <button type="submit" class="bg-green-800 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-green-700">Approve</button>
-                            </form>
-                            <form method="POST" action="{{ route('cash-handovers.decline', $handover) }}" class="flex flex-wrap items-center gap-2"
-                                data-confirm-title="Send this hand-in back?"
-                                data-confirm="The cash stays in {{ $handover->agent?->name }}'s wallet and the agent sees the reason you give."
-                                data-confirm-ok="Send it back"
-                                data-confirm-danger="1"
-                                data-confirm-sections="{{ json_encode([['rows' => $handoverRows]]) }}"
-                                data-confirm-rows="{{ json_encode([['Reason', 'input[name=decision_note]', 'value']]) }}"
-                                data-lock data-lock-label="Sending back...">
-                                @csrf
-                                <input type="text" name="decision_note" required maxlength="255" placeholder="Why it is going back"
-                                    aria-label="Reason for declining {{ $handover->reference }}"
-                                    class="px-2 py-1.5 border border-gray-300 rounded-md text-xs w-44 focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                                <button type="submit" class="bg-white text-red-700 border border-red-300 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-red-50">Decline</button>
-                            </form>
-                        </div>
+                            <span class="block max-w-[14rem] truncate" title="{{ $handover->note }}">{{ $handover->note }}</span>
                         @endif
                     </td>
                 </tr>

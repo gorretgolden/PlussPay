@@ -28,6 +28,8 @@
             <select name="stage" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All</option>
                 <option value="cash" {{ request('stage') === 'cash' ? 'selected' : '' }}>Cash taken</option>
+                <option value="hand_in" {{ request('stage') === 'hand_in' ? 'selected' : '' }}>Waiting for hand-in approval</option>
+                <option value="ready" {{ request('stage') === 'ready' ? 'selected' : '' }}>Ready to send to China</option>
                 <option value="waiting" {{ request('stage') === 'waiting' ? 'selected' : '' }}>Waiting to be paid</option>
                 <option value="paid" {{ request('stage') === 'paid' ? 'selected' : '' }}>Paid</option>
                 <option value="pending" {{ request('stage') === 'pending' ? 'selected' : '' }}>Pending</option>
@@ -321,18 +323,117 @@
     @endif
 </div>
 
+{{-- The cash an agent holds is handed in from this list, by ticking the transfers it came from.
+     The request is raised here and decided on the hand-in desk, so the two screens use the same
+     words: what is ticked, what it adds up to, and what is left with the lead. --}}
+@if($mayHandIn)
+    @if($openHandIn)
+        @php $namedOnOpen = $openHandIn->receiptNumbers(); @endphp
+        <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 mb-4">
+            <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+                <div class="min-w-0">
+                    <h2 class="text-sm font-semibold text-amber-900">
+                        Hand-in {{ $openHandIn->reference }} is waiting for {{ $openHandIn->superAgent->name }} to approve it
+                    </h2>
+                    <p class="mt-1 text-sm text-amber-800">
+                        {{ $openHandIn->figure() }} in cash, plus {{ $openHandIn->chargeFigure() }} in charges, named on
+                        {{ number_format($namedOnOpen->count()) }} {{ \Illuminate\Support\Str::plural('transfer', $namedOnOpen->count()) }}
+                        ({{ $namedOnOpen->implode(', ') }}).
+                    </p>
+                    <p class="mt-1 text-xs text-amber-700">The money is still in your drawer until he decides. Tick other transfers and send them as a second hand-in once this one is approved or sent back.</p>
+                </div>
+                <form method="POST" action="{{ route('cash-handovers.cancel', $openHandIn) }}" class="flex flex-shrink-0 flex-wrap items-end gap-2"
+                    data-confirm data-confirm-danger="1" data-confirm-title="Call hand-in {{ $openHandIn->reference }} back?"
+                    data-confirm="Nothing has moved yet. {{ $openHandIn->figure() }} plus {{ $openHandIn->chargeFigure() }} in charges stay in your drawer, and the {{ $namedOnOpen->count() }} {{ \Illuminate\Support\Str::plural('transfer', $namedOnOpen->count()) }} go back to reading as cash taken."
+                    data-confirm-ok="Call it back" data-lock data-lock-label="Cancelling...">
+                    @csrf
+                    <div>
+                        <label for="cancel_reason" class="block text-xs font-medium text-amber-800 mb-1">Why, for the trail <span class="font-normal text-amber-600">(optional)</span></label>
+                        <input type="text" id="cancel_reason" name="reason" maxlength="255" placeholder="e.g. One transfer needs correcting first"
+                            class="w-full sm:w-56 px-2.5 py-1.5 text-sm border border-amber-300 rounded-md bg-white">
+                    </div>
+                    <button type="submit" class="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-red-700 ring-1 ring-inset ring-red-200 hover:bg-red-50">
+                        Cancel hand-in
+                    </button>
+                </form>
+            </div>
+        </div>
+    @endif
+
+    <div class="bg-white rounded-lg shadow p-4 mb-4">
+        <form id="hand-in-form" method="POST" action="{{ route('cash-handovers.from-transactions') }}" class="grid grid-cols-1 gap-4 lg:grid-cols-4"
+            data-lock data-lock-label="Sending...">
+            @csrf
+            <div class="lg:col-span-4">
+                <h2 class="text-sm font-semibold text-gray-900">Hand the cash in for approval</h2>
+                <p class="mt-0.5 text-xs text-gray-500">Tick the transfers below whose money is in your hand, then send those names up to your lead. Tick nothing and this card does nothing.</p>
+            </div>
+            <div>
+                <label for="hand_in_super_agent" class="block text-sm text-gray-600 mb-1">Handing to <span class="text-red-600">*</span></label>
+                <select id="hand_in_super_agent" name="super_agent_id" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                    <option value="">Choose the super agent</option>
+                    @foreach($superAgents as $lead)
+                    <option value="{{ $lead->id }}" {{ request('super_agent_id') == $lead->id ? 'selected' : '' }}>{{ $lead->name }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-gray-500">He approves the cash, and his wallets hold it after that.</p>
+            </div>
+            <div>
+                <label for="hand_in_note" class="block text-sm text-gray-600 mb-1">Note <span class="font-normal text-gray-400">(optional)</span></label>
+                <input type="text" id="hand_in_note" name="note" maxlength="255" value="{{ request('note') }}"
+                    placeholder="e.g. Counter cash up to today" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <p class="mt-1 text-xs text-gray-500">Goes on the request and into the trail.</p>
+            </div>
+            {{-- The two figures are worked out from the ticks, not typed. They sit here beside the
+                 fields rather than at the far end of the page, so what is being promised is read at
+                 the moment it is promised. --}}
+            <div class="rounded-lg bg-gray-50 p-3 ring-1 ring-inset ring-gray-200">
+                <dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5 text-sm">
+                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Ticked</dt>
+                    <dd id="hand_in_count" class="text-right font-semibold text-gray-900 tabular-nums">0</dd>
+                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Cash to hand in</dt>
+                    <dd id="hand_in_principal" class="text-right font-semibold text-gray-900 tabular-nums">UGX 0</dd>
+                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Charges with it</dt>
+                    <dd id="hand_in_charges" class="text-right font-semibold text-gray-900 tabular-nums">UGX 0</dd>
+                </dl>
+                <p class="mt-2 border-t border-gray-200 pt-2 text-[11px] leading-relaxed text-gray-500">
+                    Cash to hand in is what the ticked transfers were worth when they were booked, added together. Charges are what they earned you: they ride up with the cash and stay with your lead. Only the cash travels on to China later.
+                </p>
+            </div>
+            <div class="flex flex-col justify-end gap-2">
+                <button type="submit" id="hand_in_submit"
+                    class="w-full rounded-md bg-green-800 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500">
+                    Hand in for approval
+                </button>
+                <p id="hand_in_problem" class="text-xs text-gray-500">Tick at least one transfer below.</p>
+            </div>
+        </form>
+    </div>
+@endif
+
 <div class="bg-white rounded-lg shadow overflow-x-auto">
     @php
         // A figure that was never priced reads as n/a in gray, and a negative one is a loss
         // in red. The model tags each figure with the tone it should carry.
         $toneClass = ['plain' => 'text-gray-900', 'loss' => 'text-red-600', 'muted' => 'text-gray-400'];
+
+        // The tick column is pinned beside the receipt number, because the number is what a teller
+        // reads over the phone and the tick is what they are reading it for. Two pinned columns
+        // need their offsets spelled out, so the tick column is held to a fixed width.
+        $receiptOffset = $mayHandIn ? 'left-10' : 'left-0';
     @endphp
     <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
+                @if($mayHandIn)
+                <th class="w-10 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 z-20 bg-gray-50 border-r border-gray-200">
+                    <label for="hand_in_all" class="sr-only">Tick every transfer on this page that is yours to hand in</label>
+                    <input type="checkbox" id="hand_in_all" class="h-4 w-4 rounded border-gray-300 text-green-800 focus:ring-green-600">
+                </th>
+                @endif
                 {{-- The book is wider than any screen, so the number a teller reads out over the phone
                      is pinned to the left edge and stays put while the rest slides under it. --}}
-                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap sticky left-0 z-20 bg-gray-50 border-r border-gray-200">Receipt #</th>
+                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap sticky {{ $receiptOffset }} z-20 bg-gray-50 border-r border-gray-200">Receipt #</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="The desk holding the money, stamped when the booking was written">Desk</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="The country the money starts in and the country it is sent to">Route</th>
                 <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Sender</th>
@@ -360,9 +461,38 @@
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
             @forelse($transactions as $t)
-            @php $profit = $t->profitLabels(); @endphp
+            @php
+                $profit = $t->profitLabels();
+
+                // Whether this row's cash can go up now. Anything already named on a request is left
+                // alone, and a booking that never took money in has nothing to hand over. The reason
+                // a locked box is locked is told on the box, not guessed from its colour.
+                $tickable = $mayHandIn && $t->status === 'completed' && $t->cash_handover_id === null;
+                $tickWhy = $mayHandIn
+                    ? match (true) {
+                        $t->hand_in_status === \App\Models\CashHandover::PENDING => 'Already named on hand-in '
+                            .$t->cashHandover?->reference.', which '.$t->cashHandover?->superAgent?->name.' has not decided yet.'
+                            .' Cancel that request to hand these in another way.',
+                        $t->cash_handover_id !== null => 'Already named on hand-in '.$t->cashHandover?->reference
+                            .', which was approved. Its cash is with '.$t->cashHandover?->superAgent?->name.' now.',
+                        $t->status === 'cancelled' => 'Cancelled. The money went back to the sender, so there is nothing in your hand for it.',
+                        $t->status === 'pending' => 'Still waiting to be approved, so no cash has been taken in for it.',
+                        default => 'Tick this to hand its cash in.',
+                    }
+                    : null;
+            @endphp
             <tr>
-                <td class="px-2 py-4 text-sm font-medium text-green-800 whitespace-nowrap sticky left-0 z-10 bg-white border-r border-gray-200">
+                @if($mayHandIn)
+                <td class="w-10 px-3 py-4 sticky left-0 z-10 bg-white border-r border-gray-200">
+                    <label for="hand_in_{{ $t->id }}" class="sr-only">Hand in the cash for {{ $t->receipt_number }}</label>
+                    <input type="checkbox" id="hand_in_{{ $t->id }}" name="transaction_ids[]" value="{{ $t->id }}" form="hand-in-form"
+                        data-hand-in-tick data-receipt="{{ $t->receipt_number }}" data-currency="{{ strtoupper($t->currency) }}"
+                        data-principal="{{ $t->amount }}" data-charge="{{ $t->isToUganda() ? 0 : $t->charge_ugx }}"
+                        @if(! $tickable) disabled @endif title="{{ $tickWhy }}"
+                        class="h-4 w-4 rounded border-gray-300 text-green-800 focus:ring-green-600 disabled:cursor-not-allowed disabled:opacity-40">
+                </td>
+                @endif
+                <td class="px-2 py-4 text-sm font-medium text-green-800 whitespace-nowrap sticky {{ $receiptOffset }} z-10 bg-white border-r border-gray-200">
                     <a href="{{ route('receipts.show', $t->receipt_number) }}" class="whitespace-nowrap">{{ $t->receipt_number }}</a>
                 </td>
                 {{-- The desk is read off the transfer, not off the person who booked it, so moving
@@ -404,6 +534,14 @@
                         <a href="{{ route('receipts.show', $t->receipt_number) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">View Receipt</a>
                         <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Print Receipt</a>
 
+                        {{-- The one-transfer way in: tick this row and open the card above on the spot,
+                             rather than sending the teller to another page to do what they are looking at. --}}
+                        @if($tickable)
+                        <div class="border-t border-gray-100 my-1"></div>
+                        <button type="button" data-hand-in-one="{{ $t->id }}"
+                            class="w-full text-left px-4 py-2 text-sm text-green-800 hover:bg-green-50">Hand in this cash</button>
+                        @endif
+
                         @can('view-profit')
                         @if($t->status === 'pending')
                         <div class="border-t border-gray-100 my-1"></div>
@@ -434,7 +572,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="{{ auth()->user()->can('view-profit') ? 18 : 13 }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
+                <td colspan="{{ (auth()->user()->can('view-profit') ? 18 : 13) + ($mayHandIn ? 1 : 0) }}" class="px-6 py-8 text-center text-gray-500">No transactions found.</td>
             </tr>
             @endforelse
         </tbody>
@@ -449,4 +587,101 @@
 </div>
 
 @include('transactions.partials.cancel-modal')
+
+@if($mayHandIn)
+@push('scripts')
+<script>
+// The two figures on the card are the ticks added up, worked out here so they move as the ticks
+// move. They are only a reading of the list: the request is priced again from the book when it
+// arrives, so a stale tab cannot hand in money that is not there.
+const handInOpenReference = @json($openHandIn?->reference);
+const handInForm = document.getElementById('hand-in-form');
+const handInCount = document.getElementById('hand_in_count');
+const handInPrincipal = document.getElementById('hand_in_principal');
+const handInCharges = document.getElementById('hand_in_charges');
+const handInProblem = document.getElementById('hand_in_problem');
+const handInSubmit = document.getElementById('hand_in_submit');
+const handInLead = document.getElementById('hand_in_super_agent');
+const handInAll = document.getElementById('hand_in_all');
+
+function handInTicks() {
+    return Array.from(document.querySelectorAll('[data-hand-in-tick]')).filter((box) => !box.disabled);
+}
+
+// Shillings are counted out in notes and dollars are cut by a rate, which is why one figure carries
+// no decimals and the other carries one. The same rule the receipt prints with.
+function handInMoney(code, value) {
+    const decimals = code === 'UGX' ? 0 : 1;
+
+    return code + ' ' + value.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function refreshHandIn() {
+    const ticked = handInTicks().filter((box) => box.checked);
+    const currencies = [...new Set(ticked.map((box) => box.dataset.currency))];
+    const charges = ticked.reduce((sum, box) => sum + Number(box.dataset.charge || 0), 0);
+
+    handInCount.textContent = ticked.length.toLocaleString('en-US');
+    handInCharges.textContent = handInMoney('UGX', charges);
+
+    // A hand-in is one wallet to one wallet, so a mixed pile is shown as it is rather than added
+    // together into a figure that would mean nothing. Nothing ticked is zero of the money the first
+    // tick will bring, not a blank box that looks like the card is still working it out.
+    if (currencies.length === 1) {
+        const principal = ticked.reduce((sum, box) => sum + Number(box.dataset.principal || 0), 0);
+        handInPrincipal.textContent = handInMoney(currencies[0], principal);
+    } else {
+        handInPrincipal.textContent = currencies.length > 1 ? 'mixed' : handInMoney('UGX', 0);
+    }
+
+    let blocker = '';
+
+    if (handInOpenReference) {
+        blocker = 'Hand-in ' + handInOpenReference + ' is still waiting to be decided. Approve it, or cancel it above, before another goes up.';
+    } else if (ticked.length === 0) {
+        blocker = 'Tick at least one transfer below.';
+    } else if (currencies.length > 1) {
+        blocker = 'One hand-in carries one money. You ticked ' + currencies.join(' and ')
+            + ' transfers, so send them as one hand-in per money.';
+    } else if (!handInLead.value) {
+        blocker = 'Choose the super agent you are handing to.';
+    }
+
+    handInProblem.textContent = blocker;
+    handInProblem.classList.toggle('text-red-700', !!blocker && ticked.length > 1 && currencies.length > 1);
+    handInSubmit.disabled = !!blocker;
+
+    const boxes = handInTicks();
+    handInAll.checked = boxes.length > 0 && boxes.every((box) => box.checked);
+}
+
+document.addEventListener('change', (event) => {
+    if (event.target.matches('[data-hand-in-tick], #hand_in_super_agent')) refreshHandIn();
+});
+
+handInAll.addEventListener('change', () => {
+    handInTicks().forEach((box) => { box.checked = handInAll.checked; });
+    refreshHandIn();
+});
+
+// The row menu ticks that one transfer and opens the card on the spot, so the teller never leaves
+// the list to do what the list is already showing.
+document.querySelectorAll('[data-hand-in-one]').forEach((button) => {
+    button.addEventListener('click', () => {
+        const box = document.getElementById('hand_in_' + button.dataset.handInOne);
+
+        if (box) {
+            box.checked = true;
+            refreshHandIn();
+        }
+
+        handInForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        handInLead.focus();
+    });
+});
+
+refreshHandIn();
+</script>
+@endpush
+@endif
 @endsection

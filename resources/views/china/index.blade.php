@@ -78,15 +78,19 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     @foreach($outbound as $transaction)
+                    @php $heldForApproval = $transaction->hand_in_status === \App\Models\CashHandover::PENDING; @endphp
                     <tr>
                         <td class="px-4 py-3">
                             <input type="checkbox" name="transaction_ids[]" value="{{ $transaction->id }}" class="row-check rounded border-gray-300"
                                 data-usd="{{ $transaction->total_usd_equivalent }}" data-pay="{{ $transaction->payoutAmount() ?: 0 }}"
-                                data-pay-cur="{{ $transaction->payoutCurrency() }}">
+                                data-pay-cur="{{ $transaction->payoutCurrency() }}"
+                                @if($heldForApproval) disabled title="The cash for this transfer is named on hand-in {{ $transaction->cashHandover?->reference }}, which has not been approved yet. Approve that request first." @endif>
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
                             <a href="{{ route('transactions.show', $transaction) }}" class="text-green-800 hover:underline">{{ $transaction->receipt_number }}</a>
-                            <span class="block text-xs text-gray-500">{{ $transaction->created_at->format('M d, Y') }}</span>
+                            <span class="block text-xs {{ $heldForApproval ? 'text-amber-700' : 'text-gray-500' }}">
+                                {{ $transaction->created_at->format('M d, Y') }}@if($heldForApproval) · waiting for hand-in approval @elseif($transaction->hand_in_status === \App\Models\CashHandover::APPROVED) · cash approved @endif
+                            </span>
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-900">
                             {{ $transaction->receiver_name }}
@@ -133,6 +137,17 @@
             <p class="md:col-span-4 text-sm text-gray-600">Ticked: <span data-sum="count" class="font-medium text-gray-900">0</span>
                 transfer(s), <span data-sum="usd" data-currency="USD" class="font-medium text-gray-900 tabular-nums">$0.00</span> in dollars,
                 <span data-payout-line data-empty="nothing due" class="font-medium text-gray-900">nothing due</span> on the other side.</p>
+            {{-- The charge is the money this office kept from what it took in. It is never part of a
+                 sending: the dollars that cross are only what the transfers are worth. --}}
+            @if((float) $outboundCharges > 0)
+            <p class="md:col-span-4 text-xs text-gray-500">Charges are not in this list's dollars. The
+                {{ \App\Models\Account::format('UGX', $outboundCharges) }} these transfers charged stays in Uganda with whoever holds the cash.</p>
+            @endif
+            @if($outboundHeldBack > 0)
+            <p class="md:col-span-4 text-xs text-amber-700">{{ number_format($outboundHeldBack) }}
+                {{ \Illuminate\Support\Str::plural('transfer', $outboundHeldBack) }} here {{ $outboundHeldBack === 1 ? 'is' : 'are' }} named on a hand-in that
+                has not been approved yet, so their boxes are locked. Approve the request on the Hand In Cash desk first.</p>
+            @endif
             @error('transaction_ids') <p class="md:col-span-4 text-sm text-red-600">{{ $message }}</p> @enderror
         </div>
     </form>
@@ -281,7 +296,9 @@
     });
 
     forms.forEach(function (form) {
-        const rows = Array.from(form.querySelectorAll('.row-check'));
+        // A transfer still named on a hand-in that has not been approved cannot be sent, so its box
+        // is drawn disabled and left out of the tally and out of "tick every row".
+        const rows = Array.from(form.querySelectorAll('.row-check')).filter(function (row) { return !row.disabled; });
         const all = form.querySelector('[data-check-all]');
         const outs = Array.from(form.querySelectorAll('[data-sum]'));
         const phrases = Array.from(form.querySelectorAll('[data-payout-line]'));

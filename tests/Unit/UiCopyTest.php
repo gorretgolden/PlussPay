@@ -22,7 +22,7 @@ class UiCopyTest extends TestCase
             }
             preg_match_all('/.{0,40}[—–].{0,40}/u', file_get_contents($file->getPathname()), $hits);
             foreach ($hits[0] as $hit) {
-                $offenders[] = $file->getRelativePathname().': '.$hit;
+                $offenders[] = substr($file->getPathname(), strlen($views) + 1).': '.$hit;
             }
         }
 
@@ -46,7 +46,7 @@ class UiCopyTest extends TestCase
             }
             preg_match_all('/.{0,30}[\x{1F1E6}-\x{1F1FF}].{0,30}/u', file_get_contents($file->getPathname()), $hits);
             foreach ($hits[0] as $hit) {
-                $offenders[] = $file->getRelativePathname().': '.$hit;
+                $offenders[] = substr($file->getPathname(), strlen($views) + 1).': '.$hit;
             }
         }
 

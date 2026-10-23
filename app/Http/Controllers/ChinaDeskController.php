@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
 use App\Models\ActivityLog;
+use App\Models\CashHandover;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\AccountLedger;
@@ -39,6 +40,16 @@ class ChinaDeskController extends Controller
             'inbound' => $inbound,
             'outboundPayouts' => Transaction::sumPayouts($outbound),
             'inboundPayouts' => Transaction::sumPayouts($inbound),
+            // The two figures the sending desk has to keep apart: the charges these transfers earned
+            // are money that stays in Uganda, and the ones still named on an open hand-in cannot be
+            // ticked until that request is closed.
+            'outboundCharges' => $outbound->reduce(
+                fn (string $carry, Transaction $t) => $t->isToUganda()
+                    ? $carry
+                    : bcadd($carry, (string) $t->charge_ugx, 2),
+                '0.00',
+            ),
+            'outboundHeldBack' => $outbound->filter(fn (Transaction $t) => $t->hand_in_status === CashHandover::PENDING)->count(),
             'paid' => $canPay ? $this->paidTotal($viewer) : null,
             'canSend' => $canSend,
             'canPay' => $canPay,
@@ -111,6 +122,27 @@ class ChinaDeskController extends Controller
             ]);
         }
 
+        // A booking named on a hand-in that has not been approved yet is cash somebody else is still
+        // answerable for, so it cannot cross while that request is open. The desk is told which pen
+        // closes it rather than being left with a refusal in general terms.
+        $heldBack = $transactions->filter(fn (Transaction $t) => $t->hand_in_status === CashHandover::PENDING);
+
+        if ($heldBack->isNotEmpty()) {
+            return back()->withErrors([
+                'transaction_ids' => 'These transfers are named on a hand-in that is still waiting to be approved: '
+                    .$heldBack->pluck('receipt_number')->implode(', ').'. Approve the hand-in first, or cancel it.',
+            ])->withInput();
+        }
+
+        // The charges those transfers earned never cross with them: the money a receiver is paid is
+        // what the booking is worth, and the commission stays in the hand that collected it.
+        $charges = $transactions->reduce(
+            fn (string $carry, Transaction $t) => $t->isToUganda()
+                ? $carry
+                : bcadd($carry, (string) $t->charge_ugx, 2),
+            '0.00',
+        );
+
         $total = $transactions->sum(fn (Transaction $t) => (float) $t->total_usd_equivalent);
 
         if (bccomp(number_format($total, 2, '.', ''), (string) $source->balance(), 2) > 0) {
@@ -150,6 +182,7 @@ class ChinaDeskController extends Controller
                 'source_balance' => $source->balance(),
                 'recipient' => $recipient->name,
                 'amount_usd' => $figures,
+                'charges_left_behind_ugx' => $charges,
                 'receipts' => $transactions->pluck('receipt_number')->implode(', '),
             ]),
         ]);
@@ -157,7 +190,10 @@ class ChinaDeskController extends Controller
         return redirect()->route('china.index')->with('success', $figures.' sent to '.$recipient->name
             .' in China for '.$transactions->count().' transfer'.($transactions->count() === 1 ? '' : 's')
             .'. Their dollar wallet now holds '.Account::format('USD', Account::walletFor($recipient, 'USD')->balance())
-            .'.');
+            .'.'
+            .(bccomp($charges, '0.00', 2) > 0
+                ? ' The UGX '.number_format((float) $charges).' those transfers charged did not cross; it stays with the desk that collected it.'
+                : ''));
     }
 
     /**
@@ -232,7 +268,7 @@ class ChinaDeskController extends Controller
     {
         return Transaction::visibleTo($viewer)
             ->awaitingSendToChina()
-            ->with('creator')
+            ->with(['creator', 'cashHandover:id,reference,status,super_agent_id'])
             ->orderBy('created_at')
             ->orderBy('id')
             ->get();

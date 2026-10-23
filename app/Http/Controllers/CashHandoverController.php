@@ -6,6 +6,7 @@ use App\Exceptions\InsufficientFundsException;
 use App\Models\Account;
 use App\Models\ActivityLog;
 use App\Models\CashHandover;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ class CashHandoverController extends Controller
         CashHandover::PENDING,
         CashHandover::APPROVED,
         CashHandover::DECLINED,
+        CashHandover::CANCELLED,
     ];
 
     /** The labels of the same states, because "Sent back" is what she says out loud. */
@@ -37,6 +39,7 @@ class CashHandoverController extends Controller
         CashHandover::PENDING => 'Pending',
         CashHandover::APPROVED => 'Approved',
         CashHandover::DECLINED => 'Declined',
+        CashHandover::CANCELLED => 'Cancelled by the agent',
     ];
 
     /** Period presets. The key comes off the query string, the range is worked out here. */
@@ -66,12 +69,14 @@ class CashHandoverController extends Controller
 
         // Counted from the rows on the screen rather than a second query, so the strip above the
         // table can never disagree with the table under it. The currencies stay apart: shillings,
-        // dollars and yuan are not one total.
+        // dollars and yuan are not one total. The charges are counted in their own column because
+        // they are the money that never leaves Uganda, whatever the cash beside them is sent for.
         $totals = $handovers->reduce(function (array $carry, CashHandover $handover) {
             $code = strtoupper($handover->currency);
-            $carry[$code] ??= ['count' => 0, 'amount' => '0'];
+            $carry[$code] ??= ['count' => 0, 'amount' => '0', 'charges' => '0'];
             $carry[$code]['count']++;
             $carry[$code]['amount'] = bcadd($carry[$code]['amount'], (string) $handover->amount, 2);
+            $carry[$code]['charges'] = bcadd($carry[$code]['charges'], (string) $handover->charge_ugx, 2);
 
             return $carry;
         }, []);
@@ -144,7 +149,7 @@ class CashHandoverController extends Controller
      */
     private function filtered(Request $request, User $viewer, ?Carbon $from, ?Carbon $to): Builder
     {
-        $query = CashHandover::query()->with(['agent', 'superAgent']);
+        $query = CashHandover::query()->with(['agent', 'superAgent', 'transactions']);
 
         if ($viewer->can('view-all-wallets')) {
             if ($request->filled('agent_id')) {
@@ -206,13 +211,13 @@ class CashHandoverController extends Controller
         $sheet->setTitle('Cash Hand Ins');
 
         $headers = ['Reference', 'Date', 'Agent', 'Super agent', 'Currency', 'Amount', 'As shown',
-            'Status', 'Their note', 'Decision note', 'Decided at'];
+            'Charges handed in', 'Transfers named', 'Status', 'Their note', 'Decision note', 'Decided at'];
 
         foreach ($headers as $index => $header) {
             $sheet->setCellValue(chr(ord('A') + $index).'1', $header);
         }
 
-        $sheet->getStyle('A1:K1')->applyFromArray([
+        $sheet->getStyle('A1:M1')->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '14532D']],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
@@ -230,22 +235,25 @@ class CashHandoverController extends Controller
             $this->putText($sheet, 'E'.$row, strtoupper((string) $handover->currency));
             $sheet->setCellValue('F'.$row, (float) $handover->amount);
             $this->putText($sheet, 'G'.$row, $handover->figure());
-            $this->putText($sheet, 'H'.$row, (string) (self::STATUS_LABELS[$handover->status] ?? ucfirst((string) $handover->status)));
-            $this->putText($sheet, 'I'.$row, (string) ($handover->note ?? ''));
-            $this->putText($sheet, 'J'.$row, (string) ($handover->decision_note ?? ''));
-            $this->putText($sheet, 'K'.$row, $handover->decided_at?->format('Y-m-d h:i A') ?? '');
+            $sheet->setCellValue('H'.$row, (float) $handover->charge_ugx);
+            $this->putText($sheet, 'I'.$row, $handover->receiptNumbers()->implode(', '));
+            $this->putText($sheet, 'J'.$row, (string) (self::STATUS_LABELS[$handover->status] ?? ucfirst((string) $handover->status)));
+            $this->putText($sheet, 'K'.$row, (string) ($handover->note ?? ''));
+            $this->putText($sheet, 'L'.$row, (string) ($handover->decision_note ?? ''));
+            $this->putText($sheet, 'M'.$row, $handover->decided_at?->format('Y-m-d h:i A') ?? '');
             $row++;
         }
 
         if ($row > 2) {
             $sheet->getStyle('F2:F'.($row - 1))->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle('A2:K'.($row - 1))->applyFromArray([
+            $sheet->getStyle('H2:H'.($row - 1))->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('A2:M'.($row - 1))->applyFromArray([
                 'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
                 'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
             ]);
         }
 
-        foreach (range('A', 'K') as $column) {
+        foreach (range('A', 'M') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
@@ -294,7 +302,7 @@ class CashHandoverController extends Controller
                 continue;
             }
 
-            if ($handover->super_agent_id !== $viewer->id) {
+            if (! $this->mayDecide($viewer, $handover)) {
                 $skips['sent to another super agent'] = ($skips['sent to another super agent'] ?? 0) + 1;
                 continue;
             }
@@ -350,11 +358,8 @@ class CashHandoverController extends Controller
     {
         $viewer = $request->user();
 
-        // Cash travels the other way in China: the desk there pays receivers out of what was sent
-        // to it, so it has nothing to hand up to a super agent in Uganda.
-        if (! $viewer->hasRole('agent') || $viewer->hasRole('super-agent')
-            || ($viewer->country ?: User::DEFAULT_COUNTRY) === 'CN') {
-            return back()->withErrors(['super_agent_id' => 'Only an agent in Uganda hands cash in to a super agent.']);
+        if ($message = $this->refusalFor($viewer)) {
+            return back()->withErrors(['super_agent_id' => $message]);
         }
 
         $validated = $request->validate([
@@ -402,30 +407,16 @@ class CashHandoverController extends Controller
         // One hand-in at a time per agent. The agent's own row is locked while the request is
         // written, so two tabs sending at once cannot both find the drawer without an open
         // hand-in. The request that loses the race is handed back rather than written twice.
-        $handover = DB::transaction(function () use ($viewer, $superAgent, $currency, $validated, $request) {
-            User::whereKey($viewer->id)->lockForUpdate()->first();
+        [$handover, $open] = $this->raiseOnce($viewer, fn () => CashHandover::request(
+            $viewer,
+            $superAgent,
+            $currency,
+            (string) $validated['amount'],
+            $request->input('note') ?: null,
+        ));
 
-            $open = CashHandover::openFor($viewer)->latest('id')->first();
-
-            if ($open) {
-                return $open;
-            }
-
-            return CashHandover::request(
-                $viewer,
-                $superAgent,
-                $currency,
-                (string) $validated['amount'],
-                $request->input('note') ?: null,
-            );
-        });
-
-        if (! $handover->wasRecentlyCreated) {
-            return back()->withErrors([
-                'handover' => 'You already have '.$handover->figure().' waiting for '
-                    .($handover->superAgent?->name ?: 'your super agent').' to approve or send it back ('
-                    .$handover->reference.'). You can send another hand-in once that request is closed.',
-            ])->withInput();
+        if ($open) {
+            return back()->withErrors(['handover' => $this->openHandInMessage($open)])->withInput();
         }
 
         ActivityLog::create([
@@ -449,6 +440,290 @@ class CashHandoverController extends Controller
     }
 
     /**
+     * The usual way to hand cash in: tick the transfers whose money is in front of you and send
+     * those names up, rather than a figure nobody can check. The request carries the whole of what
+     * those bookings are worth, which is the cash they put in your hand plus the charges they earned,
+     * because both of those piles are sitting in your drawer.
+     *
+     * Nothing here trusts the figures the page drew. The transfers are re-read from the book and the
+     * totals worked out again, so a stale tab or a tampered form cannot hand in money that is not
+     * there or leave a booking out of the count.
+     */
+    public function storeFromTransactions(Request $request)
+    {
+        $viewer = $request->user();
+
+        if ($message = $this->refusalFor($viewer)) {
+            return back()->withErrors(['super_agent_id' => $message]);
+        }
+
+        $validated = $request->validate([
+            'super_agent_id' => 'required|integer',
+            'transaction_ids' => 'required|array|min:1|max:200',
+            'transaction_ids.*' => 'integer|distinct',
+            'note' => 'nullable|string|max:255',
+        ], [
+            'super_agent_id.required' => 'Choose the super agent you are handing the cash to.',
+            'transaction_ids.required' => 'Tick the transfers whose cash you are handing in.',
+            'transaction_ids.min' => 'Tick at least one transfer.',
+        ]);
+
+        $superAgent = User::find($validated['super_agent_id']);
+
+        if (! $superAgent || ! $superAgent->hasRole('super-agent') || ! $superAgent->is_active) {
+            return back()->withErrors(['super_agent_id' => 'Choose an active super agent.'])->withInput();
+        }
+
+        $ids = collect($validated['transaction_ids'])->map(fn ($id) => (int) $id)->unique()->values();
+
+        // Only the hand that took the cash can hand it in, so a typed list of ids buys nothing: the
+        // rows are cut to this person's own bookings before anything is read off them.
+        $bookings = Transaction::whereIn('id', $ids->all())
+            ->where('created_by', $viewer->id)
+            ->orderBy('receipt_number')
+            ->lockForUpdate()
+            ->get();
+
+        if ($bookings->count() !== $ids->count()) {
+            return back()->withErrors([
+                'transaction_ids' => 'Some of those transfers are not yours to hand in. Reload the list and'
+                    .' tick them again.',
+            ])->withInput();
+        }
+
+        $notFinished = $bookings->reject(fn (Transaction $t) => $t->status === 'completed');
+
+        if ($notFinished->isNotEmpty()) {
+            return back()->withErrors([
+                'transaction_ids' => 'These transfers carry no cash to hand in: '.$this->receiptList($notFinished)
+                    .'. A cancelled booking gave its money back to the sender, and one still pending approval'
+                    .' has not been taken in yet.',
+            ])->withInput();
+        }
+
+        $spokenFor = $bookings->filter(fn (Transaction $t) => $t->cash_handover_id !== null);
+
+        if ($spokenFor->isNotEmpty()) {
+            return back()->withErrors([
+                'transaction_ids' => 'These transfers are already named on a hand-in: '.$this->receiptList($spokenFor)
+                    .'. Cancel that request ('.$spokenFor->first()->cashHandover?->reference.') first, or tick others.',
+            ])->withInput();
+        }
+
+        $currencies = $bookings->pluck('currency')->map(strtoupper(...))->unique()->values();
+
+        if ($currencies->count() > 1) {
+            return back()->withErrors([
+                'transaction_ids' => 'One hand-in carries one money. You ticked '
+                    .$currencies->implode(', ').' bookings, so send them as one hand-in per money.',
+            ])->withInput();
+        }
+
+        $currency = $currencies->first();
+
+        if (! in_array($currency, Account::currenciesFor($viewer), true)) {
+            return back()->withErrors(['currency' => "Your desk does not hold {$currency}."])->withInput();
+        }
+
+        if (! in_array($currency, Account::currenciesFor($superAgent), true)) {
+            return back()->withErrors([
+                'super_agent_id' => $superAgent->name.' does not hold a '.$currency.' wallet.',
+            ])->withInput();
+        }
+
+        $principal = $bookings->reduce(fn (string $carry, Transaction $t) => bcadd($carry, (string) $t->amount, 2), '0.00');
+
+        // A booking into Uganda never had its charge collected as money, so no shillings for it are
+        // sitting in the drawer to hand over. Counting one would ask the super agent to approve cash
+        // that was never taken in.
+        $charges = $bookings->reduce(
+            fn (string $carry, Transaction $t) => $t->isToUganda()
+                ? $carry
+                : bcadd($carry, (string) $t->charge_ugx, 2),
+            '0.00',
+        );
+
+        if ($short = $this->shortfall($viewer, $currency, $principal, $charges)) {
+            return back()->withErrors(['transaction_ids' => $short])->withInput();
+        }
+
+        [$handover, $open] = $this->raiseOnce($viewer, fn () => CashHandover::request(
+            $viewer,
+            $superAgent,
+            $currency,
+            $principal,
+            $request->input('note') ?: null,
+            $charges,
+            $bookings->pluck('receipt_number')->all(),
+        ));
+
+        if ($open) {
+            return back()->withErrors(['handover' => $this->openHandInMessage($open)])->withInput();
+        }
+
+        $handover->link($bookings->pluck('id')->all());
+
+        ActivityLog::create([
+            'user_id' => $viewer->id,
+            ...ActivityLog::subjectAttributes($handover),
+            'action' => 'cash_handover_requested',
+            'description' => $viewer->name.' asked '.$superAgent->name.' to take '.$handover->figure()
+                .' for '.$bookings->count().' transfer'.($bookings->count() === 1 ? '' : 's')
+                .' ('.$handover->reference.'), plus '.$handover->chargeFigure().' in charges.',
+            'new_value' => json_encode([
+                'reference' => $handover->reference,
+                'amount' => $handover->figure(),
+                'charges' => $handover->chargeFigure(),
+                'currency' => $currency,
+                'agent' => $viewer->name,
+                'super_agent' => $superAgent->name,
+                'note' => $handover->note,
+                'receipts' => $bookings->pluck('receipt_number')->implode(', '),
+            ]),
+        ]);
+
+        return back()->with('success', 'Hand-in of '.$handover->figure().' for '.$bookings->count()
+            .' transfer'.($bookings->count() === 1 ? '' : 's').' sent to '.$superAgent->name
+            .($charges !== '0.00' ? ', with '.$handover->chargeFigure().' in charges kept back from it' : '')
+            .', for approval. Reference '.$handover->reference.'.');
+    }
+
+    /**
+     * The agent calls their own request back before anybody has decided it, which is what they do
+     * when the transfers turn out to need something else first. Nothing moves: the bookings stop being
+     * spoken for and go back to reading as cash the agent still holds.
+     */
+    public function cancel(Request $request, CashHandover $cashHandover)
+    {
+        $viewer = $request->user();
+
+        if ($cashHandover->agent_id !== $viewer->id) {
+            abort(403, 'Only the agent who raised a hand-in can cancel it.');
+        }
+
+        $validated = $request->validate([
+            'reason' => 'nullable|string|max:255',
+        ]);
+
+        $bookings = $cashHandover->transactions()->count();
+
+        if (! $cashHandover->cancel($validated['reason'] ?? null)) {
+            return back()->withErrors([
+                'handover' => 'That hand-in has already been approved or sent back, so it cannot be cancelled.',
+            ]);
+        }
+
+        ActivityLog::create([
+            'user_id' => $viewer->id,
+            ...ActivityLog::subjectAttributes($cashHandover),
+            'action' => 'cash_handover_cancelled',
+            'description' => $viewer->name.' called back their own hand-in of '.$cashHandover->figure()
+                .' ('.$cashHandover->reference.')'.($validated['reason'] ?? null ? ': '.$validated['reason'] : '').'.',
+            'old_value' => json_encode(['status' => CashHandover::PENDING]),
+            'new_value' => json_encode([
+                'status' => CashHandover::CANCELLED,
+                'reference' => $cashHandover->reference,
+                'amount' => $cashHandover->figure(),
+                'bookings' => $bookings,
+            ]),
+        ]);
+
+        return back()->with('success', 'Hand-in '.$cashHandover->reference.' cancelled. '
+            .($bookings > 0
+                ? $bookings.' transfer'.($bookings === 1 ? '' : 's').' are back to reading as cash in your hand.'
+                : 'The money stays in your wallet.'));
+    }
+
+    /**
+     * Who is allowed to raise a hand-in at all. Cash travels up from an ordinary agent in Uganda to
+     * the lead who sends it on; a lead already holds the cash he has been handed, and the desk in
+     * China pays receivers out of what was sent to it, so neither has a hand-in to raise.
+     */
+    private function refusalFor(User $viewer): ?string
+    {
+        if (! $viewer->hasRole('agent') || $viewer->hasRole('super-agent')
+            || ($viewer->country ?: User::DEFAULT_COUNTRY) === 'CN') {
+            return 'Only an agent in Uganda hands cash in to a super agent.';
+        }
+
+        return null;
+    }
+
+    /**
+     * The lock and the one-request-at-a-time rule, shared by both ways of raising a hand-in. The
+     * agent's own row is the thing locked, because the drawer that must not be promised twice is
+     * theirs rather than any one wallet's.
+     *
+     * @param  callable(): CashHandover  $create
+     * @return array{0: ?CashHandover, 1: ?CashHandover} the request just raised, or the one already open
+     */
+    private function raiseOnce(User $viewer, callable $create): array
+    {
+        return DB::transaction(function () use ($viewer, $create) {
+            User::whereKey($viewer->id)->lockForUpdate()->first();
+
+            $open = CashHandover::openFor($viewer)->latest('id')->first();
+
+            if ($open) {
+                return [null, $open];
+            }
+
+            return [$create(), null];
+        });
+    }
+
+    private function openHandInMessage(CashHandover $open): string
+    {
+        return 'You already have '.$open->figure().' waiting for '
+            .($open->superAgent?->name ?: 'your super agent').' to approve or send it back ('
+            .$open->reference.'). You can send another hand-in once that request is closed.';
+    }
+
+    /**
+     * The drawer has to actually hold both piles before a request is written down, because a hand-in
+     * the super agent can never approve is worse than no hand-in at all.
+     */
+    private function shortfall(User $viewer, string $currency, string $principal, string $charges): ?string
+    {
+        $parts = [];
+
+        $wallet = Account::walletFor($viewer, $currency);
+
+        if (bccomp($principal, (string) $wallet->balance(), 2) > 0) {
+            $parts[] = 'The '.$currency.' wallet holds '.Account::format($currency, $wallet->balance())
+                .', but these transfers add up to '.Account::format($currency, $principal);
+        }
+
+        if (bccomp($charges, '0.00', 2) > 0) {
+            $shillings = Account::walletFor($viewer, 'UGX');
+
+            if (bccomp($charges, (string) $shillings->balance(), 2) > 0) {
+                $parts[] = 'the shilling wallet holds '.Account::format('UGX', $shillings->balance())
+                    .', but the charges on them add up to '.Account::format('UGX', $charges);
+            }
+        }
+
+        return $parts === [] ? null : 'You cannot hand in more than your wallets hold: '.implode('; ', $parts).'.';
+    }
+
+    /** The first few receipts of a list, so a refusal names what it refused without running long. */
+    private function receiptList($bookings): string
+    {
+        return $bookings->pluck('receipt_number')->take(6)->map(fn ($r) => (string) $r)->implode(', ')
+            .($bookings->count() > 6 ? ' and '.($bookings->count() - 6).' more' : '');
+    }
+
+    /**
+     * Whether this person may decide a request. The lead it was addressed to is the one holding the
+     * cash, and the office that keeps the whole book may decide in his place when he is not at the
+     * desk; nobody else reaches another desk's request at all.
+     */
+    private function mayDecide(User $viewer, CashHandover $handover): bool
+    {
+        return $handover->super_agent_id === $viewer->id || $viewer->can('view-all-wallets');
+    }
+
+    /**
      * The super agent confirms the cash is now in their hand. Only the person the request was
      * addressed to may decide it, and a failed balance check leaves the request pending rather
      * than marking it as taken.
@@ -457,7 +732,7 @@ class CashHandoverController extends Controller
     {
         $viewer = $request->user();
 
-        if ($cashHandover->super_agent_id !== $viewer->id) {
+        if (! $this->mayDecide($viewer, $cashHandover)) {
             abort(403, 'This hand-in was sent to another super agent.');
         }
 
@@ -489,7 +764,15 @@ class CashHandoverController extends Controller
             ]),
         ]);
 
-        return back()->with('success', $cashHandover->figure().' received from '.$cashHandover->agent->name.'.');
+        $bookings = $cashHandover->transactions()->count();
+        $charges = bccomp((string) $cashHandover->charge_ugx, '0.00', 2) > 0
+            ? ' The '.$cashHandover->chargeFigure().' those transfers charged is yours to keep; only the money the'
+                .' transfers are worth goes on to China.'
+            : '';
+
+        return back()->with('success', $cashHandover->figure().' received from '.$cashHandover->agent->name.'.'
+            .($bookings > 0 ? ' '.$bookings.' transfer'.($bookings === 1 ? '' : 's').' now read Ready to send to China.' : '')
+            .$charges);
     }
 
     /**
@@ -500,7 +783,7 @@ class CashHandoverController extends Controller
     {
         $viewer = $request->user();
 
-        if ($cashHandover->super_agent_id !== $viewer->id) {
+        if (! $this->mayDecide($viewer, $cashHandover)) {
             abort(403, 'This hand-in was sent to another super agent.');
         }
 
@@ -509,6 +792,10 @@ class CashHandoverController extends Controller
         ], [
             'decision_note.required' => 'Say why you are sending this hand-in back.',
         ]);
+
+        // Counted before the decision, because sending a request back releases the bookings it named
+        // and after that there is nothing left on this row to count.
+        $bookings = $cashHandover->transactions()->count();
 
         if (! $cashHandover->decline($validated['decision_note'])) {
             return back()->withErrors(['handover' => 'That hand-in has already been decided.']);
@@ -528,7 +815,11 @@ class CashHandoverController extends Controller
             ]),
         ]);
 
+        $released = $bookings > 0
+            ? $bookings.' transfer'.($bookings === 1 ? '' : 's').' read Cash taken again'
+            : 'nothing was promised yet';
+
         return back()->with('success', 'Hand-in '.$cashHandover->reference.' declined. The money stays in '
-            .$cashHandover->agent->name."'s wallet.");
+            .$cashHandover->agent->name."'s wallet, and ".$released.'.');
     }
 }

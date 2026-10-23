@@ -184,8 +184,11 @@ class CashHandoverDeskTest extends TestCase
         $this->assertStringContainsString($hers->reference, $page);
         $this->assertStringContainsString($theirs->reference, $page);
         $this->assertStringContainsString('$250.50', $page);
-        // The office is not the super agent named on a row, so it is shown no decision buttons.
-        $this->assertStringNotContainsString('Approve receipt', $page);
+        // The office keeps the whole book, so it can decide a row in the named lead's place when he
+        // is not at the desk. Only the pending one is offered the pen, and the cash it approves still
+        // lands in that lead's wallet rather than the office's.
+        $this->assertSame(1, substr_count($page, 'Approve receipt'));
+        $this->assertStringContainsString('Send it back', $page);
 
         $this->desk($office, ['agent_id' => $first->id])->assertOk()
             ->assertSee($hers->reference)

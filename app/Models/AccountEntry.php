@@ -20,6 +20,8 @@ class AccountEntry extends Model
         'transfer_out' => ['label' => 'Sent to another account', 'direction' => 'out', 'group' => 'transfer'],
         'handover_in' => ['label' => 'Received from an agent', 'direction' => 'in', 'group' => 'transfer'],
         'handover_out' => ['label' => 'Handed to the super agent', 'direction' => 'out', 'group' => 'transfer'],
+        'fee_handover_in' => ['label' => 'Charges received from an agent', 'direction' => 'in', 'group' => 'transfer'],
+        'fee_handover_out' => ['label' => 'Charges handed to the super agent', 'direction' => 'out', 'group' => 'transfer'],
         'exchange_in' => ['label' => 'Bought into this account', 'direction' => 'in', 'group' => 'exchange'],
         'exchange_out' => ['label' => 'Sold out of this account', 'direction' => 'out', 'group' => 'exchange'],
         'exchange_back_in' => ['label' => 'Handed back (deal cancelled)', 'direction' => 'in', 'group' => 'exchange'],
@@ -109,6 +111,8 @@ class AccountEntry extends Model
             'transfer_in' => 'Received back',
             'handover_out' => 'Handed in',
             'handover_in' => 'Received from an agent',
+            'fee_handover_out' => 'Charges handed in',
+            'fee_handover_in' => 'Charges received',
             'adjustment_in' => 'Credited by the office',
             'adjustment_out' => 'Debited by the office',
             'reversal' => 'Given back',
@@ -139,8 +143,10 @@ class AccountEntry extends Model
 
         $rows = static::whereIn('account_id', $ids)
             // A handover_in is money arriving from an agent, not money this drawer has given up,
-            // so only the paying-out lines count towards what has been handed in.
-            ->whereIn('type', ['transfer_out', 'transfer_in', 'handover_out'])
+            // so only the paying-out lines count towards what has been handed in. The charges count
+            // too: they left the same drawer in the same hand-in, and a figure that quietly dropped
+            // them would leave the card and the wallet disagreeing.
+            ->whereIn('type', ['transfer_out', 'transfer_in', 'handover_out', 'fee_handover_out'])
             ->selectRaw('account_id, type, COALESCE(SUM(amount), 0) as total')
             ->groupBy('account_id', 'type')
             ->get();

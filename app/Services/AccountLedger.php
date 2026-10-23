@@ -109,12 +109,19 @@ class AccountLedger
      * lines, the same figure on both, so the total the business holds never changes and whatever
      * is left in the agent's wallet is always the cash still in their drawer.
      *
-     * @return array{0: AccountEntry, 1: AccountEntry}
+     * A request that names its transfers carries two piles, because an agent's drawer holds both:
+     * the money that has to travel, and the charges those bookings earned. Both cross to the super
+     * agent on approval, and both are recorded apart because only the first of them goes on to
+     * China. A whole-drawer request typed in one figure has no charge of its own to name, so it
+     * moves the one line it always did.
+     *
+     * @return array<int, AccountEntry>
      */
     public static function handOverCash(CashHandover $handover): array
     {
         $currency = strtoupper($handover->currency);
         $amount = number_format((float) $handover->amount, 2, '.', '');
+        $charges = number_format((float) $handover->charge_ugx, 2, '.', '');
         $from = Account::walletFor($handover->agent, $currency);
         $to = Account::walletFor($handover->superAgent, $currency);
 
@@ -122,7 +129,7 @@ class AccountLedger
             .' handed '.Account::format($currency, $amount).' to '.$handover->superAgent->name
             .($handover->note ? '. '.$handover->note : '');
 
-        return DB::transaction(function () use ($from, $to, $amount, $description, $handover) {
+        return DB::transaction(function () use ($from, $to, $amount, $charges, $description, $handover) {
             // The request was typed against a balance that may have moved since. The drawer is
             // locked while it is read, so the approval cannot pay out cash the agent no longer has.
             $locked = Account::whereKey($from->id)->lockForUpdate()->first() ?? $from;
@@ -132,10 +139,33 @@ class AccountLedger
                 throw new InsufficientFundsException($locked, $amount, $available);
             }
 
-            $out = static::record($from, 'handover_out', $amount, $description, null, $handover->reference, null, $to);
-            $in = static::record($to, 'handover_in', $amount, $description, null, $handover->reference, null, $from);
+            $entries = [
+                static::record($from, 'handover_out', $amount, $description, null, $handover->reference, null, $to),
+                static::record($to, 'handover_in', $amount, $description, null, $handover->reference, null, $from),
+            ];
 
-            return [$out, $in];
+            if (bccomp($charges, '0', 2) > 0) {
+                $shillings = Account::walletFor($handover->agent, 'UGX');
+                $kept = Account::walletFor($handover->superAgent, 'UGX');
+
+                $chargeDescription = 'Charges from handover '.$handover->reference.': '
+                    .$handover->agent->name.' handed the UGX '.number_format((float) $charges)
+                    .' those transfers charged over to '.$handover->superAgent->name;
+
+                // On a shilling booking these are the same two wallets the principal moved between,
+                // and the lines stay apart anyway: one pile travels on to China and the other does
+                // not, which is the whole difference the super agent's drawer has to keep showing.
+                $held = $from->id === $shillings->id ? $locked : (Account::whereKey($shillings->id)->lockForUpdate()->first() ?? $shillings);
+
+                if (bccomp($held->balance(), $charges, 2) < 0) {
+                    throw new InsufficientFundsException($held, $charges, $held->balance());
+                }
+
+                $entries[] = static::record($shillings, 'fee_handover_out', $charges, $chargeDescription, null, $handover->reference, null, $kept);
+                $entries[] = static::record($kept, 'fee_handover_in', $charges, $chargeDescription, null, $handover->reference, null, $shillings);
+            }
+
+            return $entries;
         });
     }
 

@@ -28,6 +28,8 @@ final class WalletHistory
         'transfer_in' => 'Received back',
         'handover_out' => 'Handed in',
         'handover_in' => 'Received from an agent',
+        'fee_handover_out' => 'Charges handed in',
+        'fee_handover_in' => 'Charges received',
         'adjustment_in' => 'Credited by the office',
         'adjustment_out' => 'Debited by the office',
         'reversal' => 'Given back',

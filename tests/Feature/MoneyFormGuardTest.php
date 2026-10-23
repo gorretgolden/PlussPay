@@ -77,7 +77,9 @@ class MoneyFormGuardTest extends TestCase
         $lead = $this->person('super-agent', 'Amina Lead');
         $handover = CashHandover::request($agent, $lead, 'UGX', '480000', 'Carried in the evening');
 
-        foreach (['/wallet', '/dashboard'] as $url) {
+        // The wallet card is the record of what went up; the deciding has two homes, the first screen
+        // and the hand-in desk, and both must ask before money moves.
+        foreach (['/dashboard', '/cash-handovers'] as $url) {
             $page = $this->actingAs($lead)->get($url)->assertOk()->getContent();
 
             $this->assertStringContainsString('data-confirm-title="Confirm you have received this cash"', $page, $url);

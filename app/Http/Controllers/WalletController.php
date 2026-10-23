@@ -68,12 +68,23 @@ class WalletController extends Controller
                     ->pluck('total', 'currency')
                     ->all()
                 : [],
-            'handovers' => CashHandover::with(['agent:id,name', 'superAgent:id,name'])
+            // The charges the agents handed up, which sit in the shilling wallet beside his own
+            // commission and are the pile that never goes on to China. Counted off the ledger rather
+            // than the requests so the figure is the money the wallet actually received, and less any
+            // he has since handed further up, because those are no longer in his hand.
+            'chargesKept' => $user->hasRole('super-agent')
+                ? bcsub(
+                    (string) AccountEntry::where('account_id', $wallets['UGX']->id ?? null)->where('type', 'fee_handover_in')->sum('amount'),
+                    (string) AccountEntry::where('account_id', $wallets['UGX']->id ?? null)->where('type', 'fee_handover_out')->sum('amount'),
+                    2,
+                )
+                : '0.00',
+            'handovers' => CashHandover::with(['agent:id,name', 'superAgent:id,name', 'transactions:id,cash_handover_id,receipt_number,amount,currency,charge_ugx'])
                 ->where(fn ($query) => $query->where('agent_id', $user->id)->orWhere('super_agent_id', $user->id))
                 ->latest('id')
                 ->limit(50)
                 ->get(),
-            'openHandover' => CashHandover::with('superAgent:id,name')
+            'openHandover' => CashHandover::with(['superAgent:id,name', 'transactions:id,cash_handover_id,receipt_number'])
                 ->openFor($user)
                 ->latest('id')
                 ->first(),
@@ -153,7 +164,10 @@ class WalletController extends Controller
 
         $earned = (string) AccountEntry::where('account_id', $shilling->id)->where('type', 'agent_fee')->sum('amount');
         $given = (string) AccountEntry::where('account_id', $shilling->id)->where('type', 'agent_fee_reversal')->sum('amount');
+        // Charges handed up with the cash are no longer kept: they went over to the lead's drawer in
+        // the same hand that took the principal, so counting them here would pay them twice.
+        $handedUp = (string) AccountEntry::where('account_id', $shilling->id)->where('type', 'fee_handover_out')->sum('amount');
 
-        return [$shilling->id => bcsub($earned, $given, 2)];
+        return [$shilling->id => bcsub(bcsub($earned, $given, 2), $handedUp, 2)];
     }
 }
