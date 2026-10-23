@@ -51,7 +51,7 @@ class DashboardGreetingTest extends TestCase
         $this->flushSession();
         $html = $this->actingAs($this->user('agent', 'Amina Nabukenya'))->get('/dashboard')->getContent();
 
-        preg_match('/<p class="text-white mt-1">([^<]*)<\/p>/', $html, $match);
+        preg_match('/<p class="text-gray-900 mt-1">([^<]*)<\/p>/', $html, $match);
 
         return trim($match[1] ?? '');
     }
@@ -73,18 +73,18 @@ class DashboardGreetingTest extends TestCase
         $this->travelTo(now()->setTime(3, 14));
 
         $html = $this->actingAs($this->user('superadmin', 'Super Admin'))->get('/dashboard')->getContent();
-        $this->assertStringContainsString('<p class="text-white mt-1">Hello, Super Admin.</p>', $html);
+        $this->assertStringContainsString('<p class="text-gray-900 mt-1">Hello, Super Admin.</p>', $html);
         $this->assertStringNotContainsString('Hello, Super.', $html, 'The first word of a role is not a person.');
 
         $html = $this->actingAs($this->user('agent', 'Gorret Oketayut'))->get('/dashboard')->getContent();
-        $this->assertStringContainsString('<p class="text-white mt-1">Hello, Gorret Oketayut.</p>', $html);
+        $this->assertStringContainsString('<p class="text-gray-900 mt-1">Hello, Gorret Oketayut.</p>', $html);
     }
 
     public function test_the_badge_carries_the_role_display_name_the_sidebar_uses(): void
     {
         $html = $this->actingAs($this->user('agent', 'Amina Nabukenya'))->get('/dashboard')->getContent();
 
-        preg_match('/<span class="inline-flex items-center[^"]*bg-white\/15[^"]*">([^<]*)<\/span>/', $html, $match);
+        preg_match('/<span class="inline-flex items-center[^"]*bg-green-100[^"]*">([^<]*)<\/span>/', $html, $match);
 
         $this->assertSame('Agent', trim($match[1] ?? ''));
         // The sidebar line sits beside the desk country, so the two now say the same thing.
@@ -99,14 +99,14 @@ class DashboardGreetingTest extends TestCase
 
         // The greeting carries the whole name, and for this account the name is the role. The
         // badge still stays: it is the header's statement of what the account may do.
-        $this->assertSame(1, substr_count($html, 'bg-white/15 text-green-50 capitalize'), 'The role chip is shown for a role-named account.');
+        $this->assertSame(1, substr_count($html, 'bg-green-100 text-green-800 capitalize'), 'The role chip is shown for a role-named account.');
 
         preg_match('/<span class="[^"]*capitalize[^"]*">([^<]*)<\/span>/', $html, $match);
         $this->assertSame('Super Admin', trim($match[1] ?? ''));
 
         $this->flushSession();
         $html = $this->actingAs($this->user('agent', 'Amina Nabukenya'))->get('/dashboard')->getContent();
-        $this->assertSame(1, substr_count($html, 'bg-white/15 text-green-50 capitalize'), 'The role chip is shown for every other account too.');
+        $this->assertSame(1, substr_count($html, 'bg-green-100 text-green-800 capitalize'), 'The role chip is shown for every other account too.');
     }
 
     public function test_the_mark_by_the_greeting_matches_the_same_hours_as_the_words(): void

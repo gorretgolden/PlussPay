@@ -84,36 +84,36 @@
     $clockDate = now()->format('D, j M Y');
     $clockTime = now()->format('g:i A');
 @endphp
-{{-- The board opens with a brand-green hero: the greeting, the role, the hour and the two controls.
-     The page title is kept for a screen reader and the sidebar already says which screen this is,
-     so the big word "Dashboard" is gone. The desk's country and the account name are not repeated
-     here either, because the sidebar footer under them carries both, word for word. --}}
-<div class="mb-6 rounded-xl bg-gradient-to-r from-green-900 via-green-800 to-green-700 shadow-md p-3 sm:p-4">
+{{-- The board opens with a plain white header: the greeting, the role, the hour and the two
+     controls. The page title is kept for a screen reader and the sidebar already says which screen
+     this is, so the big word "Dashboard" is gone. The desk's country and the account name are not
+     repeated here either, because the sidebar footer under them carries both, word for word. --}}
+<div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm p-3 sm:p-4">
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 class="sr-only">Dashboard</h1>
         {{-- The mark follows the same hour bands as the words: a sun for the desk hours, a moon
              for the night shift. It carries no text, so it cannot repeat anything on the page. --}}
         <div class="flex min-w-0 items-center gap-3 mr-auto">
-            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full flex items-center justify-center bg-white/15 {{ $hour >= 6 && $hour < 18 ? 'text-amber-100' : 'text-indigo-100' }}">
+            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full flex items-center justify-center {{ $hour >= 6 && $hour < 18 ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700' }}">
                 @if($hour >= 6 && $hour < 18)
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66l1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14l-1.41-1.41M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                 @else
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.5 13.5A8.5 8.5 0 1110.5 3.5a7 7 0 0010 10z"/></svg>
                 @endif
             </span>
-            <p class="text-white mt-1">{{ $greeting }}, {{ $greetAs }}.</p>
+            <p class="text-gray-900 mt-1">{{ $greeting }}, {{ $greetAs }}.</p>
         </div>
         {{-- The badge is kept even though the sidebar footer names the role too: it is the board's
              statement of what this account may do, and it sits beside the balances it governs. --}}
-        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-green-50 capitalize ring-1 ring-inset ring-white/20">{{ $role }}</span>
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize ring-1 ring-inset ring-green-200">{{ $role }}</span>
         {{-- No seconds: the figure only has to be right to the minute, and a digit running every
              second pulls the eye away from the balances. The zone is printed because every figure
              on this board is kept in Kampala time, whatever the machine reading it is set to. --}}
         <div class="text-right leading-tight">
-            <span class="block text-[13px] text-green-100 tabular-nums" id="liveClock" data-zone-offset="180">{{ $clockDate }} · {{ $clockTime }} EAT</span>
+            <span class="block text-[13px] text-gray-600 tabular-nums" id="liveClock" data-zone-offset="180">{{ $clockDate }} · {{ $clockTime }} EAT</span>
             {{-- Set once the board has been pulled again. Until then the line is empty rather than
                  guessing at a time nobody asked for. --}}
-            <span class="block text-[13px] text-green-100/70 tabular-nums" id="lastRefreshed"></span>
+            <span class="block text-[13px] text-gray-400 tabular-nums" id="lastRefreshed"></span>
         </div>
         {{-- Log out and Reload sit here as well as at the bottom of the sidebar, because the
              sidebar is hidden on a phone and the clock line is where eyes already land. --}}
@@ -122,14 +122,14 @@
                  solid one, and the sign-out is the ghost that only colours up once it is actually
                  being aimed at. --}}
             <button type="button" onclick="reloadDashboard(this)" aria-label="Reload this board"
-                class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold bg-white text-green-800 hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-1">
+                class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold bg-green-800 text-white hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
                 <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 <span class="hidden sm:inline">Reload</span>
             </button>
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" aria-label="Log out"
-                    class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold border border-white/25 bg-white/10 text-green-100 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-1">
+                    class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
                     <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                     <span class="hidden sm:inline">Log out</span>
                 </button>
@@ -139,7 +139,7 @@
     @unless($desk)
     {{-- Only the missing case is printed. When a country is set the sidebar footer already names it,
          and a second copy beside the greeting is the duplication she asked to take out. --}}
-    <p class="text-[13px] text-green-100/90 mt-2">{{ $desk ?: 'Desk country not set' }}. The balances below follow Uganda by default, so set the country on your account to see the right till.</p>
+    <p class="text-[13px] text-gray-600 mt-2">{{ $desk ?: 'Desk country not set' }}. The balances below follow Uganda by default, so set the country on your account to see the right till.</p>
     @endunless
 </div>
 
@@ -151,8 +151,8 @@
     // label starts with the verb for what the tile does, and is the words the screen it opens uses,
     // so one thing never carries two names. Sending opens with the corridor already chosen, since
     // which way the money goes is the first thing a desk knows about the booking standing in front
-    // of it, and it is the job the whole board exists for, so it is the one tile filled in with the
-    // brand green.
+    // of it, and it is the job the whole board exists for, so it is the one tile that keeps a
+    // soft green wash while the rest stay white.
     //
     // A hand only ever sends one way: the cash is handed over where the desk is, so an agent in
     // Uganda sends to China and an agent in China sends to Uganda. Whoever sees the whole book
@@ -230,25 +230,25 @@
     // so the third never waits below the fold. Any other count steps up a column at lg instead.
     $tilesPerRow = count($quickActions) === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2 lg:grid-cols-3';
 @endphp
-<div class="rounded-xl border border-green-100 bg-gradient-to-b from-green-50/70 to-white shadow-sm p-4 sm:p-6 mb-6">
+<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 sm:p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
     {{-- A tile never stretches across the row on its own, because a full-width card looks like a
          heading rather than something to press. --}}
     <div class="grid grid-cols-1 gap-3 {{ $tilesPerRow }}">
         @foreach($quickActions as $action)
         @php [$ability, $label, $hint, $url, $glyph, $primary] = array_pad($action, 6, null); @endphp
-        <a href="{{ $url }}" class="group flex items-center gap-3 min-w-0 rounded-lg border p-3 transition hover:border-green-300 hover:bg-green-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1{{ $primary ? ' bg-green-800 border-green-800 hover:bg-green-700 sm:col-span-1' : ' border-gray-200 bg-white' }}">
-            <span aria-hidden="true" class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center {{ $primary ? 'bg-white/15 text-white' : 'bg-green-100 text-green-800' }}">
+        <a href="{{ $url }}" class="group flex items-center gap-3 min-w-0 rounded-lg border p-3 transition hover:border-green-300 hover:bg-green-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1{{ $primary ? ' bg-green-50 border-green-200 sm:col-span-1' : ' border-gray-200 bg-white' }}">
+            <span aria-hidden="true" class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center bg-green-100 text-green-800">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $glyph }}"/></svg>
             </span>
             <span class="min-w-0 flex-1">
-                <span class="block text-sm font-semibold {{ $primary ? 'text-white' : 'text-gray-900' }}">{{ $label }}</span>
-                <span class="block text-[13px] {{ $primary ? 'text-green-100' : 'text-gray-700' }}">{{ $hint }}</span>
+                <span class="block text-sm font-semibold text-gray-900">{{ $label }}</span>
+                <span class="block text-[13px] text-gray-700">{{ $hint }}</span>
             </span>
             {{-- The chevron is what says "this goes somewhere". Nothing else on a card is a link,
                  and a tile that only changes colour under the cursor says nothing until the
                  cursor is already on it. --}}
-            <svg class="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 {{ $primary ? 'text-green-100' : 'text-gray-400 group-hover:text-green-700' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            <svg class="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 text-gray-400 group-hover:text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
         </a>
         @endforeach
     </div>

@@ -125,7 +125,7 @@ class DashboardHeaderControlsTest extends TestCase
 
         // Several desks share the role, so the board has to say whose hand the balances are in.
         // It is said once, in the greeting, and the chips are left for the role and the desk.
-        $this->assertMatchesRegularExpression('#<p class="text-white mt-1">\w[^<]*, Amina Nabukenya\.</p>#', $html);
+        $this->assertMatchesRegularExpression('#<p class="text-gray-900 mt-1">\w[^<]*, Amina Nabukenya\.</p>#', $html);
         $this->assertStringNotContainsString('max-w-[12rem]', $html, 'A name chip beside a role chip says the same thing twice.');
     }
 
@@ -137,16 +137,16 @@ class DashboardHeaderControlsTest extends TestCase
         $this->travelTo(now()->setTime(13, 5));
 
         $super = $this->board('superadmin', 'Super Admin');
-        $this->assertMatchesRegularExpression('#<p class="text-white mt-1">Good afternoon, Super Admin\.</p>#', $super);
+        $this->assertMatchesRegularExpression('#<p class="text-gray-900 mt-1">Good afternoon, Super Admin\.</p>#', $super);
         $this->assertStringNotContainsString('Good afternoon, Super.', $super, 'A role name is never cut to its first word.');
 
         $this->flushSession();
         $agent = $this->board('agent', 'Agent');
-        $this->assertMatchesRegularExpression('#<p class="text-white mt-1">Good afternoon, Agent\.</p>#', $agent);
+        $this->assertMatchesRegularExpression('#<p class="text-gray-900 mt-1">Good afternoon, Agent\.</p>#', $agent);
 
         $this->flushSession();
         $named = $this->board('agent', 'Charles Kato Mulondo');
-        $this->assertMatchesRegularExpression('#<p class="text-white mt-1">Good afternoon, Charles Kato Mulondo\.</p>#', $named);
+        $this->assertMatchesRegularExpression('#<p class="text-gray-900 mt-1">Good afternoon, Charles Kato Mulondo\.</p>#', $named);
     }
 
     public function test_the_clock_is_stamped_to_the_minute_with_no_running_second(): void
@@ -188,10 +188,10 @@ class DashboardHeaderControlsTest extends TestCase
         // It ends the session, so it must not read as the primary action or match the reload beside
         // it. It colours up only once a pointer is actually on it.
         preg_match('#aria-label="Log out"\s+class="([^"]+)"#', $html, $signOut);
-        $this->assertStringContainsString('text-green-100', $signOut[1] ?? '');
-        $this->assertStringContainsString('bg-white/10', $signOut[1] ?? '', 'The ghost fill keeps it quieter than the reload.');
-        $this->assertStringContainsString('hover:text-white', $signOut[1] ?? '');
-        $this->assertStringNotContainsString('bg-white text-green-800', $signOut[1] ?? '', 'It is the ghost beside the solid reload button.');
+        $this->assertStringContainsString('text-gray-700', $signOut[1] ?? '');
+        $this->assertStringContainsString('border-gray-300', $signOut[1] ?? '', 'The outline keeps it quieter than the solid reload.');
+        $this->assertStringContainsString('hover:bg-gray-50', $signOut[1] ?? '');
+        $this->assertStringNotContainsString('bg-green-800 text-white', $signOut[1] ?? '', 'It is the ghost beside the solid reload button.');
     }
 
     public function test_the_hour_mark_is_dark_enough_to_read_against_its_circle(): void
@@ -207,10 +207,10 @@ class DashboardHeaderControlsTest extends TestCase
         $this->flushSession();
         $midday = $this->actingAs($this->desk())->get('/dashboard')->getContent();
 
-        // The mark used to sit on a pale circle in a paler glyph. Both bands now carry a frosted
-        // circle on the green hero and the -100 shade of the same colour, so the shape reads
-        // against the band rather than the blob.
-        $this->assertStringContainsString('bg-white/15 text-indigo-100', $evening);
-        $this->assertStringContainsString('bg-white/15 text-amber-100', $midday);
+        // The mark used to sit on a frosted circle in a paler glyph on the green hero. The header
+        // is now plain white, so each band carries a pastel circle with the -700 shade of the same
+        // colour, and the shape still reads against the band rather than the blob.
+        $this->assertStringContainsString('bg-indigo-100 text-indigo-700', $evening);
+        $this->assertStringContainsString('bg-amber-100 text-amber-700', $midday);
     }
 }
