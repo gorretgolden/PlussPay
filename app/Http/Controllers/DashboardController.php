@@ -140,6 +140,14 @@ class DashboardController extends Controller
             $withdrawalsWaiting = Transaction::awaitingPayoutInChina()->count();
         }
 
+        // The mirror at the other end: a booking made in China is waiting to be paid out in
+        // Uganda from the day it is taken, and this is the queue the Uganda desk hands over.
+        $ugandaWithdrawalsWaiting = 0;
+
+        if ($user->can('view-transactions') && $user->can('confirm-china-payout')) {
+            $ugandaWithdrawalsWaiting = Transaction::awaitingPayoutInUganda()->count();
+        }
+
         // What the charge pen has kept this month, kept apart by the wallet it landed in so each
         // card prints its own figure and a card with nothing to report prints a zero rather than
         // dropping its row. Commission is only ever typed into a shilling wallet, so the dollar
@@ -184,7 +192,7 @@ class DashboardController extends Controller
         // it gets no card at all rather than a figure it cannot check.
         $spending = $user->can('view-expenses') ? $this->spendingToday($user) : ['count' => 0, 'desks' => []];
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'profit', 'windows', 'logAlerts', 'news', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'greetAs'));
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'profit', 'windows', 'logAlerts', 'news', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'greetAs'));
     }
 
     /**

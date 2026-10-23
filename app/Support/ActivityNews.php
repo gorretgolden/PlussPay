@@ -34,6 +34,7 @@ final class ActivityNews
     private const ABILITIES = [
         'transfers' => ['view-all-transactions'],
         'china' => ['view-all-transactions'],
+        'uganda' => ['view-all-transactions'],
         'exchanges' => ['view-all-exchanges'],
         'expenses' => ['view-all-expenses'],
         'wallets' => ['view-all-wallets'],
@@ -49,6 +50,7 @@ final class ActivityNews
     public const SIDEBAR_SLOTS = [
         'transfers' => 'transactions',
         'china' => 'china',
+        'uganda' => 'uganda',
         'exchanges' => 'exchanges',
         'expenses' => 'expenses',
         'users' => 'users',
@@ -59,6 +61,7 @@ final class ActivityNews
     private const LINKS = [
         'transfers' => 'Open the transfer',
         'china' => 'Open the China desk',
+        'uganda' => 'Open the Uganda desk',
         'exchanges' => 'Open the exchange',
         'expenses' => 'Open the expense',
         'wallets' => 'Open the account',
@@ -72,6 +75,7 @@ final class ActivityNews
         'bulk_import' => ['transfers', 'Transfers were imported in bulk'],
         'sent_to_china' => ['china', 'Dollars were sent to the China desk'],
         'china_payout_recorded' => ['china', 'Receiver was paid in China'],
+        'uganda_payout_recorded' => ['uganda', 'Receiver was paid in Uganda'],
         'wallet_adjusted' => ['wallets', 'A wallet balance was corrected'],
         'cash_handed_in' => ['wallets', 'Cash was handed in'],
         'cash_handover_requested' => ['wallets', 'An agent asked to hand cash in'],
@@ -339,6 +343,7 @@ final class ActivityNews
 
         return match ($section) {
             'china' => '/china',
+            'uganda' => '/uganda',
             'expenses' => $log->subject_id ? '/expenses/'.$log->subject_id : '/expenses',
             'exchanges' => $log->subject_id ? '/exchanges/'.$log->subject_id : '/exchanges',
             'wallets' => $log->subject_type === 'accounts' && $log->subject_id

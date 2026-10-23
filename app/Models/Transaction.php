@@ -597,6 +597,19 @@ class Transaction extends Model
     }
 
     /**
+     * Money the desk in Uganda owes a receiver in shillings but has not yet handed over. There is no
+     * crossing stamp to wait for: a booking into Uganda arrives with its money in Uganda, so every
+     * completed booking that direction is in this queue from the moment it is taken until it is paid.
+     */
+    public function scopeAwaitingPayoutInUganda(Builder $query): Builder
+    {
+        return $query->where('status', 'completed')
+            ->where('destination', self::TO_UGANDA)
+            ->whereNull('delivered_at')
+            ->owingPayout();
+    }
+
+    /**
      * Whether this transfer's money has reached China at all, which is what decides if it can be
      * cancelled from the Uganda side. Once the dollars have moved, cancelling the booking here
      * would leave the cash in two places and the books telling two stories.

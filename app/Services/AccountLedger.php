@@ -200,15 +200,16 @@ class AccountLedger
 
     /**
      * The money a transfer promised at its far end is put into the receiver's hand, out of the
-     * wallet of the very desk that was sent for it, so the two sides of the chain always point at
-     * each other. Which wallet that is depends on the money the receiver was promised: a desk paid
-     * in yuan draws on its yuan, and one handed dollars pays straight out of the dollars that
-     * crossed, with no exchange in between. The China account is allowed to run below zero (see
-     * guardAgainstOverdraft), because that side pays the receiver before Uganda has made the dollars
-     * whole across; the stamp that follows is what moves the transfer out of "in China, unpaid" and
-     * into "paid".
+     * account the paying desk names, in the money the receiver was promised, so the two sides of
+     * the chain always point at each other. A China payout draws on the wallet of the very desk
+     * that was sent the dollars for it, and one handed dollars pays straight out of the dollars
+     * that crossed, with no exchange in between. The China account is allowed to run below zero
+     * (see guardAgainstOverdraft), because that side pays the receiver before Uganda has made the
+     * dollars whole across. A Uganda payout draws on the office shilling book, because a booking
+     * into Uganda carries no crossing: its money is in Uganda from the day it is taken. The stamp
+     * that follows is what moves the transfer out of "unpaid" and into "paid".
      */
-    public static function payOutInChina(Transaction $transaction, Account $account, ?string $date = null): AccountEntry
+    public static function payOutReceiver(Transaction $transaction, Account $account, ?string $date = null): AccountEntry
     {
         $amount = number_format((float) $transaction->payoutAmount(), 2, '.', '');
 

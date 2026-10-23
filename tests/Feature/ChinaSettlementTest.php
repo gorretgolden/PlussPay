@@ -651,7 +651,7 @@ class ChinaSettlementTest extends TestCase
         $source = $this->dollars(2000);
         $this->send($waiting, $source, $this->china)->assertSessionHasNoErrors();
         $this->send($paid, $source, $this->china)->assertSessionHasNoErrors();
-        AccountLedger::payOutInChina($paid->fresh(), Account::walletFor($this->china, 'RMB'));
+        AccountLedger::payOutReceiver($paid->fresh(), Account::walletFor($this->china, 'RMB'));
 
         $this->actingAs($this->office)->get('/transactions?stage=cash')
             ->assertOk()
@@ -736,7 +736,7 @@ class ChinaSettlementTest extends TestCase
         $this->send($waiting, $source, $this->china);
         $this->send($paid, $source, $this->china);
 
-        AccountLedger::payOutInChina($paid->fresh(), Account::walletFor($this->china, 'RMB'));
+        AccountLedger::payOutReceiver($paid->fresh(), Account::walletFor($this->china, 'RMB'));
 
         $this->actingAs($this->office)->get('/dashboard')
             ->assertOk()

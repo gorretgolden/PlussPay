@@ -21,6 +21,7 @@ use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\SystemLogController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\UgandaDeskController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
@@ -78,6 +79,11 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::get('/china', [ChinaDeskController::class, 'index'])->name('china.index');
         Route::post('/china/send', [ChinaDeskController::class, 'send'])->middleware('can:send-to-china')->name('china.send');
         Route::post('/china/payout', [ChinaDeskController::class, 'payout'])->middleware('can:confirm-china-payout')->name('china.payout');
+
+        // The corridor's other far end: a desk in China books to Uganda, and the shillings that
+        // booking promised are handed over here. The same payout pen clears both queues.
+        Route::get('/uganda', [UgandaDeskController::class, 'index'])->name('uganda.index');
+        Route::post('/uganda/payout', [UgandaDeskController::class, 'payout'])->middleware('can:confirm-china-payout')->name('uganda.payout');
     });
 
     Route::middleware('can:view-exchanges')->group(function () {

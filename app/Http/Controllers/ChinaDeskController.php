@@ -233,7 +233,7 @@ class ChinaDeskController extends Controller
             foreach ($transactions as $transaction) {
                 $account = $this->payoutAccount($transaction);
 
-                AccountLedger::payOutInChina(
+                AccountLedger::payOutReceiver(
                     $transaction,
                     $account,
                     $validated['entry_date'] ?? null,
