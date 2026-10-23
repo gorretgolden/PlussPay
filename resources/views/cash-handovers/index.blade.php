@@ -220,6 +220,17 @@
                 if ($handover->note) {
                     $handoverRows[] = ['Their note', $handover->note];
                 }
+
+                // Sending one back only needs the bare figures; the story is already on the row
+                // behind the card.
+                $declineRows = [
+                    ['Agent', $handover->agent?->name],
+                    ['Amount', $handover->figure()],
+                    ['Reference', $handover->reference],
+                ];
+                if ((float) $handover->charge_ugx > 0) {
+                    $declineRows[] = ['Charges', $handover->chargeFigure()];
+                }
             @endphp
             <tr>
                 @if($bulkTargets->isNotEmpty())
@@ -295,10 +306,10 @@
                         </form>
                         <form method="POST" action="{{ route('cash-handovers.decline', $handover) }}"
                             data-confirm-title="Send this hand-in back?"
-                            data-confirm="The cash stays in {{ $handover->agent?->name }}'s wallet, the transfers go back to reading as cash taken, and the agent sees the reason you give."
+                            data-confirm="The cash stays with {{ $handover->agent?->name }} and the transfers go back to Cash taken."
                             data-confirm-ok="Send it back"
                             data-confirm-danger="1"
-                            data-confirm-sections="{{ json_encode([['rows' => $handoverRows]]) }}"
+                            data-confirm-sections="{{ json_encode([['rows' => $declineRows]]) }}"
                             data-confirm-rows="{{ json_encode([['Reason', 'input[name=decision_note]', 'value']]) }}"
                             data-lock data-lock-label="Sending back...">
                             @csrf
