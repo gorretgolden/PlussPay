@@ -8,6 +8,7 @@ use App\Models\ExchangeRate;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\AccountLedger;
 use App\Support\PermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -287,35 +288,25 @@ class CashHistoryTest extends TestCase
     {
         $agent = $this->agent();
         $lead = $this->superAgent();
-        $this->shillingBooking($agent, 'PS-20261017-0113');
+        $booking = $this->shillingBooking($agent, 'PS-20261017-0113');
+
+        // The desk spent most of the drawer after the booking, so the ticks no longer sit in the till.
+        AccountLedger::record(Account::walletFor($agent, 'UGX'), 'adjustment_out', '450000', 'Spent before the hand-in');
 
         $this->flushSession();
-        $this->actingAs($agent)->post(route('cash-handovers.store'), [
+        $this->actingAs($agent)->post(route('cash-handovers.from-transactions'), [
             'super_agent_id' => $lead->id,
-            'currency' => 'UGX',
-            'amount' => '500000000000',
+            'transaction_ids' => [$booking->id],
             'note' => 'Whole day',
-        ])->assertSessionHasErrors('amount');
+        ])->assertSessionHasErrors('transaction_ids');
 
         $this->assertStringContainsString(
-            'The UGX wallet holds UGX 500,000',
-            session('errors')->first('amount'),
+            'The UGX wallet holds UGX 50,000',
+            session('errors')->first('transaction_ids'),
             'The refusal says what is really in the drawer.',
         );
-        $this->assertSame('500000.00', Account::walletFor($agent, 'UGX')->fresh()->balance());
+        $this->assertSame('50000.00', Account::walletFor($agent, 'UGX')->fresh()->balance());
         $this->assertSame('0.00', Account::byCode(Account::UGX_UGANDA)->balance());
         $this->assertSame(0, CashHandover::count());
-    }
-
-    public function test_the_amount_box_carries_the_ceiling_of_the_wallet_it_names(): void
-    {
-        $agent = $this->agent();
-        $this->superAgent();
-        $this->shillingBooking($agent, 'PS-20261017-0114');
-
-        $html = $this->page($agent);
-
-        $this->assertStringContainsString('min="0.01" max="500000" required value="500000"', $html);
-        $this->assertStringContainsString('Cannot be more than the UGX wallet holds right now.', $html);
     }
 }

@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\CashHandover;
+use App\Models\ExchangeRate;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Services\AccountLedger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -17,6 +19,14 @@ use Tests\TestCase;
 class OneHandInAtATimeTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        ExchangeRate::create(['from_currency' => 'USD', 'to_currency' => 'RMB', 'rate' => 6.75, 'buy_rate' => 6.75, 'sell_rate' => 6.75, 'is_active' => true]);
+        ExchangeRate::create(['from_currency' => 'USD', 'to_currency' => 'UGX', 'rate' => 3760, 'buy_rate' => 3750, 'sell_rate' => 3760, 'is_active' => true]);
+    }
 
     private function person(string $role, string $name, string $country = 'UG', ?string $float = null, string $currency = 'UGX'): User
     {
@@ -37,21 +47,63 @@ class OneHandInAtATimeTest extends TestCase
         return $user;
     }
 
+    /**
+     * Money already taken in at the counter, the same shape the Transactions page ticks.
+     */
+    private function booked(string $receipt, User $creator, string $currency = 'UGX', string $principal = '480000', string $charge = '20000'): Transaction
+    {
+        $dollars = $currency === 'USD';
+
+        return Transaction::create([
+            'receipt_number' => $receipt,
+            'sender_name' => 'Sender '.$receipt,
+            'sender_contact' => '',
+            'receiver_name' => 'Receiver '.$receipt,
+            'receiver_contact' => '',
+            'destination' => 'CN',
+            'payout_currency' => 'RMB',
+            'currency' => $currency,
+            'amount' => $principal,
+            'exchange_rate' => $dollars ? 6.75 : 0,
+            'rmb_amount' => $dollars ? (float) bcmul($principal, '6.75', 2) : (float) bcmul($principal, '0.0018', 2),
+            'total_usd_equivalent' => $dollars ? (float) $principal : (float) bcdiv($principal, '3760', 4),
+            'charge_rate' => 0,
+            'charge_amount' => 0,
+            'charge_ugx' => $charge,
+            'status' => 'completed',
+            'created_by' => $creator->id,
+        ]);
+    }
+
+    /**
+     * @param  array<int, int>  $ids
+     */
+    private function handIn(User $who, array $ids, ?int $leadId = null): \Illuminate\Testing\TestResponse
+    {
+        return $this->actingAs($who)->post(route('cash-handovers.from-transactions'), [
+            'super_agent_id' => $leadId ?? User::role('super-agent')->value('id'),
+            'transaction_ids' => $ids,
+            'note' => 'Counter cash',
+        ]);
+    }
+
     public function test_a_second_hand_in_is_refused_while_the_first_is_pending(): void
     {
         $agent = $this->person('agent', 'Sarah Nalin', 'UG', '500000');
         $lead = $this->person('super-agent', 'Amina Lead');
-        $first = CashHandover::request($agent, $lead, 'UGX', '480000');
+        $firstBooking = $this->booked('OH-001', $agent, 'UGX', '480000', '20000');
 
-        $this->actingAs($agent)->post(route('cash-handovers.store'), [
-            'super_agent_id' => $lead->id,
-            'currency' => 'UGX',
-            'amount' => '100000',
-        ])->assertSessionHasErrors('handover');
+        $this->handIn($agent, [$firstBooking->id], $lead->id)->assertSessionHas('success');
+        $first = CashHandover::sole();
+
+        $secondBooking = $this->booked('OH-002', $agent, 'UGX', '100000', '5000');
+        $before = Account::walletFor($agent, 'UGX')->fresh()->balance();
+        $this->handIn($agent, [$secondBooking->id], $lead->id)->assertSessionHasErrors('handover');
 
         $this->assertSame(1, CashHandover::count(), 'The second request must not be written down.');
-        $this->assertSame('500000.00', Account::walletFor($agent, 'UGX')->fresh()->balance());
-        $message = session('errors')->first('handover');
+        $this->assertSame($before, Account::walletFor($agent, 'UGX')->fresh()->balance(),
+            'A refused request moves no money.');
+        $message = $this->flashedError('handover');
         $this->assertStringContainsString($first->reference, $message);
         $this->assertStringContainsString('Amina Lead', $message);
         $this->assertStringContainsString('UGX 480,000', $message);
@@ -63,45 +115,40 @@ class OneHandInAtATimeTest extends TestCase
         AccountLedger::record(Account::walletFor($agent, 'USD'), 'adjustment_in', '100', 'Dollar float');
         $lead = $this->person('super-agent', 'Amina Lead');
 
-        CashHandover::request($agent, $lead, 'UGX', '480000');
+        $ugx = $this->booked('OH-010', $agent, 'UGX', '480000', '20000');
+        $this->handIn($agent, [$ugx->id], $lead->id)->assertSessionHas('success');
 
-        $this->actingAs($agent)->post(route('cash-handovers.store'), [
-            'super_agent_id' => $lead->id,
-            'currency' => 'USD',
-            'amount' => '50',
-        ])->assertSessionHasErrors('handover');
+        $usd = $this->booked('OH-011', $agent, 'USD', '100', '2000');
+        $this->handIn($agent, [$usd->id], $lead->id)->assertSessionHasErrors('handover');
 
         $this->assertSame(1, CashHandover::count());
     }
 
-    public function test_the_wallet_page_stops_offering_the_form_while_a_request_is_open(): void
+    public function test_the_wallet_page_offers_no_typed_hand_in_anymore(): void
     {
         $agent = $this->person('agent', 'Sarah Nalin', 'UG', '500000');
-        $lead = $this->person('super-agent', 'Amina Lead');
-        $handover = CashHandover::request($agent, $lead, 'UGX', '480000');
+        $this->person('super-agent', 'Amina Lead');
 
         $page = $this->actingAs($agent)->get('/wallet')->assertOk()->getContent();
 
-        $this->assertStringContainsString('A hand-in is already waiting for approval.', $page);
-        $this->assertStringContainsString($handover->reference, $page);
-        $this->assertStringContainsString('Amina Lead', $page);
-        $this->assertStringContainsString('UGX 480,000', $page);
-        $this->assertSame(0, substr_count($page, 'action="'.route('cash-handovers.store').'"'),
-            'The send form must be gone while a hand-in is open.');
+        $this->assertStringNotContainsString('hand-in-amount', $page, 'The typed amount box is gone.');
+        $this->assertStringNotContainsString('hand-in-super-agent', $page, 'The super agent dropdown is gone.');
+        $this->assertStringNotContainsString('Hand cash in to your super agent', $page);
+        $this->assertStringContainsString('ticking the transfers', $page, 'The wallet page points at the way that remains.');
     }
 
-    public function test_the_agent_can_send_again_once_the_open_request_is_sent_back(): void
+    public function test_the_agent_can_hand_in_again_once_the_open_request_is_sent_back(): void
     {
         $agent = $this->person('agent', 'Sarah Nalin', 'UG', '500000');
         $lead = $this->person('super-agent', 'Amina Lead');
-        $first = CashHandover::request($agent, $lead, 'UGX', '480000');
-        $first->decline('The bag holds less than the note says.');
+        $firstBooking = $this->booked('OH-020', $agent, 'UGX', '480000', '20000');
+        $this->handIn($agent, [$firstBooking->id], $lead->id)->assertSessionHas('success');
+        CashHandover::sole()->decline('The bag holds less than the note says.');
 
-        $this->actingAs($agent)->post(route('cash-handovers.store'), [
-            'super_agent_id' => $lead->id,
-            'currency' => 'UGX',
-            'amount' => '480000',
-        ])->assertRedirect()->assertSessionHas('success');
+        $secondBooking = $this->booked('OH-021', $agent, 'UGX', '240000', '10000');
+        $this->handIn($agent, [$secondBooking->id], $lead->id)
+            ->assertRedirect()
+            ->assertSessionHas('success');
 
         $this->assertSame(2, CashHandover::count());
         $this->assertSame(CashHandover::PENDING, CashHandover::latest('id')->first()->status);

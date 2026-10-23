@@ -56,10 +56,6 @@ class WalletController extends Controller
             'commission' => $this->commissionTotals($held),
             'movements' => WalletHistory::paginate(WalletHistory::filtered(WalletHistory::lines($user), $request), $request),
             'kinds' => WalletHistory::KINDS,
-            'superAgents' => $user->hasRole('agent') && ! $user->hasRole('super-agent')
-                && ($user->country ?: User::DEFAULT_COUNTRY) !== 'CN'
-                ? User::role('super-agent')->where('is_active', true)->orderBy('name')->get(['id', 'name'])
-                : collect(),
             'received' => $user->hasRole('super-agent')
                 ? CashHandover::where('super_agent_id', $user->id)
                     ->where('status', CashHandover::APPROVED)
@@ -84,10 +80,6 @@ class WalletController extends Controller
                 ->latest('id')
                 ->limit(50)
                 ->get(),
-            'openHandover' => CashHandover::with(['superAgent:id,name', 'transactions:id,cash_handover_id,receipt_number'])
-                ->openFor($user)
-                ->latest('id')
-                ->first(),
         ]);
     }
 

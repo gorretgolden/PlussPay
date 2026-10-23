@@ -7,7 +7,6 @@
     $isSuperAgent = auth()->user()->hasRole('super-agent');
     $isAgent = auth()->user()->hasRole('agent') && ! $isSuperAgent;
     $isChinaDesk = (auth()->user()->country ?: \App\Models\User::DEFAULT_COUNTRY) === 'CN';
-    $handInHere = $isAgent && ! $isChinaDesk;
 @endphp
 
 <div class="mb-6">
@@ -18,7 +17,7 @@
         @elseif($isChinaDesk)
             Money sent from Uganda arrives here, and the yuan or dollars you hand a receiver leave from here. Commission is paid in shillings, whatever currency the transfer was booked in.
         @else
-            Money you collected stays here until the super agent takes it in hand. Commission is paid in shillings, whatever currency the transfer was booked in.
+            Money you collected stays here until the super agent takes it in hand. Hand cash in by ticking the transfers on the <a href="{{ route('transactions.index') }}" class="text-green-800 underline">Transactions</a> page. Commission is paid in shillings, whatever currency the transfer was booked in.
         @endif
     </p>
 </div>
@@ -36,103 +35,6 @@
     </div>
     @endforeach
 </div>
-
-@if($handInHere)
-@php
-    $chosen = old('currency', array_key_first($wallets) ?? '');
-    $heldNow = (float) (($wallets[$chosen] ?? null)?->balance() ?? 0);
-    // Handing in the whole bag is the usual case, so the box opens at what the chosen
-    // wallet holds. A figure typed before a failed submit always wins over the guess,
-    // and an empty wallet leaves the box empty rather than opening at a zero it cannot send.
-    $prefill = old('amount', $heldNow > 0 ? (string) round($heldNow, 2) : '');
-@endphp
-<div id="hand-in" class="bg-white rounded-lg shadow p-6 mb-8 scroll-mt-20">
-    <h2 class="text-lg font-semibold text-gray-900">Hand cash in to your super agent</h2>
-    @if($openHandover)
-        @php $openNamed = $openHandover->receiptNumbers(); @endphp
-        <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            <p class="font-semibold">A hand-in is already waiting for approval.</p>
-            <p class="mt-1">{{ $openHandover->figure() }} to {{ $openHandover->superAgent?->name }} ({{ $openHandover->reference }}), sent {{ $openHandover->created_at->format('M j, Y g:i A') }}. You can send another once it is approved or sent back.</p>
-            @if((float) $openHandover->charge_ugx > 0 || $openNamed->isNotEmpty())
-            <p class="mt-1">
-                {{ $openHandover->chargeFigure() }} in charges ride with it @if($openNamed->isNotEmpty()), named on {{ number_format($openNamed->count()) }} {{ \Illuminate\Support\Str::plural('transfer', $openNamed->count()) }} ({{ $openNamed->implode(', ') }})@endif.
-            </p>
-            @endif
-            <form method="POST" action="{{ route('cash-handovers.cancel', $openHandover) }}" class="mt-3 flex flex-wrap items-end gap-2"
-                data-confirm-title="Call hand-in {{ $openHandover->reference }} back?"
-                data-confirm="Nothing has moved yet. The cash stays in your wallet and the transfers on it go back to reading as cash taken."
-                data-confirm-ok="Call it back" data-confirm-danger="1"
-                data-lock data-lock-label="Cancelling...">
-                @csrf
-                <div>
-                    <label for="hand-in-cancel-reason" class="block text-xs font-medium text-amber-800 mb-1">Why, for the trail, optional</label>
-                    <input type="text" id="hand-in-cancel-reason" name="reason" maxlength="255" placeholder="e.g. One transfer needs correcting first"
-                        class="w-full sm:w-64 px-3 py-2 border border-amber-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                </div>
-                <button type="submit" class="bg-white text-red-700 border border-red-300 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50">Cancel this hand-in</button>
-            </form>
-        </div>
-    @elseif($superAgents->isEmpty())
-        <p class="text-sm text-gray-600 mt-2">No super agent is active yet. Ask the office to set one up before you hand any cash in.</p>
-    @else
-    <p class="text-sm text-gray-600 mt-1 mb-4">The money stays in your wallet until the super agent approves it. You will see the decision here, and the cash only changes hands when they approve.</p>
-    <p class="text-sm text-gray-600 mb-4">
-        The usual way is to tick the transfers whose cash is in your hand on the
-        <a href="{{ route('transactions.index') }}" class="text-green-800 underline">Transactions</a> page: the request then carries those
-        receipt numbers, the money they are worth and the charges they earned, instead of a figure you typed.
-        This box is for a flat amount that names no transfers, such as the whole till at the end of a day.
-    </p>
-    <form method="POST" action="{{ route('cash-handovers.store') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end"
-        data-confirm-title="Send this cash hand-in for approval?"
-        data-confirm="The money stays in your wallet until the super agent approves it. Check the details before sending."
-        data-confirm-ok="Send for approval"
-        data-confirm-rows="{{ json_encode([
-            ['Super agent', '#hand-in-super-agent', 'option'],
-            ['Wallet', '#hand-in-currency', 'value'],
-            ['Amount', '#hand-in-amount', 'money'],
-            ['Note', '#hand-in-note', 'value'],
-        ]) }}"
-        data-lock data-lock-label="Sending...">
-        @csrf
-        <div>
-            <label for="hand-in-super-agent" class="block text-sm font-medium text-gray-700 mb-1">Super agent</label>
-            <select id="hand-in-super-agent" name="super_agent_id" required @if($errors->has('super_agent_id')) aria-invalid="true" @endif class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('super_agent_id') ? ' field-invalid' : '' }}">
-                @foreach($superAgents as $superAgent)
-                <option value="{{ $superAgent->id }}" @selected((string) old('super_agent_id') === (string) $superAgent->id)>{{ $superAgent->name }}</option>
-                @endforeach
-            </select>
-            @error('super_agent_id') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-        </div>
-        <div>
-            <label for="hand-in-currency" class="block text-sm font-medium text-gray-700 mb-1">Wallet</label>
-            <select id="hand-in-currency" name="currency" required @if($errors->has('currency')) aria-invalid="true" @endif class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('currency') ? ' field-invalid' : '' }}">
-                @foreach($wallets as $currency => $account)
-                <option value="{{ $currency }}" data-balance="{{ (string) round((float) $account->balance(), 2) }}" @selected($chosen === $currency)>{{ $currency }} ({{ \App\Models\Account::format($currency, $account->balance()) }} in hand)</option>
-                @endforeach
-            </select>
-            @error('currency') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-        </div>
-        <div>
-            <label for="hand-in-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-            <input type="number" id="hand-in-amount" name="amount" step="0.01" min="0.01" max="{{ $heldNow > 0 ? $heldNow : '' }}" required value="{{ $prefill }}"
-                aria-describedby="hand-in-amount-hint" @if($errors->has('amount')) aria-invalid="true" @endif
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('amount') ? ' field-invalid' : '' }}">
-            <p id="hand-in-amount-hint" class="text-xs text-gray-400 mt-1">Cannot be more than the {{ $chosen }} wallet holds right now.</p>
-            @error('amount') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-        </div>
-        <div class="md:col-span-3">
-            <label for="hand-in-note" class="block text-sm font-medium text-gray-700 mb-1">Note, optional</label>
-            <input type="text" id="hand-in-note" name="note" maxlength="255" value="{{ old('note') }}" placeholder="e.g. Full day's collections"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500{{ $errors->has('note') ? ' field-invalid' : '' }}">
-            @error('note') <p class="field-error text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-        </div>
-        <div class="md:col-span-1 flex md:justify-end">
-            <button type="submit" class="w-full md:w-auto bg-green-800 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition">Send for approval</button>
-        </div>
-    </form>
-    @endif
-</div>
-@endif
 
 @if(($isAgent || $isSuperAgent) && $handovers->isNotEmpty())
 <div class="bg-white rounded-lg shadow mb-8 overflow-hidden">
@@ -325,34 +227,3 @@
     @endif
 </div>
 @endsection
-
-@push('scripts')
-<script>
-    (function () {
-        var money = document.getElementById('hand-in-currency');
-        var amount = document.getElementById('hand-in-amount');
-        var hint = document.getElementById('hand-in-amount-hint');
-
-        if (!money || !amount) { return; }
-
-        var held = function () { return money.options[money.selectedIndex].dataset.balance; };
-
-        // The amount follows the wallet it names until the person takes over the typing.
-        // Once they have moved the figure off the balance, switching wallets leaves their
-        // figure alone, because a part payment they typed is not a guess to overwrite.
-        // An empty wallet clears the box rather than typing a zero it cannot send.
-        // The ceiling travels with the wallet too, so a figure bigger than the drawer is
-        // caught at the box instead of after the button.
-        money.dataset.held = held();
-        amount.max = held();
-        money.addEventListener('change', function () {
-            if (amount.value === '' || amount.value === money.dataset.held) {
-                amount.value = held() === '0' ? '' : held();
-            }
-            money.dataset.held = held();
-            amount.max = held();
-            if (hint) { hint.textContent = 'Cannot be more than the ' + money.value + ' wallet holds right now.'; }
-        });
-    })();
-</script>
-@endpush

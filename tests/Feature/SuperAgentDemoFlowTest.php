@@ -5,8 +5,8 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\CashHandover;
 use App\Models\Setting;
+use App\Models\Transaction;
 use App\Models\User;
-use App\Services\AccountLedger;
 use Database\Seeders\RoleAndUserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Env;
@@ -81,22 +81,36 @@ class SuperAgentDemoFlowTest extends TestCase
         $agent = User::where('email', 'agent@plussave.com')->sole();
         $lead = User::where('email', 'superagent@plussave.com')->sole();
 
-        AccountLedger::record(
-            Account::walletFor($agent, 'UGX'),
-            'adjustment_in',
-            '500000',
-            'Float from the office'
-        );
+        // Cash taken in at the counter first, so the agent has a transfer to tick on the
+        // Transactions page. The charge is zero so the whole 120,000 is the hand-in.
+        $transaction = Transaction::create([
+            'receipt_number' => 'DEMO-001',
+            'sender_name' => 'Sender DEMO-001',
+            'sender_contact' => '0700000001',
+            'receiver_name' => 'Receiver DEMO-001',
+            'receiver_contact' => '8613800000001',
+            'destination' => 'CN',
+            'payout_currency' => 'RMB',
+            'currency' => 'UGX',
+            'amount' => '120000',
+            'exchange_rate' => 0,
+            'rmb_amount' => 216,
+            'total_usd_equivalent' => 31.91,
+            'charge_rate' => 0,
+            'charge_amount' => 0,
+            'charge_ugx' => '0',
+            'status' => 'completed',
+            'created_by' => $agent->id,
+        ]);
 
         $this->signIn('agent@plussave.com');
 
         $this->get('/wallet')->assertOk()
-            ->assertSee('Hand cash in to your super agent');
+            ->assertSee('ticking the transfers');
 
-        $this->post('/cash-handovers', [
+        $this->post(route('cash-handovers.from-transactions'), [
             'super_agent_id' => $lead->id,
-            'currency' => 'UGX',
-            'amount' => '120000',
+            'transaction_ids' => [$transaction->id],
             'note' => 'Morning collection',
         ])->assertSessionHasNoErrors();
 
@@ -120,7 +134,7 @@ class SuperAgentDemoFlowTest extends TestCase
 
         $this->assertSame(CashHandover::APPROVED, $handover->status);
         $this->assertSame($lead->id, $handover->super_agent_id);
-        $this->assertSame('380000.00', Account::walletFor($agent, 'UGX')->balance());
+        $this->assertSame('0.00', Account::walletFor($agent, 'UGX')->balance());
         $this->assertSame('120000.00', Account::walletFor($lead, 'UGX')->balance());
 
         $this->get('/dashboard')->assertOk()

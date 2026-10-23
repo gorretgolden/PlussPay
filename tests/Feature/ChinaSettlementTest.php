@@ -488,11 +488,11 @@ class ChinaSettlementTest extends TestCase
             ->assertOk()
             ->assertDontSee('Hand cash in to your super agent');
 
-        // The road is closed as well as hidden, so a typed hand-in is refused at the counter.
-        $this->actingAs($this->china)->post(route('cash-handovers.store'), [
+        // The road is closed as well as hidden, so a hand-in from the China desk is refused at the
+        // counter even when it ticks transfers.
+        $this->actingAs($this->china)->post(route('cash-handovers.from-transactions'), [
             'super_agent_id' => $this->lead->id,
-            'currency' => 'USD',
-            'amount' => 100,
+            'transaction_ids' => [$transaction->fresh()->id],
         ])->assertSessionHasErrors('super_agent_id');
 
         // The lead agent keeps the same shortcut and count, as the hand that may clear any desk.

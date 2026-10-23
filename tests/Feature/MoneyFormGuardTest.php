@@ -56,18 +56,22 @@ class MoneyFormGuardTest extends TestCase
         $agent = $this->person('agent', 'Sarah Nalin', 'UG', '500000');
         $this->person('super-agent', 'Amina Lead');
 
+        // The hand-in lives on the Transactions page now, where the ticks make the figures. The
+        // form freezes while the request is sent, and the card beside the boxes reads the totals
+        // back from the ticks instead of asking for a figure that could disagree with the book.
+        $page = $this->actingAs($agent)->get('/transactions')->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="hand-in-form"', $page);
+        $this->assertStringContainsString('data-lock data-lock-label="Sending..."', $page);
+        $this->assertStringContainsString('id="hand_in_principal"', $page);
+        $this->assertStringContainsString('id="hand_in_charges"', $page);
+        $this->assertStringContainsString('id="hand_in_count"', $page);
+
+        // The wallets and the first screen carry no hand-in box anymore, so neither can freeze one.
         foreach (['/wallet', '/dashboard'] as $url) {
             $page = $this->actingAs($agent)->get($url)->assertOk()->getContent();
-
-            $this->assertStringContainsString('data-confirm-title="Send this cash hand-in for approval?"', $page, $url);
-            $this->assertStringContainsString('data-confirm-ok="Send for approval"', $page, $url);
-            $this->assertStringContainsString('data-lock-label="Sending..."', $page, $url);
-
-            // The card reads the boxes back, so the amount on it is the figure the agent typed
-            // and the super agent is the name they picked rather than a second copy.
-            $decoded = html_entity_decode($page);
-            $this->assertStringContainsString(json_encode(['Super agent', '#hand-in-super-agent', 'option']), $decoded, $url);
-            $this->assertStringContainsString(json_encode(['Amount', '#hand-in-amount', 'money']), $decoded, $url);
+            $this->assertStringNotContainsString('hand-in-form', $page, $url);
+            $this->assertStringNotContainsString('Send this cash hand-in for approval', $page, $url);
         }
     }
 

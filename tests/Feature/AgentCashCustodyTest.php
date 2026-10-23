@@ -227,8 +227,9 @@ class AgentCashCustodyTest extends TestCase
         $lead = $this->superAgent();
         $this->booking($agent, 'CUS-007', 'UGX', '480000', '20000');
 
-        // The screen refuses this when it is typed, but the approval carries the same guard: money
-        // can never leave a drawer that does not hold it, whichever door the request came through.
+        // The request screen refuses when the drawer does not cover the ticks, but the approval
+        // carries the same guard: money can never leave a drawer that does not hold it, whichever
+        // door the request came through.
         $handover = CashHandover::request($agent, $lead, 'UGX', '500001');
 
         try {
@@ -264,12 +265,11 @@ class AgentCashCustodyTest extends TestCase
     {
         $agent = $this->agent();
         $lead = $this->superAgent();
-        $this->booking($agent, 'CUS-009', 'UGX', '480000', '20000');
+        $transaction = $this->booking($agent, 'CUS-009', 'UGX', '480000', '20000');
 
-        $this->actingAs($agent)->post(route('cash-handovers.store'), [
+        $this->actingAs($agent)->post(route('cash-handovers.from-transactions'), [
             'super_agent_id' => $lead->id,
-            'currency' => 'UGX',
-            'amount' => '480000',
+            'transaction_ids' => [$transaction->id],
             'note' => 'Carried to the office the same evening',
         ])->assertRedirect()->assertSessionHas('success');
 
@@ -307,33 +307,22 @@ class AgentCashCustodyTest extends TestCase
         $this->assertStringContainsString('Amina Lead received UGX 480,000 from Sarah Nalin', $log->description);
     }
 
-    public function test_handing_in_more_than_the_drawer_holds_names_the_amount_box(): void
-    {
-        $agent = $this->agent();
-        $lead = $this->superAgent();
-        $this->booking($agent, 'CUS-010', 'UGX', '480000', '20000');
-
-        $this->actingAs($agent)->post(route('cash-handovers.store'), [
-            'super_agent_id' => $lead->id,
-            'currency' => 'UGX',
-            'amount' => '900000',
-        ])->assertSessionHasErrors('amount');
-
-        $this->assertStringContainsString('The UGX wallet holds UGX 500,000', session('errors')->first('amount'));
-        $this->assertSame('500000.00', Account::walletFor($agent, 'UGX')->balance());
-        $this->assertSame(0, CashHandover::count(), 'A refused request is not written down.');
-    }
-
     public function test_an_agent_cannot_hand_in_money_this_desk_does_not_hold(): void
     {
         $agent = $this->agent();
         $lead = $this->superAgent();
 
-        $this->actingAs($agent)->post(route('cash-handovers.store'), [
+        // An RMB row can only exist beside a Uganda desk by accident, but the tick flow refuses it
+        // all the same: a Uganda hand-in carries shillings or dollars, never yuan.
+        $transaction = $this->booking($agent, 'CUS-010', 'RMB', '100', '0');
+
+        $this->actingAs($agent)->post(route('cash-handovers.from-transactions'), [
             'super_agent_id' => $lead->id,
-            'currency' => 'RMB',
-            'amount' => '100',
+            'transaction_ids' => [$transaction->id],
         ])->assertSessionHasErrors('currency');
+
+        $this->assertStringContainsString('does not hold RMB', session('errors')->first('currency'));
+        $this->assertSame(0, CashHandover::count(), 'A refused request is not written down.');
     }
 
     public function test_only_the_super_agent_named_on_the_request_may_decide_it(): void
@@ -358,14 +347,19 @@ class AgentCashCustodyTest extends TestCase
 
     public function test_a_person_who_holds_no_collections_cannot_ask_to_hand_cash_in(): void
     {
+        $agent = $this->agent();
         $staff = $this->officeUser('staff', 'Desk Staff');
         $lead = $this->superAgent();
+        $transaction = $this->booking($agent, 'CUS-011', 'UGX', '480000', '20000');
 
-        $this->actingAs($staff)->post(route('cash-handovers.store'), [
+        // A desk that took no cash has no hand-in to raise, and ticking another person's transfers
+        // does not give it one.
+        $this->actingAs($staff)->post(route('cash-handovers.from-transactions'), [
             'super_agent_id' => $lead->id,
-            'currency' => 'UGX',
-            'amount' => '5000',
+            'transaction_ids' => [$transaction->id],
         ])->assertSessionHasErrors('super_agent_id');
+
+        $this->assertSame(0, CashHandover::count());
     }
 
     public function test_the_wallet_page_shows_the_drawer_the_requests_and_the_history(): void
@@ -378,7 +372,7 @@ class AgentCashCustodyTest extends TestCase
 
         $page = $this->actingAs($agent)->get(route('wallet.index'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('Hand cash in to your super agent', $page);
+        $this->assertStringContainsString('ticking the transfers', $page);
         $this->assertStringContainsString('Cash hand-in requests', $page);
         $this->assertStringContainsString('Approved', $page);
         $this->assertStringContainsString('Cash history', $page);
@@ -389,33 +383,24 @@ class AgentCashCustodyTest extends TestCase
         $this->assertStringNotContainsString('Sent to another account', $page);
     }
 
-    public function test_the_hand_in_amount_opens_at_what_the_drawer_holds(): void
-    {
-        $agent = $this->agent();
-        $this->superAgent();
-        $this->booking($agent, 'CUS-016', 'UGX', '480000', '20000');
-
-        $page = $this->actingAs($agent)->get(route('wallet.index'))->assertOk()->getContent();
-
-        // Handing in the whole bag is the usual case, so the box opens at the balance and
-        // each wallet carries its own figure for the box to follow when the money changes.
-        $this->assertStringContainsString('min="0.01" max="500000" required value="500000"', $page);
-        $this->assertStringContainsString('value="UGX" data-balance="500000"', $page);
-
-        $empty = $this->agent('Peter Okello');
-        $page = $this->actingAs($empty)->get(route('wallet.index'))->assertOk()->getContent();
-
-        $this->assertStringContainsString('min="0.01" max="" required value=""', $page, 'An empty drawer opens at an empty box, not at a zero it cannot send.');
-    }
-
-    public function test_the_wallet_page_says_so_when_no_super_agent_is_active(): void
+    public function test_the_wallet_page_carries_no_flat_hand_in_form_whether_or_not_a_super_agent_is_active(): void
     {
         $agent = $this->agent();
 
+        // Without a lead the old page offered a notice and nothing else; with one it offered the
+        // typed form. Both are gone: the wallet page points at the tick flow and never opens a box.
         $page = $this->actingAs($agent)->get(route('wallet.index'))->assertOk()->getContent();
-
-        $this->assertStringContainsString('No super agent is active yet', $page);
+        $this->assertStringNotContainsString('hand-in-amount', $page);
         $this->assertStringNotContainsString('Send for approval', $page);
+        $this->assertStringNotContainsString('No super agent is active yet', $page);
+
+        $lead = $this->superAgent();
+        $this->flushSession();
+        $page = $this->actingAs($agent)->get(route('wallet.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('ticking the transfers', $page);
+        $this->assertStringNotContainsString('hand-in-amount', $page);
+        $this->assertStringNotContainsString('Send for approval', $page);
+        $this->assertStringNotContainsString($lead->name, $page, 'The super agent list no longer rides on the wallet page.');
     }
 
     public function test_the_agent_list_shows_what_each_desk_still_holds(): void

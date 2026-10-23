@@ -102,8 +102,6 @@ class ExpenseReachabilityTest extends TestCase
         // queue are theirs. A hand at one desk is only offered the road that starts at its counter.
         $labels = ['Send Money to China', 'Send Money to Uganda', 'Withdraw Money in China', 'Record Exchange', 'Expenses', 'Exchange Rates', 'Add Customer', 'Transactions'];
 
-        // The lead agent is made first, because an ordinary agent is offered the hand-in shortcut
-        // only while there is an active super agent to receive the request.
         $lead = $this->user('super-agent', 'Amina Lead');
 
         $superadmin = $this->html($this->user('superadmin', 'Super Admin'));
@@ -117,16 +115,15 @@ class ExpenseReachabilityTest extends TestCase
         // A desk agent books transfers and logs what they spent out of the cash in hand, so the
         // spending tile hands him the pen. The counter, the prices and the customer list stay with
         // the office and the super agent. Each check reads the shortcut card itself, because the
-        // sidebar carries the same words further up the page.
+        // sidebar carries the same words further up the page. Handing cash in is not a tile: it is
+        // the ticks on the Transactions page.
         $agentPage = $this->html($this->user('agent', 'Amina Nabukenya'));
         $agent = $this->quickActions($agentPage);
         $this->assertStringContainsString('>Send Money to China</span>', $agent);
         $this->assertStringNotContainsString('>Send Money to Uganda</span>', $agent, 'Uganda is where this agent already stands.');
         $this->assertStringContainsString('>Record Expense</span>', $agent, 'The desk that paid the cash out is the desk that records it.');
         $this->assertStringContainsString('Log what you spent today', $agent);
-        $this->assertStringContainsString('>Hand Cash In</span>', $agent, 'An agent hands the desk cash up to the lead agent.');
-        $this->assertStringContainsString('Send cash to your super agent', $agent);
-        $this->assertStringContainsString('/wallet#hand-in', $agent, 'The card opens the form itself.');
+        $this->assertStringNotContainsString('>Hand Cash In</span>', $agent, 'The typed hand-in tile is gone; the ticks on the Transactions page are the way in.');
         $this->assertStringNotContainsString('>Withdraw Money in China</span>', $agent, 'The China queue is not a Uganda agent\'s to clear.');
         foreach (['Record Exchange', 'Exchange Rates', 'Add Customer', 'Transactions'] as $label) {
             $this->assertStringNotContainsString('>'.$label.'</span>', $agent, $label.' is beyond an agent.');
@@ -207,89 +204,42 @@ class ExpenseReachabilityTest extends TestCase
         }
 
         $agent = $this->quickActions($this->html($this->user('agent', 'Amina Nabukenya')));
-        $this->assertSame(3, substr_count($agent, 'hover:border-green-300'), 'The send card, the hand-in card and the spending book.');
+        $this->assertSame(2, substr_count($agent, 'hover:border-green-300'), 'The send card and the spending book.');
         $this->assertStringContainsString('sm:col-span-1', $agent, 'The primary tile is pinned to one column.');
     }
 
-    public function test_the_hand_in_shortcut_waits_for_an_active_lead_agent(): void
+    public function test_the_board_offers_no_typed_hand_in_anymore(): void
     {
         $agent = $this->user('agent', 'Amina Nabukenya');
 
-        $this->assertStringNotContainsString('Hand Cash In', $this->quickActions($this->html($agent)), 'No lead agent, so nowhere to hand the cash.');
+        $this->assertStringNotContainsString('Hand Cash In', $this->quickActions($this->html($agent)), 'The typed hand-in tile is gone from the board.');
 
-        $lead = $this->user('super-agent', 'Amina Lead');
-        $lead->update(['is_active' => false]);
+        $this->user('super-agent', 'Amina Lead');
 
-        $this->assertStringNotContainsString('Hand Cash In', $this->quickActions($this->html($agent->fresh())), 'An inactive lead agent does not count.');
-
-        $lead->update(['is_active' => true]);
-
-        $actions = $this->quickActions($this->html($agent->fresh()));
-        $this->assertStringContainsString('>Hand Cash In</span>', $actions);
-        $this->assertStringContainsString('/wallet#hand-in', $actions);
-
-        // The wallet page still carries the same form as the fallback the shortcut names.
-        $this->assertStringContainsString('id="hand-in"', $this->html($agent->fresh(), '/wallet'));
+        $this->assertStringNotContainsString('Hand Cash In', $this->quickActions($this->html($agent->fresh())), 'An active lead agent does not bring the typed hand-in tile back.');
+        $this->assertStringNotContainsString('hand-in-modal', $this->html($agent->fresh()));
+        $this->assertStringNotContainsString('data-hand-in-open', $this->html($agent->fresh()));
     }
 
-    public function test_the_hand_in_shortcut_opens_a_dialog_over_the_board(): void
+    public function test_the_dashboard_carries_no_hand_in_dialog_anymore(): void
     {
-        $lead = $this->user('super-agent', 'Amina Lead');
+        $this->user('super-agent', 'Amina Lead');
         $agent = $this->user('agent', 'Amina Nabukenya');
         AccountLedger::record(Account::walletFor($agent, 'UGX'), 'adjustment_in', '500000.00', 'Float from the office');
 
         $board = $this->html($agent);
 
-        // The shortcut opens a dialog over the page rather than unfolding a card below the board,
-        // and the wallet link stays underneath as the no-script fallback.
-        $this->assertStringContainsString('data-hand-in-open', $board);
-        $this->assertStringContainsString('aria-controls="hand-in-modal"', $board);
-        $this->assertStringContainsString('aria-haspopup="dialog"', $board);
-        $this->assertMatchesRegularExpression('#<div id="hand-in-modal"[^>]*\bhidden\b#', $board, 'The dialog stays closed until the shortcut is used.');
-        $this->assertStringContainsString('role="dialog"', $board);
-        $this->assertStringContainsString('aria-modal="true"', $board);
-        $this->assertStringContainsString('aria-labelledby="hand-in-title"', $board);
-        $this->assertStringContainsString('action="'.route('cash-handovers.store').'"', $board);
-        $this->assertStringContainsString('>Hand cash in to your super agent</h2>', $board);
-        $this->assertStringContainsString('>Amina Lead</option>', $board);
-        $this->assertStringContainsString('UGX (UGX 500,000 in hand)', $board);
-        $this->assertStringContainsString('value="500000"', $board);
-        $this->assertStringNotContainsString('id="hand-in-card"', $board, 'The form is not left in the page as a card.');
+        $this->assertStringNotContainsString('data-hand-in-open', $board);
+        $this->assertStringNotContainsString('hand-in-modal', $board);
+        $this->assertStringNotContainsString('role="dialog"', $board);
+        $this->assertStringNotContainsString('hand-in-amount', $board);
+        $this->assertStringNotContainsString('Hand cash in to your super agent', $board);
+        $this->assertStringNotContainsString('>Amina Lead</option>', $board, 'Nothing on the board offers a super agent dropdown anymore.');
+    }
 
-        // A figure over the drawer comes back to the same dialog, already open, with the box
-        // marked and a summary that links to it. The page-level banner is not repeated.
-        $failed = $this->actingAs($agent)->from(route('dashboard'))->followingRedirects()
-            ->post(route('cash-handovers.store'), [
-                'super_agent_id' => $lead->id,
-                'currency' => 'USD',
-                'amount' => '9999',
-            ])->assertOk()->getContent();
-
-        $this->assertMatchesRegularExpression('#<div id="hand-in-modal"(?![^>]*\bhidden\b)#', $failed, 'A failed submit reopens the dialog with its errors.');
-        $this->assertStringContainsString('<div data-error-summary', $failed);
-        $this->assertStringContainsString('href="#hand-in-amount"', $failed);
-        $this->assertMatchesRegularExpression('#id="hand-in-amount"[^>]*aria-invalid="true"#', $failed);
-        $this->assertMatchesRegularExpression('#id="hand-in-amount"[^>]*field-invalid#', $failed);
-        $this->assertStringNotContainsString('bg-red-100 border border-red-400', $failed);
-
-        // A request sent from the board comes straight back to the board.
-        $this->actingAs($agent)->from(route('dashboard'))->post(route('cash-handovers.store'), [
-            'super_agent_id' => $lead->id,
-            'currency' => 'UGX',
-            'amount' => '500000',
-            'note' => "Day's collections",
-        ])->assertRedirect(route('dashboard'))->assertSessionHas('success');
-
-        $this->assertDatabaseHas('cash_handovers', [
-            'agent_id' => $agent->id,
-            'super_agent_id' => $lead->id,
-            'currency' => 'UGX',
-            'amount' => '500000.00',
-            'status' => CashHandover::PENDING,
-        ]);
-
-        // The hand-in summary replaces the page banner only for its own fields. A lead agent
-        // declining a hand-in from this same board still gets the page banner for that message.
+    public function test_a_lead_declining_from_the_board_still_gets_the_page_banner(): void
+    {
+        $agent = $this->user('agent', 'Amina Nabukenya');
         $peter = $this->user('super-agent', 'Peter Lead');
         $handover = CashHandover::request($agent, $peter, 'UGX', '100000');
 

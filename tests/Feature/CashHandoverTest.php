@@ -6,6 +6,8 @@ use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\ActivityLog;
 use App\Models\CashHandover;
+use App\Models\ExchangeRate;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Services\AccountLedger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,6 +21,14 @@ use Tests\TestCase;
 class CashHandoverTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        ExchangeRate::create(['from_currency' => 'USD', 'to_currency' => 'RMB', 'rate' => 6.75, 'buy_rate' => 6.75, 'sell_rate' => 6.75, 'is_active' => true]);
+        ExchangeRate::create(['from_currency' => 'USD', 'to_currency' => 'UGX', 'rate' => 3760, 'buy_rate' => 3750, 'sell_rate' => 3760, 'is_active' => true]);
+    }
 
     private function person(string $role, string $name, string $country = 'UG', ?string $float = null): User
     {
@@ -42,6 +52,43 @@ class CashHandoverTest extends TestCase
     private function request(User $agent, User $lead, string $amount = '480000', ?string $note = null): CashHandover
     {
         return CashHandover::request($agent, $lead, 'UGX', $amount, $note);
+    }
+
+    /**
+     * Money already taken in at the counter, the same shape the Transactions page ticks.
+     */
+    private function booked(string $receipt, User $creator, string $principal = '480000'): Transaction
+    {
+        return Transaction::create([
+            'receipt_number' => $receipt,
+            'sender_name' => 'Sender '.$receipt,
+            'sender_contact' => '',
+            'receiver_name' => 'Receiver '.$receipt,
+            'receiver_contact' => '',
+            'destination' => 'CN',
+            'payout_currency' => 'RMB',
+            'currency' => 'UGX',
+            'amount' => $principal,
+            'exchange_rate' => 0,
+            'rmb_amount' => (float) bcmul($principal, '0.0018', 2),
+            'total_usd_equivalent' => (float) bcdiv($principal, '3760', 4),
+            'charge_rate' => 0,
+            'charge_amount' => 0,
+            'charge_ugx' => '20000',
+            'status' => 'completed',
+            'created_by' => $creator->id,
+        ]);
+    }
+
+    /**
+     * @param  array<int, int>  $ids
+     */
+    private function handIn(User $who, array $ids, int $leadId): \Illuminate\Testing\TestResponse
+    {
+        return $this->actingAs($who)->post(route('cash-handovers.from-transactions'), [
+            'super_agent_id' => $leadId,
+            'transaction_ids' => $ids,
+        ]);
     }
 
     public function test_the_request_only_reaches_the_super_agent_it_names(): void
@@ -163,12 +210,9 @@ class CashHandoverTest extends TestCase
     {
         $lead = $this->person('super-agent', 'Amina Lead', 'UG', '500000');
         $other = $this->person('super-agent', 'Peter Lead');
+        $booking = $this->booked('CH-901', $lead);
 
-        $this->actingAs($lead)->post(route('cash-handovers.store'), [
-            'super_agent_id' => $other->id,
-            'currency' => 'UGX',
-            'amount' => '100000',
-        ])->assertSessionHasErrors('super_agent_id');
+        $this->handIn($lead, [$booking->id], $other->id)->assertSessionHasErrors('super_agent_id');
 
         $this->assertSame(0, CashHandover::count());
     }
@@ -177,12 +221,9 @@ class CashHandoverTest extends TestCase
     {
         $agent = $this->person('agent', 'Sarah Nalin', 'UG', '500000');
         $chinaLead = $this->person('super-agent', 'Wei Chen', 'CN');
+        $booking = $this->booked('CH-902', $agent);
 
-        $this->actingAs($agent)->post(route('cash-handovers.store'), [
-            'super_agent_id' => $chinaLead->id,
-            'currency' => 'UGX',
-            'amount' => '100000',
-        ])->assertSessionHasErrors('super_agent_id');
+        $this->handIn($agent, [$booking->id], $chinaLead->id)->assertSessionHasErrors('super_agent_id');
 
         $this->assertSame(0, CashHandover::count());
     }
