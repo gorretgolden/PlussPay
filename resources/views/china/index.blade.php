@@ -11,8 +11,7 @@
 
 <div class="mb-6">
     <h1 class="text-2xl font-bold text-gray-900">China Desk</h1>
-    <p class="text-gray-600 text-sm max-w-3xl">A transfer is not finished when the cash is collected. It is finished when the dollars that transfer was worth arrive at a desk in China and that desk
-        hands the receiver the money they were promised, in yuan or in dollars. Tick the rows on each side at the moment the money actually moves, and the books follow.</p>
+    <p class="text-gray-600 text-sm">Tick each row at the moment the money actually moves.</p>
 </div>
 
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -48,8 +47,7 @@
 
 @if($desks->isEmpty())
 <div class="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 mb-6">
-    Nobody in the book is set up as a desk in China, so there is nothing to send the dollars to. Add a user whose country is China and give them the China Desk abilities, then they appear here with a
-    dollar and a yuan wallet of their own.
+    Nobody in the book is set up as a desk in China yet. Add one, then they appear here with their wallets.
 </div>
 @endif
 
@@ -57,8 +55,7 @@
 <div class="bg-white rounded-lg shadow mb-8">
     <div class="px-6 py-4 border-b border-gray-200">
         <h2 class="text-lg font-semibold text-gray-900">Send dollars to a desk in China</h2>
-        <p class="text-sm text-gray-500 mt-1">Tick the transfers that have been paid for in Uganda, choose the desk, and the dollars go across in one movement. If the dollars are not in hand yet,
-            buy them at the currency exchange first.</p>
+        <p class="text-sm text-gray-500 mt-1">Tick the paid transfers and choose the desk. Buy dollars at the exchange first if they are not in hand.</p>
     </div>
     <form method="POST" action="{{ route('china.send') }}">
         @csrf
@@ -140,13 +137,12 @@
             {{-- The charge is the money this office kept from what it took in. It is never part of a
                  sending: the dollars that cross are only what the transfers are worth. --}}
             @if((float) $outboundCharges > 0)
-            <p class="md:col-span-4 text-xs text-gray-500">Charges are not in this list's dollars. The
-                {{ \App\Models\Account::format('UGX', $outboundCharges) }} these transfers charged stays in Uganda with whoever holds the cash.</p>
+            <p class="md:col-span-4 text-xs text-gray-500">Charges stay in Uganda with whoever holds the cash:
+                {{ \App\Models\Account::format('UGX', $outboundCharges) }} is not part of these dollars.</p>
             @endif
             @if($outboundHeldBack > 0)
             <p class="md:col-span-4 text-xs text-amber-700">{{ number_format($outboundHeldBack) }}
-                {{ \Illuminate\Support\Str::plural('transfer', $outboundHeldBack) }} here {{ $outboundHeldBack === 1 ? 'is' : 'are' }} named on a hand-in that
-                has not been approved yet, so their boxes are locked. Approve the request on the Hand In Cash desk first.</p>
+                {{ \Illuminate\Support\Str::plural('transfer', $outboundHeldBack) }} wait on a hand-in that is not approved yet, so their boxes are locked.</p>
             @endif
             @error('transaction_ids') <p class="md:col-span-4 text-sm text-red-600">{{ $message }}</p> @enderror
         </div>
@@ -163,8 +159,7 @@
 <div id="payouts" class="bg-white rounded-lg shadow mb-8 scroll-mt-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h2 class="text-lg font-semibold text-gray-900">Pay receivers in China</h2>
-        <p class="text-sm text-gray-500 mt-1">Tick a transfer once the receiver has been handed their money in China, whether that was yuan or dollars. The payment leaves the wallet, in that money, of the
-            desk that was sent the dollars for it.</p>
+        <p class="text-sm text-gray-500 mt-1">Tick a transfer once the receiver has been handed their money.</p>
     </div>
     <form method="POST" action="{{ route('china.payout') }}">
         @csrf
@@ -238,9 +233,7 @@
 <div class="bg-white rounded-lg shadow">
     <div class="px-6 py-4 border-b border-gray-200">
         <h2 class="text-lg font-semibold text-gray-900">The desks in China</h2>
-        <p class="text-sm text-gray-500 mt-1">Dollars arrive in each desk's own dollar wallet. A receiver paid in yuan is paid out of that desk's yuan wallet, and a receiver paid in dollars is paid
-            straight out of the dollars that crossed. A yuan wallet below zero means that desk has paid receivers ahead of the dollars being changed into yuan, which the books allow on that
-            side.</p>
+        <p class="text-sm text-gray-500 mt-1">Dollars arrive in each desk's own dollar wallet; receivers are paid from it, in yuan or dollars.</p>
     </div>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\CashHandover;
 use App\Models\CurrencyExchange;
 use App\Models\ExchangeRate;
 use App\Models\Setting;
@@ -114,7 +115,7 @@ class AgentReportDeskTest extends TestCase
 
         $html = $this->actingAs($agent)->get('/reports')->assertOk()->getContent();
 
-        foreach (['My Reports', 'My Transfers', 'My Charge Collected', 'My Wallet Summary', 'My Daily Summary'] as $label) {
+        foreach (['My Reports', 'My Transfers', 'My Charge Collected', 'My Hand-ins', 'My Wallet Summary', 'My Daily Summary'] as $label) {
             $this->assertStringContainsString($label, $html);
         }
 
@@ -152,7 +153,7 @@ class AgentReportDeskTest extends TestCase
         $agent = $this->user('Sarah Nalin', 'agent');
         $this->booking($agent, 'DESK-OPEN');
 
-        foreach (['hub', 'transaction', 'charge', 'wallet', 'daily'] as $type) {
+        foreach (['hub', 'transaction', 'charge', 'handins', 'wallet', 'daily'] as $type) {
             $this->actingAs($agent)->get('/reports?type='.$type)->assertOk();
         }
 
@@ -288,6 +289,41 @@ class AgentReportDeskTest extends TestCase
         $this->assertStringNotContainsString('Bob Kato', $this->spreadsheet($this->actingAs($mine)->get('/export/exchanges')));
 
         $this->actingAs($theirs)->get('/reports?type=exchanges')->assertOk()->assertSee('Bob Kato')->assertDontSee('Alice Auma');
+    }
+
+    public function test_a_desks_hand_in_report_lists_what_they_sent_up_and_nothing_else(): void
+    {
+        $mine = $this->user('Sarah Nalin', 'agent');
+        $theirs = $this->user('Peter Okello', 'agent');
+        $lead = $this->user('Amina Lead', 'super-agent');
+
+        $hers = CashHandover::request($mine, $lead, 'UGX', '100000');
+        $his = CashHandover::request($theirs, $lead, 'UGX', '50000');
+
+        $this->actingAs($mine)
+            ->get('/reports?type=handins')
+            ->assertOk()
+            ->assertSee($hers->reference)
+            ->assertDontSee($his->reference);
+
+        // The hub carries the same section, and the search box reads the same rows. The word
+        // comes back in the box it was typed in, so the proof is the set of rows, not the page.
+        $this->assertStringContainsString($hers->reference, $this->actingAs($mine)->get('/reports')->assertOk()->getContent());
+        $this->assertCount(1, $this->actingAs($mine)->get('/reports?type=handins&search='.$hers->reference)->assertOk()->viewData('myHandins'));
+        $this->assertCount(0, $this->actingAs($mine)->get('/reports?type=handins&search='.$his->reference)->assertOk()->viewData('myHandins'));
+    }
+
+    public function test_a_desk_without_the_wallet_ability_has_no_hand_in_report(): void
+    {
+        // The report reads the wallet book, so a role that keeps the counter without the wallet
+        // ability gets no tab for it and is turned away from the address.
+        Role::firstOrCreate(['name' => 'exchange-desk', 'guard_name' => 'web'])
+            ->syncPermissions(['view-dashboard', 'view-reports', 'view-transactions', 'view-own-transactions', 'view-exchanges', 'export-exchanges']);
+
+        $desk = $this->user('Sarah Nalin', 'exchange-desk');
+
+        $this->actingAs($desk)->get('/reports?type=handins')->assertForbidden();
+        $this->assertStringNotContainsString('My Hand-ins', $this->actingAs($desk)->get('/reports')->assertOk()->getContent());
     }
 
     private function spreadsheet($response): string

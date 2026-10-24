@@ -283,10 +283,11 @@ class AgentWalletTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        // Every section lives on the one page, so the proof has to read the commission table itself
-        // rather than search the whole document for a figure another table also carries.
+        // The commission tab carries that section alone now, so the proof reads the table itself
+        // rather than search the whole document. The slice ends where the page scripts begin,
+        // because the chart data repeats every agent's name outside the table.
         $from = strpos($page, 'id="section-commission"');
-        $to = strpos($page, 'id="section-', $from + 20);
+        $to = strpos($page, '<script', $from + 20);
         $commission = substr($page, $from, $to - $from);
 
         $this->assertStringContainsString('Commissions Earned', $commission);
@@ -335,7 +336,7 @@ class AgentWalletTest extends TestCase
             ->getContent();
 
         $from = strpos($page, 'id="section-commission"');
-        $to = strpos($page, 'id="section-', $from + 20);
+        $to = strpos($page, '<script', $from + 20);
         $commission = substr($page, $from, $to - $from);
 
         $this->assertStringContainsString('Test Agent', $commission);

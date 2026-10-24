@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\AccountEntry;
 use App\Models\ActivityLog;
+use App\Models\CashHandover;
 use App\Models\CurrencyExchange;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
@@ -145,10 +146,29 @@ class ReportsController extends Controller
             : collect();
         $myWallet = $isDesk && isset($allowed['wallet']) ? $this->walletSummary($viewer) : [];
 
+        // A desk's hand-ins: the requests they raised and what became of each one. Same window
+        // and search box as every other report on the page, and the rows are pinned to this
+        // desk's own id, so the only filter that can run is one that cuts their own set further.
+        $myHandins = $isDesk && isset($allowed['handins'])
+            ? CashHandover::with(['superAgent:id,name', 'transactions:id,cash_handover_id,receipt_number'])
+                ->where('agent_id', $viewer->id)
+                ->whereBetween('created_at', [$dateFrom, $dateTo.' 23:59:59'])
+                ->when($request->filled('search'), function ($query) use ($request) {
+                    $term = '%'.addcslashes($request->input('search'), '%_\\').'%';
+
+                    return $query->where(fn ($q) => $q->where('reference', 'like', $term)
+                        ->orWhere('note', 'like', $term)
+                        ->orWhere('decision_note', 'like', $term)
+                        ->orWhere('receipts', 'like', $term));
+                })
+                ->latest('id')
+                ->get()
+            : collect();
+
         return view('reports.index', compact(
             'stats', 'profit', 'unpricedCount', 'unpricedReceipts', 'byCurrency', 'byAgent', 'dailySummary',
             'byCustomer', 'byRate', 'dateFrom', 'dateTo', 'transactions', 'reportType', 'commission',
-            'viewer', 'isDesk', 'allowed', 'desks', 'myDays', 'myCharge', 'myExchanges', 'myWallet',
+            'viewer', 'isDesk', 'allowed', 'desks', 'myDays', 'myCharge', 'myExchanges', 'myWallet', 'myHandins',
         ) + [
             'reportTitle' => ReportCatalog::title($viewer, $reportType),
             'reportHint' => ReportCatalog::hint($viewer, $reportType),

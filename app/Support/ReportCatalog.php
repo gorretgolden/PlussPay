@@ -47,6 +47,12 @@ final class ReportCatalog
             'desk' => 'My Charge Collected',
             'hint' => [null, 'The charge you kept, counted by day, by week and by month'],
         ],
+        'handins' => [
+            'office' => null,
+            'desk' => 'My Hand-ins',
+            'hint' => [null, 'Every cash hand-in you sent up, and what happened to it'],
+            'ability' => 'view-wallets',
+        ],
         'wallet' => [
             'office' => null,
             'desk' => 'My Wallet Summary',
@@ -99,8 +105,8 @@ final class ReportCatalog
     /** Sidebar order for a reader of the whole book. */
     public const OFFICE_ORDER = ['hub', 'transaction', 'revenue', 'profit', 'commission', 'agent', 'daily', 'customer', 'rates'];
 
-    /** Sidebar order for a reader of only their own records: the five reports that are theirs. */
-    public const DESK_ORDER = ['hub', 'transaction', 'exchanges', 'charge', 'wallet', 'daily'];
+    /** Sidebar order for a reader of only their own records. */
+    public const DESK_ORDER = ['hub', 'transaction', 'exchanges', 'charge', 'handins', 'wallet', 'daily'];
 
     /**
      * A desk is anybody who may not read every other desk's rows. Staff sits here too, because

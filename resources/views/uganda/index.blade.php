@@ -9,8 +9,7 @@
 
 <div class="mb-6">
     <h1 class="text-2xl font-bold text-gray-900">Uganda Desk</h1>
-    <p class="text-gray-600 text-sm max-w-3xl">A transfer booked in China is finished when the receiver here is handed their shillings. There is no crossing to record first: the booking arrives with
-        its money in Uganda, so every transfer to Uganda sits in this queue from the day it is taken until it is paid.</p>
+    <p class="text-gray-600 text-sm">Tick each transfer once the receiver has been handed their shillings.</p>
 </div>
 
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -25,7 +24,7 @@
 <div id="payouts" class="bg-white rounded-lg shadow mb-8 scroll-mt-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h2 class="text-lg font-semibold text-gray-900">Pay receivers in Uganda</h2>
-        <p class="text-sm text-gray-500 mt-1">Tick a transfer once the receiver has been handed their shillings here. The payment leaves the office shilling book.</p>
+        <p class="text-sm text-gray-500 mt-1">The payment leaves the office shilling book.</p>
     </div>
     <form method="POST" action="{{ route('uganda.payout') }}">
         @csrf

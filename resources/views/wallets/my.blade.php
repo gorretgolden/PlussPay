@@ -6,43 +6,34 @@
 @php
     $isSuperAgent = auth()->user()->hasRole('super-agent');
     $isAgent = auth()->user()->hasRole('agent') && ! $isSuperAgent;
-    $isChinaDesk = (auth()->user()->country ?: \App\Models\User::DEFAULT_COUNTRY) === 'CN';
 @endphp
 
-<div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-900">My Wallet</h1>
-    <p class="text-gray-600">
-        @if($isSuperAgent)
-            Cash handed to you by the agents stays here until you send it to the China desk. Commission is paid in shillings, whatever currency the transfer was booked in.
-        @elseif($isChinaDesk)
-            Money sent from Uganda arrives here, and the yuan or dollars you hand a receiver leave from here. Commission is paid in shillings, whatever currency the transfer was booked in.
-        @else
-            Money you collected stays here until the super agent takes it in hand. Hand cash in by opening a transfer on the <a href="{{ route('transactions.index') }}" class="text-green-800 underline">Transactions</a> page and choosing Hand in this cash. Commission is paid in shillings, whatever currency the transfer was booked in.
-        @endif
-    </p>
+<div class="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">My Wallet</h1>
+        <p class="text-sm text-gray-500 mt-1">What you are holding now, and every movement in and out.</p>
+    </div>
+    @if($isAgent)
+    <a href="{{ route('transactions.index') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700">Hand in this cash</a>
+    @endif
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
     @foreach($wallets as $currency => $account)
-    @php
-        $balance = (string) $account->balance();
-    @endphp
-    <div class="bg-white rounded-lg shadow p-6">
-        <div class="text-sm text-gray-500 uppercase tracking-wide">{{ $currency }} Wallet</div>
-        <div class="text-3xl font-bold text-gray-900 mt-2 tabular-nums">{{ \App\Models\Account::format($currency, $balance) }}</div>
-        <x-wallet-updated :at="$account->lastMovementAt()" class="mt-2" />
-        <div class="text-xs text-gray-400 mt-3">Account: {{ $account->code }}</div>
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <div class="flex items-center justify-between gap-3">
+            <span class="text-sm font-semibold text-gray-500 uppercase tracking-wide">{{ $currency }} Wallet</span>
+            <x-wallet-updated :at="$account->lastMovementAt()" class="text-xs text-gray-500" />
+        </div>
+        <div class="text-3xl font-bold text-gray-900 mt-3 tabular-nums">{{ \App\Models\Account::format($currency, (string) $account->balance()) }}</div>
     </div>
     @endforeach
 </div>
 
 @if(($isAgent || $isSuperAgent) && $handovers->isNotEmpty())
-<div class="bg-white rounded-lg shadow mb-8 overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap items-start justify-between gap-3">
-        <div>
-            <h2 class="text-lg font-semibold text-gray-900">Cash hand-in requests</h2>
-            <p class="text-sm text-gray-500 mt-1">A request moves no money until it is approved. A decline leaves the cash in the agent's wallet.</p>
-        </div>
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8 overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-lg font-semibold text-gray-900">Cash hand-in requests</h2>
         {{-- The deciding has one home, the hand-in desk, where a stack of requests can be approved at
              once. This card is the wallet's own record of what went up and what became of it. --}}
         @if($isSuperAgent)
@@ -111,11 +102,11 @@
     $anyFilter = request()->filled('search') || request()->filled('wallet') || request()->filled('kind')
         || request()->filled('direction') || request()->filled('from') || request()->filled('to');
 @endphp
-<div class="bg-white rounded-lg shadow">
-    <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap justify-between items-start gap-3">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap justify-between items-center gap-3">
         <div>
             <h2 class="text-lg font-semibold text-gray-900">Cash history</h2>
-            <p class="text-sm text-gray-500 mt-1">Every movement in your wallets, newest first, with the balance it left behind. The time is the moment the line was written.</p>
+            <p class="text-sm text-gray-500 mt-1">Every movement, newest first.</p>
         </div>
         <a href="{{ route('export.cash-history', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600 whitespace-nowrap">
             Export Excel @if($anyFilter)(this filter) @endif
@@ -213,8 +204,8 @@
                 <tr>
                     <td colspan="8" class="px-6 py-8 text-center text-gray-500">
                         {{ $anyFilter
-                            ? 'No movement of your wallets fits that filter. Clear it to see the whole book.'
-                            : 'Nothing has moved through your wallets yet. Book a transfer and the cash you collect shows up here.' }}
+                            ? 'No movement of your wallets fits that filter'
+                            : 'Nothing has moved through your wallets yet.' }}
                     </td>
                 </tr>
                 @endforelse

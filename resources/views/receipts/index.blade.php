@@ -36,41 +36,44 @@
     <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt #</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receiver</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">RMB</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Charge</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">RMB</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Charge</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
             @forelse($receipts as $r)
             <tr>
-                <td class="px-6 py-4 text-sm font-medium text-green-800">{{ $r->receipt_number }}</td>
+                <td class="px-6 py-4 text-sm whitespace-nowrap">
+                    <span class="font-medium text-green-800">{{ $r->receipt_number }}</span>
+                    <span class="text-xs text-gray-500"> &middot; {{ $r->created_at->format('M d, Y, h:i A') }}</span>
+                </td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $r->sender_name }}</td>
                 <td class="px-6 py-4 text-sm text-gray-900">{{ $r->receiver_name }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">{{ $r->principalLabel() }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">¥{{ number_format($r->rmb_amount, 1) }}</td>
-                <td class="px-6 py-4 text-sm text-gray-900">UGX {{ number_format((float) $r->charge_ugx) }}</td>
-                <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $r->created_at->format('Y-m-d h:i A') }}</td>
-                <td class="px-6 py-4 text-sm">
+                <td class="px-6 py-4 text-sm text-right text-gray-900 tabular-nums whitespace-nowrap">{{ $r->principalLabel() }}</td>
+                <td class="px-6 py-4 text-sm text-right text-gray-900 tabular-nums whitespace-nowrap">{{ $r->yuanLabel() }}</td>
+                <td class="px-6 py-4 text-sm text-right text-gray-900 tabular-nums whitespace-nowrap">{{ $r->feeLabel() }}</td>
+                <td class="px-6 py-4 text-sm whitespace-nowrap">
                     <a href="{{ route('receipts.show', $r->receipt_number) }}" class="text-green-600 hover:text-green-800 mr-2">View</a>
                     <a href="{{ route('receipts.print', $r->receipt_number) }}" target="_blank" class="text-green-600 hover:text-green-800">Print</a>
                 </td>
             </tr>
             @empty
             <tr>
-                <td colspan="8" class="px-6 py-8 text-center text-gray-500">No receipts found.</td>
+                <td colspan="7" class="px-6 py-8 text-center text-gray-500">No receipts found.</td>
             </tr>
             @endforelse
         </tbody>
     </table>
 </div>
 
+@if($receipts->hasPages())
 <div class="mt-4">
     {{ $receipts->links() }}
 </div>
+@endif
 @endsection

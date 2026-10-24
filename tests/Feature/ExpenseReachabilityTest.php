@@ -308,6 +308,20 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringNotContainsString('New Transaction', $lead);
     }
 
+    public function test_the_sidebar_offers_no_send_money_link(): void
+    {
+        // Bookings start from the Send Money tiles on the board, so the sidebar carries no second
+        // door for it. The tiles spell the corridor out, which is why their labels are still found.
+        foreach (['agent' => 'Amina Nabukenya', 'super-agent' => 'Amina Lead'] as $role => $name) {
+            $html = $this->html($this->user($role, $name));
+
+            // The sidebar links carry their text inside a span, so the pin reads only that one
+            // shape; the empty-state link renders as an anchor and stays.
+            $this->assertSame(0, substr_count($html, '>Send Money</span>'), $role.': no sidebar entry for Send Money.');
+            $this->assertStringContainsString('>Send Money to China</span>', $html);
+        }
+    }
+
     public function test_the_book_pages_offer_no_new_transaction_button(): void
     {
         // Bookings start at the Send Money wizard or a dashboard tile. The book pages used to

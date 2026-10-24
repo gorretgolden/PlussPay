@@ -8,6 +8,9 @@
     // decides which columns a viewer gets instead of repeating the role test everywhere.
     $showProfit = auth()->user()->can('view-profit');
 
+    // The hub carries every table for the reader; each other tab renders only its own section.
+    $isHub = $reportType === 'hub';
+
     // Carried on every link on the page so a filter set once survives the tab switches and the
     // sheet that comes out of the other end.
     $carry = array_filter([
@@ -21,12 +24,9 @@
 
     $query = fn (array $over) => route('reports.index', array_filter(array_merge($carry, $over), fn ($v) => $v !== null && $v !== ''));
 
-    // A desk's own page is a different set of tables, so the tab named in the address scrolls to
-    // the block that carries it for that reader.
-    $scroll = $isDesk ? ['hub' => 'section-hub', 'transaction' => 'section-transfers', 'exchanges' => 'section-exchanges', 'charge' => 'section-charge', 'wallet' => 'section-wallet', 'daily' => 'section-daily'] : ['hub' => 'section-hub', 'transaction' => 'section-transaction', 'revenue' => 'section-revenue', 'profit' => 'section-profit', 'commission' => 'section-commission', 'agent' => 'section-agent', 'customer' => 'section-customer', 'rates' => 'section-rates', 'daily' => 'section-daily'];
-
-    // A desk's exchange and wallet tabs export their own pages, not the transfer sheet.
-    $canExport = auth()->user()->can('export-reports') && ! ($isDesk && in_array($reportType, ['exchanges', 'wallet'], true));
+    // The transfer sheet is the export for every tab except the desk's own pages and the profit
+    // report, which has an export of its own next to its cards.
+    $canExport = auth()->user()->can('export-reports') && ! ($isDesk && in_array($reportType, ['exchanges', 'wallet', 'handins'], true)) && ! (! $isDesk && $reportType === 'profit');
 @endphp
 <div class="mb-6 flex justify-between items-center">
     <div>
@@ -77,6 +77,7 @@
     </form>
 </div>
 
+@if($isHub)
 {{-- Summary Stats --}}
 <div id="section-hub" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
     <div class="bg-white rounded-lg shadow p-5">
@@ -116,9 +117,11 @@
     </div>
     @endcan
 </div>
+@endif
 
 @if($isDesk)
 {{-- The desk's own bookings, printed the same way the office prints them. --}}
+@if($isHub || $reportType === 'transaction')
 <div id="section-transfers" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">My Transfers</h3>
@@ -171,9 +174,10 @@
     <p class="px-6 py-3 text-xs text-gray-500 border-t">The hundred most recent bookings are listed. Narrow the dates to read the earlier ones.</p>
     @endif
 </div>
+@endif
 
 {{-- Every counter deal this desk did, with the money that went each way. --}}
-@if(isset($allowed['exchanges']))
+@if(isset($allowed['exchanges']) && ($isHub || $reportType === 'exchanges'))
 <div id="section-exchanges" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
         <div>
@@ -244,11 +248,11 @@
 @endif
 
 {{-- What this desk kept, counted the three ways she reads it. --}}
-@if(isset($allowed['charge']))
+@if(isset($allowed['charge']) && ($isHub || $reportType === 'charge'))
 <div id="section-charge" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">My Charge Collected</h3>
-        <p class="text-sm text-gray-500">The charge taken out of the cash handed over on the transfers that completed. A cancelled transfer is not counted, because the charge came back out of the wallet.</p>
+        <p class="text-sm text-gray-500">Counted on the transfers that completed, because a cancellation gives the charge back.</p>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
         @foreach(['day' => 'By Day', 'week' => 'By Week', 'month' => 'By Month'] as $key => $heading)
@@ -291,8 +295,73 @@
 </div>
 @endif
 
+{{-- Every cash hand-in this desk sent up, and what happened to it. --}}
+@if(isset($allowed['handins']) && ($isHub || $reportType === 'handins'))
+<div id="section-handins" class="bg-white rounded-lg shadow mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">My Hand-ins</h3>
+        <p class="text-sm text-gray-500">Every cash hand-in you sent up in this period, and what happened to it.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Reference</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Date</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Handed Over</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Bookings</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Sent To</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Note</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @forelse($myHandins as $handover)
+                @php $receipts = $handover->receiptNumbers(); @endphp
+                <tr>
+                    <td class="px-6 py-4 text-sm font-medium text-green-800 whitespace-nowrap">{{ $handover->reference }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $handover->created_at->format('M d, Y h:i A') }}</td>
+                    <td class="px-4 py-4 text-sm text-right text-gray-900 tabular-nums whitespace-nowrap">{{ \App\Models\Account::format($handover->currency, $handover->amount) }}</td>
+                    <td class="px-4 py-4 text-sm text-right text-gray-900 tabular-nums whitespace-nowrap">{{ \App\Models\Account::format('UGX', $handover->charge_ugx) }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900">
+                        @if($receipts->isEmpty())
+                        <span class="text-gray-400">-</span>
+                        @else
+                        {{ $receipts->take(3)->implode(', ') }}
+                        @if($receipts->count() > 3)
+                        <span class="text-gray-400"> +{{ $receipts->count() - 3 }} more</span>
+                        @endif
+                        @endif
+                    </td>
+                    <td class="px-4 py-4 text-sm text-gray-900">{{ $handover->superAgent?->name ?? '-' }}</td>
+                    <td class="px-4 py-4">
+                        <span class="px-2 py-1 text-xs rounded-full
+                            @if($handover->status === \App\Models\CashHandover::APPROVED) bg-green-100 text-green-800
+                            @elseif($handover->status === \App\Models\CashHandover::DECLINED) bg-red-100 text-red-800
+                            @elseif($handover->status === \App\Models\CashHandover::CANCELLED) bg-gray-100 text-gray-600
+                            @else bg-yellow-100 text-yellow-800 @endif">
+                            {{ ucfirst($handover->status) }}
+                        </span>
+                        @if($handover->decision_note)
+                        <p class="text-xs text-gray-500 mt-1">{{ $handover->decision_note }}</p>
+                        @endif
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">{{ $handover->note ?: '-' }}</td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="8" class="px-6 py-8 text-center text-gray-500">You have not sent a cash hand-in in this period.</td>
+                </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+@endif
+
 {{-- In hand, handed in, and the part of it that is the desk's own pay. --}}
-@if(isset($allowed['wallet']))
+@if(isset($allowed['wallet']) && ($isHub || $reportType === 'wallet'))
 <div id="section-wallet" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200 flex items-start justify-between gap-4">
         <div>
@@ -328,13 +397,13 @@
 @endif
 @endif
 
-@if(isset($allowed['profit']))
+@if(isset($allowed['profit']) && ($isHub || $reportType === 'profit'))
 <div id="section-profit" class="mb-6">
     <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <div>
                 <h3 class="text-lg font-semibold text-gray-900">Profit</h3>
-                <p class="text-sm text-gray-500">One profit figure per transfer, added up for the transfers that completed in this period. The charge is what came out of the money handed over. The exchange profit is what the rates came to on the money that travelled: the gap between the shillings taken in and what those dollars cost to buy, together with what the yuan paid out in China cost to settle. The overall profit is the two added, and it is the figure the office reports. The same three figures split by day and by desk are in the Daily Summary and Performance by Agent tables below.</p>
+                <p class="text-sm text-gray-500">The charge kept plus what the rates earned, added up for the transfers that completed in this period.</p>
             </div>
             <a href="{{ route('export.profit-report', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700 whitespace-nowrap">Export Excel</a>
         </div>
@@ -347,7 +416,7 @@
             <div class="rounded-lg border border-green-200 bg-green-50 p-4">
                 <div class="text-sm text-green-900">Overall Profit</div>
                 <div class="text-2xl font-bold {{ $profit['total_ugx'] < 0 ? 'text-red-700' : 'text-green-800' }} mt-1">{{ $profit['total_ugx'] < 0 ? 'Loss ' : '' }}UGX {{ number_format(abs($profit['total_ugx']), 1) }}</div>
-                <div class="text-xs {{ $profit['total_ugx'] < 0 ? 'text-red-600' : 'text-green-700' }} mt-1">&yen;{{ number_format(abs($profit['total_rmb']), 1) }} RMB, being the same money counted in what we pay out in China</div>
+                <div class="text-xs {{ $profit['total_ugx'] < 0 ? 'text-red-600' : 'text-green-700' }} mt-1">&yen;{{ number_format(abs($profit['total_rmb']), 1) }} RMB, being the same money counted in what we pay out in China | USD {{ number_format(abs($profit['total_usd']), 1) }}</div>
             </div>
             <div class="rounded-lg border bg-gray-50 p-4">
                 <div class="text-sm text-gray-500">Charge</div>
@@ -379,12 +448,12 @@
 @endif
 
 {{-- Commission Section: the office's own report, one line per desk --}}
-@if(isset($allowed['commission']))
+@if(isset($allowed['commission']) && ($isHub || $reportType === 'commission'))
 <div id="section-commission" class="mb-6">
     <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b border-gray-200">
             <h3 class="text-lg font-semibold text-gray-900">{{ $commission['everyone'] ? 'Commissions Earned' : 'My Commission' }}</h3>
-            <p class="text-sm text-gray-500">{{ $commission['everyone'] ? 'The service fee each agent kept from the cash they collected. A charge taken at the office desk stays in the till, so it is not listed here.' : 'The service fee you kept from the cash you collected.' }} Read from the wallet ledger, so a cancelled transfer gives its commission back here exactly as it does in the wallet.</p>
+            <p class="text-sm text-gray-500">{{ $commission['everyone'] ? 'The service fee each desk kept from the cash they collected. A charge taken at the office desk stays in the till, so it is not listed here.' : 'The service fee you kept from the cash you collected.' }}</p>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
@@ -453,6 +522,7 @@
 </div>
 @endif
 
+@if($isHub)
 {{-- Charts --}}
 <div id="section-transaction" class="mb-6">
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -483,7 +553,9 @@
         @endif
     </div>
 </div>
+@endif
 
+@if($isHub || $reportType === 'revenue')
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
     {{-- By Currency --}}
     <div class="bg-white rounded-lg shadow p-6">
@@ -542,8 +614,68 @@
         </div>
     </div>
 </div>
+@endif
+
+{{-- The office's own list of bookings; a desk reads their list in My Transfers above. --}}
+@if(! $isDesk && ($isHub || $reportType === 'transaction'))
+<div id="section-transfers-office" class="bg-white rounded-lg shadow mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">Transfers</h3>
+        <p class="text-sm text-gray-500">Every transfer booked in this period, newest first. The receipt number opens the slip you can print.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receipt #</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Sender</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Receiver</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Money Travels</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">RMB</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Charge (UGX)</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Agent</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Date</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @forelse($transactions->take(100) as $t)
+                <tr>
+                    <td class="px-6 py-4 text-sm font-medium text-green-800 whitespace-nowrap">
+                        <a href="{{ route('receipts.show', $t->receipt_number) }}">{{ $t->receipt_number }}</a>
+                    </td>
+                    <td class="px-4 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->principalLabel() }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->yuanLabel() }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->feeLabel() }}</td>
+                    <td class="px-4 py-4 text-sm text-gray-900">{{ $t->creator?->name ?? 'Unknown' }}</td>
+                    <td class="px-4 py-4">
+                        <span class="px-2 py-1 text-xs rounded-full
+                            @if($t->status === 'completed') bg-green-100 text-green-800
+                            @elseif($t->status === 'pending') bg-yellow-100 text-yellow-800
+                            @else bg-red-100 text-red-800 @endif">
+                            {{ ucfirst($t->status) }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('M d, Y h:i A') }}</td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="9" class="px-6 py-8 text-center text-gray-500">No transfers in this period.</td>
+                </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+    @if($transactions->count() > 100)
+    <p class="px-6 py-3 text-xs text-gray-500 border-t">The hundred most recent bookings are listed. Narrow the dates to read the earlier ones.</p>
+    @endif
+</div>
+@endif
 
 {{-- One table per day, profit columns for the accounts that own the profit cards --}}
+@if($isHub || $reportType === 'daily')
 <div id="section-daily" class="bg-white rounded-lg shadow mb-6">
     @if($isDesk)
     <div class="px-6 py-4 border-b border-gray-200">
@@ -657,9 +789,10 @@
     </div>
     @endif
 </div>
+@endif
 
 {{-- One table per desk --}}
-@if(isset($allowed['agent']))
+@if(isset($allowed['agent']) && ($isHub || $reportType === 'agent'))
 <div id="section-agent" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">Performance by Agent</h3>
@@ -727,11 +860,11 @@
 @endif
 
 {{-- Customer activity, grouped from the name on each booking --}}
-@if(isset($allowed['customer']))
+@if(isset($allowed['customer']) && ($isHub || $reportType === 'customer'))
 <div id="section-customer" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">Customer Activity</h3>
-        <p class="text-sm text-gray-500">The sending side of every completed transfer, ranked by the dollars moved. Counted from the name written on the booking, so the same person spelled two ways shows as two customers. Whoever is not an admin sees only their own senders.</p>
+        <p class="text-sm text-gray-500">The sending side of every completed transfer, ranked by the dollars moved. Whoever is not an admin sees only their own senders.</p>
     </div>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
@@ -779,7 +912,7 @@
 @endif
 
 {{-- What each dollar rate carried, which the rate sheet on its own cannot show --}}
-@if(isset($allowed['rates']))
+@if(isset($allowed['rates']) && ($isHub || $reportType === 'rates'))
 <div id="section-rates" class="bg-white rounded-lg shadow mb-6">
     <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">Rates Booked in This Period</h3>
@@ -844,8 +977,9 @@
     // Only the three fields the chart draws, so no account details travel in the page source.
     const byAgent = @json($byAgent->map(fn ($a) => ['name' => $a->creator?->name ?? 'Unknown', 'count' => (int) $a->count, 'charge' => (float) $a->fee_ugx])->values());
     const stats = @json($stats);
+    const has = (id) => document.getElementById(id) !== null;
 
-    if (dailySummary.length > 0) {
+    if (has('dailyTransactionsChart') && dailySummary.length > 0) {
         const dates = dailySummary.map(d => d.date);
         const counts = dailySummary.map(d => d.count);
         const totals = dailySummary.map(d => d.total_usd);
@@ -893,33 +1027,35 @@
         });
     }
 
-    new Chart(document.getElementById('statusChart'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Completed', 'Pending', 'Cancelled'],
-            datasets: [{
-                data: [stats.completed, stats.pending, stats.cancelled],
-                backgroundColor: [
-                    'rgba(22, 163, 74, 0.8)',
-                    'rgba(234, 179, 8, 0.8)',
-                    'rgba(239, 68, 68, 0.8)'
-                ],
-                borderColor: [
-                    'rgb(22, 163, 74)',
-                    'rgb(234, 179, 8)',
-                    'rgb(239, 68, 68)'
-                ],
-                borderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom' } }
-        }
-    });
+    if (has('statusChart')) {
+        new Chart(document.getElementById('statusChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Completed', 'Pending', 'Cancelled'],
+                datasets: [{
+                    data: [stats.completed, stats.pending, stats.cancelled],
+                    backgroundColor: [
+                        'rgba(22, 163, 74, 0.8)',
+                        'rgba(234, 179, 8, 0.8)',
+                        'rgba(239, 68, 68, 0.8)'
+                    ],
+                    borderColor: [
+                        'rgb(22, 163, 74)',
+                        'rgb(234, 179, 8)',
+                        'rgb(239, 68, 68)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
 
-    if (byAgent.length > 0) {
+    if (has('agentChart') && byAgent.length > 0) {
         const agentNames = byAgent.map(a => a.name);
         const agentCounts = byAgent.map(a => a.count);
         const agentRevenue = byAgent.map(a => a.charge);
@@ -953,14 +1089,6 @@
                 }
             }
         });
-    }
-</script>
-<script>
-    const reportType = @json($reportType);
-    const sectionMap = @json($scroll);
-    if (sectionMap[reportType]) {
-        const el = document.getElementById(sectionMap[reportType]);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 </script>
 @endsection
