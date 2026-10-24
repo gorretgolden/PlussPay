@@ -112,38 +112,34 @@
 </form>
 
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 mb-6">
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div>
-            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Requests</span>
-            <span class="block text-xl font-bold text-gray-900 tabular-nums mt-0.5">{{ number_format($totalRequests) }} {{ $totalRequests === 1 ? 'request' : 'requests' }}</span>
+            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Waiting</span>
+            <span class="block text-xl font-bold text-gray-900 tabular-nums mt-0.5">{{ number_format($totalHandovers) }}</span>
+            <span class="block text-xs text-gray-500">of {{ number_format($totalRequests) }} {{ $totalRequests === 1 ? 'request' : 'requests' }} shown</span>
         </div>
-        @if($totals !== [])
-            @foreach($totals as $code => $group)
-            <div>
-                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Total</span>
-                <span class="block text-xl font-bold text-gray-900 tabular-nums mt-0.5">{{ \App\Models\Account::format($code, $group['amount']) }}</span>
-                <span class="block text-xs text-gray-500 tabular-nums">{{ number_format($group['count']) }} {{ $group['count'] === 1 ? 'request' : 'requests' }}</span>
-            </div>
-            @endforeach
-            {{-- Charges are counted in shillings whatever money the cash beside them is in, because
-                 they are collected here and stay here. --}}
-            @if(array_sum(array_map(fn ($group) => (float) $group['charges'], $totals)) > 0)
-            <div>
-                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Charges in these requests</span>
-                <span class="block text-xl font-bold text-gray-900 tabular-nums mt-0.5">{{ \App\Models\Account::format('UGX', array_sum(array_map(fn ($group) => (float) $group['charges'], $totals))) }}</span>
-                <span class="block text-xs text-gray-500">Stays in Uganda with the lead when each request is approved.</span>
-            </div>
-            @endif
-        @else
-            <div>
-                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Total</span>
-                <span class="block text-xl font-bold text-gray-900 tabular-nums mt-0.5">{{ \App\Models\Account::format('UGX', 0) }}</span>
-            </div>
+        {{-- Each pile carries the name of its money, because shillings and dollars are not one
+             total and a bare "Total" card never said which of the two it counted. --}}
+        @foreach($totals as $code => $group)
+        <div>
+            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Total {{ strtoupper($code) }}</span>
+            <span class="block text-xl font-bold text-gray-900 tabular-nums mt-0.5">{{ \App\Models\Account::format($code, $group['amount']) }}</span>
+            <span class="block text-xs text-gray-500 tabular-nums">{{ number_format($group['count']) }} {{ $group['count'] === 1 ? 'request' : 'requests' }}</span>
+        </div>
+        @endforeach
+        {{-- Charges are counted in shillings whatever money the cash beside them is in, because
+             they are collected here and stay here. --}}
+        @if(array_sum(array_map(fn ($group) => (float) $group['charges'], $totals)) > 0)
+        <div>
+            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Charges</span>
+            <span class="block text-xl font-bold text-gray-900 tabular-nums mt-0.5">{{ \App\Models\Account::format('UGX', array_sum(array_map(fn ($group) => (float) $group['charges'], $totals))) }}</span>
+            <span class="block text-xs text-gray-500">Stays in Uganda with the lead when each request is approved.</span>
+        </div>
         @endif
     </div>
     <p class="text-[13px] text-gray-600 mt-4 pt-4 border-t border-gray-100">
-        {{ number_format($totalHandovers) }} of these {{ $totalHandovers === 1 ? 'is' : 'are' }} still waiting. A pending hand-in is
-        already inside the agent's wallet balance; nothing moves until it is approved.
+        A pending hand-in is already inside the agent's wallet balance; nothing moves until it is
+        approved or sent back.
     </p>
 </div>
 

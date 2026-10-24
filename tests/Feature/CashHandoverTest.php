@@ -102,7 +102,7 @@ class CashHandoverTest extends TestCase
         $this->actingAs($lead)->get('/dashboard')->assertOk()
             ->assertSee('Cash Handed To You')
             ->assertSee($handover->reference)
-            ->assertSee('Approve receipt')
+            ->assertSee('Open the requests')
             ->assertSee('Sarah Nalin');
 
         $this->flushSession();

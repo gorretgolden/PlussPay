@@ -121,12 +121,12 @@ class SuperAgentDemoFlowTest extends TestCase
 
         $this->signIn('superagent@plussave.com');
 
-        // The request is waiting on the super agent's first screen, not only on the wallet page.
+        // The dashboard card names the request and points to the cash hand-ins page, where it is decided.
         $this->get('/dashboard')->assertOk()
             ->assertSee('Cash Handed To You')
             ->assertSee($handover->reference)
             ->assertSee('Morning collection')
-            ->assertSee('Approve receipt');
+            ->assertSee('Open the requests');
 
         $this->post(route('cash-handovers.approve', $handover))->assertSessionHasNoErrors();
 

@@ -76,29 +76,31 @@ class MoneyFormGuardTest extends TestCase
         }
     }
 
-    public function test_both_super_agent_screens_confirm_before_the_cash_moves(): void
+    public function test_the_requests_page_confirms_before_the_cash_moves(): void
     {
         $agent = $this->person('agent', 'Sarah Nalin', 'UG', '500000');
         $lead = $this->person('super-agent', 'Amina Lead');
         $handover = CashHandover::request($agent, $lead, 'UGX', '480000', 'Carried in the evening');
 
-        // The wallet card is the record of what went up; the deciding has two homes, the first screen
-        // and the hand-in desk, and both must ask before money moves.
-        foreach (['/dashboard', '/cash-handovers'] as $url) {
-            $page = $this->actingAs($lead)->get($url)->assertOk()->getContent();
+        // The first screen only names what is waiting and points at the page; the deciding lives
+        // on the hand-ins page, where every money move must ask before it happens.
+        $board = $this->actingAs($lead)->get('/dashboard')->assertOk()->getContent();
+        $this->assertStringContainsString('Open the requests', $board);
+        $this->assertStringNotContainsString('data-confirm-ok="Yes, I have it"', $board, 'The dashboard card still carries a decision form.');
 
-            $this->assertStringContainsString('data-confirm-title="Confirm you have received this cash"', $page, $url);
-            $this->assertStringContainsString('data-confirm-ok="Yes, I have it"', $page, $url);
-            $this->assertStringContainsString('data-lock-label="Approving..."', $page, $url);
-            $this->assertStringContainsString('data-confirm-title="Send this hand-in back?"', $page, $url);
-            $this->assertStringContainsString('data-confirm-ok="Send it back"', $page, $url);
-            $this->assertStringContainsString('data-confirm-danger="1"', $page, $url);
-            $this->assertStringContainsString('data-lock-label="Sending back..."', $page, $url);
+        $page = $this->actingAs($lead)->get('/cash-handovers')->assertOk()->getContent();
 
-            // Both decisions name the request and carry the reason typed on the row into the card.
-            $decoded = html_entity_decode($page);
-            $this->assertStringContainsString($handover->reference, $decoded, $url);
-            $this->assertStringContainsString(json_encode(['Reason', 'input[name=decision_note]', 'value']), $decoded, $url);
-        }
+        $this->assertStringContainsString('data-confirm-title="Confirm you have received this cash"', $page);
+        $this->assertStringContainsString('data-confirm-ok="Yes, I have it"', $page);
+        $this->assertStringContainsString('data-lock-label="Approving..."', $page);
+        $this->assertStringContainsString('data-confirm-title="Send this hand-in back?"', $page);
+        $this->assertStringContainsString('data-confirm-ok="Send it back"', $page);
+        $this->assertStringContainsString('data-confirm-danger="1"', $page);
+        $this->assertStringContainsString('data-lock-label="Sending back..."', $page);
+
+        // Both decisions name the request and carry the reason typed on the row into the card.
+        $decoded = html_entity_decode($page);
+        $this->assertStringContainsString($handover->reference, $decoded);
+        $this->assertStringContainsString(json_encode(['Reason', 'input[name=decision_note]', 'value']), $decoded);
     }
 }

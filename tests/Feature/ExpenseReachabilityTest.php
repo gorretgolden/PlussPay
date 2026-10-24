@@ -308,6 +308,20 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringNotContainsString('New Transaction', $lead);
     }
 
+    public function test_the_book_pages_offer_no_new_transaction_button(): void
+    {
+        // Bookings start at the Send Money wizard or a dashboard tile. The book pages used to
+        // carry a New Transaction button that fed the same cycle a second way, so it is gone:
+        // whoever reads the transactions or receipts page starts a booking through the one door.
+        $agent = $this->user('agent', 'Amina Nabukenya');
+
+        $this->assertTrue($agent->can('create-transaction'));
+
+        foreach (['/transactions', '/receipts'] as $path) {
+            $this->assertStringNotContainsString('New Transaction', $this->html($agent, $path), $path);
+        }
+    }
+
     public function test_each_sending_shortcut_opens_its_own_corridor(): void
     {
         $uganda = $this->html($this->user('agent', 'Amina Nabukenya'));

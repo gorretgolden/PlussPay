@@ -413,10 +413,9 @@
 </div>
 @endif
 
-{{-- The super agent's first job of the day: the cash the agents say they are bringing. A request
-     moves no money until it is approved here or on the wallet page, so the queue is the decision
-     itself rather than a reminder of one. The card stays on the dashboard while the queue is empty
-     so the desk can see where the money will arrive before the first agent ever sends any. --}}
+{{-- The super agent's first job of the day: the cash the agents say they are bringing. The
+     decisions themselves live on the cash hand-ins page, where every request reads with its full
+     story and its status; this card only names what is waiting and points there. --}}
 @if($me->hasRole('super-agent'))
 <div id="cash-handed-to-you" class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden scroll-mt-6">
     <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 sm:px-5 py-3">
@@ -426,7 +425,7 @@
             {{ number_format($handoverQueue->count()) }} waiting
         </span>
         @endif
-        <a href="{{ route('wallet.index') }}" class="text-sm font-semibold text-green-800 hover:underline">Open the wallet</a>
+        <a href="{{ route('cash-handovers.index') }}" class="text-sm font-semibold text-green-800 hover:underline">Open the requests</a>
     </div>
     @if($handoverQueue->isNotEmpty())
     <ul class="divide-y divide-gray-100">
@@ -441,52 +440,13 @@
                 {{ $handover->reference }}
                 @if($handover->note)<span class="text-gray-400"> · </span>{{ $handover->note }}@endif
             </p>
-            @php
-                $handoverRows = [
-                    ['From agent', $handover->agent?->name],
-                    ['Amount', $handover->figure()],
-                    ['Reference', $handover->reference],
-                ];
-                if ($handover->note) {
-                    $handoverRows[] = ['Their note', $handover->note];
-                }
-            @endphp
-            <div class="flex flex-wrap items-center gap-2 mt-2">
-                <form method="POST" action="{{ route('cash-handovers.approve', $handover) }}"
-                    data-confirm-title="Confirm you have received this cash"
-                    data-confirm="Approving moves the money from {{ $handover->agent?->name }}'s wallet into yours. Confirm only once you have counted the cash."
-                    data-confirm-ok="Yes, I have it"
-                    data-confirm-sections="{{ json_encode([['rows' => $handoverRows]]) }}"
-                    data-lock data-lock-label="Approving...">
-                    @csrf
-                    <button type="submit" class="bg-green-800 text-white px-3 py-1.5 rounded-md text-xs font-semibold hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
-                        Approve receipt
-                    </button>
-                </form>
-                <form method="POST" action="{{ route('cash-handovers.decline', $handover) }}" class="flex flex-wrap items-center gap-2"
-                    data-confirm-title="Send this hand-in back?"
-                    data-confirm="The cash stays in {{ $handover->agent?->name }}'s wallet and the agent sees the reason you give."
-                    data-confirm-ok="Send it back"
-                    data-confirm-danger="1"
-                    data-confirm-sections="{{ json_encode([['rows' => $handoverRows]]) }}"
-                    data-confirm-rows="{{ json_encode([['Reason', 'input[name=decision_note]', 'value']]) }}"
-                    data-lock data-lock-label="Sending back...">
-                    @csrf
-                    <input type="text" name="decision_note" required maxlength="255" placeholder="Why it is going back"
-                        aria-label="Reason for declining {{ $handover->reference }}"
-                        class="px-2 py-1.5 border border-gray-300 rounded-md text-xs w-44 focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    <button type="submit" class="bg-white text-red-700 border border-red-300 px-3 py-1.5 rounded-md text-xs font-semibold hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
-                        Decline
-                    </button>
-                </form>
-            </div>
         </li>
         @endforeach
     </ul>
     @endif
     @if($handoverQueue->isEmpty() && $handoverHistory->isEmpty())
     <div class="px-4 sm:px-5 py-4">
-        <p class="text-sm text-gray-600">No cash has been handed to you yet. When an agent sends cash in, it waits here until you approve it.</p>
+        <p class="text-sm text-gray-600">No cash has been handed to you yet. When an agent sends cash in, it waits on the cash hand-ins page for you to approve it.</p>
     </div>
     @endif
     @if($handoverHistory->isNotEmpty())
