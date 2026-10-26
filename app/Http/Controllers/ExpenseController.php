@@ -161,7 +161,7 @@ class ExpenseController extends Controller
             'defaultCategoryId' => array_search($this->seesEveryEntry() ? 'Rent' : 'Transport', $options, true)
                 ?: array_key_first($options),
             'paidVia' => Expense::PAID_VIA,
-            'minimumAmount' => (float) Setting::get('min_transaction_amount', 100),
+            'bounds' => Setting::transactionBounds(),
         ]);
     }
 
@@ -237,8 +237,10 @@ class ExpenseController extends Controller
 
     /**
      * Two figures stop an entry before the books are touched. Nothing is spent for free, and nothing
-     * is entered so small it is a typing mistake rather than a payment. And the money has to be in
-     * the account named: a wallet that holds less than the figure cannot have paid it.
+     * is entered so small it is a typing mistake rather than a payment. The desk's own smallest and
+     * largest figures apply in the currency the paying account holds, so a shilling cap never limits
+     * a yuan account or the other way round. And the money has to be in the account named: a wallet
+     * that holds less than the figure cannot have paid it.
      *
      * The company's China accounts are deliberately left out of the second rule. That side pays the
      * receiver out of its own float before Uganda settles across, so a negative there is the honest
@@ -246,10 +248,15 @@ class ExpenseController extends Controller
      */
     private function refusal(Account $account, string $amount): ?string
     {
-        $minimum = (float) Setting::get('min_transaction_amount', 100);
+        $bounds = Setting::transactionBounds()[$account->currency] ?? null;
 
-        if (bccomp($amount, (string) $minimum, 2) < 0) {
-            return 'The smallest amount this desk records is '.Account::format($account->currency, $minimum)
+        if ($bounds && bccomp($amount, (string) $bounds['min'], 2) < 0) {
+            return 'The smallest amount this desk records is '.Account::format($account->currency, $bounds['min'])
+                .'. Enter what was actually paid out.';
+        }
+
+        if ($bounds && bccomp($amount, (string) $bounds['max'], 2) > 0) {
+            return 'The largest amount this desk records is '.Account::format($account->currency, $bounds['max'])
                 .'. Enter what was actually paid out.';
         }
 

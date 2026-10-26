@@ -19,10 +19,21 @@ class SettingController extends Controller
 {
     private const TAB_FIELDS = [
         'rates' => ['usd_ugx_buying', 'usd_ugx_selling', 'usd_rmb_buying', 'usd_rmb_selling', 'market_buy_auto'],
-        'transactions' => ['min_transaction_amount', 'max_transaction_amount', 'receipt_prefix', 'default_charge_ugx'],
+        'transactions' => [
+            'min_transaction_ugx', 'max_transaction_ugx',
+            'min_transaction_usd', 'max_transaction_usd',
+            'min_transaction_rmb', 'max_transaction_rmb',
+            'receipt_prefix', 'default_charge_ugx',
+        ],
         'company' => ['company_name', 'company_address', 'company_phone', 'company_email', 'company_website'],
         'datetime' => ['timezone'],
         'site' => ['site_mode', 'demo_login_autofill', 'demo_password'],
+    ];
+
+    private const TRANSACTION_BOUND_KEYS = [
+        'min_transaction_ugx', 'max_transaction_ugx',
+        'min_transaction_usd', 'max_transaction_usd',
+        'min_transaction_rmb', 'max_transaction_rmb',
     ];
 
     public function __construct(private readonly MarketRateService $marketRates)
@@ -70,8 +81,12 @@ class SettingController extends Controller
             'company_phone' => 'nullable|string|max:60',
             'company_email' => 'nullable|email|max:100',
             'company_website' => 'nullable|string|max:100',
-            'min_transaction_amount' => 'nullable|numeric|min:0',
-            'max_transaction_amount' => 'nullable|numeric|min:0',
+            'min_transaction_ugx' => 'nullable|numeric|min:0',
+            'max_transaction_ugx' => 'nullable|numeric|min:0',
+            'min_transaction_usd' => 'nullable|numeric|min:0',
+            'max_transaction_usd' => 'nullable|numeric|min:0',
+            'min_transaction_rmb' => 'nullable|numeric|min:0',
+            'max_transaction_rmb' => 'nullable|numeric|min:0',
             'receipt_prefix' => ['nullable', 'string', 'max:10', 'regex:/^[A-Za-z0-9]+$/'],
             'default_charge_ugx' => 'nullable|numeric|min:0',
             'usd_ugx_buying' => 'nullable|numeric|min:0.01|max:999999.99',
@@ -136,7 +151,7 @@ class SettingController extends Controller
         $newValues = [];
 
         foreach ($validated as $key => $value) {
-            $type = in_array($key, ['min_transaction_amount', 'max_transaction_amount', 'default_charge_ugx'], true) ? 'float' : 'string';
+            $type = in_array($key, array_merge(self::TRANSACTION_BOUND_KEYS, ['default_charge_ugx']), true) ? 'float' : 'string';
             $group = match (true) {
                 in_array($key, ['site_mode', 'timezone', 'demo_login_autofill', 'demo_password'], true) => 'display',
                 $key === 'market_buy_auto' => 'rates',
@@ -174,6 +189,13 @@ class SettingController extends Controller
                 'password' => Hash::make($validated['demo_password']),
                 'must_change_password' => false,
             ]);
+        }
+
+        // The old single min/max is retired once any per-currency bound is saved, so the
+        // book never keeps two versions of the same rule.
+        if (array_intersect(array_keys($newValues), self::TRANSACTION_BOUND_KEYS) !== []) {
+            Setting::forget('min_transaction_amount');
+            Setting::forget('max_transaction_amount');
         }
 
         if ($ugxSell !== null) {

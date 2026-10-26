@@ -279,7 +279,7 @@ class SecurityHardeningTest extends TestCase
 
     public function test_transaction_limits_come_from_system_settings(): void
     {
-        Setting::set('min_transaction_amount', '1000', 'float', 'transaction');
+        Setting::set('min_transaction_usd', '1000', 'float', 'transaction');
 
         $agent = $this->makeUser('agent');
         $this->actingAs($agent);

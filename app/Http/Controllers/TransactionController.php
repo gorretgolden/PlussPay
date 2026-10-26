@@ -108,6 +108,7 @@ class TransactionController extends Controller
 
         return view('transactions.create', compact('usdUgx', 'usdRmb', 'formId', 'defaultCharge', 'destination', 'canChooseRoute') + [
             'agents' => $this->bookingAgents(),
+            'bounds' => \App\Models\Setting::transactionBounds(),
         ]);
     }
 
@@ -136,8 +137,11 @@ class TransactionController extends Controller
 
     public function store(Request $request)
     {
-        $minAmount = (float) \App\Models\Setting::get('min_transaction_amount', 100);
-        $maxAmount = (float) \App\Models\Setting::get('max_transaction_amount', 100000000);
+        // The cap is read in the currency the cash was handed over in, so a shilling
+        // maximum never limits a dollar booking or the other way round.
+        $bounds = \App\Models\Setting::transactionBounds();
+        $intakeCurrency = strtoupper((string) $request->input('currency', 'UGX'));
+        $currencyBounds = $bounds[$intakeCurrency] ?? $bounds['UGX'];
 
         $viewer = auth()->user();
 
@@ -181,8 +185,8 @@ class TransactionController extends Controller
             'destination' => ['nullable', Rule::in([Transaction::TO_CHINA, Transaction::TO_UGANDA])],
             'currency' => ['required', Rule::in($intakeChoices)],
             'payout_currency' => ['nullable', Rule::in($payoutChoices)],
-            'amount' => "required|numeric|min:{$minAmount}|max:{$maxAmount}|decimal:0,2",
-            'charge_ugx' => "required|numeric|min:0|max:{$maxAmount}|decimal:0,2",
+            'amount' => "required|numeric|min:{$currencyBounds['min']}|max:{$currencyBounds['max']}|decimal:0,2",
+            'charge_ugx' => "required|numeric|min:0|max:{$bounds['UGX']['max']}|decimal:0,2",
             'purpose' => 'nullable|string|max:100',
             'purpose_other' => 'required_if:purpose,Other|nullable|string|max:100',
             'payment_method' => ['required', Rule::in(Transaction::PAYMENT_METHODS)],
@@ -200,8 +204,8 @@ class TransactionController extends Controller
             'payout_currency.in' => $toUganda
                 ? 'A receiver in Uganda is handed UGX shillings.'
                 : 'A receiver in China is handed either RMB yuan or USD dollars.',
-            'amount.min' => "Minimum amount is {$minAmount}.",
-            'amount.max' => "Maximum amount is ".number_format($maxAmount).".",
+            'amount.min' => 'Minimum amount is '.number_format($currencyBounds['min']).' '.$intakeCurrency.'.',
+            'amount.max' => 'Maximum amount is '.number_format($currencyBounds['max']).' '.$intakeCurrency.'.',
             'amount.decimal' => 'Amount cannot have more than 2 decimal places.',
             'charge_ugx.required' => 'Enter the charge taken out of the money handed over.',
             'charge_ugx.numeric' => 'The charge must be a number of shillings.',
@@ -511,8 +515,7 @@ class TransactionController extends Controller
                 return back()->withErrors(['file' => 'A file can hold at most 1,000 rows. Split it into smaller files.']);
             }
 
-            $minAmount = (float) \App\Models\Setting::get('min_transaction_amount', 100);
-            $maxAmount = (float) \App\Models\Setting::get('max_transaction_amount', 100000000);
+            $bounds = \App\Models\Setting::transactionBounds();
             if (! ExchangeRate::usdUgxPair()) {
                 return back()->withErrors(['file' => 'UGX rate not set. The transfer cannot be priced.']);
             }
@@ -538,14 +541,17 @@ class TransactionController extends Controller
                     ? trim((string) $row['payment_method'])
                     : Transaction::CASH_PAYMENT;
 
+                $rowCurrency = strtoupper(trim((string) ($row['currency'] ?? 'UGX')));
+                $rowBounds = $bounds[$rowCurrency] ?? $bounds['UGX'];
+
                 $checked = Validator::make($row, [
                     'sender_name' => 'required|string|max:100|min:2',
                     'sender_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
                     'receiver_name' => 'required|string|max:100|min:2',
                     'receiver_contact' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s\-]{7,20}$/'],
                     'currency' => 'required|in:UGX,USD',
-                    'amount' => "required|numeric|min:{$minAmount}|max:{$maxAmount}",
-                    'charge_ugx' => 'nullable|numeric|min:0|max:'.$maxAmount,
+                    'amount' => "required|numeric|min:{$rowBounds['min']}|max:{$rowBounds['max']}",
+                    'charge_ugx' => 'nullable|numeric|min:0|max:'.$bounds['UGX']['max'],
                     'purpose' => 'nullable|string|max:100',
                     'payment_method' => ['required', Rule::in(Transaction::PAYMENT_METHODS)],
                     'payment_reference' => ['required_if:payment_method,'.implode(',', Transaction::MOBILE_MONEY_METHODS), 'nullable', 'string', 'max:60'],

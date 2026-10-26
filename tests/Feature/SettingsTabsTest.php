@@ -119,11 +119,11 @@ class SettingsTabsTest extends TestCase
         $rows = ExchangeRate::count();
         $this->from('/settings')->put('/settings', [
             'settings_tab' => 'company', 'company_name' => 'New company',
-            'min_transaction_amount' => 999, 'timezone' => 'UTC', 'site_mode' => 'testing',
+            'min_transaction_ugx' => 999, 'timezone' => 'UTC', 'site_mode' => 'testing',
             'usd_ugx_selling' => 5000, 'usd_ugx_buying' => 4900,
         ])->assertRedirect('/settings')->assertSessionHasNoErrors()->assertSessionHas('settings_saved_tab', 'company');
         $this->assertSame('New company', Setting::get('company_name'));
-        $this->assertSame(100.0, Setting::get('min_transaction_amount'));
+        $this->assertNull(Setting::get('min_transaction_ugx'));
         $this->assertSame('Africa/Kampala', Setting::get('timezone'));
         $this->assertSame('production', Setting::get('site_mode'));
         $this->assertSame($rows, ExchangeRate::count());
@@ -135,12 +135,38 @@ class SettingsTabsTest extends TestCase
     public function test_transaction_save_leaves_company_and_rates_untouched(): void
     {
         $rows = ExchangeRate::count();
-        $this->put('/settings', ['settings_tab' => 'transactions', 'min_transaction_amount' => '250.50', 'receipt_prefix' => 'PAY'])
+        $this->put('/settings', ['settings_tab' => 'transactions', 'min_transaction_ugx' => '250.50', 'receipt_prefix' => 'PAY'])
             ->assertSessionHasNoErrors();
-        $this->assertSame(250.5, Setting::get('min_transaction_amount'));
+        $this->assertSame(250.5, Setting::get('min_transaction_ugx'));
         $this->assertSame('PAY', Setting::get('receipt_prefix'));
         $this->assertSame('Original company', Setting::get('company_name'));
         $this->assertSame($rows, ExchangeRate::count());
+    }
+
+    public function test_saving_a_per_currency_bound_retires_the_old_single_min_and_max(): void
+    {
+        Setting::set('max_transaction_amount', 500000, 'float', 'transaction');
+
+        $this->put('/settings', ['settings_tab' => 'transactions', 'max_transaction_ugx' => '600000'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(600000.0, Setting::get('max_transaction_ugx'));
+        $this->assertNull(Setting::get('min_transaction_amount'));
+        $this->assertNull(Setting::get('max_transaction_amount'));
+    }
+
+    public function test_a_desk_still_on_the_old_single_min_reads_it_as_its_shilling_floor(): void
+    {
+        Setting::set('min_transaction_amount', 1500, 'float', 'transaction');
+        Setting::set('max_transaction_amount', 900000, 'float', 'transaction');
+
+        $bounds = Setting::transactionBounds();
+
+        $this->assertSame(1500.0, $bounds['UGX']['min']);
+        $this->assertSame(900000.0, $bounds['UGX']['max']);
+        $this->assertSame(100.0, $bounds['USD']['min']);
+        $this->assertSame(100000000.0, $bounds['USD']['max']);
+        $this->assertSame(100.0, $bounds['RMB']['min']);
     }
 
     public function test_the_per_dollar_fee_is_gone_from_settings_and_ignores_old_posts(): void
@@ -220,8 +246,9 @@ class SettingsTabsTest extends TestCase
 
     public function test_no_op_saves_do_not_write_rates_or_audit_entries_even_with_decimal_formatting(): void
     {
+        Setting::set('min_transaction_ugx', 100, 'float', 'transaction');
         $rows = ExchangeRate::count();
-        $this->put('/settings', ['settings_tab' => 'transactions', 'min_transaction_amount' => '100.00'])
+        $this->put('/settings', ['settings_tab' => 'transactions', 'min_transaction_ugx' => '100.00'])
             ->assertSessionHasNoErrors()->assertSessionHas('success', 'No changes to save.');
         $this->put('/settings', [
             'settings_tab' => 'rates', 'usd_ugx_buying' => '3600.00', 'usd_ugx_selling' => '4000.0000',
@@ -234,10 +261,10 @@ class SettingsTabsTest extends TestCase
     public function test_validation_preserves_all_settings_and_returns_to_the_failed_tab(): void
     {
         $response = $this->followingRedirects()->from('/settings')->put('/settings', [
-            'settings_tab' => 'transactions', 'min_transaction_amount' => -1, 'max_transaction_amount' => -5,
+            'settings_tab' => 'transactions', 'min_transaction_ugx' => -1, 'max_transaction_ugx' => -5,
             'receipt_prefix' => 'NOT-VALID',
         ])->assertOk();
-        $this->assertSame(100.0, Setting::get('min_transaction_amount'));
+        $this->assertNull(Setting::get('min_transaction_ugx'));
         $this->assertSame('PS', Setting::get('receipt_prefix'));
         $html = $response->getContent();
         $dom = new \DOMDocument;
@@ -245,7 +272,7 @@ class SettingsTabsTest extends TestCase
         $xpath = new \DOMXPath($dom);
         $this->assertCount(1, $xpath->query('//*[@id="tab-transactions" and @aria-selected="true"]'));
         $this->assertCount(1, $xpath->query('//*[@id="panel-transactions" and not(@hidden)]'));
-        foreach (['min_transaction_amount', 'max_transaction_amount', 'receipt_prefix'] as $field) {
+        foreach (['min_transaction_ugx', 'max_transaction_ugx', 'receipt_prefix'] as $field) {
             $this->assertNotEmpty(trim($xpath->query('//*[@data-field-error="'.$field.'"]')->item(0)->textContent));
         }
         $this->assertSame('The receipt prefix can only contain letters and numbers, e.g. PS.', trim($xpath->query('//*[@data-field-error="receipt_prefix"]')->item(0)->textContent));

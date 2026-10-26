@@ -28,10 +28,15 @@
             'more' => 'Selling prices what the receiver is credited. Buying is what the yuan cost on the China side. Margin = buying - selling, the reverse of the shilling card, so a positive margin means the payout was priced below the settlement.',
         ],
     ];
+    $bounds = \App\Models\Setting::transactionBounds();
     $fields = [
         'transactions' => [
-            'min_transaction_amount' => ['label' => 'Minimum amount', 'default' => '100', 'unit' => 'UGX / USD', 'min' => '0', 'helper' => 'Applies in the selected transaction currency.'],
-            'max_transaction_amount' => ['label' => 'Maximum amount', 'default' => '100000000', 'unit' => 'UGX / USD', 'min' => '0', 'helper' => 'Applies in the selected transaction currency.'],
+            'min_transaction_ugx' => ['label' => 'Minimum shillings', 'default' => (string) $bounds['UGX']['min'], 'unit' => 'UGX', 'min' => '0', 'helper' => 'Smallest shilling booking taken.'],
+            'max_transaction_ugx' => ['label' => 'Maximum shillings', 'default' => (string) $bounds['UGX']['max'], 'unit' => 'UGX', 'min' => '0', 'helper' => 'Largest shilling booking taken.'],
+            'min_transaction_usd' => ['label' => 'Minimum dollars', 'default' => (string) $bounds['USD']['min'], 'unit' => 'USD', 'min' => '0', 'helper' => 'Smallest dollar booking taken.'],
+            'max_transaction_usd' => ['label' => 'Maximum dollars', 'default' => (string) $bounds['USD']['max'], 'unit' => 'USD', 'min' => '0', 'helper' => 'Largest dollar booking taken.'],
+            'min_transaction_rmb' => ['label' => 'Minimum yuan', 'default' => (string) $bounds['RMB']['min'], 'unit' => 'RMB', 'min' => '0', 'helper' => 'Smallest yuan booking taken.'],
+            'max_transaction_rmb' => ['label' => 'Maximum yuan', 'default' => (string) $bounds['RMB']['max'], 'unit' => 'RMB', 'min' => '0', 'helper' => 'Largest yuan booking taken.'],
             'receipt_prefix' => ['label' => 'Receipt prefix', 'default' => 'PS', 'maxlength' => 10, 'pattern' => '[A-Za-z0-9]+', 'helper' => 'Letters and numbers only.'],
             'default_charge_ugx' => ['label' => 'Default charge', 'default' => '0', 'unit' => 'UGX', 'min' => '0', 'helper' => 'Opens the charge box on a new booking.'],
         ],

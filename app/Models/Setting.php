@@ -64,4 +64,37 @@ class Setting extends Model
             ['value' => $value, 'type' => $type, 'group' => $group, 'label' => $label]
         );
     }
+
+    public static function forget(string $key): void
+    {
+        static::where('key', $key)->delete();
+    }
+
+    /**
+     * The smallest and largest booking per intake currency, each measured in that
+     * currency's own unit, so a shilling cap never silently limits a dollar booking
+     * or the other way round. A desk still holding the old single min/max (before the
+     * per-currency split) has those figures read as its shilling pair, because
+     * shillings are the money the desk prices in.
+     *
+     * @return array<string, array{min: float, max: float}>
+     */
+    public static function transactionBounds(): array
+    {
+        $defaults = ['min' => 100.0, 'max' => 100000000.0];
+
+        $bound = fn (string $currency, ?float $legacyMin, ?float $legacyMax) => [
+            'min' => (float) (static::get('min_transaction_'.strtolower($currency), $legacyMin ?? $defaults['min']) ?? $defaults['min']),
+            'max' => (float) (static::get('max_transaction_'.strtolower($currency), $legacyMax ?? $defaults['max']) ?? $defaults['max']),
+        ];
+
+        $legacyMin = static::get('min_transaction_amount');
+        $legacyMax = static::get('max_transaction_amount');
+
+        return [
+            'UGX' => $bound('UGX', $legacyMin, $legacyMax),
+            'USD' => $bound('USD', null, null),
+            'RMB' => $bound('RMB', null, null),
+        ];
+    }
 }

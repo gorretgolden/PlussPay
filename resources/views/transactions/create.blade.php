@@ -236,7 +236,7 @@
                             'text' => 'Count the cash as it was handed to you, before anything is taken out. The charge is subtracted from it, and only what is left is converted.',
                         ])
                     </div>
-                    <input type="text" inputmode="decimal" autocomplete="off" data-money name="amount" id="amount" value="{{ old('amount') }}" min="100" required
+                    <input type="text" inputmode="decimal" autocomplete="off" data-money name="amount" id="amount" value="{{ old('amount') }}" min="{{ $bounds['UGX']['min'] ?? 100 }}" required
                         placeholder="0"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 tabular-nums">
                     <p class="text-xs text-gray-500 mt-1" id="cash_help">Total received, charge included.</p>
@@ -456,6 +456,11 @@ const ROUTES = {
 
 const MONEY_NAME = { UGX: 'shillings', USD: 'dollars', RMB: 'yuan' };
 const MONEY_GLYPH = { UGX: 'UGX ', USD: '$', RMB: '¥' };
+
+// The smallest and largest booking per currency, as set in System Settings. The amount
+// box answers to the pair that matches the money handed over, so a shilling cap never
+// limits a dollar booking.
+const BOUNDS = @json($bounds);
 
 // What the charge box was told before the route had anything to say about it.
 const chargeHelpBase = document.getElementById('charge_help').textContent.trim();
@@ -1011,8 +1016,11 @@ function calculate() {
     const amountEl = document.getElementById('amount');
     const cash = parseMoney(amountEl);
     const r = ROUTES[f.route];
+    const cb = BOUNDS[f.currency] || BOUNDS.UGX;
 
     document.getElementById('cash_help').textContent = r.cashHelp[f.currency] || '';
+    amountEl.min = cb.min || 0;
+    amountEl.max = cb.max || 0;
 
     // The figure the booking is priced from, shown beside the charge it came from rather than only
     // further down the page. It stays blank until there is cash to work with so it never reads as a
@@ -1045,12 +1053,15 @@ function step3Hint() {
     const charge = document.getElementById('charge_ugx');
     const cash = parseMoney(amount);
     const fee = parseMoney(charge);
-    const min = parseFloat(amount.getAttribute('min')) || 0;
     const f = figures();
+    const cb = BOUNDS[f.currency] || BOUNDS.UGX;
+    const min = cb.min || 0;
+    const max = cb.max || 0;
 
     if (!amount.value.trim()) return 'Enter the money handed over.';
     if (!Number.isFinite(cash)) return 'The money handed over must be a number.';
     if (cash < min) return 'The smallest booking is ' + showMoney(f.currency, min) + '.';
+    if (max > 0 && cash > max) return 'The largest booking is ' + showMoney(f.currency, max) + '.';
     if (!charge.value.trim()) return 'Enter the charge, or 0 if none was taken.';
     if (!Number.isFinite(fee) || fee < 0) return 'The charge cannot be negative.';
     if (f.paidInUgx && cash - fee <= 0) return 'The charge must be less than the money handed over.';

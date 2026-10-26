@@ -100,9 +100,9 @@
                 @if(! $expense)
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1" for="amount">Amount paid <span class="text-red-500" id="amount_unit">{{ $chosen?->currency ?? 'UGX' }}</span> *</label>
-                    <input type="number" name="amount" id="amount" value="{{ old('amount') }}" step="0.01" min="{{ $minimumAmount }}"
+                    <input type="number" name="amount" id="amount" value="{{ old('amount') }}" step="0.01" min="{{ $bounds[$chosen?->currency ?? 'UGX']['min'] ?? 0 }}"
                         class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                    <p class="text-xs text-gray-500 mt-1">Smallest entry this desk takes: <span id="amount_floor">{{ \App\Models\Account::format($chosen?->currency ?? 'UGX', $minimumAmount) }}</span>.</p>
+                    <p class="text-xs text-gray-500 mt-1">Smallest entry this desk takes: <span id="amount_floor">{{ \App\Models\Account::format($chosen?->currency ?? 'UGX', $bounds[$chosen?->currency ?? 'UGX']['min'] ?? 0) }}</span>.</p>
                 </div>
                 @endif
 
@@ -147,7 +147,7 @@
 <script>
 (function () {
     const BALANCES = @json($balances);
-    const MINIMUM = @json((float) $minimumAmount);
+    const BOUNDS = @json($bounds);
     const accountSelect = document.getElementById('account_id');
     const amountInput = document.getElementById('amount');
 
@@ -168,14 +168,16 @@
 
     function refresh() {
         const held = BALANCES[accountSelect.value];
+        const bounds = BOUNDS[held.currency] || {min: 0, max: 0};
         const amount = parseFloat(amountInput.value || '0');
         if (!held) return;
 
         document.getElementById('amount_unit').textContent = held.currency;
-        document.getElementById('amount_floor').textContent = show(held.currency, MINIMUM);
-        // Only a wallet has a ceiling the typist can see: the office's own accounts settle across
-        // days, so a figure above today's balance there is not a mistake.
-        amountInput.max = held.wallet ? held.balance : '';
+        document.getElementById('amount_floor').textContent = show(held.currency, bounds.min);
+        amountInput.min = bounds.min;
+        // A wallet's ceiling is its own balance; every other account answers to the
+        // desk's largest figure for its currency.
+        amountInput.max = held.wallet ? held.balance : (bounds.max || '');
 
         const note = document.getElementById('account_note');
         const after = held.balance - amount;
