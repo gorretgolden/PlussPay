@@ -11,6 +11,7 @@ use App\Services\MarketRateService;
 use Database\Seeders\RoleAndUserSeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -28,6 +29,7 @@ class SettingController extends Controller
         'company' => ['company_name', 'company_address', 'company_phone', 'company_email', 'company_website'],
         'datetime' => ['timezone'],
         'site' => ['site_mode', 'demo_login_autofill', 'demo_password'],
+        'login' => ['login_background', 'login_logo', 'login_theme_color'],
     ];
 
     private const TRANSACTION_BOUND_KEYS = [
@@ -98,6 +100,9 @@ class SettingController extends Controller
             'demo_login_autofill' => ['nullable', 'in:on,off'],
             'demo_password' => 'nullable|string|min:4|max:60',
             'timezone' => ['nullable', Rule::in(array_keys(Setting::TIMEZONES))],
+            'login_background' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:5120'],
+            'login_logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
+            'login_theme_color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ];
         // Older callers may omit a tab; tabbed forms can only save their own fields.
         if ($tab !== null) {
@@ -112,6 +117,9 @@ class SettingController extends Controller
             'demo_password.min' => 'The demo password needs at least 4 characters.',
             'demo_password.max' => 'The demo password can be at most 60 characters.',
             'timezone.in' => 'Please choose one of the listed time zones.',
+            'login_theme_color.regex' => 'Pick a color from the picker or enter a hex value like #166534.',
+            'login_background.image' => 'The background must be a PNG, JPG or WebP image.',
+            'login_logo.image' => 'The logo must be a PNG, JPG or WebP image.',
             'usd_ugx_buying.numeric' => 'The UGX buying rate must be a number, e.g. 3750.',
             'usd_ugx_selling.numeric' => 'The UGX selling rate must be a number, e.g. 3760.',
             'usd_ugx_buying.min' => 'The UGX buying rate must be at least 0.01.',
@@ -135,8 +143,10 @@ class SettingController extends Controller
 
         // Site mode decides whether the sign-in page prints the real admin emails,
         // so it stays a Super Admin decision even though Admins can edit other settings.
+        // The sign-in page branding is the same kind of public face.
         if (! $request->user()->hasRole('superadmin')) {
             unset($validated['site_mode'], $validated['demo_login_autofill'], $validated['demo_password']);
+            unset($validated['login_background'], $validated['login_logo'], $validated['login_theme_color']);
         }
         // Reject before any writes, even if a forged request bypasses the disabled option.
         if (($validated['site_mode'] ?? null) === 'testing' && self::testingModeBlocked($request)) {
@@ -153,6 +163,23 @@ class SettingController extends Controller
             $validated['demo_login_autofill'] = 'on';
         }
 
+        // The two sign-in images are stored files, not setting strings: the key keeps the
+        // storage path and the file itself lives outside the repository so a deploy never
+        // wipes a branding the office chose.
+        foreach (['login_background' => 'background', 'login_logo' => 'logo'] as $key => $base) {
+            // The key must still be in the validated payload: the superadmin-only unset above
+            // removes it for everyone else, and their upload is dropped with it.
+            if (! array_key_exists($key, $validated) || ! $request->hasFile($key)) {
+                continue;
+            }
+            $previous = Setting::get($key);
+            $path = $request->file($key)->storeAs('login', $base.'.'.$request->file($key)->guessExtension(), 'public');
+            $validated[$key] = $path;
+            if ($previous && $previous !== $path) {
+                Storage::disk('public')->delete($previous);
+            }
+        }
+
         $autoWasOn = Setting::get('market_buy_auto', 'off') === 'on';
         $changes = [];
         $oldValues = [];
@@ -161,7 +188,7 @@ class SettingController extends Controller
         foreach ($validated as $key => $value) {
             $type = in_array($key, array_merge(self::TRANSACTION_BOUND_KEYS, ['default_charge_ugx']), true) ? 'float' : 'string';
             $group = match (true) {
-                in_array($key, ['site_mode', 'timezone', 'demo_login_autofill', 'demo_password'], true) => 'display',
+                in_array($key, ['site_mode', 'timezone', 'demo_login_autofill', 'demo_password', 'login_background', 'login_logo', 'login_theme_color'], true) => 'display',
                 $key === 'market_buy_auto' => 'rates',
                 str_starts_with($key, 'company_') => 'company',
                 default => 'transaction',

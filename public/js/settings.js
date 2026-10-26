@@ -188,6 +188,9 @@
     // People chose from a list of words, so the summary repeats the words rather than the stored
     // code. An address prints line by line on a receipt, so its breaks show as slashes.
     function display(field, value) {
+        if (field.type === 'file') {
+            return field.files && field.files.length ? field.files[0].name : 'unchanged';
+        }
         if (field.tagName === 'SELECT') {
             const option = Array.from(field.options).find((item) => item.value === value);
             return option ? option.textContent.trim() : value;

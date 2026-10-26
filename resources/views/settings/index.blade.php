@@ -6,7 +6,7 @@
 @section('content')
 @php
     $tabs = ['rates' => 'Rates', 'transactions' => 'Transactions', 'company' => 'Company', 'datetime' => 'Date & Time'];
-    if (auth()->user()->hasRole('superadmin')) $tabs['site'] = 'Site Mode';
+    if (auth()->user()->hasRole('superadmin')) $tabs = $tabs + ['site' => 'Site Mode', 'login' => 'Login Page'];
     $activeTab = old('settings_tab', session('settings_saved_tab', 'rates'));
     if (!isset($tabs[$activeTab])) $activeTab = 'rates';
     $trimRate = fn ($value) => $value === null ? '' : rtrim(rtrim(number_format((float) $value, 6, '.', ''), '0'), '.');
@@ -55,6 +55,11 @@
             'demo_login_autofill' => ['label' => 'Demo button autofill', 'type' => 'select', 'default' => 'off', 'options' => ['off' => 'Off', 'on' => 'On'], 'helper' => 'On: each demo button fills the password as well as the email, so one click signs a tester straight in. The password then travels to every browser that opens the sign-in page, so anyone who looks at the page source can read it. Turn this off before real customers arrive.'],
             'demo_password' => ['label' => 'Demo password', 'default' => '', 'maxlength' => 60, 'helper' => 'One password for every demo account. Saving it resets those sign-ins and nothing else.'],
         ],
+        'login' => [
+            'login_background' => ['label' => 'Background image', 'type' => 'file', 'helper' => 'The photo behind the sign-in card. Pick a new one to replace it; leave the box empty to keep the current image.'],
+            'login_logo' => ['label' => 'Logo', 'type' => 'file', 'helper' => 'The sign at the top of the card. Pick a new one to replace it; leave the box empty to keep the current logo.'],
+            'login_theme_color' => ['label' => 'Theme color', 'type' => 'color', 'default' => '#166534', 'helper' => 'Buttons, links and focus rings on the sign-in page.'],
+        ],
     ];
 @endphp
 <div id="settings-page" class="mx-auto max-w-5xl pb-10" data-active-tab="{{ $activeTab }}">
@@ -80,7 +85,7 @@
             @if ($tab === 'rates')
                 @include('settings.partials.market-rate', ['market' => $market])
             @endif
-            <form id="settings-form-{{ $tab }}" method="POST" action="{{ route('settings.update') }}" data-validate data-lock data-settings-form="{{ $tab }}">
+            <form id="settings-form-{{ $tab }}" method="POST" action="{{ route('settings.update') }}" data-validate data-lock data-settings-form="{{ $tab }}" enctype="multipart/form-data">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="settings_tab" value="{{ $tab }}">
@@ -161,6 +166,10 @@
                                             </select>
                                         @elseif ($type === 'textarea')
                                             <textarea id="{{ $key }}" name="{{ $key }}" rows="2" maxlength="{{ $field['maxlength'] }}" data-original="{{ $saved }}" data-label="{{ $field['label'] }}" aria-describedby="help-{{ $key }} error-{{ $key }}" class="w-full min-w-0 px-3 py-2 rounded-md outline-none">{{ $value }}</textarea>
+                                        @elseif ($type === 'file')
+                                            <input id="{{ $key }}" name="{{ $key }}" type="file" accept="image/png,image/jpeg,image/webp" data-original="" data-label="{{ $field['label'] }}" aria-describedby="help-{{ $key }} error-{{ $key }}" class="min-w-0 w-full px-3 py-2 rounded-md outline-none text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-green-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-green-700">
+                                        @elseif ($type === 'color')
+                                            <input id="{{ $key }}" name="{{ $key }}" type="color" value="{{ $value }}" data-original="{{ $saved }}" data-label="{{ $field['label'] }}" aria-describedby="help-{{ $key }} error-{{ $key }}" class="h-9 w-16 min-w-0 cursor-pointer rounded-md border-0 bg-transparent p-1 outline-none">
                                         @else
                                             <input id="{{ $key }}" name="{{ $key }}" type="{{ $type }}" value="{{ $value }}" data-original="{{ $saved }}" data-label="{{ $field['label'] }}" aria-describedby="help-{{ $key }} error-{{ $key }}{{ isset($field['unit']) ? ' unit-'.$key : '' }}"
                                                 @isset($field['maxlength']) maxlength="{{ $field['maxlength'] }}" @endisset

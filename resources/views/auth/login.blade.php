@@ -4,15 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - PlusPay</title>
-    <link rel="preload" as="image" href="{{ asset('login-background.webp') }}" fetchpriority="high">
+    @php
+        $loginBackground = \App\Models\Setting::get('login_background');
+        $loginLogo = \App\Models\Setting::get('login_logo');
+        $themeColor = \App\Models\Setting::get('login_theme_color', '#166534');
+    @endphp
+    <style>
+        :root { --brand: {{ $themeColor }}; --brand-soft: {{ $themeColor }}4D; --brand-tint: {{ $themeColor }}1A; }
+    </style>
+    <link rel="preload" as="image" href="{{ $loginBackground ? asset('storage/'.$loginBackground) : asset('login-background.webp') }}" fetchpriority="high">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="min-h-screen flex items-center justify-center bg-cover bg-center px-4 bg-green-950" style="background-image: url('{{ asset('login-background.webp') }}');">
+<body class="min-h-screen flex items-center justify-center bg-cover bg-center px-4 bg-green-950" style="background-image: url('{{ $loginBackground ? asset('storage/'.$loginBackground) : asset('login-background.webp') }}');">
     <div class="absolute inset-0 bg-black/60"></div>
 
     <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
         <div class="text-center mb-4">
-            <img src="{{ asset('logo.webp') }}" alt="PlusPay" width="640" height="232" class="h-14 w-auto mx-auto mb-2">
+            <img src="{{ $loginLogo ? asset('storage/'.$loginLogo) : asset('logo.webp') }}" alt="PlusPay" width="640" height="232" class="h-14 w-auto mx-auto mb-2">
             <h1 class="text-2xl font-bold text-gray-900">Welcome back</h1>
             <p class="text-sm text-gray-500 mt-1">Sign in to your PlusPay account</p>
         </div>
@@ -30,7 +38,7 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input type="email" name="email" id="email" value="{{ old('email') }}" autocomplete="off" required autofocus
-                    class="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition @error('email') border-red-500 @enderror">
+                    class="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)] outline-none transition @error('email') border-red-500 @enderror">
                 @error('email')
                     <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
                 @enderror
@@ -42,7 +50,7 @@
                     <input id="password" type="password" name="password" autocomplete="new-password" required placeholder="••••••••"
                     {{-- new-password, not current-password: the latter lets the browser drop its
                          own saved sign-in into these boxes and overwrite the demo account chosen. --}}
-                        class="w-full rounded-lg border border-gray-300 px-4 py-3 pr-12 text-gray-900 focus:border-green-600 focus:ring-2 focus:ring-green-600/30 outline-none transition">
+                        class="w-full rounded-lg border border-gray-300 px-4 py-3 pr-12 text-gray-900 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-soft)] outline-none transition">
                     <button type="button" onclick="togglePassword()"
                         class="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600 text-sm">
                         <svg id="eye-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -55,14 +63,14 @@
 
             <div class="flex items-center justify-between text-sm">
                 <label class="flex items-center gap-2 text-gray-600">
-                    <input type="checkbox" name="remember" class="rounded border-gray-300 text-green-700 focus:ring-green-600">
+                    <input type="checkbox" name="remember" class="rounded border-gray-300 text-[var(--brand)] focus:ring-[var(--brand-soft)]">
                     Remember me
                 </label>
-                <a href="#" class="text-green-700 font-medium hover:underline">Forgot password?</a>
+                <a href="#" class="text-[var(--brand)] font-medium hover:underline">Forgot password?</a>
             </div>
 
             <button type="submit" id="signInBtn"
-                class="w-full rounded-lg bg-green-800 hover:bg-green-700 active:bg-green-900 text-white font-semibold py-3 shadow-md transition flex items-center justify-center gap-2">
+                class="w-full rounded-lg bg-[var(--brand)] hover:brightness-110 active:brightness-90 text-white font-semibold py-3 shadow-md transition flex items-center justify-center gap-2">
                 <span id="signInText">Sign In</span>
                 <svg id="signInSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -102,7 +110,7 @@
                             : ($autofillOn && $sharedPassword ? $sharedPassword : null);
                     @endphp
                     <button type="button" data-demo-email="{{ $demoEmail }}"@if($demoPassword) data-demo-password="{{ $demoPassword }}"@endif
-                        class="rounded-lg border border-green-700/30 text-left px-4 text-green-800 text-sm font-medium py-2 hover:bg-green-50 transition{{ $demoCount % 2 === 1 && $loop->last ? ' col-span-2' : '' }}">
+                        class="rounded-lg border border-[var(--brand-soft)] text-left px-4 text-[var(--brand)] text-sm font-medium py-2 hover:bg-[var(--brand-tint)] transition{{ $demoCount % 2 === 1 && $loop->last ? ' col-span-2' : '' }}">
                         {{ $account['button'] }}
                     </button>
                 @endforeach
