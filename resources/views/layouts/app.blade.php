@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="@auth{{ auth()->user()->theme === 'dark' ? 'dark' : '' }}@endauth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -35,6 +35,47 @@
         [data-error-summary] a { color: #b42318; text-decoration: underline; }
         [data-error-summary] a + a::before { content: ' · '; text-decoration: none; }
         .field-error:not([hidden]):not(:empty)::before { content: '!'; display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: 1rem; background: #b91c1c; color: #fff; border: 0; border-radius: 50%; font-size: .7rem; margin-right: .35rem; }
+        /* Per-user dark theme: the same surfaces, dimmed. The sidebar and header keep their
+           green; only the reading surfaces, boxes and text follow the choice. */
+        .dark body { background-color: #0b1220; }
+        .dark .bg-white { background-color: #1e293b; }
+        .dark .bg-gray-50 { background-color: #111827; }
+        .dark .bg-gray-100 { background-color: #1f2937; }
+        .dark .bg-gray-200 { background-color: #334155; }
+        .dark .border-gray-200 { border-color: #334155; }
+        .dark .border-gray-300 { border-color: #475569; }
+        .dark .text-gray-900 { color: #f1f5f9; }
+        .dark .text-gray-800 { color: #e2e8f0; }
+        .dark .text-gray-700 { color: #cbd5e1; }
+        .dark .text-gray-600 { color: #94a3b8; }
+        .dark .text-gray-500 { color: #7c8ba1; }
+        .dark .text-gray-400 { color: #64748b; }
+        .dark input, .dark select, .dark textarea { background-color: #0f172a; color: #e2e8f0; border-color: #475569; }
+        .dark .form-locked :is(input:not([type=hidden]), select, textarea, button[role="combobox"]) { background-color: #0f172a; }
+        .dark .bg-green-50 { background-color: #052e16; }
+        .dark .bg-green-100 { background-color: #14532d; }
+        .dark .bg-red-50 { background-color: #450a0a; }
+        .dark .bg-red-100 { background-color: #7f1d1d; }
+        .dark .bg-amber-50 { background-color: #451a03; }
+        .dark .bg-amber-100 { background-color: #78350f; }
+        .dark .bg-blue-50 { background-color: #172554; }
+        .dark .bg-blue-100 { background-color: #1e3a8a; }
+        .dark .text-green-950, .dark .text-green-900, .dark .text-green-800 { color: #86efac; }
+        .dark .text-green-700, .dark .text-green-600 { color: #4ade80; }
+        .dark .text-red-800 { color: #fca5a5; }
+        .dark .text-red-700, .dark .text-red-600 { color: #f87171; }
+        .dark .text-amber-800 { color: #fcd34d; }
+        .dark .text-amber-700, .dark .text-amber-600 { color: #fcd34d; }
+        .dark .text-blue-800, .dark .text-blue-700, .dark .text-blue-600 { color: #93c5fd; }
+        .dark .border-red-200, .dark .border-red-300, .dark .border-red-400 { border-color: #7f1d1d; }
+        .dark .border-amber-200, .dark .border-amber-300 { border-color: #78350f; }
+        .dark .border-green-200 { border-color: #14532d; }
+        .dark .border-blue-200 { border-color: #1e3a8a; }
+        .dark .hover\:bg-gray-50:hover { background-color: #1e293b; }
+        .dark .hover\:bg-green-50:hover { background-color: #052e16; }
+        .dark dialog.admin-confirm { background-color: #1e293b; }
+        .dark dialog.admin-confirm .text-gray-800 { color: #e2e8f0; }
+        .dark dialog.admin-confirm [data-cancel] { background-color: #334155; }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; } }
     </style>
     @stack('styles')
@@ -301,6 +342,15 @@
                         </p>
                     </div>
                 </div>
+                <form id="themeForm" method="POST" action="{{ route('account.theme') }}" class="mt-3">
+                    @csrf
+                    <input type="hidden" name="theme" value="{{ auth()->user()->theme === 'dark' ? 'light' : 'dark' }}">
+                    <button type="submit"
+                        class="w-full flex items-center justify-center gap-2 bg-green-800 hover:bg-green-700 border border-green-600 text-white text-sm font-medium px-3 py-2 rounded-md transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                        {{ auth()->user()->theme === 'dark' ? 'Light mode' : 'Dark mode' }}
+                    </button>
+                </form>
                 <form id="sidebarLogoutForm" method="POST" action="{{ route('logout') }}" class="mt-3">
                     @csrf
                     <button type="submit"

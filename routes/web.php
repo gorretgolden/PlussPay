@@ -43,6 +43,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
 
     // Everyone who can sign in reads and changes their own password here, whatever their role.
     Route::get('/account', [MyAccountController::class, 'show'])->name('account.show');
+    Route::post('/account/theme', [MyAccountController::class, 'updateTheme'])->name('account.theme');
 
     Route::get('/wallet', [WalletController::class, 'index'])->middleware('can:view-wallets')->name('wallet.index');
     Route::post('/wallets/adjust', [WalletController::class, 'storeAdjustment'])->middleware(['can:view-wallets', 'can:adjust-wallets'])->name('wallets.adjust');
