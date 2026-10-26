@@ -80,7 +80,7 @@
             @if ($tab === 'rates')
                 @include('settings.partials.market-rate', ['market' => $market])
             @endif
-            <form id="settings-form-{{ $tab }}" method="POST" action="{{ route('settings.update') }}" data-validate data-settings-form="{{ $tab }}">
+            <form id="settings-form-{{ $tab }}" method="POST" action="{{ route('settings.update') }}" data-validate data-lock data-settings-form="{{ $tab }}">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="settings_tab" value="{{ $tab }}">

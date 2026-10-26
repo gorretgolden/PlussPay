@@ -40,7 +40,7 @@ class SettingsTabsTest extends TestCase
         $dom = new \DOMDocument;
         @$dom->loadHTML($html);
         $xpath = new \DOMXPath($dom);
-        $this->assertCount(5, $xpath->query('//form[@data-settings-form and @data-validate]'));
+        $this->assertCount(5, $xpath->query('//form[@data-settings-form and @data-validate and @data-lock]'));
         $this->assertCount(5, $xpath->query('//button[@data-save and @disabled]'));
         $this->assertCount(1, $xpath->query('//*[@role="tab" and @aria-selected="true" and @id="tab-rates"]'));
         $this->assertCount(4, $xpath->query('//*[@role="tabpanel" and @hidden]'));
