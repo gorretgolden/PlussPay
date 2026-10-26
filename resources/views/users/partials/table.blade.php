@@ -22,13 +22,14 @@
 @endcan
 <div class="bg-white rounded-lg shadow overflow-x-auto">
 <table class="user-table">
-    <colgroup><col style="width:36px"><col style="width:26%"><col style="width:15%"><col style="width:13%"><col style="width:15%"><col style="width:12%"><col style="width:96px"></colgroup>
-    <thead><tr><th>@can('edit-user')<input id="bulkAll" type="checkbox" aria-label="Select all eligible users on this page">@endcan</th><th scope="col">Name / Email</th><th scope="col">Role / Status</th><th scope="col">Country / Zone</th><th scope="col">Sign-in / 2FA</th><th scope="col">Last login</th><th scope="col" class="user-actions">Actions</th></tr></thead>
+    <colgroup><col style="width:36px"><col style="width:56px"><col style="width:24%"><col style="width:15%"><col style="width:13%"><col style="width:15%"><col style="width:12%"><col style="width:96px"></colgroup>
+    <thead><tr><th>@can('edit-user')<input id="bulkAll" type="checkbox" aria-label="Select all eligible users on this page">@endcan</th><th scope="col">ID</th><th scope="col">Name / Email</th><th scope="col">Role / Status</th><th scope="col">Country / Zone</th><th scope="col">Sign-in / 2FA</th><th scope="col">Last login</th><th scope="col" class="user-actions">Actions</th></tr></thead>
     <tbody>
     @forelse($users as $user)
     @php $protected = $user->id === auth()->id() || ($user->hasRole('superadmin') && !auth()->user()->hasRole('superadmin')); $canManage = !$user->hasRole('superadmin') || auth()->user()->hasRole('superadmin'); @endphp
     <tr>
         <td>@can('edit-user')<input class="bulk-user" type="checkbox" name="user_ids[]" value="{{ $user->id }}" form="bulkForm" aria-label="Select {{ $user->name }}" @disabled($protected) @if($protected) title="Protected account" @endif>@endcan</td>
+        <td class="text-xs text-gray-500">#{{ $user->id }}</td>
         <td><div class="font-semibold text-gray-900">{{ $user->name }} @if($user->id === auth()->id())<span class="text-xs text-gray-400">(you)</span>@endif</div><div class="text-gray-500 text-xs mt-1">{{ $user->email }}</div>@if($user->phone)<div class="text-gray-500 text-xs mt-1">{{ $user->phone }}</div>@endif</td>
         <td><div class="text-gray-800 mb-1">{{ \App\Http\Controllers\RolePermissionController::displayName($user->getRoleNames()->first() ?? 'none') }}</div><span class="user-badge {{ !$user->is_active ? 'bad' : ($user->isLocked() ? 'warn' : 'good') }}">{{ !$user->is_active ? 'Inactive' : ($user->isLocked() ? 'Locked' : 'Active') }}</span></td>
         <td><div>{{ $user->countryLabel() ?: 'Not set' }}</div><div class="text-xs text-gray-500 mt-1" title="{{ $user->timezone }}">{{ collect(explode('/', $user->timezone))->last() }}</div></td>
@@ -41,7 +42,7 @@
         </td>
     </tr>
     @empty
-    <tr><td colspan="7" class="text-center py-12"><p class="font-semibold text-gray-700">No users match these filters</p><p class="text-sm text-gray-500 mt-2">Try another search or clear the filters.</p><a href="{{ route('users.index') }}" data-clear-users class="text-green-800 underline text-sm inline-block mt-4">Clear filters</a></td></tr>
+    <tr><td colspan="8" class="text-center py-12"><p class="font-semibold text-gray-700">No users match these filters</p><p class="text-sm text-gray-500 mt-2">Try another search or clear the filters.</p><a href="{{ route('users.index') }}" data-clear-users class="text-green-800 underline text-sm inline-block mt-4">Clear filters</a></td></tr>
     @endforelse
     </tbody>
 </table>
