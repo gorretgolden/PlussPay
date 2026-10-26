@@ -287,46 +287,6 @@
 
 <x-live-rate-card />
 
-@if($news['unread'] > 0)
-{{-- The desk opens this page first, so the six newest things other people did are here rather
-     than behind a menu. Each line is the notice's own words and links through to the record it
-     is about. The count next to the title is the same one the sidebar carries. --}}
-<div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-    <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 sm:px-5 py-3">
-        <h2 class="text-base sm:text-lg font-semibold text-gray-900 mr-auto">What Happened</h2>
-        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-900 tabular-nums">
-            {{ number_format($news['unread']) }} to see
-        </span>
-    </div>
-    <ul class="divide-y divide-gray-100">
-        @foreach($news['items'] as $notice)
-        @php $data = $notice->data; @endphp
-        <li class="px-4 sm:px-5 py-3">
-            <a href="{{ $data['path'] ?? '#' }}" class="group flex flex-wrap items-baseline gap-x-2 gap-y-1 focus:outline-none">
-                <span class="text-sm font-semibold text-green-800 group-hover:text-green-900 group-hover:underline">{{ $data['headline'] ?? 'Something happened' }}</span>
-                <span class="text-xs text-gray-500 tabular-nums ml-auto whitespace-nowrap">{{ $notice->created_at->format('M j, g:i A') }}</span>
-            </a>
-            <p class="text-sm text-gray-700 mt-0.5">{{ $data['body'] ?? '' }}</p>
-            <p class="text-xs text-gray-500 mt-0.5">
-                {{ $data['actor'] ?? 'The system' }}
-                @if(!empty($data['actor_role']))<span class="text-gray-400">({{ $data['actor_role'] }})</span>@endif
-            </p>
-        </li>
-        @endforeach
-    </ul>
-    <div class="flex flex-wrap items-center gap-3 border-t border-gray-200 bg-gray-50 px-4 sm:px-5 py-3">
-        <a href="{{ route('notifications.index') }}" class="text-sm font-semibold text-green-800 hover:text-green-900">
-            See all {{ number_format($news['unread']) }}
-        </a>
-        <form method="POST" action="{{ route('notifications.read-all') }}">
-            @csrf
-            @method('PATCH')
-            <button type="submit" class="text-sm text-gray-600 hover:text-gray-900 underline underline-offset-2">Mark all as read</button>
-        </form>
-    </div>
-</div>
-@endif
-
 <style>
     /* The tab look follows aria-selected alone, so the styling cannot drift from the state. */
     [role="tab"][aria-selected="true"] { background: #fff; color: #111827; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); }

@@ -19,8 +19,8 @@ use Tests\TestCase;
 /**
  * The book keeps itself busy all day and nobody stands at the desk to say so. These tests check
  * that an entry one person makes arrives as word for the people who can already read that part of
- * the book, that it counts on the sidebar and the board until they have seen it, and that it links
- * through to the record it is about rather than to a description of it.
+ * the book, that it counts on the sidebar until they have seen it, and that it links through to
+ * the record it is about rather than to a description of it.
  *
  * The people who did the thing are left out of their own news, and a desk that reads only its own
  * rows gets no inbox at all: an agent booking transfers all day would otherwise be told about
@@ -182,11 +182,12 @@ class ActivityNotificationTest extends TestCase
 
         $html = $this->html($owner);
 
-        // The inbox entry and the desk it belongs to both show the one figure, so the count is
-        // where the news is as well as that there is news.
+        // The inbox badge carries the one unread notice and the transactions badge the one
+        // booking taken today, so each count sits where its own thing lives. The board itself
+        // prints no news card; the words belong to the inbox page.
         $this->assertSame(2, substr_count($html, 'rounded-full px-2 py-0.5 tabular-nums">1<'));
-        $this->assertStringContainsString('text-sm font-semibold text-green-800 group-hover:text-green-900 group-hover:underline">A new transfer was booked', $html);
-        $this->assertStringContainsString('See all 1', $html);
+        $this->assertStringNotContainsString('See all 1', $html, 'The board carries no news card of its own.');
+        $this->assertStringContainsString('A new transfer was booked', $this->html($owner, '/notifications'));
     }
 
     public function test_marking_everything_read_clears_every_badge_at_once(): void
@@ -256,7 +257,8 @@ class ActivityNotificationTest extends TestCase
         $this->book($office);
         ActivityLog::query()->delete();
 
-        $this->assertStringContainsString('A new transfer was booked', $this->html($owner));
+        // The notice keeps its own copy of the words, so the inbox still tells the story even
+        // though the trail row behind it is gone.
         $this->assertStringContainsString('A new transfer was booked', $this->html($owner, '/notifications'));
     }
 }
