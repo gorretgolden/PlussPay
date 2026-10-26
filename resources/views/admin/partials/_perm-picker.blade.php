@@ -41,3 +41,4 @@
     @endforeach
     <p class="perm-no-match hidden text-sm text-gray-500">No matching permissions. Try another label or module.</p>
 </div>
+<script src="{{ asset('js/perm-picker.js') }}"></script>

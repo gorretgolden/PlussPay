@@ -22,13 +22,6 @@
     const picker = document.querySelector('.perm-picker'); if (!picker) return;
     picker.querySelector('.perm-selected').parentElement.textContent = 'Read-only catalog · Hover a label to see its slug';
     picker.querySelectorAll('[name="permissions[]"]').forEach(input => input.classList.add('hidden'));
-    picker.querySelector('.perm-filter').addEventListener('input', e => {
-        const term = e.target.value.trim().toLowerCase();
-        picker.querySelectorAll('.perm-item').forEach(item => item.classList.toggle('hidden', !item.dataset.name.toLowerCase().includes(term)));
-        const groups = [...picker.querySelectorAll('.perm-group')];
-        groups.forEach(group => { group.classList.toggle('hidden', ![...group.querySelectorAll('.perm-item')].some(item => !item.classList.contains('hidden'))); if (term) group.open = true; });
-        picker.querySelector('.perm-no-match').classList.toggle('hidden', groups.some(group => !group.classList.contains('hidden')));
-    });
 })();
 </script>
 @endpush

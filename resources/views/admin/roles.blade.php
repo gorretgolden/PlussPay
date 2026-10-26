@@ -158,13 +158,6 @@
         form.querySelectorAll('.perm-group-check').forEach(control => control.addEventListener('change', () => {
             control.closest('.perm-group').querySelectorAll('[name="permissions[]"]:not(:disabled)').forEach(b => b.checked = control.checked); refresh();
         }));
-        form.querySelector('.perm-filter')?.addEventListener('input', e => {
-            const term = e.target.value.toLowerCase().trim();
-            form.querySelectorAll('.perm-item').forEach(item => item.classList.toggle('hidden', !item.dataset.name.toLowerCase().includes(term)));
-            const groups = [...form.querySelectorAll('.perm-group')];
-            groups.forEach(group => { group.classList.toggle('hidden', ![...group.querySelectorAll('.perm-item')].some(i => !i.classList.contains('hidden'))); if (term) group.open = true; });
-            form.querySelector('.perm-no-match').classList.toggle('hidden', groups.some(g => !g.classList.contains('hidden')));
-        });
         form.addEventListener('submit', async e => {
             e.preventDefault();
             const {added, removed} = changes();
