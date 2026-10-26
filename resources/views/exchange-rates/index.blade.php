@@ -117,7 +117,7 @@
         <thead class="bg-gray-50">
             <tr>
                 @foreach(['Pair', 'Selling', 'Buying', 'Margin', 'Status', 'Added', 'Updated', 'Actions'] as $heading)
-                <th scope="col" class="px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-600 {{ in_array($heading, ['Selling', 'Buying', 'Margin', 'Actions']) ? 'text-right' : 'text-left' }} {{ $heading === 'Actions' ? 'rate-actions' : '' }}">{{ $heading }}</th>
+                <th scope="col" class="px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-600 {{ $heading === 'Actions' ? 'text-right rate-actions' : 'text-left' }}">{{ $heading }}</th>
                 @endforeach
             </tr>
         </thead>
@@ -130,9 +130,9 @@
             @endphp
             <tr class="rate-row hover:bg-gray-50">
                 <td class="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900" data-label="Pair">{{ $rate->from_currency }} &rarr; {{ $rate->to_currency }}</td>
-                <td class="px-3 py-4 text-right text-sm tabular-nums text-gray-900" data-label="Selling">{{ $selling }}</td>
-                <td class="px-3 py-4 text-right text-sm tabular-nums text-gray-900" data-label="Buying">{{ $rate->buy_rate === null ? '-' : $trim($rate->buy_rate) }}</td>
-                <td class="px-3 py-4 text-right text-sm tabular-nums {{ $margin === null ? 'text-gray-900' : ($margin < 0 ? 'text-red-700' : 'text-green-800') }}" data-label="Margin" title="Earned per dollar">{{ $margin === null ? '-' : ($margin > 0 ? '+' : '').$trim($margin) }}</td>
+                <td class="px-3 py-4 text-left text-sm tabular-nums text-gray-900" data-label="Selling">{{ $selling }}</td>
+                <td class="px-3 py-4 text-left text-sm tabular-nums text-gray-900" data-label="Buying">{{ $rate->buy_rate === null ? '-' : $trim($rate->buy_rate) }}</td>
+                <td class="px-3 py-4 text-left text-sm tabular-nums {{ $margin === null ? 'text-gray-900' : ($margin < 0 ? 'text-red-700' : 'text-green-800') }}" data-label="Margin" title="Earned per dollar">{{ $margin === null ? '-' : ($margin > 0 ? '+' : '').$trim($margin) }}</td>
                 <td class="px-3 py-4" data-label="Status"><span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $rate->is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' }}">{{ $rate->is_active ? 'In use' : 'Earlier' }}</span></td>
                 <td class="px-3 py-4 text-sm" data-label="Added">
                     <div><div class="text-gray-900">{{ $rate->creator?->name ?? '-' }}</div><time datetime="{{ $rate->created_at->toIso8601String() }}" title="{{ $rate->created_at->format('M d, Y H:i:s') }}" class="text-xs text-gray-600 whitespace-nowrap">{{ $rate->created_at->format('M d, Y h:i A') }}</time>
@@ -146,27 +146,28 @@
                 <td class="rate-actions px-3 py-4">
                     @can('manage-exchange-rates')
                     <div class="flex items-center justify-end gap-1">
-                        <button type="button" data-rate-edit="{{ $rate->id }}" onclick="toggleRateEdit({{ $rate->id }})" aria-controls="rate-edit-{{ $rate->id }}" aria-expanded="{{ $editing === $rate->id ? 'true' : 'false' }}" title="Edit the {{ $pair }} prices" aria-label="Edit the {{ $pair }} prices" class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-700 hover:bg-green-50 hover:text-green-800 focus-visible:ring-2 focus-visible:ring-green-600">
+                        <button type="button" data-rate-edit="{{ $rate->id }}" onclick="toggleRateEdit({{ $rate->id }})" aria-controls="rate-edit-{{ $rate->id }}" aria-expanded="{{ $editing === $rate->id ? 'true' : 'false' }}" title="Edit the {{ $pair }} prices" aria-label="Edit the {{ $pair }} prices" class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-gray-700 hover:bg-green-50 hover:text-green-800 focus-visible:ring-2 focus-visible:ring-green-600 md:w-8 md:px-0">
+                            <span class="md:hidden text-sm">Edit</span>
                             <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                         </button>
                         @if($rate->is_active)
                         <form method="POST" action="{{ route('exchange-rates.toggle', $rate) }}" data-confirm-title="Take this price out of use" data-confirm="Take {{ $pair }} {{ $selling }} out of use?" data-confirm-ok="Take out of use">
                             @csrf
                             @method('PATCH')
-                            <button type="submit" title="Take {{ $pair }} {{ $selling }} out of use" aria-label="Take {{ $pair }} {{ $selling }} out of use" class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-700 hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-green-600">
-                                <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 5.636a9 9 0 1012.728 12.728M12 3v9"/></svg>
+                            <button type="submit" title="Take {{ $pair }} {{ $selling }} out of use" aria-label="Take {{ $pair }} {{ $selling }} out of use" class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-gray-700 hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-green-600 md:w-8 md:px-0">
+                                <span class="md:hidden text-sm">Take out of use</span>
+                                <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9"/></svg>
                             </button>
                         </form>
                         @elseif(\App\Models\ExchangeRate::isDeskPair($rate->from_currency, $rate->to_currency))
                         <form method="POST" action="{{ route('exchange-rates.toggle', $rate) }}" data-confirm-title="Set the current rate" data-confirm="Set {{ $pair }} {{ $selling }} as the current rate?" data-confirm-ok="Set as current">
                             @csrf
                             @method('PATCH')
-                            <button type="submit" title="Set {{ $pair }} {{ $selling }} as the current rate" aria-label="Set {{ $pair }} {{ $selling }} as the current rate" class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-green-700 hover:bg-green-50 focus-visible:ring-2 focus-visible:ring-green-600">
+                            <button type="submit" title="Set {{ $pair }} {{ $selling }} as the current rate" aria-label="Set {{ $pair }} {{ $selling }} as the current rate" class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-green-700 hover:bg-green-50 hover:text-green-800 focus-visible:ring-2 focus-visible:ring-green-600 md:w-8 md:px-0">
+                                <span class="md:hidden text-sm">Set as current</span>
                                 <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             </button>
                         </form>
-                        @else
-                        <span class="h-8 w-8 shrink-0" aria-hidden="true"></span>
                         @endif
                     </div>
                     @else
