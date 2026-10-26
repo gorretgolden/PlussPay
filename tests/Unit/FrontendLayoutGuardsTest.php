@@ -21,7 +21,7 @@ class FrontendLayoutGuardsTest extends TestCase
         $this->assertMatchesRegularExpression('/\.user-table th\{[^}]*overflow-wrap:normal/', $css, 'Anywhere wrapping stacks a header one letter per line.');
 
         $table = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'users'.DIRECTORY_SEPARATOR.'partials'.DIRECTORY_SEPARATOR.'table.blade.php');
-        $this->assertMatchesRegularExpression('/<colgroup>(<col style="width:[^"]+">){7}<\/colgroup>/', $table, 'Every column needs an explicit width.');
+        $this->assertMatchesRegularExpression('/<colgroup>(<col style="width:[^"]+">){8}<\/colgroup>/', $table, 'Every column needs an explicit width.');
     }
 
     /**
