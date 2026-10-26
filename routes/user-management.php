@@ -13,6 +13,8 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     Route::get('/password/change-required', [UserPasswordController::class, 'required'])->name('password.required');
     Route::post('/password/change-required', [UserPasswordController::class, 'change'])
         ->middleware('throttle:6,1')->name('password.change');
+    Route::post('/password/check-current', [UserPasswordController::class, 'checkCurrent'])
+        ->middleware('throttle:60,1')->name('password.check-current');
 
     // Authorization is create-user OR edit-user in the controller (Gate bypass applies).
     Route::get('/users/availability', [UserController::class, 'availability'])

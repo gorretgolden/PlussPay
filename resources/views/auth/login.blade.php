@@ -204,6 +204,14 @@
             btn.disabled = true;
             text.textContent = 'Signing in...';
             spinner.classList.remove('hidden');
+            // readOnly (not disabled) so the typed pair is still sent with the form.
+            ['email', 'password'].forEach(function (id) {
+                const box = document.getElementById(id);
+                box.readOnly = true;
+                box.classList.add('bg-gray-100');
+            });
+            document.querySelector('input[name="remember"]').disabled = true;
+            document.querySelectorAll('[data-demo-email]').forEach(function (button) { button.disabled = true; });
         });
     </script>
 </body>

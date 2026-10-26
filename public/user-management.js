@@ -55,7 +55,6 @@
             const restrict = one('#restrict_hours', form);
             const availability = new Map();
             const controls = () => all('input:not([type=hidden]),select,textarea', form);
-            let approved = false;
             let submitting = false;
 
             function checkConfirmation() {
@@ -207,6 +206,37 @@
                     if (input.hasAttribute('data-unique')) checkAvailability(input);
                 });
             });
+
+            // Real-time check on the current password: while the person types it, the box itself
+            // says "Current password is wrong." instead of waiting for the save to bounce back.
+            const currentCheck = one('[data-current-check]', form);
+            if (currentCheck && form.dataset.currentPasswordUrl) {
+                let timer, controller;
+                currentCheck.addEventListener('input', () => {
+                    clearTimeout(timer);
+                    controller?.abort();
+                    const value = currentCheck.value;
+                    if (!value) return;
+                    timer = setTimeout(async () => {
+                        controller = new AbortController();
+                        try {
+                            const token = one('input[name="_token"]', form)?.value ?? '';
+                            const response = await fetch(form.dataset.currentPasswordUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, Accept: 'application/json' },
+                                body: JSON.stringify({ current_password: value }),
+                                credentials: 'same-origin',
+                                signal: controller.signal,
+                                cache: 'no-store',
+                            });
+                            const data = await response.json();
+                            if (data.valid === false && currentCheck.value === value) validation.setError(currentCheck, 'Current password is wrong.');
+                        } catch (error) {
+                            if (error.name !== 'AbortError') return;
+                        }
+                    }, 400);
+                });
+            }
             // Populate inline server errors even when the shared validator is unavailable.
             all('[data-field-error]', form).forEach(error => {
                 if (!error.textContent.trim()) return;
@@ -224,7 +254,6 @@
                 if (!one('#enrollment-token', form).value) one('#enrollment-notice', form).textContent = 'Open the original email link to set your password.';
             }
             form.addEventListener('submit', async event => {
-                if (approved) { approved = false; return; }
                 event.preventDefault(); event.stopImmediatePropagation();
                 if (submitting) return;
                 controls().forEach(input => validation.validateField(input));
@@ -255,8 +284,23 @@
                     if (submitter) { submitter.disabled = false; submitter.textContent = original; }
                     return;
                 }
-                approved = true;
-                form.requestSubmit(submitter || undefined);
+                // A nested requestSubmit from this handler is a silent no-op in Chromium when it
+                // runs straight after a prevented submit event, so hand the validated entry list
+                // straight to the engine. The locks below only cover the unload moment.
+                form.submit();
+                if (form.hasAttribute('data-lock-on-submit')) {
+                    controls().forEach(input => {
+                        if (input.tagName === 'SELECT') { input.disabled = true; return; }
+                        input.readOnly = true;
+                        input.style.opacity = '0.6';
+                    });
+                    if (submitter) {
+                        submitter.disabled = true;
+                        const spinner = document.createElement('span');
+                        spinner.className = 'user-spinner';
+                        submitter.replaceChildren(spinner, ' Saving…');
+                    }
+                }
             }, true);
         });
 

@@ -90,7 +90,11 @@ class AuthController extends Controller
                 $this->logDenied($user, $request, 'account locked after too many failed passwords', status: 'locked');
             }
 
-            return back()->withErrors(['email' => 'Invalid password.'])->onlyInput('email');
+            $message = $user->password_changed_at
+                ? 'Invalid password. Your password was previously changed, so use the one you set.'
+                : 'Invalid password.';
+
+            return back()->withErrors(['email' => $message])->onlyInput('email');
         }
 
         $windowReason = $user->loginWindowBlockReason();

@@ -122,9 +122,58 @@ class MyAccountTest extends TestCase
         $user->refresh();
         $this->assertTrue(Hash::check('BetterPassword456', $user->password));
         $this->assertFalse($user->must_change_password);
+        $this->assertNotNull($user->password_changed_at);
         $this->assertDatabaseHas('activity_logs', ['user_id' => $user->id, 'action' => 'password_changed']);
 
         $this->get(route('account.show'))->assertOk();
+    }
+
+    public function test_the_real_time_check_answers_yes_or_no_on_the_typed_current_password(): void
+    {
+        $user = $this->user('agent', 'Amina Nabukenya');
+
+        $this->actingAs($user)
+            ->postJson(route('password.check-current'), ['current_password' => 'Password123'])
+            ->assertOk()
+            ->assertJson(['valid' => true]);
+
+        $this->actingAs($user)
+            ->postJson(route('password.check-current'), ['current_password' => 'Wrong123'])
+            ->assertOk()
+            ->assertJson(['valid' => false]);
+
+        $this->actingAs($user)
+            ->postJson(route('password.check-current'), [])
+            ->assertStatus(422);
+    }
+
+    public function test_a_guest_cannot_use_the_real_time_check(): void
+    {
+        $this->postJson(route('password.check-current'), ['current_password' => 'Password123'])
+            ->assertUnauthorized();
+    }
+
+    public function test_signing_in_with_the_old_password_says_it_was_previously_changed(): void
+    {
+        $user = $this->user('agent', 'Amina Nabukenya');
+
+        $this->actingAs($user)->post(route('password.change'), [
+            'current_password' => 'Password123',
+            'password' => 'BetterPassword456',
+            'password_confirmation' => 'BetterPassword456',
+        ])->assertRedirect(route('dashboard'));
+
+        $this->app['auth']->guard('web')->logout();
+
+        $this->from(route('login'))->post(route('login.post'), [
+            'email' => $user->email,
+            'password' => 'Password123',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertStringContainsString(
+            'previously changed',
+            (string) session('errors')->first('email'),
+        );
     }
 
     public function test_a_wrong_current_password_is_named_on_the_page_and_changes_nothing(): void

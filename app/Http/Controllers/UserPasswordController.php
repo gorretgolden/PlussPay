@@ -71,6 +71,8 @@ class UserPasswordController extends Controller
         $validated = $request->validate([
             'current_password' => ['required', 'current_password'],
             'password' => [...self::RULES, 'different:current_password'],
+        ], [
+            'current_password.current_password' => 'Current password is wrong.',
         ]);
 
         $this->savePassword($request->user(), $validated['password']);
@@ -85,11 +87,21 @@ class UserPasswordController extends Controller
         return redirect($next)->with('success', 'Password changed successfully.');
     }
 
+    public function checkCurrent(Request $request)
+    {
+        $request->validate(['current_password' => 'required|string']);
+
+        return response()->json([
+            'valid' => Hash::check($request->input('current_password'), $request->user()->password),
+        ]);
+    }
+
     private function savePassword(User $user, string $password): void
     {
         DB::transaction(function () use ($user, $password) {
             $user->forceFill([
                 'password' => Hash::make($password),
+                'password_changed_at' => now(),
                 'must_change_password' => false,
                 'remember_token' => Str::random(60),
             ])->save();
