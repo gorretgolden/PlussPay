@@ -14,7 +14,7 @@ class AuditLogController extends Controller
         $logs = ActivityLog::with(['user', 'transaction'])
             ->filtered($request)
             ->latest()
-            ->paginate(50)
+            ->paginate(10)
             ->withQueryString();
 
         $actions = ActivityLog::distinct()->whereNotNull('action')->pluck('action')->sort()->values();
@@ -39,7 +39,7 @@ class AuditLogController extends Controller
         $logs = LoginLog::with('user')
             ->filtered($request)
             ->latest()
-            ->paginate(50)
+            ->paginate(10)
             ->withQueryString();
 
         $users = User::orderBy('name')->get();
