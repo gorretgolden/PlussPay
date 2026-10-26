@@ -271,10 +271,24 @@ class DashboardController extends Controller
             $statuses[$row->status]['totals'][$row->currency] = (string) $row->total;
         }
 
+        // Approval moves the cash out of the drawer balance, so the money the agent is still
+        // answerable for reads the approved pile back in: principal per currency plus the charges,
+        // which always crossed in shillings. Pending requests never moved, so they are already in
+        // the balance and stay out of this figure.
+        $approved = $statuses[CashHandover::APPROVED]['totals'];
+        $approvedCharges = (string) CashHandover::where('agent_id', $user->id)
+            ->where('status', CashHandover::APPROVED)
+            ->sum('charge_ugx');
+
+        if (bccomp($approvedCharges, '0', 2) > 0) {
+            $approved['UGX'] = bcadd((string) ($approved['UGX'] ?? '0.00'), $approvedCharges, 2);
+        }
+
         return [
             'statuses' => $statuses,
             'latest' => CashHandover::where('agent_id', $user->id)->latest('id')->first(),
             'sent' => array_sum(array_column($statuses, 'count')),
+            'approved' => $approved,
         ];
     }
 

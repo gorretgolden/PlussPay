@@ -332,6 +332,16 @@
                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $currency }} Wallet</div>
                 <a href="{{ route('wallet.index') }}" class="block text-2xl font-bold text-gray-900 mt-2 tabular-nums whitespace-nowrap hover:underline">{{ $figure($balance) }}</a>
                 <x-wallet-updated :at="$account->lastMovementAt()" class="mt-1" />
+                {{-- Approved hand-ins left the drawer, so the money the agent is still answerable
+                     for reads them back in. The line stays off the card until there is a pile to
+                     add, so the balance is never printed twice. --}}
+                @if($handoverInsight && bccomp((string) ($handoverInsight['approved'][$currency] ?? '0.00'), '0', 2) > 0)
+                @php $heldTotal = bcadd((string) $account->balance(), (string) $handoverInsight['approved'][$currency], 2); @endphp
+                <p class="text-[13px] mt-2">
+                    <span class="font-semibold text-gray-900">Total money held {{ $figure($heldTotal) }}</span>
+                    <span class="text-gray-500">· includes {{ $figure($handoverInsight['approved'][$currency]) }} handed in</span>
+                </p>
+                @endif
             </div>
             {{-- Decorative only. The line above already names the wallet, so the circle carries a
                  glyph rather than a second spelling of the same currency. --}}
