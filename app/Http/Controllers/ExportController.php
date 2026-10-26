@@ -197,21 +197,50 @@ class ExportController extends Controller
         $rows = ActivityLog::with(['user', 'transaction'])->filtered($request)
             ->latest()
             ->get()
-            ->map(fn($log) => [
-                $log->created_at->format('Y-m-d h:i A'),
-                $log->user?->name ?? 'System',
-                $log->action,
-                $log->sourceIp() ?? '-',
-                $log->request_path ?? '-',
-                $log->description ?? '-',
-                $log->changeText() ?: '-',
-                $log->transaction?->receipt_number ?? '-',
-            ])
+            ->map(fn($log) => $this->activityLogRow($log))
             ->all();
 
         return $this->download('activity-logs', [
             'Date', 'User', 'Action', 'IP Address', 'Recorded From', 'Description', 'What Changed', 'Receipt #',
         ], $rows, '', true);
+    }
+
+    /**
+     * The rows ticked on the page, exported as their own file so a selection can be
+     * pulled out without exporting the whole trail.
+     */
+    public function activityLogsSelected(Request $request)
+    {
+        $ids = collect(explode(',', (string) $request->input('ids', '')))
+            ->map(fn ($id) => trim($id))
+            ->filter(fn ($id) => ctype_digit($id))
+            ->take(500)
+            ->all();
+
+        $rows = ActivityLog::with(['user', 'transaction'])
+            ->whereIn('id', $ids)
+            ->latest()
+            ->get()
+            ->map(fn($log) => $this->activityLogRow($log))
+            ->all();
+
+        return $this->download('activity-logs-selected', [
+            'Date', 'User', 'Action', 'IP Address', 'Recorded From', 'Description', 'What Changed', 'Receipt #',
+        ], $rows, '', true);
+    }
+
+    private function activityLogRow(ActivityLog $log): array
+    {
+        return [
+            $log->created_at->format('Y-m-d h:i A'),
+            $log->user?->name ?? 'System',
+            $log->action,
+            $log->sourceIp() ?? '-',
+            $log->request_path ?? '-',
+            $log->description ?? '-',
+            $log->changeText() ?: '-',
+            $log->transaction?->receipt_number ?? '-',
+        ];
     }
 
     public function loginLogs(Request $request)

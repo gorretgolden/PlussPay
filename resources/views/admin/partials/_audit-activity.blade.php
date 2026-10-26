@@ -40,11 +40,26 @@
     </form>
 </div>
 
+@can('export-logs')
+<div id="bulkBar" class="hidden bg-green-50 border border-green-200 rounded-lg px-4 py-3 mb-6 flex items-center gap-4 flex-wrap">
+    <span id="bulkCount" class="text-sm text-gray-700"></span>
+    <form method="POST" action="{{ route('export.activity-logs.selected') }}">
+        @csrf
+        <input type="hidden" name="ids" id="bulkIds">
+        <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Export selected (Excel)</button>
+    </form>
+    <button type="button" id="bulkClear" class="text-sm text-gray-600 hover:text-gray-900">Clear</button>
+</div>
+@endcan
+
 <div class="bg-white rounded-lg shadow">
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
+                    @can('export-logs')
+                    <th class="px-4 py-3 w-10"><input type="checkbox" data-log-select-all class="rounded border-gray-300 accent-green-800" aria-label="Select all rows"></th>
+                    @endcan
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
@@ -56,6 +71,9 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($logs as $log)
                 <tr>
+                    @can('export-logs')
+                    <td class="px-4 py-4"><input type="checkbox" data-log-select value="{{ $log->id }}" class="rounded border-gray-300 accent-green-800" aria-label="Select this row"></td>
+                    @endcan
                     <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $log->created_at->format('Y-m-d h:i A') }}</td>
                     <td class="px-6 py-4 text-sm text-gray-900">{{ $log->user?->name ?? 'System' }}</td>
                     <td class="px-6 py-4">
@@ -76,7 +94,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">No activity logs found.</td>
+                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">No activity logs found.</td>
                 </tr>
                 @endforelse
             </tbody>
@@ -140,6 +158,39 @@
     document.querySelectorAll('.log-detail-close').forEach((el) => el.addEventListener('click', closeLogDetail));
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') closeLogDetail();
+    });
+
+    const logBoxes = [...document.querySelectorAll('[data-log-select]')];
+    const logSelectAll = document.querySelector('[data-log-select-all]');
+    const bulkBar = document.getElementById('bulkBar');
+    const bulkIds = document.getElementById('bulkIds');
+    const bulkCount = document.getElementById('bulkCount');
+
+    const syncBulk = () => {
+        const picked = logBoxes.filter((box) => box.checked);
+        if (bulkBar) {
+            bulkBar.classList.toggle('hidden', picked.length === 0);
+        }
+        if (bulkCount) {
+            bulkCount.textContent = picked.length + (picked.length === 1 ? ' row selected' : ' rows selected');
+        }
+        if (bulkIds) {
+            bulkIds.value = picked.map((box) => box.value).join(',');
+        }
+        if (logSelectAll) {
+            logSelectAll.checked = picked.length > 0 && picked.length === logBoxes.length;
+            logSelectAll.indeterminate = picked.length > 0 && picked.length < logBoxes.length;
+        }
+    };
+
+    logBoxes.forEach((box) => box.addEventListener('change', syncBulk));
+    logSelectAll?.addEventListener('change', () => {
+        logBoxes.forEach((box) => { box.checked = logSelectAll.checked; });
+        syncBulk();
+    });
+    document.getElementById('bulkClear')?.addEventListener('click', () => {
+        logBoxes.forEach((box) => { box.checked = false; });
+        syncBulk();
     });
 </script>
 @endpush

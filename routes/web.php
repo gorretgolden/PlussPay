@@ -199,6 +199,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     Route::redirect('/admin/activity-logs', '/admin/audit-logs?tab=activity')->name('admin.activity-logs');
     Route::redirect('/admin/login-logs', '/admin/audit-logs?tab=login')->name('admin.login-logs');
     Route::get('/export/activity-logs', [ExportController::class, 'activityLogs'])->middleware(['can:view-activity-logs', 'can:export-logs'])->name('export.activity-logs');
+    Route::post('/export/activity-logs/selected', [ExportController::class, 'activityLogsSelected'])->middleware(['can:view-activity-logs', 'can:export-logs'])->name('export.activity-logs.selected');
     Route::get('/export/login-logs', [ExportController::class, 'loginLogs'])->middleware(['can:view-login-logs', 'can:export-logs'])->name('export.login-logs');
     Route::get('/admin/system-logs', [SystemLogController::class, 'index'])->middleware('can:view-system-logs')->name('admin.system-logs');
     Route::patch('/admin/system-logs/{systemLog}/resolve', [SystemLogController::class, 'resolve'])->middleware('can:resolve-system-logs')->name('admin.system-logs.resolve');

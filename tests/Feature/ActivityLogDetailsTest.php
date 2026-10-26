@@ -50,6 +50,33 @@ class ActivityLogDetailsTest extends TestCase
             ->assertSee('data-log-details', false);
     }
 
+    public function test_ticked_rows_can_be_exported_as_their_own_file(): void
+    {
+        $admin = $this->superadmin();
+
+        $keep = ActivityLog::create(['action' => 'login', 'description' => 'Kept entry one']);
+        $keepTwo = ActivityLog::create(['action' => 'login', 'description' => 'Kept entry two']);
+        ActivityLog::create(['action' => 'login', 'description' => 'Left behind']);
+
+        $response = $this->actingAs($admin)
+            ->post('/export/activity-logs/selected', ['ids' => "{$keep->id},{$keepTwo->id},999999"]);
+
+        $response->assertOk();
+
+        $path = tempnam(sys_get_temp_dir(), 'pluspay-') . '.xlsx';
+        file_put_contents($path, $response->streamedContent());
+        $rows = \PhpOffice\PhpSpreadsheet\IOFactory::load($path)->getActiveSheet()->toArray();
+        @unlink($path);
+
+        $descriptions = array_column($rows, 5);
+
+        $this->assertContains('Kept entry one', $descriptions);
+        $this->assertContains('Kept entry two', $descriptions);
+        $this->assertNotContains('Left behind', $descriptions);
+        $this->assertSame('Total records', $rows[7][0]);
+        $this->assertSame('2', $rows[7][1]);
+    }
+
     public function test_details_show_which_permissions_were_added_and_which_removed(): void
     {
         $admin = $this->superadmin();
