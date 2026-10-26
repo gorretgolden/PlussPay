@@ -222,7 +222,8 @@ class SystemLogTest extends TestCase
         $this->assertSame('CRITICAL', $sheet->getCell('B6')->getValue());
         $this->assertSame('Connection refused', $sheet->getCell('C6')->getValue());
         $this->assertSame('Open', $sheet->getCell('G6')->getValue());
-        $this->assertNull($sheet->getCell('B7')->getValue());
+        $this->assertSame('Total records', $sheet->getCell('A7')->getValue());
+        $this->assertSame('1', $sheet->getCell('B7')->getValue());
     }
 
     // The file reader still works on its own, independent of the page, so a couple of its

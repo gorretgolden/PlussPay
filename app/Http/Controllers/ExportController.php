@@ -211,7 +211,7 @@ class ExportController extends Controller
 
         return $this->download('activity-logs', [
             'Date', 'User', 'Action', 'IP Address', 'Recorded From', 'Description', 'What Changed', 'Receipt #',
-        ], $rows);
+        ], $rows, '', true);
     }
 
     public function loginLogs(Request $request)
@@ -232,7 +232,7 @@ class ExportController extends Controller
 
         return $this->download('login-logs', [
             'Date', 'User', 'Email Attempted', 'Status', 'IP Address', 'Device', 'Browser',
-        ], $rows);
+        ], $rows, '', true);
     }
 
     public function systemLogs(Request $request)
@@ -253,7 +253,7 @@ class ExportController extends Controller
 
         return $this->download('system-logs', [
             'Date', 'Level', 'Message', 'Class', 'Where', 'URL', 'Status',
-        ], $rows);
+        ], $rows, '', true);
     }
 
     public function agentPerformance(Request $request)
@@ -623,7 +623,7 @@ class ExportController extends Controller
             : 'USD ' . number_format($usd, 1);
     }
 
-    private function download(string $name, array $headers, array $rows, string $suffix = '')
+    private function download(string $name, array $headers, array $rows, string $suffix = '', bool $withTotal = false)
     {
         ActivityLog::create([
             'user_id' => auth()->id(),
@@ -672,7 +672,7 @@ class ExportController extends Controller
         $sheet->getStyle("A{$headerRow}:{$lastColumn}{$headerRow}")->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '14532D']],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
         ]);
 
@@ -695,6 +695,16 @@ class ExportController extends Controller
             ]);
 
             $sheet->setAutoFilter("A{$headerRow}:{$lastColumn}{$lastDataRow}");
+        }
+
+        if ($withTotal) {
+            $totalRow = $firstDataRow + count($rows);
+            $sheet->setCellValue("A{$totalRow}", 'Total records');
+            $sheet->setCellValueExplicit("B{$totalRow}", (string) count($rows), DataType::TYPE_STRING);
+            $sheet->getStyle("A{$totalRow}:B{$totalRow}")->applyFromArray([
+                'font' => ['bold' => true],
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+            ]);
         }
 
         $sheet->freezePane("A{$firstDataRow}");
