@@ -4,7 +4,7 @@
 @section('content')
 <div class="mb-6"><h1 class="text-2xl font-bold text-gray-900">Create User</h1><p class="text-sm text-gray-500 mt-1">Set up a desk, role and secure access.</p></div>
 <div class="user-management bg-white rounded-lg shadow p-6 max-w-4xl">
-    <form method="POST" action="{{ route('users.store') }}" data-validate data-user-form data-creating="true" data-availability-url="{{ url('/users/availability') }}">
+    <form method="POST" action="{{ route('users.store') }}" data-validate data-user-form data-lock-on-submit data-creating="true" data-availability-url="{{ url('/users/availability') }}">
         @csrf
         @include('users.partials.form')
         <div class="flex gap-3 mt-6 border-t pt-5">

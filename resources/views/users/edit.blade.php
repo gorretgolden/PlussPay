@@ -4,7 +4,7 @@
 @section('content')
 <div class="mb-6"><h1 class="text-2xl font-bold text-gray-900">Edit User: {{ $user->name }}</h1><p class="text-sm text-gray-500 mt-1">Manage this account’s desk and sign-in access.</p></div>
 <div class="user-management bg-white rounded-lg shadow p-6 max-w-4xl">
-    <form method="POST" action="{{ route('users.update', $user) }}" data-validate data-user-form data-user-id="{{ $user->id }}" data-availability-url="{{ url('/users/availability') }}">
+    <form method="POST" action="{{ route('users.update', $user) }}" data-validate data-user-form data-lock-on-submit data-user-id="{{ $user->id }}" data-availability-url="{{ url('/users/availability') }}">
         @csrf @method('PUT')
         @include('users.partials.form')
         <div class="flex gap-3 mt-6 border-t pt-5">
