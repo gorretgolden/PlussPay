@@ -177,7 +177,7 @@
             @can('manage-exchange-rates')
             <tr id="rate-edit-{{ $rate->id }}" class="rate-edit {{ $editing === $rate->id ? '' : 'hidden' }} bg-gray-50">
                 <td colspan="8" class="px-4 py-4">
-                    <form id="edit-rate-{{ $rate->id }}" data-validate method="POST" action="{{ route('exchange-rates.update', $rate) }}" class="flex flex-wrap items-start gap-4">
+                    <form id="edit-rate-{{ $rate->id }}" data-validate data-lock method="POST" action="{{ route('exchange-rates.update', $rate) }}" class="flex flex-wrap items-start gap-4">
                         @csrf
                         @method('PATCH')
                         <input type="hidden" name="rate_id" value="{{ $rate->id }}">
