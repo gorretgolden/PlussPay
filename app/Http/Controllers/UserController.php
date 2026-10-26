@@ -60,6 +60,11 @@ class UserController extends Controller
         return view('users.index', compact('users', 'roles'));
     }
 
+    public function show(User $user)
+    {
+        return view('users.show', compact('user'));
+    }
+
     public function create()
     {
         $roles = $this->assignableRoles();

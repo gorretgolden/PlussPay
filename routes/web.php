@@ -177,6 +177,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::delete('/users/{user}/two-factor', [UserController::class, 'twoFactorDisable'])->middleware('can:manage-user-two-factor')->name('users.two-factor.disable');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->middleware('can:delete-user')->name('users.destroy');
         Route::get('/export/users', [ExportController::class, 'users'])->middleware('can:export-users')->name('export.users');
+        Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
     });
 
     Route::get('/settings', [SettingController::class, 'index'])->middleware('can:view-settings')->name('settings.index');
