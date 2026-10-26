@@ -154,6 +154,21 @@ class DashboardController extends Controller
         $feesMonth = $this->feesThisMonth($wallets);
         $feesPeriod = now()->startOfMonth()->format('j M') . ' to ' . now()->format('j M Y');
 
+        // The lead's own earnings card: the charges on the bookings they took plus the charges
+        // agents handed in with their cash, this month, in shillings. Read from the ledger so the
+        // figure is the same one the wallet page prints; everyone else gets no card at all.
+        $chargesCollected = null;
+
+        if ($user->hasRole('super-agent') && $wallets !== []) {
+            $chargesCollected = (float) AccountEntry::query()
+                ->whereIn('account_id', collect($wallets)->pluck('id')->all())
+                ->whereIn('type', ['agent_fee', 'agent_fee_reversal', 'fee_handover_in', 'fee_handover_out'])
+                ->whereDate('entry_date', '>=', now()->startOfMonth()->toDateString())
+                ->whereDate('entry_date', '<=', now()->toDateString())
+                ->selectRaw("COALESCE(SUM(CASE WHEN type IN ('agent_fee', 'fee_handover_in') THEN amount ELSE -amount END), 0) as total")
+                ->value('total');
+        }
+
         // Admins manage people, so a spike of failed sign-ins belongs on the page they open
         // first; only the Super Admin sees the machine errors, matching the Logs tabs.
         $logAlerts = [];
@@ -181,7 +196,7 @@ class DashboardController extends Controller
             ? $this->agentTakenWindows($usdToUgx)
             : [];
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'greetAs'));
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'chargesCollected', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'greetAs'));
     }
 
     /**

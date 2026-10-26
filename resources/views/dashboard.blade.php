@@ -411,6 +411,20 @@
 </div>
 @endif
 
+{{-- The lead's own earnings: the charges on the bookings they took plus the charges the agents
+     handed in with their cash, this month, in shillings. The wallet page keeps the history; the
+     card names the month's figure on the screen the desk opens first. --}}
+@if($chargesCollected !== null)
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 mb-6">
+    <div class="flex flex-wrap items-center gap-2">
+        <h2 class="text-base font-semibold text-gray-900 mr-auto">Charges Collected</h2>
+        <a href="{{ route('wallet.index') }}" class="text-sm font-semibold text-green-800 hover:underline">Open the wallet</a>
+    </div>
+    <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums">{{ \App\Models\Account::format('UGX', $chargesCollected) }}</div>
+    <p class="text-[13px] text-gray-700 mt-1">{{ $feesPeriod }}: your bookings' charges and what the agents handed in.</p>
+</div>
+@endif
+
 {{-- The super agent's first job of the day: the cash the agents say they are bringing. The
      decisions themselves live on the cash hand-ins page, where every request reads with its full
      story and its status; this card only names what is waiting and points there. --}}
