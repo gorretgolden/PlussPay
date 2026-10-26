@@ -221,6 +221,17 @@ class ExchangeRateController extends Controller
         $price = $this->trim((float) ($exchangeRate->sell_rate ?: $exchangeRate->rate));
 
         if ($exchangeRate->is_active) {
+            // A desk pair with no price in use cannot price a booking at all, so the last live
+            // row for one is protected rather than leaving the counter to discover the gap.
+            if (ExchangeRate::isDeskPair($exchangeRate->from_currency, $exchangeRate->to_currency)
+                && ! ExchangeRate::where('from_currency', $exchangeRate->from_currency)
+                    ->where('to_currency', $exchangeRate->to_currency)
+                    ->where('is_active', true)
+                    ->where('id', '!=', $exchangeRate->id)
+                    ->exists()) {
+                return back()->withErrors(['error' => $pair.' '.$price.' is the only price in use for '.$pair.'. Bookings cannot be priced without it, so set another price for the pair first.']);
+            }
+
             $exchangeRate->setAside();
 
             ActivityLog::create([
@@ -235,7 +246,7 @@ class ExchangeRateController extends Controller
         }
 
         if (! ExchangeRate::isDeskPair($exchangeRate->from_currency, $exchangeRate->to_currency)) {
-            return back()->withErrors(['rate' => $pair.' cannot be set as current. Only '.ExchangeRate::deskPairsList().' price bookings.']);
+            return back()->withErrors(['error' => $pair.' cannot be set as current. Only '.ExchangeRate::deskPairsList().' price bookings.']);
         }
 
         $current = ExchangeRate::getActiveRate($exchangeRate->from_currency, $exchangeRate->to_currency);

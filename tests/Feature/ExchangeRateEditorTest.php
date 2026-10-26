@@ -248,7 +248,7 @@ class ExchangeRateEditorTest extends TestCase
         $this->assertTrue($current->fresh()->is_active, 'The price the desk reads is untouched.');
     }
 
-    public function test_taking_the_only_price_for_a_pair_out_of_use_leaves_it_unpriced(): void
+    public function test_the_only_price_in_use_for_a_desk_pair_cannot_be_taken_out_of_use(): void
     {
         $alice = $this->admin('Alice Admin');
 
@@ -257,15 +257,15 @@ class ExchangeRateEditorTest extends TestCase
 
         $this->actingAs($alice)
             ->patch('/exchange-rates/'.$live->id.'/toggle')
-            ->assertSessionHas('success', fn (string $message) => str_contains($message,
-                'USD → UGX 3772 is out of use.'));
+            ->assertSessionHasErrors(['error' => 'USD → UGX 3772 is the only price in use for USD → UGX. Bookings cannot be priced without it, so set another price for the pair first.']);
 
-        $this->assertFalse($live->fresh()->is_active);
+        $this->assertTrue($live->fresh()->is_active, 'The last live price stays in use.');
 
+        // The other desk pair still has its price, so only nothing is reported missing.
         $this->actingAs($alice)
             ->get('/exchange-rates')
             ->assertOk()
-            ->assertSee('No price is in use for USD → UGX.')
+            ->assertDontSee('No price is in use for USD → UGX.')
             ->assertDontSee('No price is in use for USD → RMB');
     }
 
@@ -287,7 +287,7 @@ class ExchangeRateEditorTest extends TestCase
 
         $this->actingAs($alice)
             ->patch('/exchange-rates/'.$reverse->id.'/toggle')
-            ->assertSessionHasErrors(['rate' => 'UGX → USD cannot be set as current. Only USD → UGX and USD → RMB price bookings.']);
+            ->assertSessionHasErrors(['error' => 'UGX → USD cannot be set as current. Only USD → UGX and USD → RMB price bookings.']);
 
         $this->assertFalse($reverse->fresh()->is_active);
 
