@@ -87,7 +87,10 @@
                     // Settings, and only while she has switched demo autofill on.
                     $localMachine = ! \App\Http\Controllers\SettingController::testingModeBlocked(request());
                     $envPasswords = config('demo.accounts', []);
-                    $autofillOn = \App\Models\Setting::get('demo_login_autofill', 'off') === 'on';
+                    // Testing mode forces the autofill on: the buttons are on the page, so they
+                    // have to work in one click.
+                    $autofillOn = \App\Models\Setting::get('site_mode', 'testing') === 'testing'
+                        || \App\Models\Setting::get('demo_login_autofill', 'off') === 'on';
                     $sharedPassword = \App\Models\Setting::get('demo_password');
                     $demoCount = count(\Database\Seeders\RoleAndUserSeeder::DEMO_ACCOUNTS);
                 @endphp

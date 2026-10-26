@@ -154,7 +154,7 @@
                                     <label for="{{ $key }}" class="block text-sm font-medium text-gray-700 mb-1">{{ $field['label'] }}</label>
                                     <div class="flex items-center rounded-md border border-gray-300 bg-white focus-within:ring-2 focus-within:ring-green-600">
                                         @if ($type === 'select')
-                                            <select id="{{ $key }}" name="{{ $key }}" data-original="{{ $saved }}" data-label="{{ $field['label'] }}" aria-describedby="help-{{ $key }} error-{{ $key }}" @if ($key === 'site_mode') required @endif class="w-full min-w-0 px-3 py-2 rounded-md bg-white outline-none">
+                                            <select id="{{ $key }}" name="{{ $key }}" data-original="{{ $saved }}" data-label="{{ $field['label'] }}" aria-describedby="help-{{ $key }} error-{{ $key }}" @if ($key === 'site_mode') required @endif @disabled($key === 'demo_login_autofill' && \App\Models\Setting::get('site_mode', 'testing') === 'testing') class="w-full min-w-0 px-3 py-2 rounded-md bg-white outline-none">
                                                 @foreach ($field['options'] as $option => $description)
                                                     <option value="{{ $option }}" @selected($value === $option) @disabled($key === 'site_mode' && $option === 'testing' && $testingModeBlocked)>{{ $description }}</option>
                                                 @endforeach
@@ -170,7 +170,7 @@
                                             @isset($field['unit'])<span id="unit-{{ $key }}" class="pr-3 text-xs text-gray-500 shrink-0">{{ $field['unit'] }}</span>@endisset
                                         @endif
                                     </div>
-                                    <p id="help-{{ $key }}" class="mt-1 text-xs text-gray-500">{{ $field['helper'] ?? '' }}</p>
+                                    <p id="help-{{ $key }}" class="mt-1 text-xs text-gray-500">@if ($key === 'demo_login_autofill' && \App\Models\Setting::get('site_mode', 'testing') === 'testing')Testing mode keeps demo autofill on.@else{{ $field['helper'] ?? '' }}@endif</p>
                                     <p id="error-{{ $key }}" data-field-error="{{ $key }}" class="mt-1 text-xs text-red-700">@error($key){{ $message }}@enderror</p>
                                 </div>
                             @endforeach

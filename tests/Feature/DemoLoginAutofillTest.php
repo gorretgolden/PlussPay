@@ -90,25 +90,16 @@ class DemoLoginAutofillTest extends TestCase
         }
     }
 
-    public function test_buttons_carry_the_password_only_while_autofill_is_on(): void
+    public function test_testing_mode_forces_autofill_on_so_the_buttons_always_work(): void
     {
+        // A save that tries to leave autofill off while Testing is on is ignored: the buttons
+        // are on the page, so they have to carry the password to be of any use.
         $this->put('/settings', [
             'settings_tab' => 'site', 'site_mode' => 'testing',
             'demo_login_autofill' => 'off', 'demo_password' => 'TestDesk2026',
         ])->assertSessionHasNoErrors();
 
-        auth()->logout();
-        $html = $this->get('/admin/login')->assertOk()->getContent();
-        // The buttons are on the page, they just hold no password to give away.
-        $this->assertSame(
-            count(RoleAndUserSeeder::DEMO_ACCOUNTS),
-            substr_count($html, 'data-demo-email=')
-        );
-        $this->assertStringNotContainsString('data-demo-password', $html);
-
-        $this->actingAs($this->owner);
-        $this->put('/settings', ['settings_tab' => 'site', 'site_mode' => 'testing', 'demo_login_autofill' => 'on'])
-            ->assertSessionHasNoErrors();
+        $this->assertSame('on', Setting::get('demo_login_autofill'));
 
         auth()->logout();
         $html = $this->get('/admin/login')->assertOk()->getContent();
@@ -116,6 +107,16 @@ class DemoLoginAutofillTest extends TestCase
             count(RoleAndUserSeeder::DEMO_ACCOUNTS),
             substr_count($html, 'data-demo-password="TestDesk2026"')
         );
+
+        // Production hides the demo buttons entirely, so the password never travels at all.
+        $this->actingAs($this->owner);
+        $this->put('/settings', ['settings_tab' => 'site', 'site_mode' => 'production'])
+            ->assertSessionHasNoErrors();
+
+        auth()->logout();
+        $html = $this->get('/admin/login')->assertOk()->getContent();
+        $this->assertStringNotContainsString('data-demo-email=', $html);
+        $this->assertStringNotContainsString('data-demo-password', $html);
     }
 
     public function test_the_audit_trail_records_the_change_without_the_password(): void
