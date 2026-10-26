@@ -52,6 +52,42 @@ class UserManagementSecurityTest extends TestCase
         ];
     }
 
+    public function test_creating_a_user_stamps_who_added_them_and_editing_stamps_the_last_editor(): void
+    {
+        $admin = $this->user('admin');
+        $this->actingAs($admin);
+
+        $data = $this->payload();
+
+        $this->post(route('users.store'), $data)
+            ->assertRedirect(route('users.index'));
+
+        $created = User::where('email', $data['email'])->first();
+        $this->assertNotNull($created);
+        $this->assertSame($admin->id, $created->created_by);
+        $this->assertNull($created->updated_by);
+
+        $this->actingAs($this->user('admin'));
+        $this->put(route('users.update', $created), ['name' => 'Edited Person'] + $this->payload($created))
+            ->assertRedirect();
+
+        $created->refresh();
+        $this->assertSame($admin->id, $created->created_by);
+        $this->assertNotNull($created->updated_by);
+        $this->assertNotSame($admin->id, $created->updated_by);
+        $this->assertSame('Edited Person', $created->name);
+    }
+
+    public function test_a_sign_in_never_marks_the_account_as_edited(): void
+    {
+        $user = $this->user('agent');
+        $user->recordSuccessfulLogin('127.0.0.1');
+
+        $user->refresh();
+        $this->assertNull($user->updated_by);
+        $this->assertNotNull($user->last_login_at);
+    }
+
     public function test_duplicate_create_and_update_never_identify_the_holder_or_flash_passwords(): void
     {
         $this->actingAs($this->user('superadmin'));

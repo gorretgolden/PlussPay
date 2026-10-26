@@ -98,6 +98,7 @@ class UserController extends Controller
             'password' => Hash::make($request->boolean('send_password_link') ? Str::random(64) : $validated['password']),
             'must_change_password' => $request->boolean('send_password_link') || $request->boolean('must_change_password'),
             'is_active' => true,
+            'created_by' => auth()->id(),
         ] + $this->countryAttributes($validated));
 
         $this->applyLoginWindow($user, $request);

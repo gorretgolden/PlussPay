@@ -6,6 +6,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -13,7 +14,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'phone', 'country', 'timezone', 'password', 'is_active', 'is_locked', 'failed_login_attempts', 'locked_until', 'last_login_at', 'last_login_ip', 'allowed_days', 'allowed_from', 'allowed_to', 'two_factor_secret', 'two_factor_enabled', 'must_change_password'])]
+#[Fillable(['name', 'email', 'phone', 'country', 'timezone', 'password', 'is_active', 'is_locked', 'failed_login_attempts', 'locked_until', 'last_login_at', 'last_login_ip', 'allowed_days', 'allowed_from', 'allowed_to', 'two_factor_secret', 'two_factor_enabled', 'must_change_password', 'created_by', 'updated_by'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret'])]
 class User extends Authenticatable
 {
@@ -21,6 +22,19 @@ class User extends Authenticatable
     use HasFactory, Notifiable, HasRoles;
 
     public const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    /**
+     * Any edit made by a signed-in person is attributed to them. Sign-in tracking
+     * skips events on purpose so a login never shows up as the last editor.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (self $user) {
+            if (auth()->check() && ! $user->isDirty('updated_by')) {
+                $user->updated_by = auth()->id();
+            }
+        });
+    }
 
     /**
      * The two desks this book runs. The country is what tells a China agent and a
@@ -56,6 +70,16 @@ class User extends Authenticatable
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class, 'created_by');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'created_by');
+    }
+
+    public function editor(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'updated_by');
     }
 
     /**
@@ -206,12 +230,12 @@ class User extends Authenticatable
 
     public function recordSuccessfulLogin(?string $ip = null): void
     {
-        $this->update([
+        $this->forceFill([
             'failed_login_attempts' => 0,
             'locked_until' => null,
             'last_login_at' => now(),
             'last_login_ip' => $ip,
-        ]);
+        ])->saveQuietly();
     }
 
     public function unlock(): void
