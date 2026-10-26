@@ -70,21 +70,4 @@ class CurrencyRateSpreadTest extends TestCase
             ->assertSee('USD to UGX: the selling price (3750) is at or below the buying price (3760)');
     }
 
-    public function test_the_worked_example_prices_a_thousand_dollar_send(): void
-    {
-        ExchangeRate::create(['from_currency' => 'USD', 'to_currency' => 'UGX', 'rate' => 3760, 'buy_rate' => 3750, 'sell_rate' => 3760, 'is_active' => true]);
-        ExchangeRate::create(['from_currency' => 'USD', 'to_currency' => 'RMB', 'rate' => 7.24, 'buy_rate' => 7.24, 'sell_rate' => 7.24, 'is_active' => true]);
-
-        $this->actingAs($this->admin())
-            ->get('/exchange-rates')
-            ->assertOk()
-            ->assertSee('Sample: send USD 1,000')
-            ->assertSee('UGX 3,780,000.00 handed over', false)
-            ->assertSee('Charge', false)
-            ->assertSee('UGX 20,000.00', false)
-            ->assertSee('FX profit', false)
-            ->assertSee('UGX 10,000.00', false)
-            ->assertSee('Overall profit', false)
-            ->assertSee('UGX 30,000.00', false);
-    }
 }

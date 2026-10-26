@@ -31,9 +31,24 @@ class ExchangeRateController extends Controller
 
         return view('exchange-rates.index', compact('rates', 'creators'))
             ->with('spreadWarnings', $this->spreadWarnings())
-            ->with('sendExample', $this->sendExample())
             ->with('outsideRule', ExchangeRate::liveRowsOutsideRule())
             ->with('unpricedPairs', ExchangeRate::unpricedDeskPairs());
+    }
+
+    /**
+     * The same rows as the Excel export, printed as a paper sheet. The page carries no layout so
+     * the browser prints only the table, and the filters ride along in the query string so the
+     * print matches what the person was looking at.
+     */
+    public function print(Request $request)
+    {
+        $rates = ExchangeRate::with(['creator', 'editor'])
+            ->filtered($request)
+            ->latest()
+            ->orderByDesc('id')
+            ->get();
+
+        return view('exchange-rates.print', compact('rates'));
     }
 
     /**
@@ -77,48 +92,6 @@ class ExchangeRateController extends Controller
         }
 
         return $warnings;
-    }
-
-    /**
-     * One real transfer priced through the same calculator a booking uses, so the warning
-     * is not abstract: it shows the charge, the exchange profit and the overall profit for a
-     * concrete hand-over of shillings. Null when the USD to UGX pair is missing, since then
-     * nothing prices.
-     *
-     * @return array<string, string>|null
-     */
-    private function sendExample(): ?array
-    {
-        $pair = ExchangeRate::usdUgxPair();
-        if (! $pair || $pair['sell'] <= 0) {
-            return null;
-        }
-
-        // A send that leaves exactly a thousand dollars behind the counter, with the kind of
-        // charge an operator would actually type for it: a flat figure, not a rule.
-        $charge = '20000.00';
-        $cash = bcadd(bcmul('1000', (string) $pair['sell'], 2), $charge, 2);
-        $quote = ProfitCalculator::quote('UGX', $cash, $charge);
-        if ($quote === null) {
-            return null;
-        }
-
-        $shilling = function (string $value): string {
-            $figure = (float) $value;
-
-            return $figure < 0
-                ? 'Loss UGX ' . number_format(abs($figure), 2)
-                : 'UGX ' . number_format($figure, 2);
-        };
-
-        return [
-            'hands_over' => $shilling($cash),
-            'travels' => $shilling($quote['amount']),
-            'dollars' => 'USD ' . number_format((float) $quote['total_usd_equivalent'], 2),
-            'charge' => $shilling($quote['charge_ugx']),
-            'exchange' => $shilling(bcadd($quote['fx_profit_ugx'], $quote['usd_rmb_profit_ugx'], 2)),
-            'total' => $shilling($quote['total_profit_ugx']),
-        ];
     }
 
     private function trim(float $value): string

@@ -26,6 +26,7 @@
         <a href="{{ route('settings.index') }}" class="rounded-md bg-gray-200 px-4 py-2 text-sm text-gray-800 hover:bg-gray-300">Update rates</a>
         @endcan
         @can('manage-exchange-rates')
+        <a href="{{ route('exchange-rates.print', request()->query()) }}" target="_blank" class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Export PDF</a>
         <a href="{{ route('export.exchange-rates', request()->query()) }}" class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Export Excel</a>
         @endcan
     </div>
@@ -109,26 +110,6 @@
         @endforeach
     </ul>
 </div>
-@endif
-
-@if($sendExample)
-<details id="send-example" class="group mb-6 rounded-lg bg-white shadow">
-    <summary class="flex cursor-pointer flex-wrap items-center gap-2 px-4 py-3 text-sm font-medium text-gray-800">
-        <svg aria-hidden="true" class="h-4 w-4 shrink-0 text-gray-500 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-        Sample: send USD 1,000
-    </summary>
-    <div class="px-4 pb-4">
-        <p class="mb-3 text-xs text-gray-600">{{ $sendExample['hands_over'] }} handed over</p>
-        <div class="flex flex-wrap gap-3 text-sm">
-            @foreach(['charge' => 'Charge', 'exchange' => 'FX profit', 'total' => 'Overall profit'] as $key => $label)
-            <div class="rounded bg-gray-50 px-3 py-2">
-                <span class="block text-xs text-gray-600">{{ $label }}</span>
-                <span class="font-medium text-gray-900">{{ $sendExample[$key] }}</span>
-            </div>
-            @endforeach
-        </div>
-    </div>
-</details>
 @endif
 
 <div class="rates-wrap overflow-x-auto rounded-lg bg-white shadow">

@@ -446,4 +446,27 @@ class ExchangeRateEditorTest extends TestCase
         $this->assertSame('Alice Editor', $sheet->getCell('I6')->getValue());
         $this->assertSame('Gorret Admin', $sheet->getCell('G6')->getValue());
     }
+
+    public function test_the_print_sheet_prints_every_rate_matching_the_filters(): void
+    {
+        $alice = $this->admin('Alice Admin');
+
+        $this->rate(['rate' => 3700, 'sell_rate' => 3700, 'is_active' => false]);
+        $this->rate();
+
+        $this->actingAs($alice)
+            ->get('/exchange-rates/print?status=')
+            ->assertOk()
+            ->assertSee('Total records: 2')
+            ->assertSee('USD', false)
+            ->assertSee('In use', false)
+            ->assertSee('Earlier', false)
+            ->assertSee('window.print()', false);
+
+        // The same sheet respects the status filter, so the print matches what was on screen.
+        $this->actingAs($alice)
+            ->get('/exchange-rates/print?status=active')
+            ->assertOk()
+            ->assertSee('Total records: 1');
+    }
 }
