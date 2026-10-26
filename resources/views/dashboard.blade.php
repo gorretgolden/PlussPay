@@ -143,6 +143,26 @@
     @endunless
 </div>
 
+{{-- One box that searches the whole desk: the pages this account can open, under the same
+     names the sidebar gives them. The list is read off the sidebar links already on the page,
+     so a page only ever appears here if the sidebar itself shows it, and no permission check
+     has to live in two places. --}}
+<div class="relative mb-6" data-dashboard-search>
+    <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-white shadow-sm px-3.5 py-2.5 focus-within:ring-2 focus-within:ring-green-600">
+        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="search" id="dashboardSearch" placeholder="Search the desk"
+            class="w-full bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400"
+            autocomplete="off" spellcheck="false"
+            role="combobox" aria-expanded="false" aria-controls="dashboardSearchResults"
+            aria-autocomplete="list" aria-label="Search the desk's pages">
+        <kbd class="hidden sm:inline-block text-[11px] text-gray-400 border border-gray-200 rounded px-1.5 py-0.5 leading-5">/</kbd>
+    </div>
+    <div id="dashboardSearchResults" class="hidden absolute left-0 right-0 top-full mt-1.5 z-40 rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden">
+        <ul id="dashboardSearchList" role="listbox" aria-label="Matching pages" class="max-h-72 overflow-y-auto py-1"></ul>
+        <p id="dashboardSearchEmpty" class="hidden px-4 py-3 text-sm text-gray-500">Nothing on the desk matches that.</p>
+    </div>
+</div>
+
 @php
     // Shortcuts to the work people come here to do, the first card under the greeting: the actions
     // open the board rather than waiting under the till it describes. Each one is dropped when its
@@ -887,6 +907,131 @@
     }
 
     sayWhenItWasRefreshed();
+
+    // The desk search offers exactly the pages the sidebar shows this account, because the index
+    // is read off the sidebar's own links. A role change needs no second list here, and a link a
+    // permission gate hides can never be offered by the box.
+    (function () {
+        const box = document.querySelector('[data-dashboard-search]');
+        if (!box) return;
+
+        const input = document.getElementById('dashboardSearch');
+        const panel = document.getElementById('dashboardSearchResults');
+        const list = document.getElementById('dashboardSearchList');
+        const empty = document.getElementById('dashboardSearchEmpty');
+
+        function plain(node) {
+            const clone = node.cloneNode(true);
+            clone.querySelectorAll('svg, span[class*="rounded-full"]').forEach(function (el) { el.remove(); });
+            return clone.textContent.trim().replace(/\s+/g, ' ');
+        }
+
+        const pages = Array.from(document.querySelectorAll('#appSidebar nav a[href]'))
+            .filter(function (link) { return !link.getAttribute('href').startsWith('#'); })
+            .map(function (link) {
+                const holder = link.closest('div[id$="Group"]');
+                const group = holder && holder.previousElementSibling ? plain(holder.previousElementSibling) : '';
+                const label = plain(link);
+
+                return { label: label, group: group, href: link.getAttribute('href') };
+            })
+            .filter(function (page) { return page.label !== ''; });
+
+        function rank(page, q) {
+            const label = page.label.toLowerCase();
+            if (label === q) return 0;
+            if (label.startsWith(q)) return 1;
+            if (label.includes(q)) return 2;
+            if (page.group.toLowerCase().includes(q)) return 3;
+            return -1;
+        }
+
+        let active = -1;
+
+        function paintActive() {
+            Array.from(list.children).forEach(function (li, i) {
+                li.classList.toggle('bg-green-50', i === active);
+            });
+        }
+
+        function render() {
+            const q = input.value.trim().toLowerCase();
+
+            list.innerHTML = '';
+            active = -1;
+
+            let hits = [];
+            if (q !== '') {
+                hits = pages
+                    .map(function (page) { return [rank(page, q), page]; })
+                    .filter(function (pair) { return pair[0] >= 0; })
+                    .sort(function (a, b) { return a[0] - b[0] || a[1].label.localeCompare(b[1].label); })
+                    .map(function (pair) { return pair[1]; })
+                    .slice(0, 8);
+            }
+
+            hits.forEach(function (page, i) {
+                const li = document.createElement('li');
+                li.id = 'search-result-' + i;
+                li.setAttribute('role', 'option');
+                li.dataset.href = page.href;
+                li.className = 'px-4 py-2.5 flex items-baseline gap-3 cursor-pointer hover:bg-green-50';
+
+                const name = document.createElement('span');
+                name.className = 'text-sm font-medium text-gray-900 truncate';
+                name.textContent = page.label;
+
+                const where = document.createElement('span');
+                where.className = 'text-xs text-gray-500 ml-auto shrink-0';
+                where.textContent = page.group || 'Page';
+
+                li.appendChild(name);
+                li.appendChild(where);
+                li.addEventListener('click', function () { window.location.href = page.href; });
+                list.appendChild(li);
+            });
+
+            empty.classList.toggle('hidden', hits.length > 0);
+            list.classList.toggle('hidden', hits.length === 0);
+            panel.classList.toggle('hidden', q === '');
+            input.setAttribute('aria-expanded', q === '' ? 'false' : 'true');
+        }
+
+        function go() {
+            const items = Array.from(list.children);
+            const target = items[active] || items[0];
+            if (target && target.dataset.href) window.location.href = target.dataset.href;
+        }
+
+        input.addEventListener('input', render);
+        input.addEventListener('focus', function () { if (input.value.trim() !== '') panel.classList.remove('hidden'); });
+        input.addEventListener('keydown', function (event) {
+            const items = Array.from(list.children);
+
+            if (event.key === 'ArrowDown') { event.preventDefault(); active = Math.min(active + 1, items.length - 1); paintActive(); }
+            else if (event.key === 'ArrowUp') { event.preventDefault(); active = Math.max(active - 1, 0); paintActive(); }
+            else if (event.key === 'Enter') { event.preventDefault(); go(); }
+            else if (event.key === 'Escape') { panel.classList.add('hidden'); input.setAttribute('aria-expanded', 'false'); }
+        });
+
+        document.addEventListener('click', function (event) {
+            if (!box.contains(event.target)) {
+                panel.classList.add('hidden');
+                input.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        // The slash opens the box from anywhere on the board, unless the hands are already
+        // typing somewhere.
+        document.addEventListener('keydown', function (event) {
+            if (event.key !== '/') return;
+            const target = event.target;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
+            event.preventDefault();
+            input.focus();
+            input.select();
+        });
+    })();
 
 </script>
 @endsection
