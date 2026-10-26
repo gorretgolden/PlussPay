@@ -174,7 +174,14 @@ class DashboardController extends Controller
         // it gets no card at all rather than a figure it cannot check.
         $spending = $user->can('view-expenses') ? $this->spendingToday($user) : ['count' => 0, 'desks' => []];
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'greetAs'));
+        // The desks the agents answer to get one extra Overview card: the cash those agents
+        // collected themselves, principal plus charge, so the whole book's Sent figure can be
+        // told apart from what the agents' hands actually took in.
+        $agentTaken = $user->hasAnyRole(['superadmin', 'admin', 'super-agent'])
+            ? $this->agentTakenWindows($usdToUgx)
+            : [];
+
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'greetAs'));
     }
 
     /**
@@ -475,6 +482,44 @@ class DashboardController extends Controller
         }
 
         return $sums;
+    }
+
+    /**
+     * The cash the agents' own hands collected, per window: completed bookings the agent or the
+     * super agent keyed in, principal plus the typed charge, in shillings. It is the slice of
+     * the window's Sent and Charge cards that belongs to agent bookings rather than counter
+     * ones, so the figure never disagrees with them: it reuses their own SQL expressions.
+     *
+     * @return array<string, float>
+     */
+    private function agentTakenWindows(?float $usdToUgx): array
+    {
+        ['sent' => $ugxSent, 'fee' => $ugxRevenue] = $this->ugxTotals($usdToUgx);
+
+        $agentIds = User::role(['agent', 'super-agent'])->pluck('id');
+
+        if ($agentIds->isEmpty()) {
+            return ['today' => 0.0, 'month' => 0.0, 'all' => 0.0];
+        }
+
+        $windows = [
+            'today' => fn (Builder $q) => $q->whereDate('created_at', today()),
+            'month' => fn (Builder $q) => $q->whereBetween('created_at', [now()->startOfMonth(), now()]),
+            'all' => fn (Builder $q) => $q,
+        ];
+
+        $taken = [];
+
+        foreach ($windows as $window => $restrict) {
+            $row = (array) $restrict(Transaction::query()->whereIn('created_by', $agentIds))
+                ->selectRaw("{$ugxSent} as sent_ugx, {$ugxRevenue} as charge_ugx")
+                ->toBase()
+                ->first();
+
+            $taken[$window] = (float) $row['sent_ugx'] + (float) $row['charge_ugx'];
+        }
+
+        return $taken;
     }
 
     /**

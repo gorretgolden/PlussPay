@@ -49,6 +49,11 @@
                 $t['yuan_paid_transfers'] . ' paid to receivers'],
             ['Charge', $money($t['charge_ugx'], $t['charge_usd'], 0), 'text-gray-900'],
         ];
+        // The desks the agents answer to get one extra figure: the slice of the window above
+        // that the agents' own hands collected. Everyone else never sees the card at all.
+        if (isset($agentTaken[$key])) {
+            $cards[] = ['Taken By Agents', $money($agentTaken[$key], 0, 0), 'text-gray-900', 'principal plus charge collected at the counter'];
+        }
         if (isset($profit[$key])) {
             $cards[] = ['FX profit', $shilling($profit[$key]['exchange']), $shillingTone($profit[$key]['exchange'])];
             $cards[] = ['Overall profit', $shilling($profit[$key]['total']), $shillingTone($profit[$key]['total'])];
