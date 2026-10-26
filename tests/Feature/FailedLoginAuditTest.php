@@ -58,7 +58,7 @@ class FailedLoginAuditTest extends TestCase
         $this->assertNotNull($row, 'A failed sign-in must land in the login log.');
 
         $this->actingAs($this->user('superadmin', 'Log Viewer'))
-            ->get('/admin/login-logs')
+            ->get('/admin/audit-logs?tab=login')
             ->assertOk()
             ->assertSee('Failed')
             ->assertSee($user->email);
@@ -153,7 +153,7 @@ class FailedLoginAuditTest extends TestCase
 
         $viewer = $this->user('superadmin', 'Log Viewer');
 
-        $response = $this->actingAs($viewer)->get('/admin/login-logs?status=failed');
+        $response = $this->actingAs($viewer)->get('/admin/audit-logs?tab=login&status=failed');
 
         $response->assertOk();
         $this->assertSame(1, $response->viewData('logs')->total());

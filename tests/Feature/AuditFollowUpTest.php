@@ -67,7 +67,7 @@ class AuditFollowUpTest extends TestCase
             'ip_address' => '41.210.157.79',
         ]);
 
-        $this->actingAs($admin)->get('/admin/login-logs')
+        $this->actingAs($admin)->get('/admin/audit-logs?tab=login')
             ->assertOk()
             ->assertSee('IP Address')
             ->assertSee('41.210.157.79');
@@ -83,7 +83,7 @@ class AuditFollowUpTest extends TestCase
             'ip_address' => '102.85.222.179',
         ]);
 
-        $this->actingAs($admin)->get('/admin/login-logs')
+        $this->actingAs($admin)->get('/admin/audit-logs?tab=login')
             ->assertOk()
             ->assertSee('102.85.222.179');
     }
@@ -98,11 +98,11 @@ class AuditFollowUpTest extends TestCase
             'ip_address' => '102.85.222.179',
         ]);
 
-        $this->actingAs($admin)->get('/admin/login-logs?search=102.85.222')
+        $this->actingAs($admin)->get('/admin/audit-logs?tab=login&search=102.85.222')
             ->assertOk()
             ->assertDontSee('No login logs found.');
 
-        $this->actingAs($admin)->get('/admin/login-logs?search=8.8.8.8')
+        $this->actingAs($admin)->get('/admin/audit-logs?tab=login&search=8.8.8.8')
             ->assertOk()
             ->assertSee('No login logs found.');
     }

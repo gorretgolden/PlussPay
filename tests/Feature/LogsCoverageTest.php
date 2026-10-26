@@ -142,8 +142,8 @@ class LogsCoverageTest extends TestCase
     {
         $agent = $this->user('agent');
 
-        $this->actingAs($agent)->get('/admin/activity-logs')->assertForbidden();
-        $this->actingAs($agent)->get('/admin/login-logs')->assertForbidden();
+        $this->actingAs($agent)->get('/admin/audit-logs?tab=activity')->assertForbidden();
+        $this->actingAs($agent)->get('/admin/audit-logs?tab=login')->assertForbidden();
         $this->actingAs($agent)->get('/admin/system-logs')->assertForbidden();
         $this->actingAs($agent)->get('/export/activity-logs')->assertForbidden();
         $this->actingAs($agent)->get('/export/login-logs')->assertForbidden();
@@ -154,8 +154,8 @@ class LogsCoverageTest extends TestCase
     {
         $admin = $this->user('admin');
 
-        $this->actingAs($admin)->get('/admin/activity-logs')->assertOk();
-        $this->actingAs($admin)->get('/admin/login-logs')->assertOk();
+        $this->actingAs($admin)->get('/admin/audit-logs?tab=activity')->assertOk();
+        $this->actingAs($admin)->get('/admin/audit-logs?tab=login')->assertOk();
 
         $this->actingAs($admin)->get('/admin/system-logs')->assertForbidden();
     }
@@ -164,8 +164,8 @@ class LogsCoverageTest extends TestCase
     {
         $boss = $this->user('superadmin');
 
-        $this->actingAs($boss)->get('/admin/activity-logs')->assertOk();
-        $this->actingAs($boss)->get('/admin/login-logs')->assertOk();
+        $this->actingAs($boss)->get('/admin/audit-logs?tab=activity')->assertOk();
+        $this->actingAs($boss)->get('/admin/audit-logs?tab=login')->assertOk();
         $this->actingAs($boss)->get('/admin/system-logs')->assertOk();
     }
 }

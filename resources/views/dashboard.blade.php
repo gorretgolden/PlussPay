@@ -579,10 +579,10 @@
 @if(($logAlerts['failed_logins_24h'] ?? 0) > 0 || ($logAlerts['unresolved_errors'] ?? 0) > 0)
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
     @if(($logAlerts['failed_logins_24h'] ?? 0) > 0)
-    <a href="{{ route('admin.login-logs', ['status' => 'failed']) }}" class="bg-amber-50 border border-amber-200 rounded-xl shadow-sm p-5 hover:shadow transition-shadow block">
+    <a href="{{ route('admin.audit-logs', ['tab' => 'login', 'status' => 'failed']) }}" class="bg-amber-50 border border-amber-200 rounded-xl shadow-sm p-5 hover:shadow transition-shadow block">
         <div class="text-xs font-semibold uppercase tracking-wide text-amber-800">Failed sign-ins (24h)</div>
         <div class="text-2xl font-bold text-amber-900 mt-2 tabular-nums">{{ number_format($logAlerts['failed_logins_24h']) }}</div>
-        <div class="text-xs text-amber-800 mt-1">Check the Login Logs for a brute-force pattern.</div>
+        <div class="text-xs text-amber-800 mt-1">Check the Audit Logs for a brute-force pattern.</div>
     </a>
     @endif
     @can('view-system-logs')

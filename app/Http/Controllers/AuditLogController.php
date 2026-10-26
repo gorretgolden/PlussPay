@@ -9,18 +9,52 @@ use Illuminate\Http\Request;
 
 class AuditLogController extends Controller
 {
-    public function activityLogs(Request $request)
+    /**
+     * One audit page with two tabs: the activity trail and the sign-in trail. The old
+     * /admin/activity-logs and /admin/login-logs URLs redirect here with a tab query.
+     */
+    public function auditLogs(Request $request)
     {
-        $logs = ActivityLog::with(['user', 'transaction'])
-            ->filtered($request)
-            ->latest()
-            ->paginate(10)
-            ->withQueryString();
+        $user = $request->user();
+        $canActivity = $user->can('view-activity-logs');
+        $canLogin = $user->can('view-login-logs');
 
-        $actions = ActivityLog::distinct()->whereNotNull('action')->pluck('action')->sort()->values();
+        if (! $canActivity && ! $canLogin) {
+            abort(403);
+        }
+
+        $tab = $request->input('tab');
+        if ($tab !== 'login' && $tab !== 'activity') {
+            $tab = $canActivity ? 'activity' : 'login';
+        } elseif ($tab === 'login' && ! $canLogin) {
+            $tab = 'activity';
+        } elseif ($tab === 'activity' && ! $canActivity) {
+            $tab = 'login';
+        }
+
         $users = User::orderBy('name')->get();
+        $actions = collect();
+        $suspicious = ['ips' => collect(), 'emails' => collect()];
 
-        return view('admin.activity-logs', compact('logs', 'actions', 'users'));
+        if ($tab === 'login') {
+            $logs = LoginLog::with('user')
+                ->filtered($request)
+                ->latest()
+                ->paginate(10)
+                ->withQueryString();
+
+            $suspicious = LoginLog::suspiciousSince();
+        } else {
+            $logs = ActivityLog::with(['user', 'transaction'])
+                ->filtered($request)
+                ->latest()
+                ->paginate(10)
+                ->withQueryString();
+
+            $actions = ActivityLog::distinct()->whereNotNull('action')->pluck('action')->sort()->values();
+        }
+
+        return view('admin.audit-logs', compact('logs', 'tab', 'actions', 'users', 'suspicious'));
     }
 
     public function details(ActivityLog $activityLog)
@@ -28,23 +62,5 @@ class AuditLogController extends Controller
         $activityLog->load(['user', 'transaction']);
 
         return view('admin.partials._activity-details', ['log' => $activityLog]);
-    }
-
-    /**
-     * The dedicated sign-in trail: every outcome, with the machine it came from and a
-     * warning when one address or account is being tried over and over in a short window.
-     */
-    public function loginLogs(Request $request)
-    {
-        $logs = LoginLog::with('user')
-            ->filtered($request)
-            ->latest()
-            ->paginate(10)
-            ->withQueryString();
-
-        $users = User::orderBy('name')->get();
-        $suspicious = LoginLog::suspiciousSince();
-
-        return view('admin.login-logs', compact('logs', 'users', 'suspicious'));
     }
 }

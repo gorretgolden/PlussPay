@@ -18,16 +18,12 @@
                     class="w-full rounded-lg bg-green-800 hover:bg-green-700 text-white font-semibold py-2.5 transition">
                     Back to Dashboard
                 </a>
-                @can('view-settings')
-                    <a href="{{ route('admin.activity-logs') }}"
+                @canany(['view-activity-logs', 'view-login-logs'])
+                    <a href="{{ route('admin.audit-logs') }}"
                         class="w-full rounded-lg border border-green-700/30 text-green-800 font-medium py-2.5 hover:bg-green-50 transition">
-                        View Activity Logs
+                        View Audit Logs
                     </a>
-                    <a href="{{ route('admin.login-logs') }}"
-                        class="w-full rounded-lg border border-green-700/30 text-green-800 font-medium py-2.5 hover:bg-green-50 transition">
-                        View Login Logs
-                    </a>
-                @endcan
+                @endcanany
             @else
                 <a href="{{ route('login') }}"
                     class="w-full rounded-lg bg-green-800 hover:bg-green-700 text-white font-semibold py-2.5 transition">

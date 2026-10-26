@@ -1,21 +1,5 @@
-@extends('layouts.app')
-
-@section('title', 'Activity Logs')
-
-@section('content')
-<div class="mb-6 flex justify-between items-center">
-    <div>
-        <h1 class="text-2xl font-bold text-gray-900">Activity Logs</h1>
-        <p class="text-gray-600">Transaction activity audit trail</p>
-    </div>
-    <a href="{{ route('export.activity-logs', request()->query()) }}"
-        class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
-</div>
-
-@include('admin.partials._logs-tabs')
-
 <div class="bg-white rounded-lg shadow p-4 mb-6">
-    <form method="GET" action="{{ route('admin.activity-logs') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+    <form method="GET" action="{{ route('admin.audit-logs', ['tab' => 'activity']) }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div>
             <label class="block text-sm text-gray-600 mb-1">Search</label>
             <input type="text" name="search" value="{{ request('search') }}" placeholder="Description, user, receipt #..."
@@ -51,7 +35,7 @@
         </div>
         <div class="md:col-span-5 flex gap-2">
             <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Filter</button>
-            <a href="{{ route('admin.activity-logs') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Reset</a>
+            <a href="{{ route('admin.audit-logs', ['tab' => 'activity']) }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Reset</a>
         </div>
     </form>
 </div>
@@ -123,7 +107,6 @@
         </div>
     </div>
 </div>
-@endsection
 
 @push('scripts')
 <script>

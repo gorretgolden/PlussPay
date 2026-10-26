@@ -194,9 +194,10 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::post('/admin/permissions/bulk', [RolePermissionController::class, 'bulk'])->middleware(['can:edit-role', 'can:assign-permissions'])->name('admin.permissions.bulk');
         Route::post('/admin/permissions/{permission}/roles/{role}/toggle', [RolePermissionController::class, 'toggleRolePermission'])->middleware(['can:edit-role', 'can:assign-permissions'])->name('admin.permissions.toggle-role');
     });
-    Route::get('/admin/activity-logs', [AuditLogController::class, 'activityLogs'])->middleware('can:view-activity-logs')->name('admin.activity-logs');
+    Route::get('/admin/audit-logs', [AuditLogController::class, 'auditLogs'])->name('admin.audit-logs');
     Route::get('/admin/activity-logs/{activityLog}/details', [AuditLogController::class, 'details'])->middleware('can:view-activity-logs')->name('admin.activity-logs.details');
-    Route::get('/admin/login-logs', [AuditLogController::class, 'loginLogs'])->middleware('can:view-login-logs')->name('admin.login-logs');
+    Route::redirect('/admin/activity-logs', '/admin/audit-logs?tab=activity')->name('admin.activity-logs');
+    Route::redirect('/admin/login-logs', '/admin/audit-logs?tab=login')->name('admin.login-logs');
     Route::get('/export/activity-logs', [ExportController::class, 'activityLogs'])->middleware(['can:view-activity-logs', 'can:export-logs'])->name('export.activity-logs');
     Route::get('/export/login-logs', [ExportController::class, 'loginLogs'])->middleware(['can:view-login-logs', 'can:export-logs'])->name('export.login-logs');
     Route::get('/admin/system-logs', [SystemLogController::class, 'index'])->middleware('can:view-system-logs')->name('admin.system-logs');

@@ -1,19 +1,3 @@
-@extends('layouts.app')
-
-@section('title', 'Login Logs')
-
-@section('content')
-<div class="mb-6 flex justify-between items-center">
-    <div>
-        <h1 class="text-2xl font-bold text-gray-900">Login Logs</h1>
-        <p class="text-gray-600">Every sign-in, sign-out, failed attempt and lockout</p>
-    </div>
-    <a href="{{ route('export.login-logs', request()->query()) }}"
-        class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
-</div>
-
-@include('admin.partials._logs-tabs')
-
 @php
     $suspiciousIps = $suspicious['ips'] ?? collect();
     $suspiciousEmails = $suspicious['emails'] ?? collect();
@@ -24,7 +8,7 @@
     <p class="text-sm font-semibold text-red-800 mb-2">Possible brute-force activity in the last 15 minutes</p>
     <div class="flex flex-wrap gap-2">
         @foreach($suspiciousIps as $ip => $count)
-        <a href="{{ route('admin.login-logs', ['ip_address' => $ip, 'status' => 'failed']) }}"
+        <a href="{{ route('admin.audit-logs', ['tab' => 'login', 'ip_address' => $ip, 'status' => 'failed']) }}"
             class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs hover:bg-red-200">IP {{ $ip }} - {{ $count }} failed</a>
         @endforeach
         @foreach($suspiciousEmails as $email => $count)
@@ -35,7 +19,7 @@
 @endif
 
 <div class="bg-white rounded-lg shadow p-4 mb-6">
-    <form method="GET" action="{{ route('admin.login-logs') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+    <form method="GET" action="{{ route('admin.audit-logs', ['tab' => 'login']) }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div>
             <label class="block text-sm text-gray-600 mb-1">Search</label>
             <input type="text" name="search" value="{{ request('search') }}" placeholder="Name, email, IP, browser..."
@@ -74,9 +58,9 @@
         @endif
         <div class="md:col-span-5 flex gap-2">
             <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Filter</button>
-            <a href="{{ route('admin.login-logs') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Reset</a>
+            <a href="{{ route('admin.audit-logs', ['tab' => 'login']) }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Reset</a>
             @if(request('ip_address'))
-            <a href="{{ route('admin.login-logs', request()->except('ip_address')) }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Clear IP filter ({{ request('ip_address') }})</a>
+            <a href="{{ route('admin.audit-logs', request()->except('ip_address')) }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Clear IP filter ({{ request('ip_address') }})</a>
             @endif
         </div>
     </form>
@@ -153,7 +137,6 @@
         </div>
     </div>
 </div>
-@endsection
 
 @push('scripts')
 <script>

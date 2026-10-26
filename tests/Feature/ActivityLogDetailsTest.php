@@ -45,7 +45,7 @@ class ActivityLogDetailsTest extends TestCase
         $admin = $this->superadmin();
         $this->actingAs($admin)->post('/admin/roles', ['name' => 'Supervisor', 'permissions' => ['view-transactions']]);
 
-        $this->actingAs($admin)->get('/admin/activity-logs')
+        $this->actingAs($admin)->get('/admin/audit-logs?tab=activity')
             ->assertOk()
             ->assertSee('data-log-details', false);
     }
