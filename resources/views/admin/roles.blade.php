@@ -51,12 +51,9 @@
             @if(!$super && !in_array($selectedRole->name, ['public', 'customer']))
             <details class="relative shrink-0"><summary aria-label="Role actions" class="cursor-pointer list-none px-3 py-2 text-xl rounded-lg border [&::-webkit-details-marker]:hidden">⋮</summary>
                 <div class="absolute right-0 top-full mt-2 w-72 max-w-[80vw] bg-white border shadow-lg rounded-lg p-4 z-20 text-sm space-y-4">
-                    @can('create-role')
-                    <form method="POST" action="{{ route('admin.roles.duplicate', $selectedRole) }}" class="space-y-2">@csrf<label class="block">Copy name<input name="name" required maxlength="50" value="{{ $selectedRole->name }} copy" class="w-full border rounded px-2 py-2 mt-1"></label><button class="text-green-800 font-semibold min-h-[44px]">Duplicate role</button></form>
-                    @endcan
                     @can('edit-role')
                     @if(!array_key_exists($selectedRole->name, \App\Support\PermissionCatalog::DESCRIPTIONS))
-                    <form method="POST" action="{{ route('admin.roles.rename', $selectedRole) }}" class="border-t pt-3 space-y-2" data-confirm-title="Rename this role?" data-confirm="The {{ $selectedRole->users_count }} {{ Str::plural('user', $selectedRole->users_count) }} on this role keep their access, only the name changes." data-confirm-ok="Rename role">@csrf @method('PATCH')
+                    <form method="POST" action="{{ route('admin.roles.rename', $selectedRole) }}" class="space-y-2" data-confirm-title="Rename this role?" data-confirm="The {{ $selectedRole->users_count }} {{ Str::plural('user', $selectedRole->users_count) }} on this role keep their access, only the name changes." data-confirm-ok="Rename role">@csrf @method('PATCH')
                         <label class="block">New name<input name="name" required maxlength="50" value="{{ \App\Http\Controllers\RolePermissionController::displayName($selectedRole->name) }}" class="w-full border rounded px-2 py-2 mt-1"></label>
                         <button class="min-h-[44px] text-green-800 font-semibold">Rename role</button>
                     </form>
@@ -74,7 +71,7 @@
             @endif
         </div>
         @if($super)
-        <div class="p-6 bg-green-50 text-green-950 rounded-b-xl"><h3 class="font-semibold">Locked · Full access</h3><p class="text-sm mt-2">Super Admin has full access to every current and future permission. This role cannot be edited, duplicated or deleted.</p></div>
+        <div class="p-6 bg-green-50 text-green-950 rounded-b-xl"><h3 class="font-semibold">Locked · Full access</h3><p class="text-sm mt-2">Super Admin has full access to every current and future permission. This role cannot be edited or deleted.</p></div>
         @else
         <form method="POST" action="{{ route('admin.roles.update', $selectedRole) }}" class="role-perm-form p-5 sm:p-6 space-y-5" data-users="{{ $selectedRole->users_count }}" data-edit="1" data-initial="{{ json_encode($selectedRole->permissions->pluck('name')->all()) }}" data-description="{{ $selectedRole->description }}">@csrf @method('PUT')
             <label class="block text-sm font-medium text-gray-700">Description<textarea name="description" maxlength="500" rows="2" @disabled(!$editable) class="w-full mt-1 border rounded-lg px-3 py-2 font-normal">{{ old('description', $selectedRole->description) }}</textarea></label>

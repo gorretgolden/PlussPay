@@ -43,12 +43,6 @@ class RolePermissionController extends Controller
         return $this->createRole($request);
     }
 
-    public function duplicate(Request $request, Role $role)
-    {
-        $this->editable($role);
-        return $this->createRole($request, $role);
-    }
-
     /**
      * Role names are stored lowercase and hyphenated so "Desk Lead" and "desk-lead" are the
      * same role, and so the label can be read back out of the name later.
@@ -58,7 +52,7 @@ class RolePermissionController extends Controller
         return strtolower(trim(preg_replace('/[\s-]+/', '-', $name), '-'));
     }
 
-    private function createRole(Request $request, ?Role $source = null)
+    private function createRole(Request $request)
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:50', 'regex:/^[a-zA-Z][a-zA-Z0-9 -]*$/'],
@@ -70,16 +64,16 @@ class RolePermissionController extends Controller
         if (Role::where('name', $name)->where('guard_name', 'web')->exists()) {
             throw ValidationException::withMessages(['name' => 'A role with this name already exists.']);
         }
-        $names = $source ? $source->permissions->pluck('name')->all() : ($validated['permissions'] ?? []);
+        $names = $validated['permissions'] ?? [];
         if ($names) {
             Gate::authorize('assign-permissions');
             $this->delegable($names);
         }
-        $role = DB::transaction(function () use ($name, $names, $validated, $source) {
+        $role = DB::transaction(function () use ($name, $names, $validated) {
             $role = Role::create(['name' => $name, 'guard_name' => 'web']);
-            $role->forceFill(['description' => $validated['description'] ?? $source?->description, 'permissions_initialized_at' => now()])->save();
+            $role->forceFill(['description' => $validated['description'] ?? null, 'permissions_initialized_at' => now()])->save();
             $role->syncPermissions($names);
-            $this->audit($source ? 'role_duplicated' : 'role_created', $role, [], $names, $source ? 'Copied from '.$source->name : 'Created role');
+            $this->audit('role_created', $role, [], $names, 'Created role');
             return $role;
         });
         return redirect()->route('admin.roles', ['role' => $role->id])->with('success', 'Role created.');

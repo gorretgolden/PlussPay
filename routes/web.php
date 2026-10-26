@@ -183,7 +183,6 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     Route::middleware('can:view-roles')->group(function () {
         Route::get('/admin/roles', [RolePermissionController::class, 'index'])->name('admin.roles');
         Route::post('/admin/roles', [RolePermissionController::class, 'store'])->middleware('can:create-role')->name('admin.roles.store');
-        Route::post('/admin/roles/{role}/duplicate', [RolePermissionController::class, 'duplicate'])->middleware('can:create-role')->name('admin.roles.duplicate');
         Route::put('/admin/roles/{role}', [RolePermissionController::class, 'update'])->middleware('can:edit-role')->name('admin.roles.update');
         Route::patch('/admin/roles/{role}/rename', [RolePermissionController::class, 'rename'])->middleware('can:edit-role')->name('admin.roles.rename');
         Route::delete('/admin/roles/{role}', [RolePermissionController::class, 'destroy'])->middleware('can:delete-role')->name('admin.roles.destroy');

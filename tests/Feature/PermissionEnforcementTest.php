@@ -285,7 +285,6 @@ class PermissionEnforcementTest extends TestCase
             $this->post('/admin/permissions/bulk', ['action' => $action, 'role_id' => $role->id, 'permission_ids' => [$permission->id]])->assertForbidden();
         }
         $this->delete('/admin/roles/'.$role->id, ['confirm_name' => 'superadmin'])->assertForbidden();
-        $this->post('/admin/roles/'.$role->id.'/duplicate', ['name' => 'rootcopy'])->assertForbidden();
         $this->get('/admin/roles?role='.$role->id)->assertOk()->assertSee('Locked · Full access')->assertDontSee('Save changes</button>', false);
     }
 
@@ -348,15 +347,18 @@ class PermissionEnforcementTest extends TestCase
         $this->assertDatabaseHas('activity_logs', ['action' => 'role_deleted', 'user_id' => $root->id]);
     }
 
-    public function test_duplicate_description_and_permission_changes_are_audited(): void
+    public function test_created_role_description_and_permission_changes_are_audited(): void
     {
         $root = $this->user('superadmin');
         $agent = $this->role('agent');
-        $this->actingAs($root)->post('/admin/roles/'.$agent->id.'/duplicate', ['name' => 'Manager', 'description' => 'A limited desk'])->assertSessionHasNoErrors();
+        $this->actingAs($root)->post('/admin/roles', [
+            'name' => 'Manager', 'description' => 'A limited desk',
+            'permissions' => $agent->permissions->pluck('name')->all(),
+        ])->assertSessionHasNoErrors();
         $manager = $this->role('manager');
         $this->assertSame('A limited desk', $manager->description);
         $this->assertEqualsCanonicalizing($agent->permissions->pluck('name')->all(), $manager->permissions->pluck('name')->all());
-        $this->assertDatabaseHas('activity_logs', ['action' => 'role_duplicated']);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'role_created']);
         $this->put('/admin/roles/'.$manager->id, ['description' => 'New description', 'permissions' => ['view-reports']])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('activity_logs', ['action' => 'role_permissions_changed', 'new_value' => '["view-reports"]']);
     }
