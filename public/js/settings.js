@@ -235,9 +235,16 @@
             const mode = form.elements.namedItem('site_mode');
             if (form.dataset.settingsForm === 'datetime') {
                 options = { title: 'Change time zone?', sections, message: 'Screen dates, new receipts and report day boundaries will use this zone. Existing timestamps are not rewritten.', confirmText: 'Save changes' };
-            } else if (form.dataset.settingsForm === 'site' && mode && changed(mode)) {
-                const testing = mode.value === 'testing';
-                options = { title: 'Change site mode?', sections, message: testing ? 'Demo logins are visible on the sign-in page' : 'Demo logins will be hidden on the sign-in page.', confirmText: 'Save changes', danger: testing };
+            } else if (form.dataset.settingsForm === 'site') {
+                const testing = mode?.value === 'testing';
+                const modeMoved = !!mode && changed(mode);
+                options = {
+                    title: 'Save site settings?',
+                    sections,
+                    message: modeMoved ? (testing ? 'Demo logins are visible on the sign-in page.' : 'Demo logins will be hidden on the sign-in page.') : '',
+                    confirmText: 'Save changes',
+                    danger: modeMoved && testing,
+                };
             } else {
                 options = { title: `Save ${sectionTitle(form)}?`, sections, confirmText: 'Save changes' };
             }
