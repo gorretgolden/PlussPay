@@ -17,7 +17,7 @@
             'rule' => 'Selling at or above buying keeps a spread.',
             'flat' => 'No spread: both prices are the same, so this leg earns nothing.',
             'warn' => 'Selling is below buying, so this leg loses money.',
-            'more' => 'Buying is the shilling cost of a dollar. Selling is the shillings a customer hands over for one. Margin = selling - buying, so a positive margin means shillings were bought cheap and sold dear.',
+            'more' => 'Buying: shillings paid for a dollar. Selling: shillings charged for one. Margin = selling - buying: positive means bought cheap, sold dear.',
         ],
         'rmb' => [
             'unit' => 'RMB', 'pair' => $usdRmbPair, 'row' => $usdRmbRow, 'min' => '0.000001', 'max' => '999999.999999',
@@ -25,7 +25,7 @@
             'rule' => 'Buying at or above selling keeps a spread.',
             'flat' => 'No spread: both prices are the same, so this leg earns nothing.',
             'warn' => 'Buying is below selling, so this leg loses money.',
-            'more' => 'Selling prices what the receiver is credited. Buying is what the yuan cost on the China side. Margin = buying - selling, the reverse of the shilling card, so a positive margin means the payout was priced below the settlement.',
+            'more' => 'Selling: yuan credited to the receiver. Buying: what the yuan cost on the China side. Margin = buying - selling: positive means the payout was priced below the settlement.',
         ],
     ];
     $bounds = \App\Models\Setting::transactionBounds();
@@ -138,8 +138,8 @@
                         <details class="mt-5 text-sm text-gray-600">
                             <summary class="cursor-pointer font-medium text-green-800">Learn more about rates</summary>
                             <div class="mt-3 space-y-2">
-                                <p>A blank selling rate leaves its pair unchanged. A blank buying rate keeps the saved one.</p>
-                                <p>Changes over 5% need review, but are not blocked. Previous rates stay in the history.</p>
+                                <p>Leave a box blank to keep the saved price on that side.</p>
+                                <p>Changes over 5% need review but are not blocked. Previous rates stay in the history.</p>
                             </div>
                         </details>
                     @else
