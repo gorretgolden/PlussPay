@@ -55,7 +55,7 @@ class SystemLog extends Model
         try {
             $previous = $e->getPrevious();
 
-            return static::create([
+            $log = static::create([
                 'level' => $level,
                 'message' => mb_substr($e->getMessage() ?: static::classOf($e), 0, 2000),
                 'exception_class' => static::classOf($e),
@@ -69,10 +69,52 @@ class SystemLog extends Model
                 'user_id' => $request && $request->user() ? $request->user()->id : null,
                 'ip_address' => $request?->ip(),
             ]);
+
+            static::reopenIfSeenBefore($log);
+
+            return $log;
         } catch (Throwable) {
             // Losing the copy beats breaking the response.
             return null;
         }
+    }
+
+    /**
+     * A signature is the error class plus the message with its whitespace folded, so two
+     * occurrences of the same fault match even when the trace lines differ.
+     */
+    public function signature(): string
+    {
+        return mb_substr($this->exception_class ?? '', 0, 255)
+            . '|' . md5(mb_strtolower(trim(preg_replace('/\s+/', ' ', $this->message ?? ''))));
+    }
+
+    /**
+     * An error that was marked fixed and comes back is the same fault again, so the old
+     * entry is reopened with a note instead of quietly showing Resolved forever.
+     */
+    private static function reopenIfSeenBefore(SystemLog $fresh): void
+    {
+        $twin = static::where('resolved', true)
+            ->where('id', '!=', $fresh->id)
+            ->where('exception_class', $fresh->exception_class)
+            ->latest('id')
+            ->get()
+            ->first(fn (SystemLog $row) => $row->signature() === $fresh->signature());
+
+        if (! $twin) {
+            return;
+        }
+
+        $note = trim(($twin->note ? $twin->note . "\n" : '')
+            . 'Re-opened automatically: the same error was recorded again on ' . now()->format('M d, Y h:i A') . '.');
+
+        $twin->update([
+            'resolved' => false,
+            'resolved_by' => null,
+            'resolved_at' => null,
+            'note' => mb_substr($note, 0, 2000),
+        ]);
     }
 
     public static function levelFor(Throwable $e): string

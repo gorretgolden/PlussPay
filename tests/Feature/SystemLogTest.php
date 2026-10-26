@@ -172,6 +172,53 @@ class SystemLogTest extends TestCase
         $this->assertSame('Fixed in release 1.4.', $log->note);
     }
 
+    public function test_resolving_one_error_resolves_its_identical_twins_too(): void
+    {
+        $first = $this->error('error', 'Same fault', 'RuntimeException', '/app/a.php', Carbon::now());
+        $twin = $this->error('error', 'Same fault', 'RuntimeException', '/app/a.php', Carbon::now());
+        $other = $this->error('error', 'Different fault', 'RuntimeException', '/app/a.php', Carbon::now());
+
+        $this->actingAs($this->superAdmin())
+            ->patch("/admin/system-logs/{$first->id}/resolve", ['note' => 'Deployed the fix.'])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Error marked resolved. 1 matching entry resolved too.');
+
+        $this->assertTrue($first->fresh()->resolved);
+        $this->assertTrue($twin->fresh()->resolved);
+        $this->assertFalse($other->fresh()->resolved);
+    }
+
+    public function test_a_resolved_error_that_comes_back_is_reopened_with_a_note(): void
+    {
+        $old = $this->error('error', 'Disk unreadable', 'RuntimeException', '/app/a.php', Carbon::now());
+        $old->update(['resolved' => true, 'resolved_at' => now(), 'note' => 'Replaced the disk.']);
+
+        report(new \RuntimeException('Disk unreadable'));
+
+        $fresh = $old->fresh();
+
+        $this->assertFalse($fresh->resolved);
+        $this->assertNull($fresh->resolved_at);
+        $this->assertStringContainsString('Replaced the disk.', $fresh->note);
+        $this->assertStringContainsString('Re-opened automatically', $fresh->note);
+    }
+
+    public function test_the_print_sheet_is_super_admin_only_and_carries_the_filters(): void
+    {
+        $this->error('critical', 'Print me', 'QueryException', '/app/a.php', Carbon::now());
+        $this->error('warning', 'Leave me out', 'RuntimeException', '/app/b.php', Carbon::now());
+
+        $this->actingAs($this->superAdmin())
+            ->get('/admin/system-logs/print?level=critical')
+            ->assertOk()
+            ->assertSee('Print me')
+            ->assertDontSee('Leave me out');
+
+        $this->actingAs($this->role('admin'))
+            ->get('/admin/system-logs/print')
+            ->assertForbidden();
+    }
+
     public function test_the_page_still_surfaces_the_raw_log_tail_as_a_secondary_source(): void
     {
         File::put($this->dir . '/laravel.log', "[2026-10-08 12:00:00] local.ERROR: Only in the file, never caught\n");

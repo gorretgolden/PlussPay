@@ -35,6 +35,17 @@ class SystemLogController extends Controller
         return view('admin.system-logs', compact('logs', 'counts', 'meta', 'fileEntries'));
     }
 
+    /**
+     * A printable sheet of the filtered errors. The browser's print dialog turns it into
+     * a PDF, so no PDF package has to live on the server.
+     */
+    public function print(Request $request)
+    {
+        $logs = SystemLog::with('resolver')->filtered($request)->latest()->get();
+
+        return view('admin.system-logs-print', compact('logs'));
+    }
+
     public function resolve(Request $request, SystemLog $systemLog)
     {
         $validated = $request->validate([
@@ -48,6 +59,26 @@ class SystemLogController extends Controller
             'note' => $validated['note'] ?? $systemLog->note,
         ]);
 
-        return back()->with('success', 'Error marked resolved.');
+        // The same fault usually leaves several rows; closing one closes its twins too.
+        $twins = SystemLog::where('resolved', false)
+            ->where('id', '!=', $systemLog->id)
+            ->where('exception_class', $systemLog->exception_class)
+            ->get()
+            ->filter(fn (SystemLog $row) => $row->signature() === $systemLog->signature());
+
+        foreach ($twins as $twin) {
+            $twin->update([
+                'resolved' => true,
+                'resolved_by' => $request->user()->id,
+                'resolved_at' => now(),
+                'note' => $validated['note'] ?? $twin->note,
+            ]);
+        }
+
+        $message = $twins->count() > 0
+            ? 'Error marked resolved. ' . $twins->count() . ' matching ' . ($twins->count() === 1 ? 'entry' : 'entries') . ' resolved too.'
+            : 'Error marked resolved.';
+
+        return back()->with('success', $message);
     }
 }

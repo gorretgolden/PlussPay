@@ -17,8 +17,12 @@
         <h1 class="text-2xl font-bold text-gray-900">System Errors</h1>
         <p class="text-gray-600">Unhandled exceptions and failed jobs, newest first</p>
     </div>
-    <a href="{{ route('export.system-logs', request()->query()) }}"
-        class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
+    <div class="flex gap-2">
+        <a href="{{ route('admin.system-logs.print', request()->query()) }}" target="_blank"
+            class="bg-gray-700 text-white px-4 py-2 rounded-md text-sm hover:bg-gray-600">Export PDF</a>
+        <a href="{{ route('export.system-logs', request()->query()) }}"
+            class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
+    </div>
 </div>
 
 @include('admin.partials._logs-tabs')
