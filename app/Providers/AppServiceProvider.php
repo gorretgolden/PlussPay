@@ -127,7 +127,26 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.app', function ($view) {
             $user = auth()->user();
 
-            if (!$user || !Gate::any(ActivityNews::AUDIENCE)) {
+            if (!$user) {
+                return;
+            }
+
+            // The Transactions link carries the number of bookings taken today, counted inside
+            // the reader's own reach, so a desk sees the day's traffic without opening the book.
+            // It sits outside the news gate below: a plain agent is not on the receiving end of
+            // any office news but still owns a till.
+            if ($user->can('view-transactions')) {
+                try {
+                    $view->with('todayTransactions', Transaction::query()
+                        ->visibleTo($user)
+                        ->whereDate('created_at', today())
+                        ->count());
+                } catch (\Throwable) {
+                    // transactions not migrated yet on a fresh deploy; show no badge.
+                }
+            }
+
+            if (!Gate::any(ActivityNews::AUDIENCE)) {
                 return;
             }
 
