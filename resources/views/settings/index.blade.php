@@ -182,7 +182,7 @@
                             @elseif ($tab === 'datetime')
                                 <div class="self-end rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-600">
                                     <p class="text-xs mb-1">Current system time</p>
-                                    <p class="font-medium tabular-nums">{{ now()->format('D d M Y, H:i') }}</p>
+                                    <p class="font-medium tabular-nums">{{ now()->format('D d M Y, g:i A') }}</p>
                                 </div>
                             @endif
                         </div>
