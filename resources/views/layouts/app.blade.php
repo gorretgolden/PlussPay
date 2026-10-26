@@ -256,7 +256,7 @@
                 @endcanany
 
                 {{-- Settings Group --}}
-                @canany(['view-settings', 'view-exchange-rates', 'manage-expense-categories'])
+                @canany(['view-settings', 'view-exchange-rates', 'view-expenses'])
                 <div>
                     <button type="button" onclick="toggleSettingsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('settings.*') || request()->routeIs('exchange-rates.*') || request()->routeIs('expense-categories.*') ? 'bg-green-800' : '' }}">
                         <span class="flex items-center">
@@ -281,7 +281,7 @@
                         @endcan
                         {{-- The heads are the list an expense has to fall under, so it is set up
                              here once by an admin rather than typed at every booking. --}}
-                        @can('manage-expense-categories')
+                        @can('view-expenses')
                         <a href="{{ route('expense-categories.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('expense-categories.*') ? 'active' : '' }}">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
                             Expense categories

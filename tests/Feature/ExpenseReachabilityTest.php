@@ -91,9 +91,11 @@ class ExpenseReachabilityTest extends TestCase
         $admin = $this->html($this->user('admin', 'Admin One'));
         $this->assertMatchesRegularExpression('#<a href="[^"]+/expenses/categories" class="sidebar-sublink[^"]*">#', $admin);
 
-        // An accountant reads the spending book but neither owns the heads nor writes in the book.
+        // An accountant reads the spending book without owning the list, so the same link opens
+        // the read-only page: seeing the categories is behind view-expenses, changing them stays
+        // behind manage-expense-categories.
         $accountant = $this->html($this->user('accountant', 'Grace Naigaga'));
-        $this->assertStringNotContainsString('/expenses/categories', $accountant);
+        $this->assertMatchesRegularExpression('#<a href="[^"]+/expenses/categories" class="sidebar-sublink[^"]*">#', $accountant);
     }
 
     public function test_quick_actions_offer_a_role_only_the_things_it_may_do(): void

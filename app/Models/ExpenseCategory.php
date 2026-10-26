@@ -14,7 +14,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class ExpenseCategory extends Model
 {
-    protected $fillable = ['name', 'is_active', 'created_by'];
+    protected $fillable = ['name', 'is_active', 'created_by', 'updated_by'];
+
+    protected static function booted(): void
+    {
+        static::updating(function (self $category): void {
+            if (! $category->isDirty('updated_by') && ($editor = auth()->id())) {
+                $category->updated_by = $editor;
+            }
+        });
+    }
 
     protected $casts = ['is_active' => 'boolean'];
 
@@ -26,6 +35,11 @@ class ExpenseCategory extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function editor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 
     /** Everything in use, plus whatever a caller has already picked, so a choice is never dropped. */

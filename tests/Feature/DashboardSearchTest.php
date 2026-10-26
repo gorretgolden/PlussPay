@@ -62,9 +62,12 @@ class DashboardSearchTest extends TestCase
     {
         $html = $this->board('agent');
 
-        // The Settings group is gated away from an agent, and since the search reads the
-        // sidebar itself, the box cannot offer what the sidebar does not render.
-        $this->assertStringNotContainsString('id="settingsGroup"', $html);
+        // The Settings group opens for an agent only far enough to show the expense categories
+        // they may read; every other entry inside stays behind its own gate. The search reads the
+        // sidebar itself, so the box cannot offer what the sidebar does not render.
+        $this->assertStringContainsString('id="settingsGroup"', $html);
+        $this->assertStringContainsString('Expense categories', $html);
+        $this->assertStringNotContainsString('System Settings', $html);
         $this->assertStringContainsString('id="dashboardSearch"', $html);
     }
 
