@@ -247,6 +247,20 @@ class TransactionDeskTest extends TestCase
         $this->assertStringNotContainsString('Uganda', $chinaText);
     }
 
+    public function test_the_money_strip_reads_every_figure_from_the_left_edge(): void
+    {
+        $boss = $this->user('superadmin', 'The Boss');
+        $office = $this->user('admin', 'Desk Admin');
+
+        $this->book($office, ['agent_id' => 'counter']);
+
+        $strip = $this->strip($this->actingAs($boss)->get('/transactions')->getContent());
+
+        // The card reads from the left like the rest of the page, so no cell in it may sit
+        // right-aligned against the table's far edge.
+        $this->assertStringNotContainsString('text-right', $strip);
+    }
+
     public function test_a_cancelled_booking_counts_as_a_booking_and_not_as_money(): void
     {
         $boss = $this->user('superadmin', 'The Boss');

@@ -185,11 +185,11 @@
                 <thead>
                     <tr class="border-y border-gray-100 bg-gray-50/80 text-[11px] uppercase tracking-wide text-gray-500">
                         <th scope="col" class="py-2.5 pl-4 pr-3 text-left font-semibold sm:pl-5">Desk</th>
-                        <th scope="col" class="px-3 py-2.5 text-right font-semibold">Bookings</th>
-                        <th scope="col" class="px-3 py-2.5 text-right font-semibold" title="Cash handed over in shillings, with the charge still inside it">Shillings</th>
-                        <th scope="col" class="px-3 py-2.5 text-right font-semibold" title="Dollars handed over on a dollar booking">Dollars</th>
-                        <th scope="col" class="px-3 py-2.5 text-right font-semibold" title="What this desk kept from the money it took in">Charges</th>
-                        <th scope="col" class="py-2.5 pl-3 pr-4 text-right font-semibold sm:pr-5" title="What the transfers priced here promise to receivers in China">Yuan to China</th>
+                        <th scope="col" class="px-3 py-2.5 text-left font-semibold">Bookings</th>
+                        <th scope="col" class="px-3 py-2.5 text-left font-semibold" title="Cash handed over in shillings, with the charge still inside it">Shillings</th>
+                        <th scope="col" class="px-3 py-2.5 text-left font-semibold" title="Dollars handed over on a dollar booking">Dollars</th>
+                        <th scope="col" class="px-3 py-2.5 text-left font-semibold" title="What this desk kept from the money it took in">Charges</th>
+                        <th scope="col" class="py-2.5 pl-3 pr-4 text-left font-semibold sm:pr-5" title="What the transfers priced here promise to receivers in China">Yuan to China</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -206,19 +206,19 @@
                                 <span class="text-sm font-semibold text-gray-900">{{ $row->label }}</span>
                             </span>
                         </td>
-                        <td class="px-3 py-3 text-right">
+                        <td class="px-3 py-3 text-left">
                             <span class="inline-flex min-w-[2rem] justify-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700 tabular-nums transition-colors group-hover:bg-white">{{ number_format((int) $row->bookings) }}</span>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                        <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums">
                             <span class="text-[11px] font-medium text-gray-400">{{ $cashUgx[0] }}</span> <span class="text-sm font-semibold text-gray-900">{{ $cashUgx[1] }}</span>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                        <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums">
                             <span class="text-[11px] font-medium text-gray-400">{{ $cashUsd[0] }}</span> <span class="text-sm font-semibold text-gray-900">{{ $cashUsd[1] }}</span>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                        <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums">
                             <span class="text-[11px] font-medium text-gray-400">{{ $charges[0] }}</span> <span class="text-sm font-semibold text-gray-900">{{ $charges[1] }}</span>
                         </td>
-                        <td class="whitespace-nowrap py-3 pl-3 pr-4 text-right text-sm font-semibold text-gray-900 tabular-nums sm:pr-5">{{ $cny($row->rmb_out) }}</td>
+                        <td class="whitespace-nowrap py-3 pl-3 pr-4 text-left text-sm font-semibold text-gray-900 tabular-nums sm:pr-5">{{ $cny($row->rmb_out) }}</td>
                     </tr>
                     @endforeach
                     @if($deskRows->count() > 1)
@@ -229,19 +229,19 @@
                                 <span class="text-sm font-semibold text-green-900">Both desks</span>
                             </span>
                         </td>
-                        <td class="px-3 py-3 text-right">
+                        <td class="px-3 py-3 text-left">
                             <span class="inline-flex min-w-[2rem] justify-center rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-green-900 tabular-nums ring-1 ring-inset ring-green-200">{{ number_format((int) $all['bookings']) }}</span>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                        <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums">
                             <span class="text-[11px] font-medium text-gray-500">{{ $totalUgx[0] }}</span> <span class="text-sm font-bold text-gray-900">{{ $totalUgx[1] }}</span>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                        <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums">
                             <span class="text-[11px] font-medium text-gray-500">{{ $totalUsd[0] }}</span> <span class="text-sm font-bold text-gray-900">{{ $totalUsd[1] }}</span>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                        <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums">
                             <span class="text-[11px] font-medium text-gray-500">{{ $totalCharges[0] }}</span> <span class="text-sm font-bold text-gray-900">{{ $totalCharges[1] }}</span>
                         </td>
-                        <td class="whitespace-nowrap py-3 pl-3 pr-4 text-right text-sm font-bold text-gray-900 tabular-nums sm:pr-5">{{ $cny($all['rmb_out']) }}</td>
+                        <td class="whitespace-nowrap py-3 pl-3 pr-4 text-left text-sm font-bold text-gray-900 tabular-nums sm:pr-5">{{ $cny($all['rmb_out']) }}</td>
                     </tr>
                     @endif
                 </tbody>
