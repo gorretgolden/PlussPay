@@ -375,6 +375,7 @@ class DashboardController extends Controller
         return [
             'sent' => "COALESCE(SUM(CASE WHEN status = 'completed' THEN {$principal} ELSE 0 END), 0)",
             'fee' => "COALESCE(SUM(CASE WHEN status = 'completed' THEN {$fee} ELSE 0 END), 0)",
+            'pending' => "COALESCE(SUM(CASE WHEN status = 'pending' THEN {$principal} ELSE 0 END), 0)",
         ];
     }
 
@@ -421,14 +422,16 @@ class DashboardController extends Controller
      * same figures are not printed in three separate blocks that each need their own label.
      *
      * This is the only money query on the page: the flat stats the Reports cross-check reads
-     * are named out of the all-time and today windows rather than summed again. Pending and
-     * cancelled transfers are counted for the status line and left out of every money figure.
+     * are named out of the all-time and today windows rather than summed again. Pending
+     * transfers are counted and summed so the To Be Received card can show money still to
+     * send, and its stamp is the newest pending booking; cancelled ones only feed the status
+     * line and stay out of every money figure.
      *
-     * @return array<string, array<string, float|int>>
+     * @return array<string, array<string, float|int|\Illuminate\Support\Carbon|null>>
      */
     private function metricWindows(User $user, ?float $usdToUgx): array
     {
-        ['sent' => $ugxSent, 'fee' => $ugxRevenue] = $this->ugxTotals($usdToUgx);
+        ['sent' => $ugxSent, 'fee' => $ugxRevenue, 'pending' => $ugxPending] = $this->ugxTotals($usdToUgx);
 
         $windows = [
             'today' => fn (Builder $q) => $q->whereDate('created_at', today()),
@@ -448,7 +451,10 @@ class DashboardController extends Controller
                     COALESCE(SUM(CASE WHEN status = 'completed' THEN total_usd_equivalent ELSE 0 END), 0) as sent_usd,
                     COALESCE(SUM(CASE WHEN status = 'completed' THEN rmb_amount ELSE 0 END), 0) as rmb,
                     {$ugxRevenue} as charge_ugx,
-                    COALESCE(SUM(CASE WHEN status = 'completed' THEN charge_amount ELSE 0 END), 0) as charge_usd
+                    COALESCE(SUM(CASE WHEN status = 'completed' THEN charge_amount ELSE 0 END), 0) as charge_usd,
+                    {$ugxPending} as pending_ugx,
+                    COALESCE(SUM(CASE WHEN status = 'pending' THEN total_usd_equivalent ELSE 0 END), 0) as pending_usd,
+                    MAX(CASE WHEN status = 'pending' THEN created_at ELSE NULL END) as latest_pending_at
                 ")
                 // The yuan each booking promised splits three ways by how far it has actually
                 // travelled, and the six figures come off the same rows as the totals above.
@@ -468,6 +474,9 @@ class DashboardController extends Controller
                 'rmb' => (float) $row['rmb'],
                 'charge_ugx' => (float) $row['charge_ugx'],
                 'charge_usd' => (float) $row['charge_usd'],
+                'pending_ugx' => (float) $row['pending_ugx'],
+                'pending_usd' => (float) $row['pending_usd'],
+                'latest_at' => $row['latest_pending_at'] ? \Illuminate\Support\Carbon::parse($row['latest_pending_at']) : null,
                 'yuan_in_uganda' => (float) $row['rmb_in_uganda'],
                 'yuan_in_china' => (float) $row['rmb_in_china'],
                 'yuan_paid' => (float) $row['rmb_paid'],

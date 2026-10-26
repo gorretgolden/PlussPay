@@ -38,6 +38,9 @@
         $cards = [
             ['Completed', number_format($t['completed']), 'text-gray-900'],
             ['Sent', $money($t['sent_ugx'], $t['sent_usd'], 0), 'text-gray-900'],
+            // Cash the senders handed over that is still waiting to be moved, with the age of the
+            // newest waiting booking so a desk can see how fresh the pile is.
+            ['To Be Received', $money($t['pending_ugx'], $t['pending_usd'], 0), 'text-gray-900', 'money to be sent', $t['latest_at']],
             // The yuan a booking promised is one figure, but it is in three different hands
             // depending on how far the money has actually travelled, so it is shown as three cards
             // rather than one total that reads as if China already has it.
@@ -507,12 +510,15 @@
     <div role="tabpanel" id="panel-{{ $key }}" aria-labelledby="tab-{{ $key }}" @if(! $loop->first) hidden @endif>
         <div class="grid grid-cols-[repeat(auto-fit,minmax(min({{ $panel['minCol'] }},100%),1fr))] gap-4">
             @foreach($panel['cards'] as $card)
-            @php [$cardLabel, $cardValue, $cardTone, $cardNote] = array_pad($card, 4, null); @endphp
+            @php [$cardLabel, $cardValue, $cardTone, $cardNote, $cardStamp] = array_pad($card, 5, null); @endphp
             <div class="stat-card min-w-0 rounded-lg border border-gray-200 p-4">
                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $cardLabel }}</div>
                 <div class="stat-value mt-2 font-bold {{ $cardTone }} tabular-nums whitespace-nowrap" style="--len: {{ strlen($cardValue) }}">{{ $cardValue }}</div>
                 @if($cardNote !== null)
                 <div class="text-xs text-gray-500 mt-1">{{ $cardNote }}</div>
+                @endif
+                @if($cardStamp !== null)
+                <x-wallet-updated :at="$cardStamp" class="mt-1 text-xs" />
                 @endif
             </div>
             @endforeach
