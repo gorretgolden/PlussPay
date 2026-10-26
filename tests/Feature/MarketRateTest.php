@@ -269,6 +269,34 @@ class MarketRateTest extends TestCase
             ->assertDontSee('Recent daily readings');
     }
 
+    public function test_the_readings_table_shows_each_days_move_from_the_day_before(): void
+    {
+        $this->snapshot('UGX', 4177.5965, today());
+        $this->snapshot('UGX', 4150.0, today()->subDay());
+        $this->snapshot('UGX', 4150.0, today()->subDays(2));
+        $this->snapshot('RMB', 6.6787, today());
+        $this->snapshot('RMB', 6.70, today()->subDay());
+
+        $this->actingAs($this->user())->get('/settings')
+            ->assertOk()
+            ->assertSee('▲ 27.60')
+            ->assertSee('No change')
+            ->assertSee('▼ 0.0213')
+            ->assertSee('its move from the day before');
+    }
+
+    private function snapshot(string $quote, float $rate, \Illuminate\Support\Carbon $date): void
+    {
+        RateSnapshot::create([
+            'base_currency' => 'USD',
+            'quote_currency' => $quote,
+            'rate' => $rate,
+            'rate_date' => $date->toDateString(),
+            'source' => 'Wise',
+            'fetched_at' => $date->copy()->setTime(8, 0),
+        ]);
+    }
+
     public function test_the_pull_button_records_a_reading_and_returns_to_settings(): void
     {
         $this->fakeFeed();

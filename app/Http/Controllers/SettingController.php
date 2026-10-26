@@ -405,7 +405,52 @@ class SettingController extends Controller
 
         krsort($days);
 
-        return array_slice($days, 0, 14);
+        $list = array_values(array_slice($days, 0, 14));
+
+        // Newest first, so the row after each day is its previous market day.
+        foreach ($list as $index => $day) {
+            $list[$index]['move'] = $this->marketMove($day, $list[$index + 1] ?? null);
+        }
+
+        return $list;
+    }
+
+    /**
+     * The change from the market day before, or null where either side has no
+     * reading. 'flat' means the price did not move.
+     *
+     * @param  array{UGX: string, RMB: string}  $day
+     * @param  array{UGX: string, RMB: string}|null  $previous
+     * @return array{UGX: ?string, RMB: ?string}
+     */
+    private function marketMove(array $day, ?array $previous): array
+    {
+        $move = ['UGX' => null, 'RMB' => null];
+
+        if ($previous === null) {
+            return $move;
+        }
+
+        foreach (['UGX', 'RMB'] as $quote) {
+            if ($day[$quote] === '-' || $previous[$quote] === '-') {
+                continue;
+            }
+
+            $change = (float) str_replace(',', '', $day[$quote]) - (float) str_replace(',', '', $previous[$quote]);
+
+            if ($change == 0.0) {
+                $move[$quote] = 'flat';
+
+                continue;
+            }
+
+            $move[$quote] = ($change > 0 ? '+' : '-')
+                .($quote === 'UGX'
+                    ? number_format(abs($change), 2)
+                    : rtrim(rtrim(number_format(abs($change), 4, '.', ''), '0'), '.'));
+        }
+
+        return $move;
     }
 
     private function marketFigure(float $value, string $quote): string

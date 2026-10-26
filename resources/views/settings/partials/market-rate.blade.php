@@ -83,26 +83,34 @@
             <div class="mt-3 overflow-x-auto">
                 <table class="min-w-full text-xs">
                     <thead>
-                        <tr class="text-left text-gray-500">
-                            <th scope="col" class="py-1 pr-4 font-medium">Day</th>
-                            <th scope="col" class="py-1 pr-4 font-medium">USD → UGX</th>
-                            <th scope="col" class="py-1 pr-4 font-medium">USD → RMB</th>
-                            <th scope="col" class="py-1 font-medium">Pulled</th>
+                        <tr class="border-b border-gray-200 text-left text-gray-500">
+                            <th scope="col" class="py-1.5 pr-4 font-medium">Day</th>
+                            <th scope="col" class="py-1.5 pr-4 font-medium">USD → UGX</th>
+                            <th scope="col" class="py-1.5 pr-4 font-medium">USD → RMB</th>
+                            <th scope="col" class="py-1.5 font-medium">Pulled</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach ($market['history'] as $day)
-                            <tr>
-                                <td class="py-1.5 pr-4 text-gray-900">{{ $day['date']->format('d M Y') }}</td>
-                                <td class="py-1.5 pr-4 tabular-nums">{{ $day['UGX'] }}</td>
-                                <td class="py-1.5 pr-4 tabular-nums">{{ $day['RMB'] }}</td>
-                                <td class="py-1.5 text-gray-500">{{ $day['pulled']->format('d M, H:i') }}</td>
+                            <tr class="{{ $loop->first ? 'bg-green-50/50' : '' }}">
+                                <td class="py-2 pr-4 text-gray-900">{{ $day['date']->format('d M Y') }}</td>
+                                @foreach (['UGX', 'RMB'] as $quote)
+                                    <td class="py-2 pr-4">
+                                        <p class="tabular-nums text-gray-900">{{ $day[$quote] }}</p>
+                                        @if ($day['move'][$quote] === 'flat')
+                                            <p class="text-[11px] text-gray-400">No change</p>
+                                        @elseif ($day['move'][$quote] !== null)
+                                            <p class="text-[11px] tabular-nums {{ str_starts_with($day['move'][$quote], '+') ? 'text-green-700' : 'text-red-700' }}">{{ str_starts_with($day['move'][$quote], '+') ? '▲' : '▼' }} {{ ltrim($day['move'][$quote], '+-') }}</p>
+                                        @endif
+                                    </td>
+                                @endforeach
+                                <td class="py-2 text-gray-500">{{ $day['pulled']->format('d M, H:i') }}</td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
-            <p class="mt-2 text-xs text-gray-500">One line per market day, so the direction is the market's daily move, not a repeat of the same figure each hour.</p>
+            <p class="mt-2 text-xs text-gray-500">One line per market day. The small line under each price is its move from the day before.</p>
         </details>
     @endif
 </section>
