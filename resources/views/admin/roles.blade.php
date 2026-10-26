@@ -160,6 +160,9 @@
         }));
         form.addEventListener('submit', async e => {
             e.preventDefault();
+            // An implicit submission (Enter) fired while the permission search box is focused is
+            // a search, not a save. A button click always carries a submitter, so it still saves.
+            if (!e.submitter && e.target.querySelector('.perm-filter') === document.activeElement) return;
             const {added, removed} = changes();
             const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
             const sensitive = added.filter(b => b.dataset.sensitive === '1').map(b => b.dataset.label);

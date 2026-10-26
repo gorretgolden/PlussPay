@@ -48,6 +48,11 @@
         prev.addEventListener('click', () => { page = Math.max(0, page - 1); apply(); });
         next.addEventListener('click', () => { page = Math.min(pageCount - 1, page + 1); apply(); });
         filter?.addEventListener('input', () => { page = 0; apply(); });
+        // The box filters as the person types, so Enter has no job here. Without this guard an
+        // Enter can fire the surrounding form's save flow while a search is sitting in the box.
+        filter?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') event.preventDefault();
+        });
 
         groups[0].before(bar);
         apply();
