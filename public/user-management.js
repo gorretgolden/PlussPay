@@ -311,6 +311,15 @@
         const loading = one('#users-loading');
         const status = one('#users-request-status');
         let fetchController, searchTimer, requestVersion = 0;
+        all('[data-users-card]', directory).forEach(card => {
+            card.addEventListener('click', event => {
+                event.preventDefault();
+                all('input:not([type=hidden]),select', filter).forEach(input => input.value = '');
+                if (card.dataset.filterRole) one('[name=role]', filter).value = card.dataset.filterRole;
+                if (card.dataset.filterCountry) one('[name=country]', filter).value = card.dataset.filterCountry;
+                search();
+            });
+        });
         function closeMenus(focus = false) {
             all('[data-user-menu]', directory).forEach(button => { if (button.getAttribute('aria-expanded') === 'true' && focus) button.focus(); button.setAttribute('aria-expanded', 'false'); });
             all('.user-menu', directory).forEach(menu => menu.hidden = true);

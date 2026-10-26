@@ -97,6 +97,28 @@ class UserDetailsPageTest extends TestCase
         $this->assertSame($editor->name, $targetRow[11]);
     }
 
+    public function test_the_summary_cards_count_each_desk_and_link_to_the_filter(): void
+    {
+        $admin = $this->user('admin');
+        $this->user('agent', ['country' => 'UG']);
+        $this->user('agent', ['country' => 'UG']);
+        $this->user('agent', ['country' => 'CN']);
+        $this->user('accountant', ['country' => 'UG']);
+
+        $html = $this->actingAs($admin)->get(route('users.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Total users', $html);
+        $this->assertStringContainsString('Uganda agents', $html);
+        $this->assertStringContainsString('China agents', $html);
+        $this->assertStringContainsString('Accountants', $html);
+        $this->assertStringContainsString(e(route('users.index', ['role' => 'agent', 'country' => 'UG'])), $html);
+        $this->assertStringContainsString(e(route('users.index', ['role' => 'agent', 'country' => 'CN'])), $html);
+        $this->assertStringContainsString(e(route('users.index', ['role' => 'accountant'])), $html);
+
+        $filtered = $this->actingAs($admin)->get(route('users.index', ['role' => 'agent', 'country' => 'UG']));
+        $this->assertStringContainsString('2 accounts', $filtered->getContent());
+    }
+
     public function test_the_users_table_links_each_name_to_the_details_page(): void
     {
         $admin = $this->user('admin');

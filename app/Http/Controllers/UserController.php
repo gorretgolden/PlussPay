@@ -53,11 +53,18 @@ class UserController extends Controller
 
         $roles = Role::pluck('name');
 
+        $summary = [
+            'total' => User::count(),
+            'uganda_agents' => User::role('agent')->where('country', 'UG')->count(),
+            'china_agents' => User::role('agent')->where('country', 'CN')->count(),
+            'accountants' => User::role('accountant')->count(),
+        ];
+
         if ($request->header('X-Users-Partial') === '1') {
             return response()->view('users.partials.table', compact('users', 'roles'))->header('Cache-Control', 'no-store');
         }
 
-        return view('users.index', compact('users', 'roles'));
+        return view('users.index', compact('users', 'roles', 'summary'));
     }
 
     public function show(User $user)

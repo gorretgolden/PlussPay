@@ -9,6 +9,24 @@
             @can('create-user')<a href="{{ route('users.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Add User</a>@endcan
         </div>
     </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <a href="{{ route('users.index') }}" data-users-card class="block bg-white rounded-lg shadow p-4 border border-transparent hover:border-green-700">
+            <p class="text-2xl font-bold text-gray-900">{{ $summary['total'] }}</p>
+            <p class="text-sm text-gray-500 mt-1">Total users</p>
+        </a>
+        <a href="{{ route('users.index', ['role' => 'agent', 'country' => 'UG']) }}" data-users-card data-filter-role="agent" data-filter-country="UG" class="block bg-white rounded-lg shadow p-4 border border-transparent hover:border-green-700">
+            <p class="text-2xl font-bold text-gray-900">{{ $summary['uganda_agents'] }}</p>
+            <p class="text-sm text-gray-500 mt-1">Uganda agents</p>
+        </a>
+        <a href="{{ route('users.index', ['role' => 'agent', 'country' => 'CN']) }}" data-users-card data-filter-role="agent" data-filter-country="CN" class="block bg-white rounded-lg shadow p-4 border border-transparent hover:border-green-700">
+            <p class="text-2xl font-bold text-gray-900">{{ $summary['china_agents'] }}</p>
+            <p class="text-sm text-gray-500 mt-1">China agents</p>
+        </a>
+        <a href="{{ route('users.index', ['role' => 'accountant']) }}" data-users-card data-filter-role="accountant" class="block bg-white rounded-lg shadow p-4 border border-transparent hover:border-green-700">
+            <p class="text-2xl font-bold text-gray-900">{{ $summary['accountants'] }}</p>
+            <p class="text-sm text-gray-500 mt-1">Accountants</p>
+        </a>
+    </div>
     <form id="user-filters" method="GET" action="{{ route('users.index') }}" class="bg-white rounded-lg shadow p-4 mb-5">
         <div class="user-filter-grid">
             <div class="user-field user-search"><label for="user-search">Search users</label><input id="user-search" type="search" name="search" value="{{ request('search') }}" placeholder="Name, email or phone" autocomplete="off"></div>
