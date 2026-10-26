@@ -44,7 +44,11 @@ class MarketRateTest extends TestCase
 
     private function fakeFeed(float $ugx = 4177.5965, float $cny = 6.6787, ?string $date = null): void
     {
+        $wiseTime = \Illuminate\Support\Carbon::parse($date ?? today()->toDateString())->startOfDay()->getTimestamp() * 1000;
+
         Http::fake([
+            '*target=UGX*' => Http::response(['value' => $ugx, 'time' => $wiseTime]),
+            '*target=CNY*' => Http::response(['value' => $cny, 'time' => $wiseTime]),
             '*latest.currency-api.pages.dev*' => Http::response([
                 'date' => $date ?? today()->toDateString(),
                 'usd' => ['ugx' => $ugx, 'cny' => $cny],
@@ -60,7 +64,7 @@ class MarketRateTest extends TestCase
         ]);
     }
 
-    public function test_a_pull_records_both_market_rates_with_source_and_market_day(): void
+    public function test_a_pull_reads_wise_first_and_records_source_and_market_day(): void
     {
         $this->fakeFeed(date: '2026-10-21');
 
@@ -72,14 +76,16 @@ class MarketRateTest extends TestCase
         $this->assertSame('USD', $ugx->base_currency);
         $this->assertEqualsWithDelta(4177.5965, (float) $ugx->rate, 0.00000001);
         $this->assertSame('2026-10-21', $ugx->rate_date->toDateString());
-        $this->assertSame('currency-api.pages.dev', $ugx->source);
+        $this->assertSame('Wise', $ugx->source);
         $this->assertNotNull($ugx->fetched_at);
         $this->assertEqualsWithDelta(6.6787, (float) $rmb->rate, 0.00000001);
+        $this->assertSame('Wise', $rmb->source);
     }
 
-    public function test_the_second_feed_is_used_when_the_first_is_down(): void
+    public function test_the_next_feed_is_used_when_the_ones_before_it_are_down(): void
     {
         Http::fake([
+            '*target=UGX*' => Http::response('unavailable', 503),
             '*currency-api.pages.dev*' => Http::response('unavailable', 503),
             '*open.er-api.com*' => Http::response([
                 'result' => 'success',
@@ -129,7 +135,7 @@ class MarketRateTest extends TestCase
         $this->assertEqualsWithDelta(4300.0, (float) $live->sell_rate, 0.000001);
 
         $log = ActivityLog::where('action', 'market_buying_rate_applied')->sole();
-        $this->assertStringContainsString('currency-api.pages.dev', $log->description);
+        $this->assertStringContainsString('Wise', $log->description);
         $this->assertStringContainsString('4,177.60', $log->description);
     }
 

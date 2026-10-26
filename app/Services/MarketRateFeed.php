@@ -22,8 +22,10 @@ class MarketRateFeed
 
     /**
      * The mid-market dollar price from the first source that answers with usable
-     * figures. Google's converter has no rate API, so this reads the same kind of
-     * open mid-market figure and names the source that supplied it.
+     * figures. Wise is read first because it serves the live interbank price the
+     * moment it moves, where the open daily feeds quote a fixing that can lag the
+     * market by a day or more. The name of the source that supplied the figures
+     * travels with them onto the rates page.
      *
      * @return array{rates: array<string, float>, source: string, rate_date: string}
      */
@@ -41,10 +43,28 @@ class MarketRateFeed
                     continue;
                 }
 
-                $reading = $this->read($source['shape'], $response, $source['name']);
+                if ($source['shape'] === 'wise') {
+                    // Wise quotes one pair per call, so the yuan price is asked for
+                    // beside the shilling price before either figure is read.
+                    $rmbResponse = Http::timeout(8)->acceptJson()->get($source['rmb']);
 
-                if ($reading !== null) {
-                    return $reading;
+                    if (! $rmbResponse->successful()) {
+                        $errors[] = $source['name'].' answered '.$rmbResponse->status().' on the yuan price.';
+
+                        continue;
+                    }
+
+                    $reading = $this->readWise($response, $rmbResponse, $source['name']);
+
+                    if ($reading !== null) {
+                        return $reading;
+                    }
+                } else {
+                    $reading = $this->read($source['shape'], $response, $source['name']);
+
+                    if ($reading !== null) {
+                        return $reading;
+                    }
                 }
 
                 $errors[] = $source['name'].' sent figures outside the usable range.';
@@ -84,11 +104,17 @@ class MarketRateFeed
     }
 
     /**
-     * @return array<int, array{name: string, url: string, shape: string}>
+     * @return array<int, array{name: string, url: string, shape: string, rmb?: string}>
      */
     private function sources(): array
     {
         return [
+            [
+                'name' => 'Wise',
+                'url' => 'https://wise.com/rates/live?source=USD&target=UGX',
+                'rmb' => 'https://wise.com/rates/live?source=USD&target=CNY',
+                'shape' => 'wise',
+            ],
             [
                 'name' => 'currency-api.pages.dev',
                 'url' => 'https://latest.currency-api.pages.dev/v1/currencies/usd.json',
@@ -99,6 +125,40 @@ class MarketRateFeed
                 'url' => 'https://open.er-api.com/v6/latest/USD',
                 'shape' => 'flat',
             ],
+        ];
+    }
+
+    /**
+     * Reads the two Wise answers together. The time is a millisecond epoch, and the
+     * date shown on the rates page is the calendar day that moment falls on here.
+     *
+     * @return array{rates: array<string, float>, source: string, rate_date: string}|null
+     */
+    private function readWise(Response $ugxResponse, Response $rmbResponse, string $source): ?array
+    {
+        $ugxData = $ugxResponse->json();
+        $rmbData = $rmbResponse->json();
+
+        $rates = [
+            'UGX' => $this->number(data_get($ugxData, 'value'), 'UGX'),
+            'RMB' => $this->number(data_get($rmbData, 'value'), 'RMB'),
+        ];
+
+        if ($rates['UGX'] === null || $rates['RMB'] === null) {
+            return null;
+        }
+
+        $time = data_get($ugxData, 'time');
+        $rateDate = is_numeric($time)
+            ? CarbonImmutable::createFromTimestampUTC((int) ($time / 1000))
+                ->setTimezone(config('app.timezone'))
+                ->toDateString()
+            : now()->toDateString();
+
+        return [
+            'rates' => $rates,
+            'source' => $source,
+            'rate_date' => $rateDate,
         ];
     }
 

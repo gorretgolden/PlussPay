@@ -73,7 +73,7 @@
         </p>
         <details class="text-xs text-gray-600">
             <summary class="cursor-pointer font-medium text-green-800">Where this rate comes from</summary>
-            <p class="mt-2 max-w-xl">Google's converter does not publish a rate feed. This card reads the same kind of daily mid-market figure from an open currency feed, names the feed and the pull time on every reading, and keeps each reading on record. The desk's selling rate is never changed automatically.</p>
+            <p class="mt-2 max-w-xl">The system asks Wise for the live mid-market price first. If Wise cannot be reached it falls back to open daily feeds, which can lag the live market by a day or more. Every reading names its source and pull time and is kept on record. The desk's selling rate is never changed automatically.</p>
         </details>
     </div>
 
