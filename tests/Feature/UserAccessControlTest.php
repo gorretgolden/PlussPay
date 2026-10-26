@@ -233,7 +233,7 @@ class UserAccessControlTest extends TestCase
         ])->assertSessionHasErrors('email');
 
         $this->assertGuest();
-        $this->assertStringContainsString('between 08:00 to 18:00', $this->flashedError('email'));
+        $this->assertStringContainsString('between 8:00 AM to 6:00 PM', $this->flashedError('email'));
     }
 
     public function test_a_saturday_is_refused_even_during_the_hours(): void
@@ -317,7 +317,7 @@ class UserAccessControlTest extends TestCase
         $this->post(route('users.bulk'), ['action' => 'window_set', 'user_ids' => [$user->id], 'days' => [1, 2, 3, 4, 5], 'allowed_from' => '08:00', 'allowed_to' => '18:00']);
 
         $user = $user->fresh();
-        $this->assertSame('Monday to Friday 08:00 to 18:00', $user->loginWindowSummary());
+        $this->assertSame('Monday to Friday 8:00 AM to 6:00 PM', $user->loginWindowSummary());
 
         $this->post(route('users.bulk'), ['action' => 'window_clear', 'user_ids' => [$user->id]]);
 

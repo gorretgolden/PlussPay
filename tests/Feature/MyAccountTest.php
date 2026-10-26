@@ -100,7 +100,7 @@ class MyAccountTest extends TestCase
         $this->assertStringContainsString($user->phone, $html);
         $this->assertStringContainsString('Super Agent', $html);
         $this->assertStringContainsString('China', $html);
-        $this->assertStringContainsString('Monday to Friday 08:00 to 18:00', $html);
+        $this->assertStringContainsString('Monday to Friday 8:00 AM to 6:00 PM', $html);
         $this->assertStringContainsString('Two-step sign-in', $html);
     }
 

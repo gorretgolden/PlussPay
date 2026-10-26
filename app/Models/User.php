@@ -321,7 +321,16 @@ class User extends Authenticatable
 
     private function timeLabel(): string
     {
-        return ($this->allowed_from ?? '00:00') . ' to ' . ($this->allowed_to ?? '23:59');
+        return $this->twelveHour($this->allowed_from ?? '00:00') . ' to ' . $this->twelveHour($this->allowed_to ?? '23:59');
+    }
+
+    private function twelveHour(string $clock): string
+    {
+        $parts = array_map('intval', explode(':', $clock));
+        $hour = $parts[0] % 12 ?: 12;
+        $minute = str_pad((string) ($parts[1] ?? 0), 2, '0', STR_PAD_LEFT);
+
+        return $hour . ':' . $minute . ' ' . ($parts[0] >= 12 ? 'PM' : 'AM');
     }
 
     private function dayListLabel(): string
