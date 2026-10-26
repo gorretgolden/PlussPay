@@ -19,7 +19,7 @@ class RolePermissionController extends Controller
 {
     public function index(Request $request)
     {
-        $roles = Role::where('guard_name', 'web')->with('permissions')->withCount('users')->orderBy('name')->get();
+        $roles = Role::where('guard_name', 'web')->with('permissions')->withCount('users')->latest('id')->get();
         $permissions = $this->groups();
         $selectedRole = $roles->firstWhere('id', (int) $request->query('role')) ?? $roles->firstWhere('name', 'admin') ?? $roles->first();
 
