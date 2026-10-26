@@ -1,17 +1,17 @@
 @extends('layouts.app')
 
-@section('title', 'Spending Heads')
+@section('title', 'Expense Categories')
 
 @section('content')
 <div class="max-w-3xl mx-auto">
     <div class="mb-6">
-        <p class="text-sm text-gray-500"><a href="{{ route('expenses.index') }}" class="underline hover:text-gray-700">Expenses</a> / Spending heads</p>
-        <h1 class="text-2xl font-bold text-gray-900">Spending Heads</h1>
-        <p class="text-gray-600">The list the expense form offers. Retire a head rather than clearing it away, so the payments already filed under it stay findable.</p>
+        <p class="text-sm text-gray-500"><a href="{{ route('expenses.index') }}" class="underline hover:text-gray-700">Expenses</a> / Expense categories</p>
+        <h1 class="text-2xl font-bold text-gray-900">Expense Categories</h1>
+        <p class="text-gray-600">The list the expense form offers. Retire a category rather than clearing it away, so the payments already filed under it stay findable.</p>
     </div>
 
     <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-3">Add a head</h2>
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Add a category</h2>
         <form method="POST" action="{{ route('expense-categories.store') }}" class="flex flex-col sm:flex-row gap-3">
             @csrf
             <div class="flex-1">
@@ -28,7 +28,7 @@
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Head</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Payments filed</th>
                     <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Offered on the form</th>
                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
@@ -60,7 +60,7 @@
     </div>
 
     @if($unfiled->isNotEmpty())
-    <p class="text-xs text-gray-500 mt-3">Spending already recorded under a name that is not on this list: {{ $unfiled->implode(', ') }}. Add the head if you want it offered again.</p>
+    <p class="text-xs text-gray-500 mt-3">Spending already recorded under a name that is not on this list: {{ $unfiled->implode(', ') }}. Add the category if you want it offered again.</p>
     @endif
 </div>
 @endsection

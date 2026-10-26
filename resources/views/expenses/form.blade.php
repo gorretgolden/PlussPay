@@ -25,7 +25,7 @@
         <p class="text-sm text-gray-500"><a href="{{ route('expenses.index') }}" class="underline hover:text-gray-700">Expenses</a> / {{ $expense ? $expense->reference : 'New' }}</p>
         <h1 class="text-2xl font-bold text-gray-900">{{ $expense ? 'Edit Expense' : 'Record Expense' }}</h1>
         @if($expense)
-            <p class="text-gray-600">Fixing what this entry says: the head it falls under, the details, the date, how it was paid and the slip. The money it moved is already on the books and stays as it was posted.</p>
+            <p class="text-gray-600">Fixing what this entry says: the category it falls under, the details, the date, how it was paid and the slip. The money it moved is already on the books and stays as it was posted.</p>
         @else
         <p class="text-gray-600">{{ $seesAll
             ? 'Money the business spent on itself. Saving this takes the amount straight out of the account that paid for it.'
@@ -46,7 +46,7 @@
                             <option value="{{ $id }}" @selected((int) old('category_id', $expense?->category_id ?? $defaultCategoryId) === (int) $id)>{{ $name }}</option>
                         @endforeach
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">Pick the head it falls under. Anything that does not fit goes under Other with the detail in the description. @can('manage-expense-categories')<a href="{{ route('expense-categories.index') }}" class="underline hover:text-gray-700">Manage the heads</a>@endcan</p>
+                    <p class="text-xs text-gray-500 mt-1">Pick the category it falls under. Anything that does not fit goes under Other with the detail in the description. @can('manage-expense-categories')<a href="{{ route('expense-categories.index') }}" class="underline hover:text-gray-700">Manage the categories</a>@endcan</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1" for="expense_date">Date paid *</label>

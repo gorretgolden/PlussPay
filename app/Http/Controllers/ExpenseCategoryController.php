@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /**
- * The spending heads she keeps on the go. A head is retired rather than deleted once it has been
+ * The expense categories she keeps on the go. A category is retired rather than deleted once it has been
  * used, because the payments filed under it have to stay findable.
  */
 class ExpenseCategoryController extends Controller
@@ -32,7 +32,7 @@ class ExpenseCategoryController extends Controller
         ]);
 
         return redirect()->route('expense-categories.index')
-            ->with('success', $validated['name'].' is now a spending head. It can be picked the next time money goes out.');
+            ->with('success', $validated['name'].' is now an expense category. It can be picked the next time money goes out.');
     }
 
     public function update(Request $request, ExpenseCategory $category)
@@ -66,8 +66,8 @@ class ExpenseCategoryController extends Controller
                 Rule::unique('expense_categories', 'name')->ignore($category?->id),
             ],
         ], [
-            'name.required' => 'Give the spending head a name.',
-            'name.unique' => 'That spending head is already on the list.',
+            'name.required' => 'Give the category a name.',
+            'name.unique' => 'That category is already on the list.',
         ]);
     }
 }

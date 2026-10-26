@@ -21,7 +21,7 @@
         <a href="{{ route('expenses.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Record Expense</a>
         @endcan
         @can('manage-expense-categories')
-        <a href="{{ route('expense-categories.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Spending Heads</a>
+        <a href="{{ route('expense-categories.index') }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Expense categories</a>
         @endcan
         @can('export-expenses')
         <a href="{{ route('export.expenses', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
