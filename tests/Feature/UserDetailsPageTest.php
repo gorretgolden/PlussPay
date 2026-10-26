@@ -18,10 +18,10 @@ class UserDetailsPageTest extends TestCase
         foreach (['admin', 'staff'] as $role) {
             Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
-        foreach (['view-users', 'edit-user'] as $permission) {
+        foreach (['view-users', 'edit-user', 'export-users'] as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
-        Role::findByName('admin')->givePermissionTo(['view-users', 'edit-user']);
+        Role::findByName('admin')->givePermissionTo(['view-users', 'edit-user', 'export-users']);
         Role::findByName('staff')->givePermissionTo('view-users');
     }
 
@@ -70,6 +70,31 @@ class UserDetailsPageTest extends TestCase
     {
         $this->get(route('users.show', $this->user('staff')))
             ->assertRedirect(route('login'));
+    }
+
+    public function test_the_users_export_names_who_added_and_edited_each_account(): void
+    {
+        $admin = $this->user('admin');
+        $editor = $this->user('admin');
+        $target = $this->user('staff');
+        $target->forceFill(['created_by' => $admin->id, 'updated_by' => $editor->id])->saveQuietly();
+
+        $response = $this->actingAs($admin)->get(route('export.users'));
+        $response->assertOk();
+
+        $path = tempnam(sys_get_temp_dir(), 'pluspay-') . '.xlsx';
+        file_put_contents($path, $response->streamedContent());
+        $rows = \PhpOffice\PhpSpreadsheet\IOFactory::load($path)->getActiveSheet()->toArray();
+        @unlink($path);
+
+        $header = $rows[4];
+        $this->assertSame('Added By', $header[10]);
+        $this->assertSame('Edited By', $header[11]);
+
+        $targetRow = collect($rows)->first(fn($row) => ($row[1] ?? null) === $target->email);
+        $this->assertNotNull($targetRow);
+        $this->assertSame($admin->name, $targetRow[10]);
+        $this->assertSame($editor->name, $targetRow[11]);
     }
 
     public function test_the_users_table_links_each_name_to_the_details_page(): void

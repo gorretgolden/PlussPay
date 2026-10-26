@@ -147,7 +147,7 @@ class ExportController extends Controller
 
     public function users(Request $request)
     {
-        $rows = User::with('roles')->filtered($request)
+        $rows = User::with(['roles', 'creator', 'editor'])->filtered($request)
             ->latest()
             ->get()
             ->map(fn($u) => [
@@ -161,12 +161,14 @@ class ExportController extends Controller
                 $u->loginWindowSummary(),
                 $u->two_factor_enabled ? 'On' : 'Off',
                 $u->last_login_at?->format('Y-m-d h:i A') ?? 'Never',
+                $u->creator?->name ?? '-',
+                $u->editor?->name ?? '-',
                 $u->created_at->format('Y-m-d'),
             ])
             ->all();
 
         return $this->download('users', [
-            'Name', 'Email', 'Phone', 'Role', 'Country', 'Status', 'Lock', 'Login Hours', 'Two-factor', 'Last Login', 'Added',
+            'Name', 'Email', 'Phone', 'Role', 'Country', 'Status', 'Lock', 'Login Hours', 'Two-factor', 'Last Login', 'Added By', 'Edited By', 'Added',
         ], $rows);
     }
 
