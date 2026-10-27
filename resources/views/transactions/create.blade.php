@@ -74,6 +74,14 @@
         @csrf
         <input type="hidden" name="form_id" value="{{ $formId }}">
 
+        {{-- A money figure outside the desk's bounds is the one mistake that must be seen while
+             it is being typed, not discovered under a dead button two steps later, so the
+             warning sits above every step of the wizard. --}}
+        <div id="bounds_warning" role="alert" hidden class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
+            <svg aria-hidden="true" class="w-5 h-5 text-amber-700 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <p class="text-sm text-amber-900" id="bounds_warning_text"></p>
+        </div>
+
         {{-- Step 1: Sender --}}
         <div class="wizard-step bg-white rounded-lg shadow p-8" id="step-1">
             <h2 class="text-lg font-semibold text-gray-800 mb-6">Sender Details</h2>
@@ -1054,14 +1062,9 @@ function step3Hint() {
     const cash = parseMoney(amount);
     const fee = parseMoney(charge);
     const f = figures();
-    const cb = BOUNDS[f.currency] || BOUNDS.UGX;
-    const min = cb.min || 0;
-    const max = cb.max || 0;
 
     if (!amount.value.trim()) return 'Enter the money handed over.';
     if (!Number.isFinite(cash)) return 'The money handed over must be a number.';
-    if (cash < min) return 'The smallest booking is ' + showMoney(f.currency, min) + '.';
-    if (max > 0 && cash > max) return 'The largest booking is ' + showMoney(f.currency, max) + '.';
     if (!charge.value.trim()) return 'Enter the charge, or 0 if none was taken.';
     if (!Number.isFinite(fee) || fee < 0) return 'The charge cannot be negative.';
     if (f.paidInUgx && cash - fee <= 0) return 'The charge must be less than the money handed over.';
@@ -1076,9 +1079,27 @@ function step3Hint() {
     return '';
 }
 
+// The bounds warning reads off the typed money alone, so it can show on the step the money is
+// typed on, long before the review step is reached.
+function boundsMessage() {
+    const f = figures();
+    const cb = BOUNDS[f.currency] || BOUNDS.UGX;
+    const cash = parseMoney(document.getElementById('amount'));
+
+    if (!Number.isFinite(cash) || cash <= 0) return '';
+    if (cash < (cb.min || 0)) return 'The smallest booking is ' + showMoney(f.currency, cb.min || 0) + '.';
+    if ((cb.max || 0) > 0 && cash > cb.max) return 'The largest booking is ' + showMoney(f.currency, cb.max) + '.';
+
+    return '';
+}
+
 function syncStep3() {
+    const warning = boundsMessage();
+    document.getElementById('bounds_warning_text').textContent = warning;
+    document.getElementById('bounds_warning').hidden = warning === '';
+
     const hint = step3Hint();
-    document.getElementById('next-3').disabled = hint !== '';
+    document.getElementById('next-3').disabled = hint !== '' || warning !== '';
     document.getElementById('step3_hint').textContent = hint;
 }
 

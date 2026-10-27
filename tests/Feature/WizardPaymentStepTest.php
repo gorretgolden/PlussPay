@@ -385,9 +385,27 @@ class WizardPaymentStepTest extends TestCase
         $this->assertStringNotContainsString('md:grid-cols-3', $match[0] ?? '');
 
         $this->assertStringContainsString('id="next-3"', $html);
-        $this->assertStringContainsString("document.getElementById('next-3').disabled = hint !== '';", $html);
+        $this->assertStringContainsString("document.getElementById('next-3').disabled = hint !== '' || warning !== '';", $html);
         $this->assertStringContainsString('← Back', $html);
         $this->assertStringContainsString('Next: Review →', $html);
+    }
+
+    public function test_a_money_figure_outside_the_bounds_warns_at_the_top_of_the_form(): void
+    {
+        $html = $this->page('agent');
+
+        // The warning sits above step 1 so it is on screen while the money is typed on step 2,
+        // not under the review button two steps away.
+        $bannerAt = strpos($html, 'id="bounds_warning"');
+        $step1At = strpos($html, 'id="step-1"');
+        $this->assertNotFalse($bannerAt);
+        $this->assertNotFalse($step1At);
+        $this->assertLessThan($step1At, $bannerAt, 'The warning stands above every wizard step.');
+
+        $this->assertStringContainsString('role="alert"', $html);
+        $this->assertStringContainsString('function boundsMessage()', $html);
+        $this->assertStringContainsString('The smallest booking is', $html);
+        $this->assertStringContainsString('The largest booking is', $html);
     }
 
     /**
