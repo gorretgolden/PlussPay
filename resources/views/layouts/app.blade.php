@@ -406,6 +406,61 @@
 
     <script src="{{ asset('js/admin-forms.js') }}"></script>
     @stack('scripts')
+    {{-- A short two-note chime made in the browser, so no audio file has to be fetched and no
+         sound plays on a page where nothing happened. It sounds when this request finished a
+         transaction (the flash), or when unread news has grown since this desk last drew a page. --}}
+    @php
+        $chime = session('chime') === 'transaction';
+        $chimeUnread = (int) ($sidebarNews['total'] ?? 0);
+    @endphp
+    <script>
+        (function () {
+            var wanted = {{ $chime ? 'true' : 'false' }};
+            try {
+                var total = {{ $chimeUnread }};
+                var last = localStorage.getItem('pluspay:unread');
+                if (last !== null && total > parseInt(last, 10)) wanted = true;
+                localStorage.setItem('pluspay:unread', String(total));
+            } catch (e) {}
+            if (!wanted) return;
+
+            var ctx = null;
+
+            function tone() {
+                if (!ctx) return;
+                var t0 = ctx.currentTime;
+                [[880, 0], [1318.51, 0.14]].forEach(function (note) {
+                    var o = ctx.createOscillator(), g = ctx.createGain();
+                    o.type = 'sine';
+                    o.frequency.value = note[0];
+                    g.gain.setValueAtTime(0.0001, t0 + note[1]);
+                    g.gain.exponentialRampToValueAtTime(0.16, t0 + note[1] + 0.02);
+                    g.gain.exponentialRampToValueAtTime(0.0001, t0 + note[1] + 0.3);
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start(t0 + note[1]); o.stop(t0 + note[1] + 0.35);
+                });
+            }
+
+            function play() {
+                if (window.__chimePlayed) return;
+                var Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) return;
+                if (!ctx) ctx = new Ctx();
+                if (ctx.state === 'suspended') {
+                    ctx.resume();
+                    return;
+                }
+                window.__chimePlayed = true;
+                tone();
+            }
+
+            play();
+            // A browser may hold the first sound until the page sees a gesture, so the first
+            // click or key on the page finishes what the load started.
+            document.addEventListener('pointerdown', play, { once: true, passive: true });
+            document.addEventListener('keydown', play, { once: true, passive: true });
+        })();
+    </script>
     <script>
         function toggleReportsGroup() {
             const group = document.getElementById('reportsGroup');

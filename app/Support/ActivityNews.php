@@ -183,6 +183,13 @@ final class ActivityNews
             return;
         }
 
+        // The desk that just did it hears the confirmation chime on its next page; the readers
+        // hear it the same way, because their unread count has risen since the page they last
+        // drew. The quieter books (expenses, wallets, users, settings) stay quiet.
+        if (in_array($news['section'], ['transfers', 'china', 'uganda'], true)) {
+            session()->flash('chime', 'transaction');
+        }
+
         $audience = self::audience(self::ABILITIES[$news['section']], $log->user_id);
 
         if ($audience->isEmpty()) {
