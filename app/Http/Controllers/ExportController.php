@@ -735,6 +735,7 @@ class ExportController extends Controller
             $sheet->getStyle("A{$totalRow}:B{$totalRow}")->applyFromArray([
                 'font' => ['bold' => true],
                 'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
             ]);
         }
 

@@ -249,7 +249,7 @@ class CashHandoverController extends Controller
             $sheet->getStyle('H2:H'.($row - 1))->getNumberFormat()->setFormatCode('#,##0.00');
             $sheet->getStyle('A2:M'.($row - 1))->applyFromArray([
                 'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
-                'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
             ]);
         }
 

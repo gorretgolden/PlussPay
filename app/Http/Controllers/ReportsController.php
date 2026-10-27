@@ -564,7 +564,7 @@ class ReportsController extends Controller
 
         $sheet->getStyle('A2:R' . ($row - 1))->applyFromArray([
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
-            'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
         ]);
 
         foreach (range('A', 'R') as $colLetter) {
