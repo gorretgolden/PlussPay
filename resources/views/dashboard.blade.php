@@ -319,8 +319,12 @@
      A card is one figure, its stamp and its links. The splits that used to stand under the balance
      (awaiting approval, fees, handed in) live on the wallet page and the reports, so the board
      stays clean. --}}
-@if($wallets !== [])
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+@if($wallets !== [] || $handoverInsight)
+{{-- An agent's hand-in requests span the right section beside their account cards, so the
+     cash they hold and the cash on its way up read as one picture. Every other wallet
+     holder keeps the plain two-across grid. --}}
+<div class="mb-6 {{ $handoverInsight ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-start' : '' }}">
+<div class="{{ $handoverInsight ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 sm:grid-cols-2 gap-4' }}">
     @foreach($wallets as $currency => $account)
     @php
         $balance = (string) $account->balance();
@@ -363,7 +367,6 @@
     </div>
     @endforeach
 </div>
-@endif
 
 {{-- An insight, not a desk: how much of this hand's cash has gone up to the lead agent, in whose
      hands it is sitting now, and how long ago the last one was sent. Every figure is this person's
@@ -379,7 +382,7 @@
     $nilCurrency = array_key_first($wallets) ?? 'UGX';
     $lastSent = $handoverInsight['latest'];
 @endphp
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 mb-6">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 h-fit">
     <div class="flex flex-wrap items-center gap-2">
         <h2 class="text-base font-semibold text-gray-900 mr-auto">Cash You Hand In</h2>
         <a href="{{ route('cash-handovers.index') }}" class="text-sm font-semibold text-green-800 hover:underline">Every hand-in</a>
@@ -408,6 +411,8 @@
     @else
     <p class="text-[13px] text-gray-700 mt-3">Nothing handed in yet. Cash you send stays in your balance until the lead agent approves it.</p>
     @endif
+</div>
+@endif
 </div>
 @endif
 
