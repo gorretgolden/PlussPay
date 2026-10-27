@@ -11,9 +11,11 @@ use App\Models\LoginLog;
 use App\Models\SystemLog;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\ActivityNews;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class DashboardController extends Controller
 {
@@ -187,7 +189,21 @@ class DashboardController extends Controller
             ? $this->agentTakenWindows($usdToUgx)
             : [];
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'chargesCollected', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'greetAs'));
+        // The bell beside the clock opens What Happened, and its badge is the same unread
+        // total the sidebar badges are read from, so the two can never disagree. A desk on
+        // the receiving end of no news gets no bell at all.
+        $bellGate = Gate::any(ActivityNews::AUDIENCE);
+        $bellCount = 0;
+
+        if ($bellGate) {
+            try {
+                $bellCount = ActivityNews::badgeCounts($user)['total'];
+            } catch (\Throwable) {
+                // notifications not migrated yet on a fresh deploy; show no badge.
+            }
+        }
+
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'chargesCollected', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'greetAs', 'bellGate', 'bellCount'));
     }
 
     /**

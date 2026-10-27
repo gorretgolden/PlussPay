@@ -126,9 +126,20 @@
         {{-- Log out and Reload sit here as well as at the bottom of the sidebar, because the
              sidebar is hidden on a phone and the clock line is where eyes already land. --}}
         <div class="flex items-center gap-2 ml-auto sm:ml-0 no-print">
-            {{-- A phone gets the two glyphs at 40px each with the words dropped. Reload is the
-                 solid one, and the sign-out is the ghost that only colours up once it is actually
-                 being aimed at. --}}
+            {{-- A phone gets the glyphs at 40px each with the words dropped. Reload is the
+                 solid one, the bell opens What Happened with its unread count, and the sign-out
+                 is the ghost that only colours up once it is actually being aimed at. --}}
+            @if($bellGate)
+            <a href="{{ route('notifications.index') }}"
+                aria-label="{{ $bellCount > 0 ? 'What happened, '.number_format($bellCount).' unread' : 'What happened' }}"
+                class="relative inline-flex items-center justify-center w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                <span class="hidden sm:inline">What happened</span>
+                @if($bellCount > 0)
+                <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center leading-none tabular-nums">{{ $bellCount > 99 ? '99+' : $bellCount }}</span>
+                @endif
+            </a>
+            @endif
             <button type="button" onclick="reloadDashboard(this)" aria-label="Reload this board"
                 class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold bg-green-800 text-white hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
                 <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
