@@ -36,19 +36,25 @@ class AuditLogController extends Controller
         $actions = collect();
         $suspicious = ['ips' => collect(), 'emails' => collect()];
 
+        // Ten rows is the reading default; a desk tracing a month of trails can widen the page
+        // or take every record at once. Anything else typed in the address bar falls back to ten.
+        $choice = $request->input('per_page', '10');
+        $perPage = match (true) {
+            $choice === '50' => 50,
+            $choice === '100' => 100,
+            $choice === 'all' => null,
+            default => 10,
+        };
+
         if ($tab === 'login') {
-            $logs = LoginLog::with('user')
-                ->filtered($request)
-                ->latest()
-                ->paginate(10)
+            $query = LoginLog::with('user')->filtered($request)->latest();
+            $logs = $query->paginate($perPage ?? max((clone $query)->count(), 1))
                 ->withQueryString();
 
             $suspicious = LoginLog::suspiciousSince();
         } else {
-            $logs = ActivityLog::with(['user', 'transaction'])
-                ->filtered($request)
-                ->latest()
-                ->paginate(10)
+            $query = ActivityLog::with(['user', 'transaction'])->filtered($request)->latest();
+            $logs = $query->paginate($perPage ?? max((clone $query)->count(), 1))
                 ->withQueryString();
 
             $actions = ActivityLog::distinct()->whereNotNull('action')->pluck('action')->sort()->values();

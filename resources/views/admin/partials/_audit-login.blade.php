@@ -53,9 +53,15 @@
             <input type="date" name="date_to" value="{{ request('date_to') }}"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
         </div>
-        @if(request('ip_address'))
-        <input type="hidden" name="ip_address" value="{{ request('ip_address') }}">
-        @endif
+        <div>
+            <label class="block text-sm text-gray-600 mb-1" for="per_page_login">Records per page</label>
+            <select name="per_page" id="per_page_login" onchange="this.form.submit()"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                @foreach(['10' => '10', '50' => '50', '100' => '100', 'all' => 'All records'] as $value => $label)
+                <option value="{{ $value }}" {{ request('per_page', '10') === (string) $value ? 'selected' : '' }}>{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
         <div class="md:col-span-5 flex gap-2">
             <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Filter</button>
             <a href="{{ route('admin.audit-logs', ['tab' => 'login']) }}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300">Reset</a>
