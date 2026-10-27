@@ -372,4 +372,67 @@ class RolePermissionTest extends TestCase
 
         return $names;
     }
+
+    public function test_a_custom_role_can_be_deleted_once_nobody_holds_it(): void
+    {
+        $this->actingAs($this->superadmin());
+        $role = Role::create(['name' => 'desk-lead', 'guard_name' => 'web']);
+
+        $this->delete('/admin/roles/'.$role->id, ['confirm_name' => 'desk-lead'])
+            ->assertRedirect('/admin/roles')
+            ->assertSessionHas('success', 'Role deleted.');
+
+        $this->assertDatabaseMissing('roles', ['id' => $role->id]);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'role_deleted']);
+    }
+
+    public function test_a_role_that_still_has_users_cannot_be_deleted(): void
+    {
+        $this->actingAs($this->superadmin());
+        $role = Role::create(['name' => 'desk-lead', 'guard_name' => 'web']);
+        $holder = User::create([
+            'name' => 'Desk Lead', 'email' => 'lead'.uniqid().'@plussave.test',
+            'password' => 'Password123', 'is_active' => true,
+        ]);
+        $holder->assignRole($role);
+
+        $this->delete('/admin/roles/'.$role->id, ['confirm_name' => 'desk-lead'])
+            ->assertSessionHasErrors('confirm_name');
+
+        $this->assertDatabaseHas('roles', ['id' => $role->id]);
+        $this->assertDatabaseMissing('activity_logs', ['action' => 'role_deleted']);
+    }
+
+    public function test_a_built_in_role_cannot_be_deleted(): void
+    {
+        $this->actingAs($this->superadmin());
+        $role = Role::where('name', 'admin')->sole();
+
+        $this->delete('/admin/roles/'.$role->id, ['confirm_name' => 'admin'])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('roles', ['id' => $role->id]);
+    }
+
+    public function test_the_roles_page_shows_the_delete_action_and_explains_a_held_role(): void
+    {
+        $owner = $this->superadmin();
+        $this->actingAs($owner);
+        $held = Role::create(['name' => 'desk-lead', 'guard_name' => 'web']);
+        $free = Role::create(['name' => 'back-office', 'guard_name' => 'web']);
+        $holder = User::create([
+            'name' => 'Desk Lead', 'email' => 'lead'.uniqid().'@plussave.test',
+            'password' => 'Password123', 'is_active' => true,
+        ]);
+        $holder->assignRole($held);
+
+        $heldHtml = $this->get('/admin/roles?role='.$held->id)->assertOk()->getContent();
+        $this->assertStringContainsString('aria-label="Delete this role"', $heldHtml);
+        $this->assertStringContainsString('still has this role', $heldHtml);
+        $this->assertStringNotContainsString('name="confirm_name"', $heldHtml);
+
+        $freeHtml = $this->get('/admin/roles?role='.$free->id)->assertOk()->getContent();
+        $this->assertStringContainsString('name="confirm_name"', $freeHtml);
+        $this->assertStringContainsString('Delete role permanently', $freeHtml);
+    }
 }

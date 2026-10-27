@@ -18,7 +18,7 @@
     @can('seed-permissions')<form method="POST" action="{{ route('admin.permissions.seed') }}" class="mt-4">@csrf<button class="bg-green-800 text-white px-4 py-3 rounded-lg">Seed default permissions</button></form>@else<p class="text-sm mt-3">Ask a Super Admin to initialize permissions.</p>@endcan
 </div>
 @endif
-<div class="grid grid-cols-1 lg:grid-cols-[17rem_minmax(0,1fr)] gap-6 items-start">
+<div class="grid grid-cols-1 lg:grid-cols-[17rem_minmax(0,1fr)] gap-6">
     <aside class="bg-white border border-gray-200 rounded-xl p-4">
         @if($roles->count() > 8)
         <label class="hidden lg:block text-sm font-semibold text-gray-700 mb-3">Find a role<input id="roleSearch" type="search" placeholder="Search roles by name" class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal"></label>
@@ -49,25 +49,47 @@
         <div class="p-5 sm:p-6 border-b flex justify-between items-start gap-3">
             <div><h2 class="text-xl font-semibold text-gray-900">{{ \App\Http\Controllers\RolePermissionController::displayName($selectedRole->name) }}</h2><p class="text-sm text-gray-500 mt-1">{{ $selectedRole->description ?: 'Define what this team can see and do.' }}</p></div>
             @if(!$super && !in_array($selectedRole->name, ['public', 'customer']))
-            <details class="relative shrink-0"><summary aria-label="Role actions" class="cursor-pointer list-none px-3 py-2 text-xl rounded-lg border [&::-webkit-details-marker]:hidden">⋮</summary>
-                <div class="absolute right-0 top-full mt-2 w-72 max-w-[80vw] bg-white border shadow-lg rounded-lg p-4 z-20 text-sm space-y-4">
-                    @can('edit-role')
-                    @if(!array_key_exists($selectedRole->name, \App\Support\PermissionCatalog::DESCRIPTIONS))
-                    <form method="POST" action="{{ route('admin.roles.rename', $selectedRole) }}" class="space-y-2" data-confirm-title="Rename this role?" data-confirm="The {{ $selectedRole->users_count }} {{ Str::plural('user', $selectedRole->users_count) }} on this role keep their access, only the name changes." data-confirm-ok="Rename role">@csrf @method('PATCH')
-                        <label class="block">New name<input name="name" required maxlength="50" value="{{ \App\Http\Controllers\RolePermissionController::displayName($selectedRole->name) }}" class="w-full border rounded px-2 py-2 mt-1"></label>
-                        <button class="min-h-[44px] text-green-800 font-semibold">Rename role</button>
-                    </form>
-                    @endif
-                    @endcan
-                    @can('delete-role')
-                    @if(!array_key_exists($selectedRole->name, \App\Support\PermissionCatalog::DESCRIPTIONS))
-                    <form method="POST" action="{{ route('admin.roles.destroy', $selectedRole) }}" class="border-t pt-3 space-y-2">@csrf @method('DELETE')
-                        @if($selectedRole->users_count)<p class="text-gray-500">Reassign {{ $selectedRole->users_count }} {{ Str::plural('user', $selectedRole->users_count) }} before deletion.</p>@else<label class="block text-red-800">Type {{ $selectedRole->name }} to delete<input name="confirm_name" required autocomplete="off" class="w-full border rounded px-2 py-2 mt-1"></label><button class="min-h-[44px] text-red-700 font-semibold">Delete role permanently</button>@endif
-                    </form>
-                    @endif
-                    @endcan
-                </div>
-            </details>
+            @php
+                $customRole = !array_key_exists($selectedRole->name, \App\Support\PermissionCatalog::DESCRIPTIONS);
+            @endphp
+            <div class="flex shrink-0 items-center gap-2">
+                @can('edit-role')
+                @if($customRole)
+                <details class="relative">
+                    <summary aria-label="Role actions" class="flex min-h-[44px] cursor-pointer list-none items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 [&::-webkit-details-marker]:hidden">Actions ⋮</summary>
+                    <div class="absolute right-0 top-full z-20 mt-2 w-72 max-w-[80vw] rounded-lg border bg-white p-4 text-sm shadow-lg">
+                        <form method="POST" action="{{ route('admin.roles.rename', $selectedRole) }}" class="space-y-2" data-confirm-title="Rename this role?" data-confirm="The {{ $selectedRole->users_count }} {{ Str::plural('user', $selectedRole->users_count) }} on this role keep their access, only the name changes." data-confirm-ok="Rename role">@csrf @method('PATCH')
+                            <label class="block">New name<input name="name" required maxlength="50" value="{{ \App\Http\Controllers\RolePermissionController::displayName($selectedRole->name) }}" class="w-full border rounded px-2 py-2 mt-1"></label>
+                            <button class="min-h-[44px] text-green-800 font-semibold">Rename role</button>
+                        </form>
+                    </div>
+                </details>
+                @endif
+                @endcan
+                @can('delete-role')
+                @if($customRole)
+                <details class="relative">
+                    <summary aria-label="Delete this role" title="Delete this role" class="flex min-h-[44px] min-w-[44px] cursor-pointer list-none items-center justify-center rounded-lg border border-red-300 px-3 py-2 text-red-700 hover:bg-red-50 [&::-webkit-details-marker]:hidden">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m-9 0l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13M10 11v6M14 11v6"/></svg>
+                    </summary>
+                    <div class="absolute right-0 top-full z-20 mt-2 w-80 max-w-[85vw] rounded-lg border bg-white p-4 text-sm shadow-lg">
+                        @if($selectedRole->users_count)
+                            <p class="font-medium text-gray-900">{{ $selectedRole->users_count }} {{ Str::plural('user', $selectedRole->users_count) }} still {{ $selectedRole->users_count === 1 ? 'has' : 'have' }} this role.</p>
+                            <p class="mt-1 text-gray-600">Move {{ $selectedRole->users_count === 1 ? 'that person' : 'them' }} to another role before deleting.</p>
+                            @can('view-users')<a href="{{ url('/users').'?role='.urlencode($selectedRole->name) }}" class="mt-3 inline-block min-h-[44px] font-semibold text-green-800 underline">View these users</a>@endcan
+                        @else
+                            <form method="POST" action="{{ route('admin.roles.destroy', $selectedRole) }}" class="space-y-2">@csrf @method('DELETE')
+                                <p class="font-medium text-gray-900">Delete {{ \App\Http\Controllers\RolePermissionController::displayName($selectedRole->name) }}?</p>
+                                <p class="text-gray-600">Nobody has this role. This cannot be undone.</p>
+                                <label class="block text-red-800">Type <strong>{{ $selectedRole->name }}</strong> to confirm<input name="confirm_name" required autocomplete="off" class="mt-1 w-full rounded border px-2 py-2"></label>
+                                <button class="min-h-[44px] font-semibold text-red-700">Delete role permanently</button>
+                            </form>
+                        @endif
+                    </div>
+                </details>
+                @endif
+                @endcan
+            </div>
             @endif
         </div>
         @if($super)
