@@ -184,10 +184,21 @@ class DashboardController extends Controller
 
         // The desks the agents answer to get one extra Overview card: the cash those agents
         // collected themselves, principal plus charge, so the whole book's Sent figure can be
-        // told apart from what the agents' hands actually took in.
+        // told apart from what the agents' hands actually took in. The card names the country
+        // the agents stand in, so China desk cash is never read as Uganda counter cash.
         $agentTaken = $user->hasAnyRole(['superadmin', 'admin', 'super-agent'])
             ? $this->agentTakenWindows($usdToUgx)
             : [];
+        $agentTakenCountries = $agentTaken !== []
+            ? User::role(['agent', 'super-agent'])->where('is_active', true)
+                ->distinct()->pluck('country')
+                ->map(fn (?string $code) => User::COUNTRIES[$code ?: User::DEFAULT_COUNTRY] ?? null)
+                ->filter()->unique()->sort()->values()->all()
+            : [];
+
+        // What the two far ends of the corridor have actually handed over, windowed by the day
+        // of the payout itself, because that is the day the money moved.
+        $deskPayouts = $this->payoutWindows($user);
 
         // The bell beside the clock opens What Happened, and its badge is the same unread
         // total the sidebar badges are read from, so the two can never disagree. A desk on
@@ -203,7 +214,7 @@ class DashboardController extends Controller
             }
         }
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'chargesCollected', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'greetAs', 'bellGate', 'bellCount'));
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'chargesCollected', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'agentTakenCountries', 'deskPayouts', 'greetAs', 'bellGate', 'bellCount'));
     }
 
     /**
@@ -568,6 +579,40 @@ class DashboardController extends Controller
         }
 
         return $taken;
+    }
+
+    /**
+     * The two desks' handed-over money per window, in the currency each receiver was actually
+     * paid. A batch that paid yuan and dollars reads as both figures, and a window with nothing
+     * paid reads as nothing rather than a zero that would look like a figure the desk forgot.
+     *
+     * @return array<string, array{china: array<string, string>, uganda: array<string, string>}>
+     */
+    private function payoutWindows(User $user): array
+    {
+        $windows = [
+            'today' => fn (Builder $q) => $q->whereDate('delivered_at', today()),
+            'month' => fn (Builder $q) => $q->whereBetween('delivered_at', [now()->startOfMonth(), now()]),
+            'all' => fn (Builder $q) => $q,
+        ];
+
+        $sums = [];
+
+        foreach ($windows as $window => $restrict) {
+            $rows = $restrict(Transaction::query()
+                ->visibleTo($user)
+                ->where('status', 'completed')
+                ->whereNotNull('delivered_at')
+                ->owingPayout())
+                ->get(['id', 'rmb_amount', 'total_usd_equivalent', 'ugx_amount', 'payout_currency', 'destination']);
+
+            $sums[$window] = [
+                'china' => Transaction::sumPayouts($rows->where('destination', Transaction::TO_CHINA)),
+                'uganda' => Transaction::sumPayouts($rows->where('destination', Transaction::TO_UGANDA)),
+            ];
+        }
+
+        return $sums;
     }
 
     /**

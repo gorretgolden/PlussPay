@@ -50,12 +50,26 @@
                 $t['yuan_in_china_transfers'] . ' waiting to be handed over'],
             ['Yuan Paid In China', '¥' . number_format($t['yuan_paid'], 1), 'text-gray-900',
                 $t['yuan_paid_transfers'] . ' paid to receivers'],
+            // The money the receivers were actually handed at each end, in the currency they
+            // were paid in. These are payouts, not booked yuan: a window with none reads
+            // "nothing" rather than a zero that would look like a forgotten figure.
+            ['Withdrawn In China', \App\Models\Transaction::formatPayouts($deskPayouts[$key]['china']), 'text-gray-900',
+                'handed over to receivers in China'],
+            ['Received In Uganda', \App\Models\Transaction::formatPayouts($deskPayouts[$key]['uganda']), 'text-gray-900',
+                'paid out to receivers from bookings made in China'],
             ['Charge', $money($t['charge_ugx'], $t['charge_usd'], 0), 'text-gray-900'],
         ];
         // The desks the agents answer to get one extra figure: the slice of the window above
-        // that the agents' own hands collected. Everyone else never sees the card at all.
+        // that the agents' own hands collected. Everyone else never sees the card at all. The
+        // title names the country those agents stand in, so the two desks' cash stays apart.
         if (isset($agentTaken[$key])) {
-            $cards[] = ['Taken By Agents', $money($agentTaken[$key], 0, 0), 'text-gray-900', 'principal plus charge collected at the counter'];
+            $takenBy = 'Taken By Agents';
+            if (count($agentTakenCountries) === 1) {
+                $takenBy .= ' In '.$agentTakenCountries[0];
+            } elseif (count($agentTakenCountries) > 1) {
+                $takenBy .= ' In '.implode(' And ', $agentTakenCountries);
+            }
+            $cards[] = [$takenBy, $money($agentTaken[$key], 0, 0), 'text-gray-900', 'principal plus charge collected at the counter'];
         }
         if (isset($profit[$key])) {
             $cards[] = ['FX profit', $shilling($profit[$key]['exchange']), $shillingTone($profit[$key]['exchange'])];
@@ -512,7 +526,9 @@
         <p class="text-xs text-gray-500 mt-3">{{ number_format($panel['pending']) }} pending · {{ number_format($panel['cancelled']) }} cancelled · average transfer {{ $money($panel['avg_ugx'], $panel['avg_usd'], 0) }}</p>
         @if($panel['yuanTotal'] > 0)
         <p class="text-xs text-gray-500 mt-2">The three yuan cards are the same ¥{{ number_format($panel['yuanTotal'], 1) }} of booked yuan split by whose hands it is in: held in Uganda until its
-            dollars are sent, with a desk in China until the receiver is paid, then paid.
+            dollars are sent, with a desk in China until the receiver is paid, then paid. Withdrawn
+            In China and Received In Uganda are the money the receivers were actually handed, in the
+            currency each one was paid.
             @canany(['send-to-china', 'confirm-china-payout'])
             <a href="{{ route('china.index') }}" class="text-green-800 font-medium hover:underline">Move the money at the China Desk</a>.
             @endcanany
