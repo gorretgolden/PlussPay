@@ -38,8 +38,8 @@
         $cards = [
             ['Completed', number_format($t['completed']), 'text-gray-900'],
             ['Sent', $money($t['sent_ugx'], $t['sent_usd'], 0), 'text-gray-900'],
-            // Cash the senders handed over that is still waiting to be moved, with the age of the
-            // newest waiting booking so a desk can see how fresh the pile is.
+            // The whole pile the customer handed over that is still waiting to be moved,
+            // charge and all because they cross together, with the age of the newest booking.
             ['To Be Received', $money($t['pending_ugx'], $t['pending_usd'], 0), 'text-gray-900', 'money to be sent', $t['latest_at']],
             // The yuan a booking promised is one figure, but it is in three different hands
             // depending on how far the money has actually travelled, so it is shown as three cards

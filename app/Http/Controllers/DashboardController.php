@@ -381,7 +381,7 @@ class DashboardController extends Controller
      * price a dollar-funded transfer was sold at lives in rate_sell_ugx; rows booked before
      * that column was filled fall back to today's selling rate.
      *
-     * @return array{sent: string, fee: string}
+     * @return array{sent: string, fee: string, pending: string, pending_fee: string}
      */
     private function ugxTotals(?float $usdToUgx): array
     {
@@ -396,6 +396,7 @@ class DashboardController extends Controller
             'sent' => "COALESCE(SUM(CASE WHEN status = 'completed' THEN {$principal} ELSE 0 END), 0)",
             'fee' => "COALESCE(SUM(CASE WHEN status = 'completed' THEN {$fee} ELSE 0 END), 0)",
             'pending' => "COALESCE(SUM(CASE WHEN status = 'pending' THEN {$principal} ELSE 0 END), 0)",
+            'pending_fee' => "COALESCE(SUM(CASE WHEN status = 'pending' THEN {$fee} ELSE 0 END), 0)",
         ];
     }
 
@@ -443,15 +444,16 @@ class DashboardController extends Controller
      *
      * This is the only money query on the page: the flat stats the Reports cross-check reads
      * are named out of the all-time and today windows rather than summed again. Pending
-     * transfers are counted and summed so the To Be Received card can show money still to
-     * send, and its stamp is the newest pending booking; cancelled ones only feed the status
-     * line and stay out of every money figure.
+     * transfers are counted and summed so the To Be Received card can show the whole pile
+     * still to move, charge and all because they cross together, and its stamp is the newest
+     * pending booking; cancelled ones only feed the status line and stay out of every money
+     * figure.
      *
      * @return array<string, array<string, float|int|\Illuminate\Support\Carbon|null>>
      */
     private function metricWindows(User $user, ?float $usdToUgx): array
     {
-        ['sent' => $ugxSent, 'fee' => $ugxRevenue, 'pending' => $ugxPending] = $this->ugxTotals($usdToUgx);
+        ['sent' => $ugxSent, 'fee' => $ugxRevenue, 'pending' => $ugxPending, 'pending_fee' => $ugxPendingFee] = $this->ugxTotals($usdToUgx);
 
         $windows = [
             'today' => fn (Builder $q) => $q->whereDate('created_at', today()),
@@ -472,8 +474,9 @@ class DashboardController extends Controller
                     COALESCE(SUM(CASE WHEN status = 'completed' THEN rmb_amount ELSE 0 END), 0) as rmb,
                     {$ugxRevenue} as charge_ugx,
                     COALESCE(SUM(CASE WHEN status = 'completed' THEN charge_amount ELSE 0 END), 0) as charge_usd,
-                    {$ugxPending} as pending_ugx,
-                    COALESCE(SUM(CASE WHEN status = 'pending' THEN total_usd_equivalent ELSE 0 END), 0) as pending_usd,
+                    {$ugxPending} + {$ugxPendingFee} as pending_ugx,
+                    COALESCE(SUM(CASE WHEN status = 'pending' THEN total_usd_equivalent ELSE 0 END), 0)
+                        + COALESCE(SUM(CASE WHEN status = 'pending' THEN charge_amount ELSE 0 END), 0) as pending_usd,
                     MAX(CASE WHEN status = 'pending' THEN created_at ELSE NULL END) as latest_pending_at
                 ")
                 // The yuan each booking promised splits three ways by how far it has actually

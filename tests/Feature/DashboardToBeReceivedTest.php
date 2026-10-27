@@ -82,8 +82,9 @@ class DashboardToBeReceivedTest extends TestCase
         $agent = $this->user('agent');
         $admin = $this->user('admin');
 
-        // 300,000 shillings handed over but not yet sent, plus a dollar booking priced at 3760
-        // shillings so the two currencies read off one UGX figure on the card.
+        // 300,000 shillings plus a 10,000 charge handed over but not yet sent, plus a dollar
+        // booking priced at 3760 shillings with no charge of its own, so the two currencies
+        // read off one UGX figure on the card. Principal and charge cross together.
         $this->pendingBooking($agent, 'PS-WAIT-1', []);
         $this->pendingBooking($agent, 'PS-WAIT-2', [
             'currency' => 'USD',
@@ -91,6 +92,8 @@ class DashboardToBeReceivedTest extends TestCase
             'total_usd_equivalent' => '100',
             'rate_sell_ugx' => '3760',
             'rmb_amount' => '724',
+            'charge_rate' => 0,
+            'charge_amount' => 0,
             'charge_ugx' => '0',
         ]);
 
@@ -101,7 +104,7 @@ class DashboardToBeReceivedTest extends TestCase
 
         $this->assertSame(3, substr_count($html, 'To Be Received'), 'the card sits in all three windows.');
         $this->assertSame(3, substr_count($html, 'money to be sent'), 'the note reads money to be sent.');
-        $this->assertSame(3, substr_count($html, 'UGX 676,000'), 'principal from both currencies, charge left out.');
+        $this->assertSame(3, substr_count($html, 'UGX 686,000'), 'principal and charge from both currencies, completed rows left out.');
         // Each window's card carries the age of its newest waiting booking.
         $this->assertSame(
             3,
