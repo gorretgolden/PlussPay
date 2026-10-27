@@ -4,9 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
+use App\Models\RateSnapshot;
 use App\Models\User;
+use App\Services\MarketRateService;
 use App\Services\ProfitCalculator;
+use App\Support\Branding;
+use App\Support\MarketBoard;
+use Dompdf\Dompdf;
 use Illuminate\Http\Request;
+use RuntimeException;
 
 class ExchangeRateController extends Controller
 {
@@ -30,9 +36,193 @@ class ExchangeRateController extends Controller
             ->get();
 
         return view('exchange-rates.index', compact('rates', 'creators'))
+            ->with('market', MarketBoard::readings())
             ->with('spreadWarnings', $this->spreadWarnings())
             ->with('outsideRule', ExchangeRate::liveRowsOutsideRule())
             ->with('unpricedPairs', ExchangeRate::unpricedDeskPairs());
+    }
+
+    /**
+     * Pull a reading without changing any price. The desk can then look at the
+     * figure and decide whether to put it into a rate.
+     */
+    public function pullMarket(MarketRateService $marketRates)
+    {
+        try {
+            $result = $marketRates->pull();
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['market_rate' => $exception->getMessage()]);
+        }
+
+        $first = reset($result['quotes']);
+        $message = 'Market rates pulled from '.$first->source.' at '.$first->fetched_at->format('h:i A').'.';
+
+        if ($result['note']) {
+            $message .= ' '.$result['note'];
+        }
+
+        return back()->with('success', $message);
+    }
+
+    /**
+     * Put the latest reading into a new price row. The market is a mid figure, so it
+     * replaces only the side of the pair where it cannot cross the spread: the
+     * buying price for shillings, the selling price for yuan. The other side stays
+     * exactly as the desk typed it.
+     */
+    public function useMarket(Request $request)
+    {
+        $validated = $request->validate([
+            'quote' => ['required', 'in:UGX,RMB'],
+        ], [
+            'quote.in' => 'Choose the shilling or the yuan reading.',
+        ]);
+
+        $quote = $validated['quote'];
+        $pair = 'USD → '.$quote;
+        $latest = RateSnapshot::latestFor('USD', $quote);
+        $live = ExchangeRate::getActiveRate('USD', $quote);
+
+        if (! $latest) {
+            return back()->withErrors(['market_rate' => 'There is no '.$pair.' market reading yet. Pull the rate first.']);
+        }
+
+        if ($latest->fetched_at->lt(now()->subHours(26))) {
+            return back()->withErrors(['market_rate' => 'The last '.$pair.' reading is more than a day old. Pull the rate now before using it.']);
+        }
+
+        if (! $live) {
+            return back()->withErrors(['market_rate' => 'There is no live '.$pair.' price to update. Set one in System Settings first.']);
+        }
+
+        $market = (float) $latest->rate;
+        $sell = (float) ($live->sell_rate ?: $live->rate);
+        $buy = $live->buy_rate === null ? null : (float) $live->buy_rate;
+        $readAt = $latest->fetched_at->format('d M Y, h:i A');
+
+        if ($quote === 'UGX') {
+            if ($market >= $sell) {
+                return back()->withErrors(['market_rate' => 'The '.$readAt.' reading is '.$this->trim($market).' UGX per USD, at or above your selling price of '.$this->trim($sell).'. Raise the selling price in System Settings first, or the pair would lose money.']);
+            }
+
+            if ($buy !== null && abs($buy - $market) < 0.0000005) {
+                return back()->withErrors(['market_rate' => 'The market reading is already the USD → UGX buying price.']);
+            }
+
+            $newSell = $sell;
+            $newBuy = $market;
+            $summary = 'selling stays '.$this->trim($newSell).', buying becomes '.$this->trim($newBuy);
+        } else {
+            if ($buy === null) {
+                return back()->withErrors(['market_rate' => 'The USD → RMB price has no buying figure. Set both prices in System Settings first.']);
+            }
+
+            if ($market >= $buy) {
+                return back()->withErrors(['market_rate' => 'The '.$readAt.' reading is '.$this->trim($market).' RMB per USD, at or above your buying price of '.$this->trim($buy).'. The yuan buying price has to sit above the selling price, so raise the buying price in System Settings first.']);
+            }
+
+            if (abs($sell - $market) < 0.0000005) {
+                return back()->withErrors(['market_rate' => 'The market reading is already the USD → RMB selling price.']);
+            }
+
+            $newSell = $market;
+            $newBuy = $buy;
+            $summary = 'selling becomes '.$this->trim($newSell).', buying stays '.$this->trim($newBuy);
+        }
+
+        ExchangeRate::retirePair('USD', $quote);
+
+        ExchangeRate::create([
+            'from_currency' => 'USD',
+            'to_currency' => $quote,
+            'rate' => $newSell,
+            'sell_rate' => $newSell,
+            'buy_rate' => $newBuy,
+            'is_active' => true,
+            'created_by' => auth()->id(),
+        ]);
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'exchange_rate_used_market',
+            'description' => "Live price for {$pair} taken from the market reading of {$readAt} ({$latest->source}): {$summary}",
+            'old_value' => 'selling '.$this->trim($sell).', buying '.($buy === null ? 'not set' : $this->trim($buy)),
+            'new_value' => 'selling '.$this->trim($newSell).', buying '.$this->trim($newBuy),
+        ]);
+
+        return back()->with('success', $pair.' now reads '.$summary.', taken from the '.$readAt.' market reading.');
+    }
+
+    /**
+     * A PDF the browser saves straight to the downloads folder, with the logo from
+     * System Settings, the report name and the generation time across the top.
+     */
+    public function pdf(Request $request)
+    {
+        $rates = ExchangeRate::with(['creator', 'editor'])
+            ->filtered($request)
+            ->latest()
+            ->orderByDesc('id')
+            ->get();
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'exported',
+            'description' => 'Downloaded exchange rates PDF ('.$rates->count().' row(s))',
+            'new_value' => (string) $rates->count(),
+        ]);
+
+        $dompdf = new Dompdf([
+            'isRemoteEnabled' => false,
+            'defaultFont' => 'DejaVu Sans',
+        ]);
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->loadHtml(view('exchange-rates.pdf', [
+            'rates' => $rates,
+            'logo' => Branding::logoDataUri(),
+            'company' => Branding::companyName(),
+            'filters' => $this->filterSummary($request),
+            'generated' => now(),
+        ])->render());
+        $dompdf->render();
+
+        return response($dompdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="PlusPay_Exchange_Rates_'.now()->format('Ymd-His').'.pdf"',
+        ]);
+    }
+
+    /**
+     * The filters as words, so a saved PDF says which slice of the history it holds.
+     *
+     * @return array<int, string>
+     */
+    private function filterSummary(Request $request): array
+    {
+        $filters = [];
+
+        if ($request->filled('search')) {
+            $filters[] = 'Search: '.$request->search;
+        }
+
+        if ($request->filled('currency')) {
+            $filters[] = 'Currency: '.$request->currency;
+        }
+
+        if ((string) $request->input('status') !== '') {
+            $filters[] = 'Status: '.($request->status === 'active' ? 'In use' : 'Earlier');
+        }
+
+        if ($request->filled('created_by')) {
+            $name = User::whereKey($request->created_by)->value('name');
+            $filters[] = 'Added by: '.($name ?: 'unknown');
+        }
+
+        if ($request->filled('date_from') || $request->filled('date_to')) {
+            $filters[] = 'Dates: '.($request->date_from ?: 'start').' to '.($request->date_to ?: 'today');
+        }
+
+        return $filters;
     }
 
     /**

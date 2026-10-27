@@ -256,7 +256,7 @@ class MarketRateTest extends TestCase
             ->assertSee('currency-api.pages.dev')
             ->assertSee('<polyline', false)
             ->assertSee('First reading recorded')
-            ->assertSee('Recent daily readings')
+            ->assertDontSee('Recent daily readings')
             ->assertSee('Dollar to yuan');
     }
 
@@ -277,12 +277,14 @@ class MarketRateTest extends TestCase
         $this->snapshot('RMB', 6.6787, today());
         $this->snapshot('RMB', 6.70, today()->subDay());
 
-        $this->actingAs($this->user())->get('/settings')
+        $this->actingAs($this->user())->get('/exchange-rates?status=')
             ->assertOk()
+            ->assertSee('Recent daily readings')
             ->assertSee('▲ 27.60')
             ->assertSee('No change')
             ->assertSee('▼ 0.0213')
-            ->assertSee('its move from the day before');
+            ->assertSee('its move from the day before')
+            ->assertSee('08:00 AM');
     }
 
     private function snapshot(string $quote, float $rate, \Illuminate\Support\Carbon $date): void

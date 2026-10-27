@@ -8,6 +8,7 @@ use App\Models\RateSnapshot;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\MarketRateService;
+use App\Support\MarketBoard;
 use App\Support\LoginBackground;
 use Database\Seeders\RoleAndUserSeeder;
 use Illuminate\Http\Request;
@@ -410,51 +411,13 @@ class SettingController extends Controller
 
     /**
      * Everything the Live market rate card prints: both readings, their daily move,
-     * the points for the sparkline, the recorded days and the automation state.
+     * the points for the sparkline and the automation state.
      */
     private function marketBoard(): array
     {
-        $pairs = [];
-        $histories = [];
-
-        foreach (['UGX', 'RMB'] as $quote) {
-            $latest = RateSnapshot::latestFor('USD', $quote);
-            $history = RateSnapshot::dailyCloses('USD', $quote, 30);
-            $histories[$quote] = $history;
-            $previous = $history->count() > 1 ? $history[$history->count() - 2] : null;
-            $change = $latest && $previous ? (float) $latest->rate - (float) $previous->rate : null;
-            $percent = $change !== null && (float) $previous->rate > 0
-                ? ($change / (float) $previous->rate) * 100
-                : null;
-            $rising = $change !== null && $change > 0;
-            $falling = $change !== null && $change < 0;
-
-            $pairs[$quote] = [
-                'label' => $quote === 'UGX' ? 'Dollar to shilling' : 'Dollar to yuan',
-                'unit' => $quote.' per USD',
-                'latest' => $latest,
-                'display' => $latest ? $this->marketFigure((float) $latest->rate, $quote) : null,
-                'previous' => $previous,
-                'change' => $change,
-                'percent' => $percent,
-                'change_text' => $this->marketChangeText($change, $percent, $previous, $quote),
-                'tone' => $rising ? 'text-green-700' : ($falling ? 'text-red-700' : 'text-gray-500'),
-                'line' => $rising ? 'text-green-700' : ($falling ? 'text-red-700' : 'text-gray-400'),
-                'points' => $history->count() > 1 ? $this->sparkPoints($history) : null,
-                'chart_label' => $history->count() > 1 && $latest
-                    ? 'USD to '.$quote.' from '.$this->marketFigure((float) $history->first()->rate, $quote)
-                        .' on '.$history->first()->rate_date->format('d M').' to '
-                        .$this->marketFigure((float) $latest->rate, $quote).' on '.$latest->rate_date->format('d M').'. '
-                        .$this->marketChangeText($change, $percent, $previous, $quote)
-                    : '',
-            ];
-        }
-
         $auto = $this->marketRates->buyingRateState();
-        $lastPulled = RateSnapshot::lastPulledAt();
 
-        return [
-            'pairs' => $pairs,
+        return MarketBoard::readings() + [
             'auto' => [
                 'on' => $auto['state'] !== 'off',
                 'state' => $auto['state'],
@@ -463,125 +426,7 @@ class SettingController extends Controller
                     ? 'text-red-700 font-medium'
                     : ($auto['state'] === 'applied' ? 'text-green-700 font-medium' : 'text-gray-500'),
             ],
-            'history' => $this->marketHistory($histories),
-            'last_pulled' => $lastPulled,
-            'stale_pull' => $lastPulled !== null && $lastPulled->lt(now()->subHours(26)),
         ];
-    }
-
-    private function marketChangeText(?float $change, ?float $percent, ?RateSnapshot $previous, string $quote): string
-    {
-        if ($previous === null) {
-            return 'First reading recorded. The day to day comparison starts with the next reading.';
-        }
-
-        if ($change === null || abs($change) < 0.0000005) {
-            return 'Unchanged since '.$previous->rate_date->format('d M').'.';
-        }
-
-        return ($change > 0 ? 'Increased' : 'Decreased').' by '
-            .$this->marketFigure(abs($change), $quote).' ('.number_format(abs((float) $percent), 2).'%) since '
-            .$previous->rate_date->format('d M').'.';
-    }
-
-    /**
-     * Points for a 120 by 36 sparkline. A flat market sits on the middle line instead
-     * of dividing by a zero range.
-     */
-    private function sparkPoints($history): string
-    {
-        $values = $history->map(fn ($reading) => (float) $reading->rate)->values();
-        $count = $values->count();
-        $minimum = (float) $values->min();
-        $range = (float) $values->max() - $minimum;
-
-        return $values->map(function (float $value, int $index) use ($count, $minimum, $range): string {
-            $x = $count === 1 ? 60 : ($index / ($count - 1)) * 120;
-            $y = $range == 0.0 ? 18 : 30 - (($value - $minimum) / $range) * 24;
-
-            return round($x, 2).','.round($y, 2);
-        })->implode(' ');
-    }
-
-    /**
-     * The last recorded reading per market day, with both pairs on one line.
-     */
-    private function marketHistory(array $histories): array
-    {
-        $days = [];
-
-        foreach ($histories as $quote => $readings) {
-            foreach ($readings as $reading) {
-                $key = $reading->rate_date->toDateString();
-                $days[$key] ??= [
-                    'date' => $reading->rate_date,
-                    'UGX' => '-',
-                    'RMB' => '-',
-                    'pulled' => $reading->fetched_at,
-                ];
-                $days[$key][$quote] = $this->marketFigure((float) $reading->rate, $quote);
-
-                if ($reading->fetched_at->gt($days[$key]['pulled'])) {
-                    $days[$key]['pulled'] = $reading->fetched_at;
-                }
-            }
-        }
-
-        krsort($days);
-
-        $list = array_values(array_slice($days, 0, 14));
-
-        // Newest first, so the row after each day is its previous market day.
-        foreach ($list as $index => $day) {
-            $list[$index]['move'] = $this->marketMove($day, $list[$index + 1] ?? null);
-        }
-
-        return $list;
-    }
-
-    /**
-     * The change from the market day before, or null where either side has no
-     * reading. 'flat' means the price did not move.
-     *
-     * @param  array{UGX: string, RMB: string}  $day
-     * @param  array{UGX: string, RMB: string}|null  $previous
-     * @return array{UGX: ?string, RMB: ?string}
-     */
-    private function marketMove(array $day, ?array $previous): array
-    {
-        $move = ['UGX' => null, 'RMB' => null];
-
-        if ($previous === null) {
-            return $move;
-        }
-
-        foreach (['UGX', 'RMB'] as $quote) {
-            if ($day[$quote] === '-' || $previous[$quote] === '-') {
-                continue;
-            }
-
-            $change = (float) str_replace(',', '', $day[$quote]) - (float) str_replace(',', '', $previous[$quote]);
-
-            if ($change == 0.0) {
-                $move[$quote] = 'flat';
-
-                continue;
-            }
-
-            $move[$quote] = ($change > 0 ? '+' : '-')
-                .($quote === 'UGX'
-                    ? number_format(abs($change), 2)
-                    : rtrim(rtrim(number_format(abs($change), 4, '.', ''), '0'), '.'));
-        }
-
-        return $move;
-    }
-
-    private function marketFigure(float $value, string $quote): string
-    {
-        return $quote === 'UGX'
-            ? number_format($value, 2)
-            : rtrim(rtrim(number_format($value, 4, '.', ''), '0'), '.');
     }
 
     /**

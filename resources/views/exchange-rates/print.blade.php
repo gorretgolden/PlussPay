@@ -13,12 +13,15 @@
 </head>
 <body class="bg-white p-6 text-gray-900">
     <div class="max-w-4xl mx-auto">
-        <div class="flex justify-between items-center mb-4">
-            <div>
-                <h1 class="text-xl font-bold">Exchange Rates - PlusPay</h1>
-                <p class="text-xs text-gray-600">Generated {{ now()->format('M d, Y h:i A') }} - {{ $rates->count() }} record(s)</p>
+        <div class="mb-5 border-b-2 border-green-800 pb-4 text-center">
+            <img src="{{ \App\Support\Media::url(\App\Models\Setting::get('login_logo'), 'logo.webp') }}" alt="PlusPay" class="mx-auto mb-2 h-12 w-auto">
+            <p class="text-sm font-semibold text-green-800">{{ \App\Support\Branding::companyName() }}</p>
+            <h1 class="text-xl font-bold text-green-800">Exchange Rates</h1>
+            <p class="text-xs text-gray-600">Generated {{ now()->format('M d, Y h:i A') }} &middot; {{ $rates->count() }} record(s)</p>
+            <div class="no-print mt-3 flex justify-center gap-2">
+                <a href="{{ route('exchange-rates.pdf', request()->query()) }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm">Download PDF</a>
+                <button type="button" onclick="window.print()" class="border border-gray-300 bg-white text-gray-700 px-4 py-2 rounded-md text-sm">Print</button>
             </div>
-            <button type="button" onclick="window.print()" class="no-print bg-green-800 text-white px-4 py-2 rounded-md text-sm">Save as PDF</button>
         </div>
 
         <table class="w-full text-sm border border-gray-300">

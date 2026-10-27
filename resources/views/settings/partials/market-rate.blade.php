@@ -40,7 +40,7 @@
                     @endif
                 </div>
                 @if ($pair['latest'])
-                    <p class="mt-3 text-xs text-gray-500">Daily mid-market for {{ $pair['latest']->rate_date->format('d M Y') }}, pulled {{ $pair['latest']->fetched_at->format('d M Y, H:i') }} from {{ $pair['latest']->source }}.</p>
+                    <p class="mt-3 text-xs text-gray-500">Daily mid-market for {{ $pair['latest']->rate_date->format('d M Y') }}, pulled {{ $pair['latest']->fetched_at->format('d M Y, h:i A') }} from {{ $pair['latest']->source }}.</p>
                 @endif
             </div>
         @endforeach
@@ -50,7 +50,7 @@
         <div class="flex flex-wrap items-end justify-between gap-3">
             <div class="min-w-0 max-w-xl">
                 <label for="market_buy_auto" class="block text-sm font-medium text-gray-700">Automatic buying rate</label>
-                <p id="help-market_buy_auto" class="mt-1 text-xs text-gray-500">On: each pull sets the USD → UGX buying rate to the market, but only while it stays below your selling rate. The selling rate is never changed.</p>
+                <p id="help-market_buy_auto" class="mt-1 text-xs text-gray-500">On: each pull moves the USD → UGX buying price to the market while it stays below your selling price. Selling is never changed.</p>
             </div>
             <div class="shrink-0">
                 <select id="market_buy_auto" name="market_buy_auto" form="settings-form-rates" data-original="{{ $autoSaved }}" data-label="Automatic buying rate" aria-describedby="help-market_buy_auto error-market_buy_auto market-buy-auto-note" class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm">
@@ -66,7 +66,7 @@
     <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
         <p class="text-xs {{ $market['stale_pull'] ? 'font-medium text-amber-700' : 'text-gray-500' }}">
             @if ($market['last_pulled'])
-                Last pulled {{ $market['last_pulled']->format('d M Y, H:i') }}. The system pulls every hour.
+                Last pulled {{ $market['last_pulled']->format('d M Y, h:i A') }}. The system pulls every hour.
             @else
                 Never pulled. The system pulls every hour once the schedule runs.
             @endif
@@ -77,40 +77,4 @@
         </details>
     </div>
 
-    @if (!empty($market['history']))
-        <details class="mt-4 text-sm text-gray-600">
-            <summary class="cursor-pointer font-medium text-green-800">Recent daily readings</summary>
-            <div class="mt-3 overflow-x-auto">
-                <table class="min-w-full text-xs">
-                    <thead>
-                        <tr class="border-b border-gray-200 text-left text-gray-500">
-                            <th scope="col" class="py-1.5 pr-4 font-medium">Day</th>
-                            <th scope="col" class="py-1.5 pr-4 font-medium">USD → UGX</th>
-                            <th scope="col" class="py-1.5 pr-4 font-medium">USD → RMB</th>
-                            <th scope="col" class="py-1.5 font-medium">Pulled</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        @foreach ($market['history'] as $day)
-                            <tr class="{{ $loop->first ? 'bg-green-50/50' : '' }}">
-                                <td class="py-2 pr-4 text-gray-900">{{ $day['date']->format('d M Y') }}</td>
-                                @foreach (['UGX', 'RMB'] as $quote)
-                                    <td class="py-2 pr-4">
-                                        <p class="tabular-nums text-gray-900">{{ $day[$quote] }}</p>
-                                        @if ($day['move'][$quote] === 'flat')
-                                            <p class="text-[11px] text-gray-400">No change</p>
-                                        @elseif ($day['move'][$quote] !== null)
-                                            <p class="text-[11px] tabular-nums {{ str_starts_with($day['move'][$quote], '+') ? 'text-green-700' : 'text-red-700' }}">{{ str_starts_with($day['move'][$quote], '+') ? '▲' : '▼' }} {{ ltrim($day['move'][$quote], '+-') }}</p>
-                                        @endif
-                                    </td>
-                                @endforeach
-                                <td class="py-2 text-gray-500">{{ $day['pulled']->format('d M, H:i') }}</td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-            <p class="mt-2 text-xs text-gray-500">One line per market day. The small line under each price is its move from the day before.</p>
-        </details>
-    @endif
 </section>

@@ -26,8 +26,9 @@
         <a href="{{ route('settings.index') }}" class="rounded-md bg-gray-200 px-4 py-2 text-sm text-gray-800 hover:bg-gray-300">Update rates</a>
         @endcan
         @can('manage-exchange-rates')
-        <a href="{{ route('exchange-rates.print', request()->query()) }}" target="_blank" class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Export PDF</a>
+        <a href="{{ route('exchange-rates.pdf', request()->query()) }}" class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Download PDF</a>
         <a href="{{ route('export.exchange-rates', request()->query()) }}" class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Export Excel</a>
+        <a href="{{ route('exchange-rates.print', request()->query()) }}" target="_blank" class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Print</a>
         @endcan
     </div>
 </div>
@@ -112,6 +113,110 @@
 </div>
 @endif
 
+<div class="mb-6 rounded-lg bg-white p-4 shadow">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+            <h2 class="text-lg font-semibold text-gray-900">Live market rate</h2>
+            <p class="mt-1 text-sm text-gray-600">The dollar's mid-market price. Pull it to see the figure, then use a reading only when you want it to become a price.</p>
+        </div>
+        @can('manage-exchange-rates')
+        <form method="POST" action="{{ route('exchange-rates.market.pull') }}">
+            @csrf
+            <button type="submit" class="shrink-0 rounded-md border border-green-700 px-4 py-2 text-sm font-medium text-green-800 hover:bg-green-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700">Pull now</button>
+        </form>
+        @endcan
+    </div>
+
+    @error('market_rate')
+    <p role="alert" class="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">{{ $message }}</p>
+    @enderror
+
+    <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+        @foreach($market['pairs'] as $quote => $pair)
+        <div class="min-w-0 rounded-lg border border-gray-200 p-4">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <h3 class="text-sm font-medium text-gray-700">{{ $pair['label'] }} <span class="text-gray-500">({{ $pair['unit'] }})</span></h3>
+                    @if($pair['latest'])
+                    <p class="mt-1 text-2xl font-semibold tabular-nums text-gray-900">{{ $pair['display'] }}</p>
+                    <p class="mt-1 text-xs {{ $pair['tone'] }}">{{ $pair['change_text'] }}</p>
+                    @else
+                    <p class="mt-1 text-lg font-semibold text-gray-500">No reading yet</p>
+                    <p class="mt-1 text-xs text-gray-500">Pull the rate now to start the record.</p>
+                    @endif
+                </div>
+                @if($pair['points'])
+                <svg viewBox="0 0 120 36" class="h-10 w-28 shrink-0 {{ $pair['line'] }}" role="img" aria-label="{{ $pair['chart_label'] }}" preserveAspectRatio="none">
+                    <polyline points="{{ $pair['points'] }}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+                </svg>
+                @endif
+            </div>
+            @if($pair['latest'])
+            <p class="mt-2 text-xs text-gray-500">Latest reading for {{ $pair['latest']->rate_date->format('d M Y') }}, pulled {{ $pair['latest']->fetched_at->format('h:i A') }} from {{ $pair['latest']->source }}.</p>
+            @can('manage-exchange-rates')
+            <form method="POST" action="{{ route('exchange-rates.market.use') }}" class="mt-3" data-confirm-title="Use this market reading" data-confirm="Set the USD to {{ $quote }} {{ $quote === 'UGX' ? 'buying' : 'selling' }} price to {{ $pair['display'] }}? The {{ $quote === 'UGX' ? 'selling' : 'buying' }} price stays as it is, a new price row is added, and past transfers do not change." data-confirm-ok="Use reading">
+                @csrf
+                <input type="hidden" name="quote" value="{{ $quote }}">
+                <button type="submit" class="rounded-md bg-green-800 px-3 py-2 text-sm font-medium text-white hover:bg-green-700">Use as {{ $quote === 'UGX' ? 'buying' : 'selling' }} price</button>
+            </form>
+            @endcan
+            @endif
+        </div>
+        @endforeach
+    </div>
+
+    <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
+        <p class="text-xs {{ $market['stale_pull'] ? 'font-medium text-amber-700' : 'text-gray-500' }}">
+            @if($market['last_pulled'])
+            Last pulled {{ $market['last_pulled']->format('d M Y, h:i A') }}. The system pulls every hour.
+            @else
+            Never pulled. The system pulls every hour once the schedule runs.
+            @endif
+        </p>
+        <details class="text-xs text-gray-600">
+            <summary class="cursor-pointer font-medium text-green-800">Where this rate comes from</summary>
+            <p class="mt-2 max-w-xl">The system asks Wise for the live mid-market price first. If Wise cannot be reached it falls back to open daily feeds, which can lag by a day or more. Every reading names its source and pull time and is kept on record.</p>
+        </details>
+    </div>
+
+    @if(!empty($market['history']))
+    <details class="mt-3 border-t border-gray-100 pt-3 text-sm text-gray-600">
+        <summary class="cursor-pointer font-medium text-green-800">Recent daily readings</summary>
+        <div class="mt-3 overflow-x-auto">
+            <table class="min-w-full text-xs">
+                <thead>
+                    <tr class="border-b border-gray-200 text-left text-gray-500">
+                        <th scope="col" class="py-1.5 pr-4 font-medium">Day</th>
+                        <th scope="col" class="py-1.5 pr-4 font-medium">USD to UGX</th>
+                        <th scope="col" class="py-1.5 pr-4 font-medium">USD to RMB</th>
+                        <th scope="col" class="py-1.5 font-medium">Pulled</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @foreach($market['history'] as $day)
+                    <tr class="{{ $loop->first ? 'bg-green-50/50' : '' }}">
+                        <td class="py-2 pr-4 text-gray-900">{{ $day['date']->format('d M Y') }}</td>
+                        @foreach(['UGX', 'RMB'] as $quote)
+                        <td class="py-2 pr-4">
+                            <p class="tabular-nums text-gray-900">{{ $day[$quote] }}</p>
+                            @if($day['move'][$quote] === 'flat')
+                            <p class="text-[11px] text-gray-400">No change</p>
+                            @elseif($day['move'][$quote] !== null)
+                            <p class="text-[11px] tabular-nums {{ str_starts_with($day['move'][$quote], '+') ? 'text-green-700' : 'text-red-700' }}">{{ str_starts_with($day['move'][$quote], '+') ? '▲' : '▼' }} {{ ltrim($day['move'][$quote], '+-') }}</p>
+                            @endif
+                        </td>
+                        @endforeach
+                        <td class="py-2 text-gray-500">{{ $day['pulled']->format('d M Y, h:i A') }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        <p class="mt-2 text-xs text-gray-500">One line per market day, newest first. The small line under each price is its move from the day before.</p>
+    </details>
+    @endif
+</div>
+
 <div class="rates-wrap overflow-x-auto rounded-lg bg-white shadow">
     <table class="rates-table min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
@@ -156,7 +261,7 @@
                             @method('PATCH')
                             <button type="submit" title="Take {{ $pair }} {{ $selling }} out of use" aria-label="Take {{ $pair }} {{ $selling }} out of use" class="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-gray-700 hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-green-600 md:w-8 md:px-0">
                                 <span class="md:hidden text-sm">Take out of use</span>
-                                <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9"/></svg>
+                                <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             </button>
                         </form>
                         @elseif(\App\Models\ExchangeRate::isDeskPair($rate->from_currency, $rate->to_currency))

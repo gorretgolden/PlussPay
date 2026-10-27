@@ -156,6 +156,9 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     Route::middleware('can:view-exchange-rates')->group(function () {
         Route::get('/exchange-rates', [ExchangeRateController::class, 'index'])->name('exchange-rates.index');
         Route::get('/exchange-rates/print', [ExchangeRateController::class, 'print'])->middleware('can:export-exchange-rates')->name('exchange-rates.print');
+        Route::get('/exchange-rates/pdf', [ExchangeRateController::class, 'pdf'])->middleware('can:export-exchange-rates')->name('exchange-rates.pdf');
+        Route::post('/exchange-rates/market/pull', [ExchangeRateController::class, 'pullMarket'])->middleware('can:manage-exchange-rates')->name('exchange-rates.market.pull');
+        Route::post('/exchange-rates/market/use', [ExchangeRateController::class, 'useMarket'])->middleware('can:manage-exchange-rates')->name('exchange-rates.market.use');
         Route::patch('/exchange-rates/{exchangeRate}', [ExchangeRateController::class, 'update'])->middleware('can:manage-exchange-rates')->name('exchange-rates.update');
         Route::patch('/exchange-rates/{exchangeRate}/toggle', [ExchangeRateController::class, 'toggle'])->middleware('can:manage-exchange-rates')->name('exchange-rates.toggle');
         Route::get('/export/exchange-rates', [ExportController::class, 'exchangeRates'])->middleware('can:export-exchange-rates')->name('export.exchange-rates');

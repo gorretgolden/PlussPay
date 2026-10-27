@@ -17,12 +17,14 @@ use App\Services\SystemLogReader;
 use App\Support\WalletHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Support\Branding;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class ExportController extends Controller
@@ -654,6 +656,38 @@ class ExportController extends Controller
             : 'USD ' . number_format($usd, 1);
     }
 
+    /**
+     * The logo uploaded in System Settings, drawn at the start of the header row.
+     * An export still downloads if the file cannot be read or GD is missing.
+     */
+    private function addLogo($sheet): void
+    {
+        $path = Branding::logoPath();
+
+        if ($path === null || ! function_exists('imagecreatefromstring')) {
+            return;
+        }
+
+        $contents = @file_get_contents($path);
+        $image = $contents === false ? false : @imagecreatefromstring($contents);
+
+        if ($image === false) {
+            return;
+        }
+
+        $drawing = new MemoryDrawing();
+        $drawing->setName('PlusPay');
+        $drawing->setDescription('PlusPay');
+        $drawing->setImageResource($image);
+        $drawing->setRenderingFunction(MemoryDrawing::RENDERING_PNG);
+        $drawing->setMimeType(MemoryDrawing::MIMETYPE_PNG);
+        $drawing->setHeight(30);
+        $drawing->setCoordinates('A1');
+        $drawing->setOffsetX(6);
+        $drawing->setOffsetY(5);
+        $drawing->setWorksheet($sheet);
+    }
+
     private function download(string $name, array $headers, array $rows, string $suffix = '', bool $withTotal = false)
     {
         ActivityLog::create([
@@ -678,9 +712,10 @@ class ExportController extends Controller
         $sheet->getStyle('A1')->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 14],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '14532D']],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER, 'indent' => 1],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER, 'indent' => 14],
         ]);
-        $sheet->getRowDimension(1)->setRowHeight(26);
+        $sheet->getRowDimension(1)->setRowHeight(40);
+        $this->addLogo($sheet);
 
         $sheet->mergeCells("A2:{$lastColumn}2");
         $sheet->setCellValue('A2', $report);
