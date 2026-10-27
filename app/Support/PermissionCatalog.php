@@ -127,8 +127,19 @@ final class PermissionCatalog
 
     public static function mayDelegate(User $actor, string $ability): bool
     {
-        return $actor->hasRole('superadmin')
-            || (!in_array($ability, self::RESERVED, true) && $actor->can($ability));
+        if ($actor->hasRole('superadmin')) {
+            return true;
+        }
+        if (in_array($ability, self::RESERVED, true)) {
+            return false;
+        }
+        // A custom ability has no code behind it until a developer wires it in, so it grants
+        // nothing by itself. Whoever may define abilities may also attach one to a role; a
+        // built-in ability still stays with whoever holds it.
+        if (!in_array($ability, self::names(), true)) {
+            return $actor->can('assign-permissions');
+        }
+        return $actor->can($ability);
     }
 
     /** Use this for every user role-assignment path as well as the option list. */

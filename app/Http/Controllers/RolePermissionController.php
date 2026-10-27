@@ -34,8 +34,31 @@ class RolePermissionController extends Controller
 
     public function permissions(Request $request)
     {
-        $permissions = $this->groups();
-        return view('admin.permissions', compact('permissions'));
+        $search = trim((string) $request->query('q'));
+        $web = Permission::where('guard_name', 'web');
+
+        $permissions = (clone $web)
+            ->when($search !== '', fn ($query) => $query->where(fn ($match) => $match
+                ->where('name', 'like', '%'.$search.'%')
+                ->orWhere('description', 'like', '%'.$search.'%')))
+            ->withCount('roles')
+            ->orderBy('name')
+            ->paginate(20)
+            ->withQueryString();
+
+        $editing = $request->filled('edit')
+            ? (clone $web)->find((int) $request->query('edit'))
+            : null;
+
+        return view('admin.permissions', [
+            'permissions' => $permissions,
+            'editing' => $editing,
+            'search' => $search,
+            'abilities' => (clone $web)->count(),
+            'builtIn' => (clone $web)->whereIn('name', PermissionCatalog::names())->count(),
+            'custom' => (clone $web)->whereNotIn('name', PermissionCatalog::names())->count(),
+            'unused' => (clone $web)->doesntHave('roles')->count(),
+        ]);
     }
 
     public function store(Request $request)
@@ -217,10 +240,117 @@ class RolePermissionController extends Controller
         return back()->with('success', 'Default catalog seeded. Existing role customizations were preserved.');
     }
 
-    // These URLs remain stable, but abilities wired into code are not cosmetic CRUD data.
-    public function storePermission(Request $request) { abort(403, 'Permission definitions are maintained in the application catalog.'); }
-    public function updatePermission(Request $request, Permission $permission) { abort(403, 'Permission slugs cannot be renamed.'); }
-    public function destroyPermission(Permission $permission) { abort(403, 'Permission definitions cannot be deleted.'); }
+    /**
+     * A permission slug is the ability code a developer checks with can(), so it is typed in
+     * lowercase and hyphenated. Free text such as "Approve Payout" becomes approve-payout.
+     */
+    public static function permissionSlug(string $name): string
+    {
+        return trim(preg_replace('/[^a-z0-9]+/', '-', strtolower(trim($name))), '-');
+    }
+
+    public function storePermission(Request $request)
+    {
+        Gate::authorize('assign-permissions');
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:60'],
+            'description' => ['nullable', 'string', 'max:255'],
+        ]);
+        $name = $this->validPermissionName($validated['name']);
+
+        DB::transaction(function () use ($name, $validated) {
+            // The package model was loaded before this table gained its description column, so
+            // its cached guardable-column list can predate the column; forceFill writes it anyway.
+            $permission = Permission::create(['name' => $name, 'guard_name' => 'web']);
+            $permission->forceFill(['description' => $validated['description'] ?? null])->save();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            ActivityLog::create([
+                'user_id' => auth()->id(), 'action' => 'permission_created',
+                'description' => 'Added the '.$name.' ability ('.PermissionCatalog::module($name).').',
+                'new_value' => $name,
+            ]);
+        });
+
+        return back()->with('success', 'Permission added. Give it to a role from the roles page.');
+    }
+
+    public function updatePermission(Request $request, Permission $permission)
+    {
+        Gate::authorize('assign-permissions');
+        abort_unless($permission->guard_name === 'web', 404);
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:60'],
+            'description' => ['nullable', 'string', 'max:255'],
+        ]);
+        $name = self::permissionSlug($validated['name']);
+        // Built-in abilities are checked by name throughout the code, so only a custom ability
+        // may be renamed.
+        if (in_array($permission->name, PermissionCatalog::names(), true)) {
+            abort_if($name !== $permission->name, 403, 'Permission slugs cannot be renamed.');
+        } else {
+            $name = $this->validPermissionName($validated['name'], $permission);
+        }
+
+        $before = $permission->name;
+        $permission->forceFill([
+            'name' => $name,
+            'description' => $validated['description'] ?? null,
+        ])->save();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        ActivityLog::create([
+            'user_id' => auth()->id(), 'action' => 'permission_updated',
+            'description' => 'Updated the '.$before.' ability'.($before === $name ? '' : ' to '.$name).'.',
+            'old_value' => $before, 'new_value' => $name,
+        ]);
+
+        return redirect()->route('admin.permissions')->with('success', 'Permission saved.');
+    }
+
+    public function destroyPermission(Permission $permission)
+    {
+        Gate::authorize('assign-permissions');
+        abort_unless($permission->guard_name === 'web', 404);
+        // An ability the code checks cannot be removed without breaking that check.
+        abort_if(in_array($permission->name, PermissionCatalog::names(), true), 403,
+            'This ability is wired into the application and cannot be deleted.');
+        if ($permission->roles()->exists() || $permission->users()->exists()) {
+            throw ValidationException::withMessages([
+                'permission' => 'Take '.PermissionCatalog::label($permission->name).' off every role and person before deleting it.',
+            ]);
+        }
+
+        DB::transaction(function () use ($permission) {
+            ActivityLog::create([
+                'user_id' => auth()->id(), 'action' => 'permission_deleted',
+                'description' => 'Deleted the '.$permission->name.' ability.',
+                'old_value' => $permission->name,
+            ]);
+            $permission->delete();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        });
+
+        return redirect()->route('admin.permissions')->with('success', 'Permission deleted.');
+    }
+
+    /**
+     * Custom names must read as an ability slug and must not shadow another web permission.
+     */
+    private function validPermissionName(string $typed, ?Permission $ignore = null): string
+    {
+        $name = self::permissionSlug($typed);
+        if (!preg_match('/^[a-z][a-z0-9-]*$/', $name) || strlen($name) > 60) {
+            throw ValidationException::withMessages([
+                'name' => 'Use letters, numbers and hyphens, starting with a letter, up to 60 characters.',
+            ]);
+        }
+        $taken = Permission::where('guard_name', 'web')->where('name', $name)
+            ->when($ignore, fn ($query) => $query->whereKeyNot($ignore->id))
+            ->exists();
+        if ($taken) {
+            throw ValidationException::withMessages(['name' => 'A permission with this name already exists.']);
+        }
+        return $name;
+    }
 
     private function permissionRules(): array
     {
