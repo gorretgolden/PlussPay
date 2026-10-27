@@ -62,11 +62,12 @@ class DashboardSearchTest extends TestCase
     {
         $html = $this->board('agent');
 
-        // The Settings group opens for an agent only far enough to show the expense categories
-        // they may read; every other entry inside stays behind its own gate. The search reads the
-        // sidebar itself, so the box cannot offer what the sidebar does not render.
-        $this->assertStringContainsString('id="settingsGroup"', $html);
-        $this->assertStringContainsString('Expense categories', $html);
+        // The Expenses group opens for an agent to show the spending book they may read and the
+        // categories list they may open read-only; the Settings group stays shut. The search reads
+        // the sidebar itself, so the box cannot offer what the sidebar does not render.
+        $this->assertStringContainsString('id="expensesGroup"', $html);
+        $this->assertStringContainsString('Expense Categories', $html);
+        $this->assertStringNotContainsString('id="settingsGroup"', $html);
         $this->assertStringNotContainsString('System Settings', $html);
         $this->assertStringContainsString('id="dashboardSearch"', $html);
     }

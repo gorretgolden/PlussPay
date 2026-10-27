@@ -168,6 +168,71 @@ class ExpenseCategoryListTest extends TestCase
         $this->actingAs($this->admin)->get('/expenses/categories')->assertOk();
     }
 
+    public function test_names_typed_in_capitals_or_lower_case_are_saved_in_title_case(): void
+    {
+        $this->actingAs($this->admin)->post('/expenses/categories', ['name' => 'MOTORBIKE FUEL'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('expense_categories', ['name' => 'Motorbike Fuel']);
+
+        $this->actingAs($this->admin)->post('/expenses/categories', ['name' => 'courier services'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('expense_categories', ['name' => 'Courier Services']);
+    }
+
+    public function test_the_list_shows_the_newest_category_first_and_paginates(): void
+    {
+        for ($i = 1; $i <= 18; $i++) {
+            ExpenseCategory::create([
+                'name' => 'Extra Head '.$i,
+                'is_active' => true,
+                'created_by' => $this->admin->id,
+                'created_at' => now()->subDays(30)->addMinutes($i),
+            ]);
+        }
+
+        $newest = ExpenseCategory::create([
+            'name' => 'Newest Head',
+            'is_active' => true,
+            'created_by' => $this->admin->id,
+            'created_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)->get('/expenses/categories')
+            ->assertOk()
+            ->assertViewHas('categories', function ($categories) use ($newest) {
+                return $categories->count() === 15
+                    && $categories->first()->id === $newest->id
+                    && $categories->hasPages();
+            })
+            ->assertSee('Newest Head');
+    }
+
+    public function test_a_category_in_use_shows_a_locked_delete_icon_instead_of_a_delete_form(): void
+    {
+        $till = Account::byCode(Account::UGX_UGANDA);
+        AccountLedger::record($till, 'opening_balance', '5000000.00', 'Float');
+
+        Expense::record([
+            'expense_date' => now()->toDateString(),
+            'category_id' => ExpenseCategory::where('name', 'Rent')->value('id'),
+            'category' => 'Rent',
+            'description' => 'Kampala office',
+            'currency' => 'UGX',
+            'amount' => '1000.00',
+            'account_id' => $till->id,
+            'created_by' => $this->admin->id,
+        ]);
+
+        $rent = ExpenseCategory::where('name', 'Rent')->firstOrFail();
+
+        $this->actingAs($this->admin)->get('/expenses/categories')
+            ->assertOk()
+            ->assertSee('has 1 payment filed under it', false)
+            ->assertDontSee('data-confirm-title="Delete Rent?"', false);
+    }
+
     public function test_editing_a_category_stamps_who_changed_it(): void
     {
         $head = ExpenseCategory::where('name', 'Rent')->firstOrFail();

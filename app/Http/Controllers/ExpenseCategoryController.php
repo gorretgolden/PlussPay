@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -14,11 +15,30 @@ use Illuminate\Validation\Rule;
  */
 class ExpenseCategoryController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $manager = $request->user()->can('manage-expense-categories');
+
+        $categories = ExpenseCategory::with(['creator', 'editor'])
+            ->withCount('expenses')
+            ->latest()
+            ->orderByDesc('id')
+            ->paginate(15)
+            ->withQueryString();
+
+        $insights = $manager ? [
+            'total' => ExpenseCategory::count(),
+            'active' => ExpenseCategory::where('is_active', true)->count(),
+            'retired' => ExpenseCategory::where('is_active', false)->count(),
+            'filed' => Expense::where('status', Expense::ACTIVE)->count(),
+        ] : null;
+
         return view('expenses.categories', [
-            'categories' => ExpenseCategory::with(['creator', 'editor'])->withCount('expenses')->orderBy('name')->get(),
-            'unfiled' => Expense::whereNull('category_id')->distinct()->orderBy('category')->pluck('category'),
+            'categories' => $categories,
+            'insights' => $insights,
+            'unfiled' => $manager
+                ? Expense::whereNull('category_id')->distinct()->orderBy('category')->pluck('category')
+                : collect(),
         ]);
     }
 
@@ -111,7 +131,15 @@ class ExpenseCategoryController extends Controller
 
     private function validateName(Request $request, ?ExpenseCategory $category = null): array
     {
-        $request->merge(['name' => trim((string) $request->input('name'))]);
+        $name = trim((string) $request->input('name'));
+
+        // A name typed in capitals or all lower case is stored in Title Case. A name
+        // already written in a mix of cases is left exactly as the person typed it.
+        if ($name !== '' && ($name === mb_strtoupper($name) || $name === mb_strtolower($name))) {
+            $name = Str::title($name);
+        }
+
+        $request->merge(['name' => $name]);
 
         return $request->validate([
             'name' => [

@@ -54,10 +54,12 @@ class ExpenseReachabilityTest extends TestCase
 
         $html = $this->html($accountant);
 
-        // A top-level entry, not a sub-link that stays hidden until another group is opened. The
-        // card on the page is the second route to the same book, which is what she asked for.
-        $this->assertSame(1, preg_match_all('#<a href="[^"]+/expenses" class="sidebar-link#', $html), 'One Expenses entry in the sidebar.');
-        $this->assertSame(2, substr_count($html, '>Expenses</span>'), 'The sidebar entry and the card on the board, once each.');
+        // Its own group in the sidebar, opened by the group's own button rather than hidden inside
+        // Accounts or Settings. The card on the page is the second route to the same book.
+        $this->assertStringContainsString('onclick="toggleExpensesGroup()"', $html);
+        $this->assertSame(1, preg_match_all('#<a href="[^"]+/expenses" class="sidebar-sublink#', $html), 'One All Expenses entry in the sidebar.');
+        $this->assertStringContainsString('Expense Categories', $html);
+        $this->assertStringContainsString('>Expenses</span>', $html, 'The card on the board still offers the book.');
     }
 
     public function test_the_expenses_entry_does_not_ride_on_the_accounts_gate(): void
@@ -75,7 +77,8 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertFalse($user->fresh()->can('view-accounts'));
 
         $html = $this->html($user);
-        $this->assertMatchesRegularExpression('#<a href="[^"]+/expenses" class="sidebar-link[^"]*">#', $html);
+        $this->assertStringContainsString('id="expensesGroup"', $html);
+        $this->assertMatchesRegularExpression('#<a href="[^"]+/expenses" class="sidebar-sublink[^"]*">#', $html);
         $this->assertStringNotContainsString('id="accountsGroup"', $html);
     }
 
@@ -83,10 +86,11 @@ class ExpenseReachabilityTest extends TestCase
     {
         $html = $this->html($this->user('accountant', 'Grace Naigaga'), '/expenses');
 
-        $this->assertMatchesRegularExpression('#<a href="[^"]+/expenses" class="sidebar-link[^"]*active[^"]*">#', $html);
+        $this->assertMatchesRegularExpression('#<div id="expensesGroup" class="">#', $html, 'The group is open while an expense is on screen.');
+        $this->assertMatchesRegularExpression('#<a href="[^"]+/expenses" class="sidebar-sublink[^"]*active[^"]*">#', $html);
     }
 
-    public function test_the_heads_an_expense_falls_under_sit_with_the_other_settings(): void
+    public function test_the_heads_an_expense_falls_under_sit_with_the_spending_book(): void
     {
         $admin = $this->html($this->user('admin', 'Admin One'));
         $this->assertMatchesRegularExpression('#<a href="[^"]+/expenses/categories" class="sidebar-sublink[^"]*">#', $admin);
