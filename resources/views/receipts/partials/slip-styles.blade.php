@@ -3,7 +3,7 @@
         --slip-ink: #1b241e;
         --slip-muted: #5d675f;
         --slip-rule: #1b241e;
-        --slip-green: #14532d;
+        --slip-green: var(--brand-900, #14532d);
         --slip-paper: #fffdf6;
         --slip-line: #c9c4b4;
         position: relative;

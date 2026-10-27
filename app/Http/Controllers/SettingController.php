@@ -8,6 +8,7 @@ use App\Models\RateSnapshot;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\MarketRateService;
+use App\Support\LoginBackground;
 use Database\Seeders\RoleAndUserSeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -29,7 +30,8 @@ class SettingController extends Controller
         'company' => ['company_name', 'company_address', 'company_phone', 'company_email', 'company_website'],
         'datetime' => ['timezone'],
         'site' => ['site_mode', 'demo_login_autofill', 'demo_password'],
-        'login' => ['login_background', 'login_logo', 'login_theme_color'],
+        'login' => ['login_background', 'login_background_style', 'login_logo'],
+        'appearance' => ['theme_color'],
     ];
 
     private const TRANSACTION_BOUND_KEYS = [
@@ -102,7 +104,8 @@ class SettingController extends Controller
             'timezone' => ['nullable', Rule::in(array_keys(Setting::TIMEZONES))],
             'login_background' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:5120'],
             'login_logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
-            'login_theme_color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'login_background_style' => ['nullable', Rule::in(array_merge(array_keys(LoginBackground::BUILT_IN), ['upload']))],
+            'theme_color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ];
         // Older callers may omit a tab; tabbed forms can only save their own fields.
         if ($tab !== null) {
@@ -117,7 +120,7 @@ class SettingController extends Controller
             'demo_password.min' => 'The demo password needs at least 4 characters.',
             'demo_password.max' => 'The demo password can be at most 60 characters.',
             'timezone.in' => 'Please choose one of the listed time zones.',
-            'login_theme_color.regex' => 'Pick a color from the picker or enter a hex value like #166534.',
+            'theme_color.regex' => 'Pick a color from the picker or enter a hex value like #166534.',
             'login_background.image' => 'The background must be a PNG, JPG or WebP image.',
             'login_logo.image' => 'The logo must be a PNG, JPG or WebP image.',
             'usd_ugx_buying.numeric' => 'The UGX buying rate must be a number, e.g. 3750.',
@@ -146,7 +149,7 @@ class SettingController extends Controller
         // The sign-in page branding is the same kind of public face.
         if (! $request->user()->hasRole('superadmin')) {
             unset($validated['site_mode'], $validated['demo_login_autofill'], $validated['demo_password']);
-            unset($validated['login_background'], $validated['login_logo'], $validated['login_theme_color']);
+            unset($validated['login_background'], $validated['login_background_style'], $validated['login_logo'], $validated['theme_color']);
         }
         // Reject before any writes, even if a forged request bypasses the disabled option.
         if (($validated['site_mode'] ?? null) === 'testing' && self::testingModeBlocked($request)) {
@@ -175,6 +178,11 @@ class SettingController extends Controller
             $previous = Setting::get($key);
             $path = $request->file($key)->storeAs('login', $base.'.'.$request->file($key)->guessExtension(), 'public');
             $validated[$key] = $path;
+            if ($key === 'login_background') {
+                // A new upload is the picture she just picked, so the source follows it
+                // even if a bundled design was selected on the same save.
+                $validated['login_background_style'] = 'upload';
+            }
             if ($previous && $previous !== $path) {
                 Storage::disk('public')->delete($previous);
             }
@@ -188,7 +196,7 @@ class SettingController extends Controller
         foreach ($validated as $key => $value) {
             $type = in_array($key, array_merge(self::TRANSACTION_BOUND_KEYS, ['default_charge_ugx']), true) ? 'float' : 'string';
             $group = match (true) {
-                in_array($key, ['site_mode', 'timezone', 'demo_login_autofill', 'demo_password', 'login_background', 'login_logo', 'login_theme_color'], true) => 'display',
+                in_array($key, ['site_mode', 'timezone', 'demo_login_autofill', 'demo_password', 'login_background', 'login_background_style', 'login_logo', 'theme_color'], true) => 'display',
                 $key === 'market_buy_auto' => 'rates',
                 str_starts_with($key, 'company_') => 'company',
                 default => 'transaction',

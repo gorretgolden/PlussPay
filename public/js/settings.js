@@ -7,12 +7,27 @@
     const raw = (value) => value.replaceAll(',', '').trim();
     // The automation switch sits in the market card beside its own pull button, so it
     // carries a form attribute pointing at the rates form and has to be collected by hand.
-    const controls = (form) => Array.from(form.querySelectorAll('[data-original]'))
+    const controls = (form) => Array.from(form.querySelectorAll('[data-original]:not([type="radio"])'))
         .concat(form.id ? Array.from(page.querySelectorAll(`[data-original][form="${form.id}"]`)) : []);
     const comparable = (field, value) => field.hasAttribute('data-money') && raw(value) !== '' && Number.isFinite(Number(raw(value))) ? String(Number(raw(value))) : value;
     const changed = (field) => comparable(field, field.value) !== comparable(field, field.dataset.original);
-    const dirty = (form) => controls(form).some(changed);
-    const snapshot = (form) => JSON.stringify(controls(form).map((field) => field.value));
+    // A radio group (the sign-in background) is one answer, not a box per option, so the
+    // checked value is compared with the answer the page opened with.
+    const radioGroups = (form) => {
+        const groups = new Map();
+        form.querySelectorAll('input[type="radio"][name][data-choice-current]').forEach((radio) => {
+            if (!groups.has(radio.name)) {
+                groups.set(radio.name, { original: radio.dataset.choiceCurrent, checked: null, label: radio.dataset.label || radio.name, labels: {} });
+            }
+            const group = groups.get(radio.name);
+            group.labels[radio.value] = radio.dataset.choiceLabel || radio.value;
+            if (radio.checked) group.checked = radio.value;
+        });
+        return Array.from(groups.values());
+    };
+    const groupDirty = (form) => radioGroups(form).some((group) => group.checked !== group.original);
+    const dirty = (form) => controls(form).some(changed) || groupDirty(form);
+    const snapshot = (form) => JSON.stringify([controls(form).map((field) => field.value), radioGroups(form).map((group) => group.checked)]);
     let leaving = false;
     let confirming = false;
 
@@ -203,6 +218,9 @@
     // that only makes sense when they are read together. Everything else is a list of boxes.
     function sectionConfirmation(form) {
         const rows = [];
+        radioGroups(form).filter((group) => group.checked !== group.original).forEach((group) => {
+            rows.push([group.label, `${group.labels[group.original] || group.original} → ${group.labels[group.checked] || group.checked}`]);
+        });
         controls(form).filter(changed).forEach((field) => {
             // A password has no safe place on screen, so the summary only says that it moved.
             if (field.name === 'demo_password') {
@@ -244,6 +262,20 @@
                     message: modeMoved ? (testing ? 'Demo logins are visible on the sign-in page.' : 'Demo logins will be hidden on the sign-in page.') : '',
                     confirmText: 'Save changes',
                     danger: modeMoved && testing,
+                };
+            } else if (form.dataset.settingsForm === 'login') {
+                options = {
+                    title: 'Save login page?',
+                    sections,
+                    message: 'The sign-in page uses the chosen picture and logo as soon as you save.',
+                    confirmText: 'Save login page',
+                };
+            } else if (form.dataset.settingsForm === 'appearance') {
+                options = {
+                    title: 'Change the system theme?',
+                    sections,
+                    message: 'Every screen changes colour, the sidebar and the sign-in page included.',
+                    confirmText: 'Change theme',
                 };
             } else {
                 options = { title: `Save ${sectionTitle(form)}?`, sections, confirmText: 'Save changes' };
@@ -294,12 +326,12 @@
 
     page.addEventListener('input', (event) => {
         const field = event.target;
-        if (!field.matches('[data-original]')) return;
+        if (!field.matches('[data-original], [data-choice-current]')) return;
         if (field.hasAttribute('data-money')) validateMoney(field);
         update(field.form, true);
     });
     page.addEventListener('change', (event) => {
-        if (event.target.matches('[data-original]')) update(event.target.form, true);
+        if (event.target.matches('[data-original], [data-choice-current]')) update(event.target.form, true);
     });
     page.addEventListener('focusout', (event) => {
         const field = event.target;

@@ -6,6 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'PlusPay') - Plus Save Financial Solutions</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    {!! \App\Support\Theme::head() !!}
     <style>
         @media print {
             .no-print { display: none !important; }
@@ -13,14 +14,14 @@
             body { background: white; }
         }
         .print-only { display: none; }
-        .sidebar-link.active { background-color: #14532d; border-left: 3px solid #4ade80; }
-        .sidebar-sublink.active { background-color: #14532d; color: #4ade80; }
+        .sidebar-link.active { background-color: var(--brand-900); border-left: 3px solid var(--brand-400); }
+        .sidebar-sublink.active { background-color: var(--brand-900); color: var(--brand-300); }
         .sidebar-sublink { padding-left: 2.5rem; }
         .sidebar-group-header { padding-left: 1.5rem; }
-        .sidebar-nav { scrollbar-width: thin; scrollbar-color: #166534 transparent; }
+        .sidebar-nav { scrollbar-width: thin; scrollbar-color: var(--brand-800) transparent; }
         .sidebar-nav::-webkit-scrollbar { width: 6px; }
-        .sidebar-nav::-webkit-scrollbar-thumb { background: #166534; border-radius: 3px; }
-        :where(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid #15803d; outline-offset: 3px; }
+        .sidebar-nav::-webkit-scrollbar-thumb { background: var(--brand-800); border-radius: 3px; }
+        :where(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid var(--brand-700); outline-offset: 3px; }
         .admin-confirm::backdrop { background: rgb(0 0 0 / 50%); }
         .admin-confirm { max-width: min(28rem, calc(100vw - 2rem)); }
         /* A form on its way to the server reads as frozen: no pointer reaches a box, selects and
@@ -52,16 +53,16 @@
         .dark .text-gray-400 { color: #64748b; }
         .dark input, .dark select, .dark textarea { background-color: #0f172a; color: #e2e8f0; border-color: #475569; }
         .dark .form-locked :is(input:not([type=hidden]), select, textarea, button[role="combobox"]) { background-color: #0f172a; }
-        .dark .bg-green-50 { background-color: #052e16; }
-        .dark .bg-green-100 { background-color: #14532d; }
+        .dark .bg-green-50 { background-color: var(--brand-950); }
+        .dark .bg-green-100 { background-color: var(--brand-900); }
         .dark .bg-red-50 { background-color: #450a0a; }
         .dark .bg-red-100 { background-color: #7f1d1d; }
         .dark .bg-amber-50 { background-color: #451a03; }
         .dark .bg-amber-100 { background-color: #78350f; }
         .dark .bg-blue-50 { background-color: #172554; }
         .dark .bg-blue-100 { background-color: #1e3a8a; }
-        .dark .text-green-950, .dark .text-green-900, .dark .text-green-800 { color: #86efac; }
-        .dark .text-green-700, .dark .text-green-600 { color: #4ade80; }
+        .dark .text-green-950, .dark .text-green-900, .dark .text-green-800 { color: var(--brand-300); }
+        .dark .text-green-700, .dark .text-green-600 { color: var(--brand-400); }
         .dark .text-red-800 { color: #fca5a5; }
         .dark .text-red-700, .dark .text-red-600 { color: #f87171; }
         .dark .text-amber-800 { color: #fcd34d; }
@@ -69,10 +70,10 @@
         .dark .text-blue-800, .dark .text-blue-700, .dark .text-blue-600 { color: #93c5fd; }
         .dark .border-red-200, .dark .border-red-300, .dark .border-red-400 { border-color: #7f1d1d; }
         .dark .border-amber-200, .dark .border-amber-300 { border-color: #78350f; }
-        .dark .border-green-200 { border-color: #14532d; }
+        .dark .border-green-200 { border-color: var(--brand-900); }
         .dark .border-blue-200 { border-color: #1e3a8a; }
         .dark .hover\:bg-gray-50:hover { background-color: #1e293b; }
-        .dark .hover\:bg-green-50:hover { background-color: #052e16; }
+        .dark .hover\:bg-green-50:hover { background-color: var(--brand-950); }
         .dark dialog.admin-confirm { background-color: #1e293b; }
         .dark dialog.admin-confirm .text-gray-800 { color: #e2e8f0; }
         .dark dialog.admin-confirm [data-cancel] { background-color: #334155; }

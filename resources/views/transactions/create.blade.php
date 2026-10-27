@@ -413,8 +413,8 @@
     /* The route the desk is on has to be obvious from across the counter, and the box the keyboard
        is on must show too, so both states are drawn here rather than left to the radio dot. */
     .route-card { border-color: #e5e7eb; }
-    .route-card-on { border-color: #166534; background: #f0fdf4; }
-    .route-card:focus-within { box-shadow: 0 0 0 3px rgb(22 163 74 / .35); }
+    .route-card-on { border-color: var(--brand-800, #166534); background: var(--brand-50, #f0fdf4); }
+    .route-card:focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-600, #16a34a) 35%, transparent); }
 </style>
 @endpush
 

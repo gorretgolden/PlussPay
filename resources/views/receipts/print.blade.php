@@ -38,10 +38,10 @@
             cursor: pointer;
         }
         .slip-tools a { border: 1px solid #d1d5db; background: #fff; color: #374151; }
-        .slip-tools button { border: 1px solid #14532d; background: #14532d; color: #fff; font-weight: 600; }
-        .slip-tools button:hover { background: #166534; }
+        .slip-tools button { border: 1px solid var(--brand-900, #14532d); background: var(--brand-900, #14532d); color: #fff; font-weight: 600; }
+        .slip-tools button:hover { background: var(--brand-800, #166534); }
         .slip-tools a:focus-visible,
-        .slip-tools button:focus-visible { outline: 2px solid #15803d; outline-offset: 3px; }
+        .slip-tools button:focus-visible { outline: 2px solid var(--brand-700, #15803d); outline-offset: 3px; }
         .slip-sheet { max-width: 148mm; margin: 0 auto; }
 
         @media print {

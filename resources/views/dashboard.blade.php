@@ -325,7 +325,7 @@
     [role="tab"][aria-selected="true"] { background: #fff; color: #111827; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); }
     [role="tab"][aria-selected="false"] { color: #4b5563; }
     [role="tab"][aria-selected="false"]:hover { color: #111827; }
-    [role="tab"]:focus-visible { outline: 2px solid #86efac; outline-offset: 1px; }
+    [role="tab"]:focus-visible { outline: 2px solid var(--brand-300, #86efac); outline-offset: 1px; }
 
     /* A figure takes the headline size whenever its card can hold it on one line and gives up
        only the pixels it needs. Digits and commas in tabular figures measure about half a font

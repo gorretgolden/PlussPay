@@ -6,7 +6,7 @@
 @section('content')
 @php
     $tabs = ['rates' => 'Rates', 'transactions' => 'Transactions', 'company' => 'Company', 'datetime' => 'Date & Time'];
-    if (auth()->user()->hasRole('superadmin')) $tabs = $tabs + ['site' => 'Site Mode', 'login' => 'Login Page'];
+    if (auth()->user()->hasRole('superadmin')) $tabs = $tabs + ['appearance' => 'Theme', 'site' => 'Site Mode', 'login' => 'Login Page'];
     $activeTab = old('settings_tab', session('settings_saved_tab', 'rates'));
     if (!isset($tabs[$activeTab])) $activeTab = 'rates';
     $trimRate = fn ($value) => $value === null ? '' : rtrim(rtrim(number_format((float) $value, 6, '.', ''), '0'), '.');
@@ -55,10 +55,12 @@
             'demo_login_autofill' => ['label' => 'Demo autofill', 'type' => 'select', 'default' => 'off', 'options' => ['off' => 'Off', 'on' => 'On'], 'helper' => 'On: each demo button fills the password as well as the email, so one click signs a tester straight in. The password then travels to every browser that opens the sign-in page, so anyone who looks at the page source can read it. Testing mode keeps this on.'],
             'demo_password' => ['label' => 'Demo password', 'default' => '', 'maxlength' => 60, 'helper' => 'One password for every demo account. Saving it resets those sign-ins and nothing else.'],
         ],
+        'appearance' => [
+            'theme_color' => ['label' => 'System theme color', 'type' => 'color', 'default' => \App\Support\Theme::color(), 'helper' => 'One color for the sidebar, buttons, cards and badges across the whole system, and the sign-in page.'],
+        ],
         'login' => [
-            'login_background' => ['label' => 'Background image', 'type' => 'file', 'helper' => 'The photo behind the sign-in card. Pick a new one to replace it; leave the box empty to keep the current image.'],
-            'login_logo' => ['label' => 'Logo', 'type' => 'file', 'helper' => 'The sign at the top of the card. Pick a new one to replace it; leave the box empty to keep the current logo.'],
-            'login_theme_color' => ['label' => 'Theme color', 'type' => 'color', 'default' => '#166534', 'helper' => 'Buttons, links and focus rings on the sign-in page.'],
+            'login_background' => ['label' => 'Background image', 'type' => 'file', 'preview' => \App\Support\LoginBackground::url(), 'preview_fit' => 'cover', 'helper' => 'The picture behind the sign-in card. A new upload replaces the old one and is used at once.'],
+            'login_logo' => ['label' => 'Logo', 'type' => 'file', 'preview' => \App\Support\Media::url(\App\Models\Setting::get('login_logo'), 'logo.webp'), 'preview_fit' => 'contain', 'helper' => 'The sign at the top of the card. A new upload replaces the old one and is used at once.'],
         ],
     ];
 @endphp
@@ -157,6 +159,14 @@
                                 @endphp
                                 <div>
                                     <label for="{{ $key }}" class="block text-sm font-medium text-gray-700 mb-1">{{ $field['label'] }}</label>
+                                    @if ($type === 'file')
+                                        <div class="mb-2 flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 p-2">
+                                            <span class="flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded bg-white">
+                                                <img src="{{ $field['preview'] }}" alt="Current {{ strtolower($field['label']) }}" width="160" height="80" class="h-full w-full {{ ($field['preview_fit'] ?? 'cover') === 'contain' ? 'object-contain p-1' : 'object-cover' }}">
+                                            </span>
+                                            <span class="text-xs text-gray-500">Currently showing on the sign-in page</span>
+                                        </div>
+                                    @endif
                                     <div class="flex items-center rounded-md border border-gray-300 bg-white focus-within:ring-2 focus-within:ring-green-600">
                                         @if ($type === 'select')
                                             <select id="{{ $key }}" name="{{ $key }}" data-original="{{ $saved }}" data-label="{{ $field['label'] }}" aria-describedby="help-{{ $key }} error-{{ $key }}" @if ($key === 'site_mode') required @endif @disabled($key === 'demo_login_autofill' && \App\Models\Setting::get('site_mode', 'testing') === 'testing') class="w-full min-w-0 px-3 py-2 rounded-md bg-white outline-none">
@@ -183,6 +193,47 @@
                                     <p id="error-{{ $key }}" data-field-error="{{ $key }}" class="mt-1 text-xs text-red-700">@error($key){{ $message }}@enderror</p>
                                 </div>
                             @endforeach
+                            @if ($tab === 'appearance')
+                                @php $palette = \App\Support\Theme::palette(old('theme_color', \App\Support\Theme::color())); @endphp
+                                <div class="md:col-span-2">
+                                    <p class="mb-2 text-sm font-medium text-gray-700">Shades this color produces</p>
+                                    <div class="flex overflow-hidden rounded-lg border border-gray-200">
+                                        @foreach ($palette as $shade => $hex)
+                                            <div class="h-12 flex-1" style="background-color: {{ $hex }}" title="green-{{ $shade }} {{ $hex }}"></div>
+                                        @endforeach
+                                    </div>
+                                    <p class="mt-2 text-xs text-gray-500">Light tints for backgrounds and alerts, deep shades for the sidebar. Every screen follows this palette.</p>
+                                </div>
+                            @elseif ($tab === 'login')
+                                @php
+                                    $bgChoice = old('login_background_style', \App\Support\LoginBackground::choice());
+                                    $uploadedBackground = \App\Models\Setting::get('login_background');
+                                @endphp
+                                <div class="md:col-span-2">
+                                    <p class="mb-2 text-sm font-medium text-gray-700">Bundled backgrounds</p>
+                                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                        @foreach (\App\Support\LoginBackground::BUILT_IN as $slug => $choice)
+                                            <label class="cursor-pointer">
+                                                <input type="radio" name="login_background_style" value="{{ $slug }}" data-choice-current="{{ $bgChoice }}" data-label="Sign-in background" data-choice-label="{{ $choice['label'] }}" @checked($bgChoice === $slug) class="peer sr-only">
+                                                <span class="block overflow-hidden rounded-lg border-2 border-gray-200 peer-checked:border-green-700 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-green-700">
+                                                    <img src="{{ asset($choice['file']) }}" alt="{{ $choice['label'] }}" width="320" height="180" class="h-20 w-full object-cover">
+                                                </span>
+                                                <span class="mt-1 block text-xs text-gray-600">{{ $choice['label'] }}</span>
+                                            </label>
+                                        @endforeach
+                                        @if ($uploadedBackground)
+                                            <label class="cursor-pointer">
+                                                <input type="radio" name="login_background_style" value="upload" data-choice-current="{{ $bgChoice }}" data-label="Sign-in background" data-choice-label="Your upload" @checked($bgChoice === 'upload') class="peer sr-only">
+                                                <span class="block overflow-hidden rounded-lg border-2 border-gray-200 peer-checked:border-green-700 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-green-700">
+                                                    <img src="{{ \App\Support\Media::url($uploadedBackground, 'login-background.webp') }}" alt="Your uploaded background" width="320" height="180" class="h-20 w-full object-cover">
+                                                </span>
+                                                <span class="mt-1 block text-xs text-gray-600">Your upload</span>
+                                            </label>
+                                        @endif
+                                    </div>
+                                    <p class="mt-2 text-xs text-gray-500">Pick a bundled design, or upload your own picture above. A new upload switches the choice to your image automatically.</p>
+                                </div>
+                            @endif
                             @if ($tab === 'transactions')
                                 <div class="self-end rounded-md bg-gray-50 px-4 py-3">
                                     <p class="text-xs text-gray-500 mb-1">Receipt preview</p>
@@ -229,7 +280,7 @@
 @push('styles')
 <style>
     #settings-page [hidden] { display: none !important; }
-    #settings-page [role="tab"][aria-selected="true"] { color: #166534; border-bottom-color: #166534; }
+    #settings-page [role="tab"][aria-selected="true"] { color: var(--brand-800, #166534); border-bottom-color: var(--brand-800, #166534); }
 </style>
 @endpush
 

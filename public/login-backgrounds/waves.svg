@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#052e16"/>
+      <stop offset="0.55" stop-color="#0b3b28"/>
+      <stop offset="1" stop-color="#14532d"/>
+    </linearGradient>
+    <linearGradient id="ribbon-a" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#34d399" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="#6ee7b7" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#a7f3d0" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="ribbon-b" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fef3c7" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#fde68a" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#fef3c7" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.78" cy="0.18" r="0.65">
+      <stop offset="0" stop-color="#5eead4" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#5eead4" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.05"/></feComponentTransfer>
+    </filter>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#base)"/>
+  <rect width="1600" height="1000" fill="url(#glow)"/>
+  <path d="M-120 780 C 260 560, 520 900, 900 690 S 1480 520, 1760 640 L 1760 1040 L -120 1040 Z" fill="#022c22" opacity="0.75"/>
+  <path d="M-120 860 C 300 640, 620 940, 980 760 S 1500 640, 1760 720 L 1760 1040 L -120 1040 Z" fill="#041f17" opacity="0.8"/>
+  <path d="M-140 300 C 220 120, 520 340, 880 190 S 1420 60, 1740 230" fill="none" stroke="url(#ribbon-a)" stroke-width="120" stroke-linecap="round"/>
+  <path d="M-140 380 C 240 220, 560 430, 920 280 S 1440 150, 1740 320" fill="none" stroke="url(#ribbon-a)" stroke-width="34" stroke-linecap="round" opacity="0.6"/>
+  <path d="M-120 560 C 300 440, 660 660, 1020 500 S 1500 380, 1760 470" fill="none" stroke="url(#ribbon-b)" stroke-width="90" stroke-linecap="round"/>
+  <path d="M-120 640 C 340 530, 700 720, 1060 570 S 1520 470, 1760 560" fill="none" stroke="url(#ribbon-b)" stroke-width="18" stroke-linecap="round" opacity="0.7"/>
+  <circle cx="1260" cy="220" r="120" fill="#fef3c7" opacity="0.08"/>
+  <circle cx="1260" cy="220" r="52" fill="#fef3c7" opacity="0.12"/>
+  <rect width="1600" height="1000" filter="url(#grain)" opacity="0.9"/>
+</svg>
