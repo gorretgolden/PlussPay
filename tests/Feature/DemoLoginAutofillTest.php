@@ -189,4 +189,56 @@ class DemoLoginAutofillTest extends TestCase
         $this->assertNull(Setting::get('demo_password'));
         $this->assertFalse(Hash::check('Sneaked', User::where('email', 'admin@plussave.com')->value('password')));
     }
+
+    public function test_switching_to_production_turns_demo_autofill_off_and_shows_it_off(): void
+    {
+        Setting::set('demo_login_autofill', 'on', 'string', 'display');
+
+        $this->put('/settings', [
+            'settings_tab' => 'site', 'site_mode' => 'production',
+            'demo_login_autofill' => 'on',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('production', Setting::get('site_mode'));
+        $this->assertSame('off', Setting::get('demo_login_autofill'));
+
+        $html = $this->get('/settings')->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/<select id="demo_login_autofill".*?<\/select>/s', $html);
+        preg_match('/<select id="demo_login_autofill".*?<\/select>/s', $html, $select);
+        $this->assertStringContainsString('disabled', $select[0]);
+        $this->assertMatchesRegularExpression('/<option value="off"\s+selected[^>]*>/', $select[0]);
+        $this->assertStringContainsString('Locked Off in Production', $html);
+    }
+
+    public function test_production_cannot_be_persuaded_to_carry_the_demo_password(): void
+    {
+        Setting::set('site_mode', 'production', 'string', 'display');
+        Setting::set('demo_login_autofill', 'off', 'string', 'display');
+
+        $this->put('/settings', [
+            'settings_tab' => 'site', 'demo_login_autofill' => 'on',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('off', Setting::get('demo_login_autofill'));
+    }
+
+    public function test_switching_back_to_testing_turns_the_buttons_back_on(): void
+    {
+        Setting::set('site_mode', 'production', 'string', 'display');
+        Setting::set('demo_login_autofill', 'off', 'string', 'display');
+        Setting::set('demo_password', 'TestDesk2026', 'string', 'display');
+
+        $this->put('/settings', [
+            'settings_tab' => 'site', 'site_mode' => 'testing',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('on', Setting::get('demo_login_autofill'));
+
+        auth()->logout();
+        $html = $this->get('/admin/login')->assertOk()->getContent();
+        $this->assertSame(
+            count(RoleAndUserSeeder::DEMO_ACCOUNTS),
+            substr_count($html, 'data-demo-password="TestDesk2026"')
+        );
+    }
 }

@@ -159,11 +159,18 @@ class SettingController extends Controller
         }
 
         // Testing mode shows the one-click sign-in buttons, so their autofill has to be on too
-        // or a tester clicks a button and nothing lands in the password box. Forced together
-        // here; the sign-in page also reads the mode itself, so an older saved state where the
-        // two disagreed cannot slip through.
-        if (($validated['site_mode'] ?? null) === 'testing' && ($validated['demo_login_autofill'] ?? null) !== 'on') {
-            $validated['demo_login_autofill'] = 'on';
+        // or a tester clicks a button and nothing lands in the password box. Production hides
+        // those buttons, so a password must never travel with the page there. The switch is
+        // locked in the form, so a mode change on its own still settles it.
+        $postedMode = $validated['site_mode'] ?? null;
+        $effectiveMode = $postedMode ?? Setting::get('site_mode', 'testing');
+
+        if ($request->user()->hasRole('superadmin')) {
+            if ($effectiveMode === 'testing' && ($postedMode === 'testing' || ($validated['demo_login_autofill'] ?? null) === 'on')) {
+                $validated['demo_login_autofill'] = 'on';
+            } elseif ($effectiveMode === 'production') {
+                $validated['demo_login_autofill'] = 'off';
+            }
         }
 
         // The two sign-in images are stored files, not setting strings: the key keeps the

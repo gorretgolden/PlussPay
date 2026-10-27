@@ -154,6 +154,10 @@
                             @foreach ($fields[$tab] as $key => $field)
                                 @php
                                     $saved = \App\Models\Setting::get($key, $field['default'] ?? '');
+                                    if ($key === 'demo_login_autofill' && \App\Models\Setting::get('site_mode', 'testing') !== 'testing') {
+                                        // Production hides the demo buttons, so it always reads Off.
+                                        $saved = 'off';
+                                    }
                                     $value = old($key, $saved);
                                     $type = $field['type'] ?? 'text';
                                 @endphp
@@ -169,7 +173,7 @@
                                     @endif
                                     <div class="flex items-center rounded-md border border-gray-300 bg-white focus-within:ring-2 focus-within:ring-green-600">
                                         @if ($type === 'select')
-                                            <select id="{{ $key }}" name="{{ $key }}" data-original="{{ $saved }}" data-label="{{ $field['label'] }}" aria-describedby="help-{{ $key }} error-{{ $key }}" @if ($key === 'site_mode') required @endif @disabled($key === 'demo_login_autofill' && \App\Models\Setting::get('site_mode', 'testing') === 'testing') class="w-full min-w-0 px-3 py-2 rounded-md bg-white outline-none">
+                                            <select id="{{ $key }}" name="{{ $key }}" data-original="{{ $saved }}" data-label="{{ $field['label'] }}" aria-describedby="help-{{ $key }} error-{{ $key }}" @if ($key === 'site_mode') required @endif @disabled($key === 'demo_login_autofill') class="w-full min-w-0 px-3 py-2 rounded-md bg-white outline-none disabled:bg-gray-100 disabled:text-gray-500">
                                                 @foreach ($field['options'] as $option => $description)
                                                     <option value="{{ $option }}" @selected($value === $option) @disabled($key === 'site_mode' && $option === 'testing' && $testingModeBlocked)>{{ $description }}</option>
                                                 @endforeach
@@ -189,7 +193,7 @@
                                             @isset($field['unit'])<span id="unit-{{ $key }}" class="pr-3 text-xs text-gray-500 shrink-0">{{ $field['unit'] }}</span>@endisset
                                         @endif
                                     </div>
-                                    <p id="help-{{ $key }}" class="mt-1 text-xs text-gray-500">@if ($key === 'demo_login_autofill' && \App\Models\Setting::get('site_mode', 'testing') === 'testing')Testing mode keeps demo autofill on.@else{{ $field['helper'] ?? '' }}@endif</p>
+                                    <p id="help-{{ $key }}" class="mt-1 text-xs text-gray-500">@if ($key === 'demo_login_autofill')@if (\App\Models\Setting::get('site_mode', 'testing') === 'testing')Locked On while the system is in Testing, so each demo button fills the password too.@else Locked Off in Production: the demo buttons and their password never reach the sign-in page.@endif @else{{ $field['helper'] ?? '' }}@endif</p>
                                     <p id="error-{{ $key }}" data-field-error="{{ $key }}" class="mt-1 text-xs text-red-700">@error($key){{ $message }}@enderror</p>
                                 </div>
                             @endforeach
