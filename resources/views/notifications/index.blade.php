@@ -22,7 +22,7 @@
 <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">What Happened</h1>
-        <p class="text-gray-600">Newest first. You only receive word about the parts of the book you can open.</p>
+        <p class="text-gray-600">You only receive word about the parts of the book you can open.</p>
     </div>
     @if($counts['unread'] > 0)
     <form method="POST" action="{{ route('notifications.read-all') }}">
@@ -80,8 +80,7 @@
                     By {{ $data['actor'] ?? 'the system' }}
                     @if(!empty($data['actor_role']))<span class="text-gray-400">({{ $data['actor_role'] }})</span>@endif
                 </span>
-                <a href="{{ $data['path'] ?? '#' }}" class="text-sm font-medium text-green-700 hover:text-green-900">{{ $data['link_label'] ?? 'Open' }}</a>
-                @unless($notice->read_at)
+                <a href="{{ $data['path'] ?? '#' }}" class="                @unless($notice->read_at)
                 <form method="POST" action="{{ route('notifications.read', $notice->id) }}">
                     @csrf
                     @method('PATCH')
