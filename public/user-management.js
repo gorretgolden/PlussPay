@@ -3,6 +3,21 @@
     const ready = (fn) => document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', () => queueMicrotask(fn)) : queueMicrotask(fn);
     const one = (selector, root = document) => root.querySelector(selector);
     const all = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+    // Mirrors User::normalizeClock so "8:00 AM" and "08:00" count as the same time before
+    // the form is sent. The server still makes the final decision.
+    const clockKey = (value) => {
+        const text = value.trim().toUpperCase().replace(/\s+/g, ' ');
+        let match = text.match(/^(\d{1,2})(?::(\d{1,2}))? ?(AM|PM)$/);
+        if (match) {
+            let hour = Number(match[1]);
+            const minute = Number(match[2] || 0);
+            if (hour < 1 || hour > 12 || minute > 59) return text;
+            hour = match[3] === 'AM' ? (hour === 12 ? 0 : hour) : (hour === 12 ? 12 : hour + 12);
+            return `${hour}:${String(minute).padStart(2, '0')}`;
+        }
+        match = text.match(/^(\d{1,2}):(\d{2})$/);
+        return match ? `${Number(match[1])}:${match[2]}` : text;
+    };
     const fallback = {
         setError(input, message) {
             const error = one(`[data-field-error="${input.name.replace('[]', '')}"]`, input.form);
@@ -86,7 +101,7 @@
                 restrict.setAttribute('aria-expanded', String(restrict.checked));
                 all('input', panel).forEach(input => {
                     input.disabled = !restrict.checked;
-                    if (input.type === 'time') input.required = restrict.checked;
+                    if (input.id === 'allowed_from' || input.id === 'allowed_to') input.required = restrict.checked;
                     if (!restrict.checked) validation.clearError(input);
                 });
             }
@@ -95,7 +110,8 @@
                 if (restrict?.checked) {
                     const day = one('[name="days[]"]', form);
                     if (!all('[name="days[]"]:checked', form).length) validation.setError(day, 'Choose at least one day.');
-                    if (one('#allowed_from', form).value && one('#allowed_from', form).value === one('#allowed_to', form).value) validation.setError(one('#allowed_to', form), 'Choose different start and end times.');
+                    const from = one('#allowed_from', form), to = one('#allowed_to', form);
+                    if (from.value && clockKey(from.value) === clockKey(to.value)) validation.setError(to, 'Choose different start and end times.');
                 }
             }
 
@@ -408,7 +424,7 @@
                 const error = one('#bulk-error', form); error.textContent = '';
                 if (!selected || !action.value) { error.textContent = 'Select accounts and choose an action.'; return; }
                 if (action.value === 'window_set' && !all('[name="days[]"]:checked', form).length) { error.textContent = 'Choose at least one allowed day.'; one('[name="days[]"]', form).focus(); return; }
-                if (action.value === 'window_set' && one('#bulk-from', form).value === one('#bulk-to', form).value) { error.textContent = 'Choose different start and end times.'; return; }
+                if (action.value === 'window_set' && clockKey(one('#bulk-from', form).value) === clockKey(one('#bulk-to', form).value)) { error.textContent = 'Choose different start and end times.'; return; }
                 message = `${action.selectedOptions[0].text} for ${selected} selected ${selected === 1 ? 'account' : 'accounts'}? Protected accounts are skipped.`;
             }
             form.dataset.confirming = 'true';

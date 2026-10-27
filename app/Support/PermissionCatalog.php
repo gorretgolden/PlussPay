@@ -9,7 +9,7 @@ use Spatie\Permission\Models\Role;
 final class PermissionCatalog
 {
     public const MODULES = [
-        'Users' => ['view-users', 'create-user', 'edit-user', 'delete-user', 'toggle-user-status', 'reset-user-password', 'lock-user', 'manage-user-two-factor', 'assign-roles', 'export-users'],
+        'Users' => ['view-users', 'create-user', 'edit-user', 'delete-user', 'toggle-user-status', 'reset-user-password', 'manage-user-two-factor', 'assign-roles', 'export-users'],
         'Roles' => ['view-roles', 'create-role', 'edit-role', 'delete-role', 'assign-permissions', 'seed-permissions'],
         'Transactions' => ['view-dashboard', 'view-transactions', 'view-own-transactions', 'view-all-transactions', 'edit-transaction', 'delete-transaction', 'approve-transaction', 'export-transactions'],
         'Send Money' => ['create-transaction', 'bulk-import-transactions', 'view-exchanges', 'view-all-exchanges', 'create-exchange', 'void-exchange', 'override-exchange-rate', 'export-exchanges'],

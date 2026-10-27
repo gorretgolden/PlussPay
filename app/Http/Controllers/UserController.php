@@ -34,11 +34,9 @@ class UserController extends Controller
     private const NAME_MESSAGE = 'Enter the full name with a first and last name, like Gorret Golden.';
 
     private const BULK_ACTIONS = [
-        'activate' => 'Activated',
-        'deactivate' => 'Deactivated',
-        'lock' => 'Locked',
-        'unlock' => 'Unlocked',
-        'window_set' => 'Applied login hours to',
+        'activate' => 'Restored sign-in for',
+        'deactivate' => 'Blocked sign-in for',
+        'window_set' => 'Applied sign-in hours to',
         'window_clear' => 'Removed login hour limits from',
         'two_factor_off' => 'Turned off two-factor sign-in for',
     ];
@@ -108,6 +106,8 @@ class UserController extends Controller
             'email' => $email,
             'phone' => $phone,
             'password' => Hash::make($request->boolean('send_password_link') ? Str::random(64) : $validated['password']),
+            // A link account has no password of its own until the person opens the email.
+            'password_changed_at' => $request->boolean('send_password_link') ? null : now(),
             'must_change_password' => $request->boolean('send_password_link') || $request->boolean('must_change_password'),
             'is_active' => true,
             'created_by' => auth()->id(),
@@ -193,10 +193,10 @@ class UserController extends Controller
         }
 
         if (!$request->boolean('is_active') && $user->id === $currentUser->id) {
-            return back()->withErrors(['is_active' => 'You cannot deactivate your own account.']);
+            return back()->withErrors(['is_active' => 'You cannot block your own sign-in.']);
         }
         if (!$request->boolean('is_active') && $this->isLastSuperadmin($user)) {
-            return back()->withErrors(['is_active' => 'The last available superadmin cannot be deactivated.']);
+            return back()->withErrors(['is_active' => 'The last available superadmin cannot be blocked.']);
         }
 
         $trial = clone $user;
@@ -326,81 +326,58 @@ class UserController extends Controller
         return back()->with('success', 'Password reset successfully.');
     }
 
-    public function toggleLock(Request $request, User $user)
+    /**
+     * One switch for the whole idea of letting a person in. A block is what an admin sets;
+     * a lock is what failed passwords set by themselves. Restoring clears both, so nobody
+     * has to work out which of two boxes was switched off.
+     */
+    public function toggleAccess(Request $request, User $user)
     {
-        return $this->withAccessLock(fn () => $this->toggleAccountLock($request, $user->fresh()));
+        return $this->withAccessLock(fn () => $this->toggleAccountAccess($request, $user->fresh()));
     }
 
-    private function toggleAccountLock(Request $request, User $user)
+    private function toggleAccountAccess(Request $request, User $user)
     {
         $currentUser = auth()->user();
 
-        if ($user->hasRole('superadmin') && !$currentUser->hasRole('superadmin')) {
-            return back()->withErrors(['error' => 'Only superadmins can lock/unlock superadmin accounts.']);
-        }
-
         if ($user->id === $currentUser->id) {
-            return back()->withErrors(['error' => 'You cannot lock your own account.']);
+            return back()->withErrors(['error' => 'You cannot block your own sign-in.']);
         }
 
-        if (!$user->isLocked() && $this->isLastSuperadmin($user)) {
-            return back()->withErrors(['error' => 'This is the only superadmin account, so it cannot be locked.']);
+        if ($user->hasRole('superadmin') && !$currentUser->hasRole('superadmin')) {
+            return back()->withErrors(['error' => 'Only superadmins can change sign-in access for a superadmin account.']);
         }
 
-        $wasLocked = $user->isLocked();
-        if ($wasLocked) {
-            $user->unlock();
-            $action = 'unlocked';
-            $description = "Account unlocked for user {$user->name}";
+        $canSignIn = $user->is_active && !$user->isLocked();
+
+        if ($canSignIn) {
+            if ($this->isLastSuperadmin($user)) {
+                return back()->withErrors(['error' => 'This is the only active superadmin account, so its sign-in cannot be blocked.']);
+            }
+
+            $user->update(['is_active' => false, 'is_locked' => false, 'locked_until' => null]);
+            $action = 'user_deactivated';
+            $description = "Sign-in blocked for user {$user->name}";
+            $message = "{$user->name} can no longer sign in. An open session is signed out within seconds.";
         } else {
-            $user->update(['is_locked' => true]);
-            $action = 'locked';
-            $description = "Account locked for user {$user->name}";
+            $user->update([
+                'is_active' => true,
+                'is_locked' => false,
+                'failed_login_attempts' => 0,
+                'locked_until' => null,
+            ]);
+            $action = 'user_activated';
+            $description = "Sign-in restored for user {$user->name}";
+            $message = "{$user->name} can sign in again.";
         }
 
         ActivityLog::create([
             'user_id' => $currentUser->id,
             'action' => $action,
             'description' => $description,
-            'old_value' => $wasLocked ? 'locked' : 'unlocked',
-            'new_value' => $user->is_locked ? 'locked' : 'unlocked',
         ]);
 
-        $message = $user->is_locked ? 'Account locked successfully.' : 'Account unlocked successfully.';
         return back()->with('success', $message);
-    }
-
-    public function toggleActive(Request $request, User $user)
-    {
-        return $this->withAccessLock(fn () => $this->toggleAccountActive($request, $user->fresh()));
-    }
-
-    private function toggleAccountActive(Request $request, User $user)
-    {
-        $currentUser = auth()->user();
-
-        if ($user->id === $currentUser->id) {
-            return back()->withErrors(['error' => 'You cannot deactivate your own account.']);
-        }
-
-        if ($user->hasRole('superadmin') && !$currentUser->hasRole('superadmin')) {
-            return back()->withErrors(['error' => 'Only superadmins can modify superadmin accounts.']);
-        }
-
-        if ($user->is_active && $this->isLastSuperadmin($user)) {
-            return back()->withErrors(['error' => 'This is the only active superadmin account, so it cannot be deactivated.']);
-        }
-
-        $user->update(['is_active' => !$user->is_active]);
-
-        $status = $user->is_active ? 'activated' : 'deactivated';
-        ActivityLog::create([
-            'user_id' => $currentUser->id,
-            'action' => "user_{$status}",
-            'description' => "User {$user->name} {$status}",
-        ]);
-
-        return back()->with('success', "User {$user->name} {$status}.");
     }
 
     public function bulk(Request $request)
@@ -410,6 +387,8 @@ class UserController extends Controller
 
     private function bulkAccounts(Request $request)
     {
+        $this->normalizeClockInputs($request);
+
         $validated = $request->validate([
             'action' => 'required|string|in:' . implode(',', array_keys(self::BULK_ACTIONS)),
             'user_ids' => 'required|array|min:1|max:200',
@@ -421,6 +400,11 @@ class UserController extends Controller
         ], [
             'action.required' => 'Choose a bulk action first.',
             'user_ids.required' => 'Tick at least one user to run a bulk action.',
+            'days.required_if' => 'Tick at least one allowed day.',
+            'allowed_from.required_if' => 'Choose the start of the allowed sign-in hours.',
+            'allowed_to.required_if' => 'Choose the end of the allowed sign-in hours.',
+            'allowed_from.date_format' => 'Type the start time like 8:00 AM.',
+            'allowed_to.date_format' => 'Type the end time like 6:00 PM.',
         ]);
 
         $action = $validated['action'];
@@ -528,6 +512,8 @@ class UserController extends Controller
             $request->merge(['phone' => User::normalizePhone($request->input('phone'))]);
         }
 
+        $this->normalizeClockInputs($request);
+
         return $request->validate([
             'name' => ['required', 'string', 'min:3', 'max:100', 'regex:' . self::NAME_PATTERN],
             'email' => 'required|email|max:100',
@@ -556,9 +542,30 @@ class UserController extends Controller
             'role.exists' => 'Invalid role selected.',
             'country.in' => 'Choose Uganda or China.',
             'timezone.in' => 'Please choose one of the listed time zones.',
-            'allowed_from.date_format' => 'Use the 24 hour format for the start time, such as 08:00.',
-            'allowed_to.date_format' => 'Use the 24 hour format for the end time, such as 18:00.',
+            'days.required_if' => 'Tick at least one allowed day.',
+            'allowed_from.required_if' => 'Choose the start of the allowed sign-in hours.',
+            'allowed_to.required_if' => 'Choose the end of the allowed sign-in hours.',
+            'allowed_from.date_format' => 'Type the start time like 8:00 AM.',
+            'allowed_to.date_format' => 'Type the end time like 6:00 PM.',
         ]);
+    }
+
+    /**
+     * The screen shows a clock face, so the two time boxes are typed as 8:00 AM. They are
+     * turned into 08:00 here, before validation, and anything that is not a time is left
+     * as typed so the person gets the message instead of a silently moved window.
+     */
+    private function normalizeClockInputs(Request $request): void
+    {
+        foreach (['allowed_from', 'allowed_to'] as $field) {
+            $value = $request->input($field);
+
+            if (!is_string($value) || trim($value) === '') {
+                continue;
+            }
+
+            $request->merge([$field => User::normalizeClock($value) ?? trim($value)]);
+        }
     }
 
     private function emailHolder(string $email, ?User $ignore = null): ?User
@@ -603,8 +610,8 @@ class UserController extends Controller
         }
 
         $user->setAllowedDays($days);
-        $user->allowed_from = $request->filled('allowed_from') ? substr($request->input('allowed_from'), 0, 5) : null;
-        $user->allowed_to = $request->filled('allowed_to') ? substr($request->input('allowed_to'), 0, 5) : null;
+        $user->allowed_from = $request->filled('allowed_from') ? User::normalizeClock($request->input('allowed_from')) : null;
+        $user->allowed_to = $request->filled('allowed_to') ? User::normalizeClock($request->input('allowed_to')) : null;
     }
 
     /**
@@ -631,7 +638,7 @@ class UserController extends Controller
 
     private function bulkSkipReason(string $action, User $user, User $actor): ?string
     {
-        $changesAccess = in_array($action, ['deactivate', 'lock'], true);
+        $changesAccess = $action === 'deactivate';
 
         if ($user->hasRole('superadmin') && !$actor->hasRole('superadmin')) {
             return 'superadmin account(s) you cannot change';
@@ -662,10 +669,8 @@ class UserController extends Controller
     private function applyBulkAction(string $action, User $user, User $actor): void
     {
         $changes = match ($action) {
-            'activate' => ['is_active' => true],
-            'deactivate' => ['is_active' => false],
-            'lock' => ['is_locked' => true],
-            'unlock' => ['is_locked' => false, 'failed_login_attempts' => 0, 'locked_until' => null],
+            'activate' => ['is_active' => true, 'is_locked' => false, 'failed_login_attempts' => 0, 'locked_until' => null],
+            'deactivate' => ['is_active' => false, 'is_locked' => false, 'locked_until' => null],
             'window_set' => ['allowed_days' => count(request('days')) === 7 ? null : implode(',', request('days')), 'allowed_from' => request('allowed_from'), 'allowed_to' => request('allowed_to')],
             'window_clear' => ['allowed_days' => null, 'allowed_from' => null, 'allowed_to' => null],
             'two_factor_off' => ['two_factor_enabled' => false, 'two_factor_secret' => null],
@@ -674,8 +679,6 @@ class UserController extends Controller
         $logAction = match ($action) {
             'activate' => 'user_activated',
             'deactivate' => 'user_deactivated',
-            'lock' => 'locked',
-            'unlock' => 'unlocked',
             'window_set' => 'login_window_set',
             'window_clear' => 'login_window_cleared',
             'two_factor_off' => 'two_factor_disabled',
@@ -798,6 +801,7 @@ class UserController extends Controller
     private function writePassword(User $user, string $plain): void
     {
         $user->password = Hash::make($plain);
+        $user->password_changed_at = now();
         $user->remember_token = null;
         $user->must_change_password = $user->must_change_password || request()->boolean('must_change_password', true);
         $user->save();

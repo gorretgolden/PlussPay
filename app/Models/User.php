@@ -14,7 +14,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'phone', 'country', 'timezone', 'password', 'is_active', 'is_locked', 'failed_login_attempts', 'locked_until', 'last_login_at', 'last_login_ip', 'allowed_days', 'allowed_from', 'allowed_to', 'two_factor_secret', 'two_factor_enabled', 'must_change_password', 'created_by', 'updated_by'])]
+#[Fillable(['name', 'email', 'phone', 'country', 'timezone', 'password', 'password_changed_at', 'is_active', 'is_locked', 'failed_login_attempts', 'locked_until', 'last_login_at', 'last_login_ip', 'allowed_days', 'allowed_from', 'allowed_to', 'two_factor_secret', 'two_factor_enabled', 'must_change_password', 'created_by', 'updated_by'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret'])]
 class User extends Authenticatable
 {
@@ -56,6 +56,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'password_changed_at' => 'datetime',
             'is_active' => 'boolean',
             'is_locked' => 'boolean',
             'locked_until' => 'datetime',
@@ -170,18 +171,18 @@ class User extends Authenticatable
             $query->where('country', $request->country);
         }
 
+        // Blocked is what an admin switched off; locked out is the temporary state that
+        // failed passwords set. They are listed together because one action clears either.
         if ($request->filled('status')) {
-            $query->where('is_active', $request->status === 'active');
-        }
-
-        if ($request->filled('lock')) {
-            $query->where(function ($q) use ($request) {
-                if ($request->lock === 'locked') {
-                    $q->where('is_locked', true)->orWhere('locked_until', '>', now());
-                } else {
-                    $q->where('is_locked', false)->where(fn ($locks) => $locks->whereNull('locked_until')->orWhere('locked_until', '<=', now()));
-                }
-            });
+            if ($request->status === 'inactive') {
+                $query->where('is_active', false);
+            } elseif ($request->status === 'locked') {
+                $query->where(fn ($q) => $q
+                    ->where('is_locked', true)
+                    ->orWhere('locked_until', '>', now()));
+            } else {
+                $query->where('is_active', true);
+            }
         }
 
         if ($request->filled('two_factor')) {
@@ -345,16 +346,75 @@ class User extends Authenticatable
 
     private function timeLabel(): string
     {
-        return $this->twelveHour($this->allowed_from ?? '00:00') . ' to ' . $this->twelveHour($this->allowed_to ?? '23:59');
+        return self::clockLabel($this->allowed_from ?? '00:00') . ' to ' . self::clockLabel($this->allowed_to ?? '23:59');
     }
 
-    private function twelveHour(string $clock): string
+    /**
+     * The desk reads a clock face, not a timetable: a window is written 8:00 AM to
+     * 6:00 PM on screen even though the database keeps it as 08:00 and 18:00.
+     */
+    public static function clockLabel(?string $clock): string
     {
+        $clock = self::normalizeClock($clock);
+
+        if ($clock === null) {
+            return '';
+        }
+
         $parts = array_map('intval', explode(':', $clock));
         $hour = $parts[0] % 12 ?: 12;
-        $minute = str_pad((string) ($parts[1] ?? 0), 2, '0', STR_PAD_LEFT);
+        $minute = str_pad((string) $parts[1], 2, '0', STR_PAD_LEFT);
 
         return $hour . ':' . $minute . ' ' . ($parts[0] >= 12 ? 'PM' : 'AM');
+    }
+
+    /**
+     * For a field: a stored 18:00 becomes 6:00 PM, while a value the person just typed is
+     * handed back untouched so a mistake is never silently rewritten into another time.
+     */
+    public static function displayClock(?string $value): string
+    {
+        $clock = self::normalizeClock($value);
+
+        return $clock === null ? trim((string) $value) : self::clockLabel($clock);
+    }
+
+    /**
+     * Accepts a clock face (8:00 AM, 6:30pm), a bare hour with AM/PM, or 24-hour time,
+     * and returns the one storage shape. Null means the text is not a time at all.
+     */
+    public static function normalizeClock(?string $value): ?string
+    {
+        $value = preg_replace('/\s+/', ' ', strtoupper(trim((string) $value)));
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d{1,2})(?::(\d{1,2}))? ?(AM|PM)$/', $value, $match)) {
+            $hour = (int) $match[1];
+            $minute = (int) ($match[2] ?? 0);
+
+            if ($hour < 1 || $hour > 12 || $minute > 59) {
+                return null;
+            }
+
+            $hour = $match[3] === 'AM'
+                ? ($hour === 12 ? 0 : $hour)
+                : ($hour === 12 ? 12 : $hour + 12);
+
+            return sprintf('%02d:%02d', $hour, $minute);
+        }
+
+        if (preg_match('/^(\d{1,2}):(\d{2})$/', $value, $match)) {
+            if ((int) $match[1] > 23 || (int) $match[2] > 59) {
+                return null;
+            }
+
+            return sprintf('%02d:%02d', (int) $match[1], (int) $match[2]);
+        }
+
+        return null;
     }
 
     private function dayListLabel(): string

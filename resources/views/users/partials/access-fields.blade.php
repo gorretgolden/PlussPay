@@ -3,6 +3,8 @@
     $allowedFrom = $allowedFrom ?? '';
     $allowedTo = $allowedTo ?? '';
     $restricted = (bool) old('restrict_hours', count($selectedDays) || $allowedFrom || $allowedTo);
+    $allowedFromDisplay = $allowedFrom === '' ? '' : \App\Models\User::displayClock($allowedFrom);
+    $allowedToDisplay = $allowedTo === '' ? '' : \App\Models\User::displayClock($allowedTo);
 @endphp
 <fieldset class="user-section">
     <legend class="font-semibold text-sm">Sign-in hours</legend>
@@ -19,9 +21,9 @@
             <p id="error-days" data-field-error="days" class="user-error">@error('days'){{ $message }}@enderror</p>
         </fieldset>
         <div class="user-grid mt-4">
-            <div class="user-field"><label for="allowed_from">From</label><input id="allowed_from" name="allowed_from" type="time" class="user-control" value="{{ $allowedFrom }}" aria-describedby="error-allowed_from"><p id="error-allowed_from" data-field-error="allowed_from" class="user-error">@error('allowed_from'){{ $message }}@enderror</p></div>
-            <div class="user-field"><label for="allowed_to">To</label><input id="allowed_to" name="allowed_to" type="time" class="user-control" value="{{ $allowedTo }}" aria-describedby="error-allowed_to"><p id="error-allowed_to" data-field-error="allowed_to" class="user-error">@error('allowed_to'){{ $message }}@enderror</p></div>
+            <div class="user-field"><label for="allowed_from">From</label><input id="allowed_from" name="allowed_from" type="text" class="user-control" value="{{ $allowedFromDisplay }}" placeholder="8:00 AM" autocomplete="off" aria-describedby="help-hours error-allowed_from"><p id="error-allowed_from" data-field-error="allowed_from" class="user-error">@error('allowed_from'){{ $message }}@enderror</p></div>
+            <div class="user-field"><label for="allowed_to">To</label><input id="allowed_to" name="allowed_to" type="text" class="user-control" value="{{ $allowedToDisplay }}" placeholder="6:00 PM" autocomplete="off" aria-describedby="help-hours error-allowed_to"><p id="error-allowed_to" data-field-error="allowed_to" class="user-error">@error('allowed_to'){{ $message }}@enderror</p></div>
         </div>
-        <p class="user-help">Account’s local time. Overnight windows are supported.</p>
+        <p id="help-hours" class="user-help">Account’s local time, typed with AM or PM. Overnight windows are supported.</p>
     </div>
 </fieldset>

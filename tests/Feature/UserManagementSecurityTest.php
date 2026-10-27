@@ -118,8 +118,7 @@ class UserManagementSecurityTest extends TestCase
         $actor = $this->user('superadmin');
         $this->user('superadmin');
         $this->actingAs($actor)->put('/users/'.$actor->id, array_replace($this->payload($actor), ['is_active' => 0]))->assertSessionHasErrors('is_active');
-        $this->patch('/users/'.$actor->id.'/toggle-active')->assertSessionHasErrors('error');
-        $this->patch('/users/'.$actor->id.'/toggle-lock')->assertSessionHasErrors('error');
+        $this->patch('/users/'.$actor->id.'/toggle-access')->assertSessionHasErrors('error');
         $this->post('/users/bulk', ['action' => 'deactivate', 'user_ids' => [$actor->id]])->assertSessionHasErrors('error');
         $this->assertTrue($actor->fresh()->is_active);
         $this->assertFalse($actor->fresh()->isLocked());
@@ -135,9 +134,8 @@ class UserManagementSecurityTest extends TestCase
         $this->actingAs($actor);
         $this->put('/users/'.$target->id, array_replace($this->payload($target), ['is_active' => 0]))->assertSessionHasErrors('is_active');
         $this->put('/users/'.$target->id, array_replace($this->payload($target), ['role' => 'agent']))->assertSessionHasErrors('role');
-        $this->patch('/users/'.$target->id.'/toggle-active')->assertSessionHasErrors('error');
-        $this->patch('/users/'.$target->id.'/toggle-lock')->assertSessionHasErrors('error');
-        $this->post('/users/bulk', ['action' => 'lock', 'user_ids' => [$target->id]])->assertSessionHasErrors('error');
+        $this->patch('/users/'.$target->id.'/toggle-access')->assertSessionHasErrors('error');
+        $this->post('/users/bulk', ['action' => 'deactivate', 'user_ids' => [$target->id]])->assertSessionHasErrors('error');
         $this->put('/users/'.$target->id, array_replace($this->payload($target), ['restrict_hours' => 1, 'days' => [1], 'allowed_from' => '09:00', 'allowed_to' => '12:00']))->assertSessionHasErrors('days');
         $this->assertTrue($target->fresh()->is_active);
         $this->assertFalse($target->fresh()->isLocked());

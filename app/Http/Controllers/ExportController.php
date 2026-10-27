@@ -158,11 +158,11 @@ class ExportController extends Controller
                 $u->phone ?? '-',
                 RolePermissionController::displayName($u->getRoleNames()->first() ?? ''),
                 $u->countryLabel() ?: '-',
-                $u->is_active ? 'Active' : 'Inactive',
-                $u->isLocked() ? 'Locked' : 'Unlocked',
+                !$u->is_active ? 'Blocked' : ($u->isLocked() ? 'Locked out' : 'Active'),
                 $u->loginWindowSummary(),
                 $u->two_factor_enabled ? 'On' : 'Off',
-                $u->last_login_at?->format('Y-m-d h:i A') ?? 'Never',
+                $u->last_login_at?->format('d M Y, g:i A') ?? 'Never',
+                $u->password_changed_at?->format('d M Y, g:i A') ?? 'Not set',
                 $u->creator?->name ?? '-',
                 $u->editor?->name ?? '-',
                 $u->created_at->format('Y-m-d'),
@@ -170,7 +170,7 @@ class ExportController extends Controller
             ->all();
 
         return $this->download('users', [
-            'Name', 'Email', 'Phone', 'Role', 'Country', 'Status', 'Lock', 'Login Hours', 'Two-factor', 'Last Login', 'Added By', 'Edited By', 'Added',
+            'Name', 'Email', 'Phone', 'Role', 'Country', 'Sign-in', 'Login Hours', 'Two-factor', 'Last Login', 'Password Changed', 'Added By', 'Edited By', 'Added',
         ], $rows);
     }
 

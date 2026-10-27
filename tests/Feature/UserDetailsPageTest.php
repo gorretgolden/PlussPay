@@ -88,6 +88,7 @@ class UserDetailsPageTest extends TestCase
         @unlink($path);
 
         $header = $rows[4];
+        $this->assertSame('Password Changed', $header[9]);
         $this->assertSame('Added By', $header[10]);
         $this->assertSame('Edited By', $header[11]);
 

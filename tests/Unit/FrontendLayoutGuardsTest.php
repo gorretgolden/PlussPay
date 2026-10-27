@@ -17,11 +17,11 @@ class FrontendLayoutGuardsTest extends TestCase
     public function test_the_users_table_pins_every_column_and_stops_headers_breaking_mid_word(): void
     {
         $css = $this->read('public'.DIRECTORY_SEPARATOR.'user-management.css');
-        $this->assertMatchesRegularExpression('/\.user-table\{[^}]*min-width:700px/', $css, 'The table must scroll rather than crush a column.');
+        $this->assertMatchesRegularExpression('/\.user-table\{[^}]*min-width:900px/', $css, 'The table must scroll rather than crush a column.');
         $this->assertMatchesRegularExpression('/\.user-table th\{[^}]*overflow-wrap:normal/', $css, 'Anywhere wrapping stacks a header one letter per line.');
 
         $table = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'users'.DIRECTORY_SEPARATOR.'partials'.DIRECTORY_SEPARATOR.'table.blade.php');
-        $this->assertMatchesRegularExpression('/<colgroup>(<col style="width:[^"]+">){8}<\/colgroup>/', $table, 'Every column needs an explicit width.');
+        $this->assertMatchesRegularExpression('/<colgroup>(<col style="width:[^"]+">){9}<\/colgroup>/', $table, 'Every column needs an explicit width.');
     }
 
     /**
@@ -46,6 +46,19 @@ class FrontendLayoutGuardsTest extends TestCase
         $this->assertStringContainsString('const menuWidth = menu.offsetWidth;', $js);
 
         $this->assertLessThan(strpos($table, 'id="user-menu-'), strpos($table, '</table>'), 'The row card must render outside the table, where later sticky cells cannot paint over it.');
+    }
+
+    /**
+     * The sign-out notice carries display:flex, and an author display rule beats the hidden
+     * attribute, so the card covered every admin screen until the attribute was made to win.
+     */
+    public function test_the_sign_out_notice_stays_off_screen_until_a_block_is_answered(): void
+    {
+        $layout = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'layouts'.DIRECTORY_SEPARATOR.'app.blade.php');
+
+        $this->assertMatchesRegularExpression('/#signed-out-notice\[hidden\]\s*\{\s*display:\s*none\s*!important/', $layout);
+        $this->assertStringContainsString('<div id="signed-out-notice"', $layout);
+        $this->assertStringContainsString('notice.hidden = false;', $layout);
     }
 
     public function test_validation_banners_keep_their_slot_so_fields_do_not_move_under_a_click(): void

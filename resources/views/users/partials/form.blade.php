@@ -71,8 +71,8 @@
 @if($editing)
 <div class="mt-5">
     <input type="hidden" name="is_active" value="{{ $user->id === auth()->id() ? 1 : 0 }}">
-    <label for="is_active" class="user-check"><input id="is_active" name="is_active" type="checkbox" value="1" @checked(old('is_active', $user->is_active)) @disabled($user->id === auth()->id()) aria-describedby="error-is_active">Account active</label>
-    <p class="user-help">Inactive accounts cannot sign in.</p>
+    <label for="is_active" class="user-check"><input id="is_active" name="is_active" type="checkbox" value="1" @checked(old('is_active', $user->is_active)) @disabled($user->id === auth()->id()) aria-describedby="error-is_active">Allowed to sign in</label>
+    <p class="user-help">Blocked accounts cannot sign in, and an open session is signed out within seconds.</p>
     <p id="error-is_active" data-field-error="is_active" class="user-error">@error('is_active'){{ $message }}@enderror</p>
 </div>
 @endif

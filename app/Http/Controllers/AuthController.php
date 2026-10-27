@@ -65,10 +65,10 @@ class AuthController extends Controller
         }
 
         if (!$user->is_active) {
-            $this->logDenied($user, $request, 'sign-in refused because the account is inactive');
+            $this->logDenied($user, $request, 'sign-in refused because the account is blocked');
 
             return back()->withErrors([
-                'email' => 'This account is inactive, so it cannot sign in. Contact admin.',
+                'email' => 'This account has been blocked from signing in. Contact admin.',
             ])->onlyInput('email');
         }
 

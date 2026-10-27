@@ -39,6 +39,10 @@ Route::post('/two-factor', [AuthController::class, 'verifyTwoFactor'])->name('tw
 Route::post('/two-factor/cancel', [AuthController::class, 'cancelTwoFactor'])->name('two-factor.cancel');
 
 Route::middleware(['auth', 'account.active'])->group(function () {
+    // Every open screen asks this on a short timer so a block or lock reaches the person
+    // sitting on the page, not only the next click they make.
+    Route::get('/session/check', fn () => response()->json(['ok' => true]))->name('session.check');
+
     Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('can:view-dashboard')->name('dashboard');
 
     // Everyone who can sign in reads and changes their own password here, whatever their role.
@@ -172,8 +176,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
         Route::get('/users/{user}/edit', [UserController::class, 'edit'])->middleware('can:edit-user')->name('users.edit');
         Route::put('/users/{user}', [UserController::class, 'update'])->middleware('can:edit-user')->name('users.update');
         Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->middleware('can:reset-user-password')->name('users.reset-password');
-        Route::patch('/users/{user}/toggle-lock', [UserController::class, 'toggleLock'])->middleware('can:lock-user')->name('users.toggle-lock');
-        Route::patch('/users/{user}/toggle-active', [UserController::class, 'toggleActive'])->middleware('can:toggle-user-status')->name('users.toggle-active');
+        Route::patch('/users/{user}/toggle-access', [UserController::class, 'toggleAccess'])->middleware('can:toggle-user-status')->name('users.toggle-access');
         Route::get('/users/{user}/two-factor', [UserController::class, 'twoFactorForm'])->middleware('can:manage-user-two-factor')->name('users.two-factor');
         Route::post('/users/{user}/two-factor', [UserController::class, 'twoFactorEnable'])->middleware('can:manage-user-two-factor')->name('users.two-factor.enable');
         Route::post('/users/{user}/two-factor/reset', [UserController::class, 'twoFactorReset'])->middleware('can:manage-user-two-factor')->name('users.two-factor.reset');

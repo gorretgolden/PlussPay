@@ -12,7 +12,7 @@ class EnsurePasswordIsChanged
     {
         if ($request->user()?->must_change_password && !$request->routeIs(
             'password.required', 'password.change', 'password.enroll', 'password.enroll.store',
-            'logout', 'two-factor.*'
+            'logout', 'session.check', 'two-factor.*'
         )) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Change your password before continuing.', 'redirect' => route('password.required')], 403);

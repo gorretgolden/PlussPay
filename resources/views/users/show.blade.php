@@ -29,7 +29,7 @@
             </div>
             <div>
                 <p class="text-xs uppercase tracking-wide text-gray-500">Status</p>
-                <p class="mt-1"><span class="user-badge {{ !$user->is_active ? 'bad' : ($user->isLocked() ? 'warn' : 'good') }}">{{ !$user->is_active ? 'Inactive' : ($user->isLocked() ? 'Locked' : 'Active') }}</span></p>
+                <p class="mt-1"><span class="user-badge {{ !$user->is_active ? 'bad' : ($user->isLocked() ? 'warn' : 'good') }}">{{ !$user->is_active ? 'Blocked' : ($user->isLocked() ? 'Locked out' : 'Active') }}</span></p>
             </div>
         </div>
         <h2 class="text-sm font-semibold text-gray-900 mb-4 mt-8">Desk</h2>
@@ -58,8 +58,9 @@
                 <p class="text-sm text-gray-900 mt-1">{{ $user->last_login_at ? $user->last_login_at->format('M d, Y h:i A') . ($user->last_login_ip ? ' from ' . $user->last_login_ip : '') : 'Never' }}</p>
             </div>
             <div>
-                <p class="text-xs uppercase tracking-wide text-gray-500">Password</p>
-                <p class="text-sm text-gray-900 mt-1">{{ $user->must_change_password ? 'Must set a new password' : 'Set' }}</p>
+                <p class="text-xs uppercase tracking-wide text-gray-500">Password changed</p>
+                <p class="text-sm text-gray-900 mt-1">{{ $user->password_changed_at ? $user->password_changed_at->format('M d, Y g:i A') : 'Not set' }}</p>
+                @if($user->must_change_password)<p class="text-xs text-amber-700 mt-1">Must set a new password at next sign-in</p>@endif
             </div>
         </div>
         <h2 class="text-sm font-semibold text-gray-900 mb-4 mt-8">Record</h2>

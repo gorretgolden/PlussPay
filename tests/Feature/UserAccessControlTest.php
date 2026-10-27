@@ -200,7 +200,7 @@ class UserAccessControlTest extends TestCase
         $this->assertSame(0, User::where('email', 'other@plussave.test')->count());
     }
 
-    public function test_an_inactive_account_is_refused_at_the_door_and_written_to_the_trail(): void
+    public function test_a_blocked_account_is_refused_at_the_door_and_written_to_the_trail(): void
     {
         $user = $this->clerk('sleeping@plussave.test', ['is_active' => false]);
 
@@ -210,7 +210,7 @@ class UserAccessControlTest extends TestCase
         ])->assertSessionHasErrors('email');
 
         $this->assertGuest();
-        $this->assertStringContainsString('inactive', $this->flashedError('email'));
+        $this->assertStringContainsString('blocked', $this->flashedError('email'));
         $this->assertDatabaseHas('activity_logs', [
             'user_id' => $user->id,
             'action' => 'login_blocked',
@@ -324,7 +324,7 @@ class UserAccessControlTest extends TestCase
         $this->assertFalse($user->fresh()->hasLoginWindow());
     }
 
-    public function test_an_admin_cannot_bulk_lock_a_superadmin_account(): void
+    public function test_an_admin_cannot_bulk_block_a_superadmin_account(): void
     {
         $admin = $this->actor('admin');
         $boss = $this->clerk('boss@plussave.test');
@@ -332,10 +332,10 @@ class UserAccessControlTest extends TestCase
 
         $this->actingAs($admin);
 
-        $response = $this->post(route('users.bulk'), ['action' => 'lock', 'user_ids' => [$boss->id]]);
+        $response = $this->post(route('users.bulk'), ['action' => 'deactivate', 'user_ids' => [$boss->id]]);
 
 
-        $this->assertFalse($boss->fresh()->is_locked);
+        $this->assertTrue($boss->fresh()->is_active);
         $this->assertStringContainsString('Nothing was changed', $this->flashedError('error'));
         $this->assertStringContainsString('superadmin', $this->flashedError('error'));
     }
@@ -351,6 +351,128 @@ class UserAccessControlTest extends TestCase
             ->assertForbidden();
 
         $this->assertTrue($other->fresh()->is_active);
+    }
+
+    public function test_one_switch_blocks_and_restores_sign_in_and_clears_a_lock(): void
+    {
+        $actor = $this->actor();
+        $user = $this->clerk('switch@plussave.test');
+
+        $this->actingAs($actor)->patch(route('users.toggle-access', $user))
+            ->assertRedirect()->assertSessionHas('success');
+        $this->assertFalse($user->fresh()->is_active);
+
+        $this->patch(route('users.toggle-access', $user))
+            ->assertRedirect()->assertSessionHas('success');
+        $this->assertTrue($user->fresh()->is_active);
+
+        // A temporary lock from failed passwords is the same problem to the person at the
+        // desk, so the one restore action clears it too.
+        $user->forceFill(['is_locked' => true, 'failed_login_attempts' => 4, 'locked_until' => now()->addMinutes(10)])->save();
+
+        $this->patch(route('users.toggle-access', $user))
+            ->assertRedirect()->assertSessionHas('success');
+
+        $user->refresh();
+        $this->assertTrue($user->is_active);
+        $this->assertFalse($user->isLocked());
+        $this->assertSame(0, $user->failed_login_attempts);
+        $this->assertNull($user->locked_until);
+
+        // The two separate switches are gone, so nothing can turn one half on by itself.
+        $this->patch('/users/'.$user->id.'/toggle-lock')->assertNotFound();
+        $this->patch('/users/'.$user->id.'/toggle-active')->assertNotFound();
+    }
+
+    public function test_the_heartbeat_answers_a_blocked_account_with_a_message(): void
+    {
+        $user = $this->clerk('heartbeat@plussave.test');
+
+        $this->actingAs($user)->getJson(route('session.check'))
+            ->assertOk()->assertExactJson(['ok' => true]);
+
+        $user->update(['is_active' => false]);
+
+        $response = $this->getJson(route('session.check'));
+
+        $response->assertStatus(401)->assertJson([
+            'signed_out' => true,
+            'redirect' => route('login'),
+        ]);
+        $this->assertStringContainsString('blocked', $response->json('message'));
+        $this->assertGuest();
+        $this->assertDatabaseHas('activity_logs', ['user_id' => $user->id, 'action' => 'logout']);
+    }
+
+    public function test_the_heartbeat_does_not_keep_an_idle_session_alive(): void
+    {
+        $user = $this->clerk('idle@plussave.test');
+
+        $this->actingAs($user)->withSession(['last_activity_at' => now()->subHour()->toIso8601String()]);
+
+        $this->getJson(route('session.check'))->assertOk();
+        $this->get('/dashboard')->assertRedirect(route('login'));
+        $this->assertGuest();
+    }
+
+    public function test_sign_in_hours_are_typed_and_shown_with_am_and_pm(): void
+    {
+        $actor = $this->actor();
+
+        $this->actingAs($actor)->post(route('users.store'), [
+            'name' => 'Clock Clerk',
+            'email' => 'clock@plussave.test',
+            'password' => 'Password123',
+            'password_confirmation' => 'Password123',
+            'role' => 'staff',
+            'restrict_hours' => 1,
+            'days' => [1, 2, 3, 4, 5],
+            'allowed_from' => '8:00 AM',
+            'allowed_to' => '6:30 PM',
+        ])->assertSessionHasNoErrors()->assertRedirect(route('users.index'));
+
+        $user = User::firstWhere('email', 'clock@plussave.test');
+        $this->assertSame('08:00', $user->allowed_from);
+        $this->assertSame('18:30', $user->allowed_to);
+        $this->assertSame('Monday to Friday 8:00 AM to 6:30 PM', $user->loginWindowSummary());
+
+        $html = $this->get(route('users.edit', $user))->assertOk()->getContent();
+        $this->assertStringContainsString('value="8:00 AM"', $html);
+        $this->assertStringContainsString('value="6:30 PM"', $html);
+
+        // A time that cannot exist is refused instead of being silently moved.
+        $this->put(route('users.update', $user), [
+            'name' => 'Clock Clerk',
+            'email' => 'clock@plussave.test',
+            'role' => 'staff',
+            'is_active' => 1,
+            'restrict_hours' => 1,
+            'days' => [1, 2, 3, 4, 5],
+            'allowed_from' => '13:00 PM',
+            'allowed_to' => '6:30 PM',
+        ])->assertSessionHasErrors('allowed_from');
+
+        $this->assertSame('08:00', $user->fresh()->allowed_from);
+    }
+
+    public function test_a_password_reset_stamps_the_change_and_the_list_shows_the_hour(): void
+    {
+        Carbon::setTestNow('2026-10-28 14:05:00');
+
+        $actor = $this->actor();
+        $target = $this->clerk('stamped@plussave.test');
+
+        $this->actingAs($actor)->post(route('users.reset-password', $target), [
+            'password' => 'NewPassword456',
+            'password_confirmation' => 'NewPassword456',
+        ])->assertSessionHasNoErrors();
+
+        $target->refresh();
+        $this->assertNotNull($target->password_changed_at);
+        $this->assertTrue($target->password_changed_at->equalTo(now()));
+
+        $this->get(route('users.index'))->assertOk()->assertSee('28 Oct 2026, 2:05 PM');
+        $this->get(route('users.show', $target))->assertOk()->assertSee('Oct 28, 2026 2:05 PM');
     }
 
     public function test_the_list_can_be_narrowed_to_restricted_accounts(): void

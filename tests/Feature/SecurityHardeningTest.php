@@ -196,7 +196,7 @@ class SecurityHardeningTest extends TestCase
     {
         $super = $this->makeUser('superadmin');
 
-        $this->actingAs($super)->patch('/users/'.$super->id.'/toggle-active')
+        $this->actingAs($super)->patch('/users/'.$super->id.'/toggle-access')
             ->assertSessionHasErrors('error');
 
         $this->assertTrue((bool) $super->refresh()->is_active);

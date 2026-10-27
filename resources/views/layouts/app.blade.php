@@ -14,6 +14,7 @@
             body { background: white; }
         }
         .print-only { display: none; }
+        #signed-out-notice[hidden] { display: none !important; }
         .sidebar-link.active { background-color: var(--brand-900); border-left: 3px solid var(--brand-400); }
         .sidebar-sublink.active { background-color: var(--brand-900); color: var(--brand-300); }
         .sidebar-sublink { padding-left: 2.5rem; }
@@ -407,6 +408,13 @@
 
                 @yield('content')
             </main>
+        </div>
+    </div>
+    <div id="signed-out-notice" class="fixed inset-0 z-[100] flex items-center justify-center bg-white/95 p-6 no-print" hidden role="alertdialog" aria-modal="true" aria-labelledby="signed-out-title">
+        <div class="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 text-center shadow-lg">
+            <p id="signed-out-title" class="text-base font-semibold text-gray-900">You have been signed out</p>
+            <p id="signed-out-message" class="mt-2 text-sm text-gray-600">Your session has ended.</p>
+            <p class="mt-3 text-xs text-gray-400">Taking you to the sign-in page.</p>
         </div>
     </div>
     @endauth
@@ -918,6 +926,48 @@
             });
 
             resetTimer();
+        })();
+
+        // A block or lock set by an admin reaches the screen that is already open instead of
+        // waiting for the next click. The beat answers with the message to show before the
+        // person is sent back to the sign-in form.
+        (function() {
+            const NOTICE_INTERVAL = 5000;
+            const notice = document.getElementById('signed-out-notice');
+            const message = document.getElementById('signed-out-message');
+            let stopped = false;
+            let timer;
+
+            function stop(text) {
+                if (stopped) return;
+                stopped = true;
+                clearInterval(timer);
+                if (text && message) message.textContent = text;
+                if (notice) notice.hidden = false;
+                setTimeout(function() { window.location.replace('{{ route('login') }}'); }, 2500);
+            }
+
+            async function check() {
+                if (stopped || document.visibilityState === 'hidden') return;
+                try {
+                    const response = await fetch('{{ route('session.check') }}', {
+                        headers: { Accept: 'application/json' },
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                    });
+                    if (response.status === 401) {
+                        const data = await response.json().catch(function() { return {}; });
+                        stop(data.message || 'Your session has ended. Sign in again.');
+                    }
+                } catch (error) {
+                    // A lost connection is not a sign-out; the next beat tries again.
+                }
+            }
+
+            timer = setInterval(check, NOTICE_INTERVAL);
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') check();
+            });
         })();
         @endauth
     </script>
