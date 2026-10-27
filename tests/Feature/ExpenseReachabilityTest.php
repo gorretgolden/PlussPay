@@ -147,7 +147,7 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('Every transfer in the book', $lead);
         $this->assertStringContainsString('/china#payouts', $lead);
         $this->assertStringContainsString('/uganda#payouts', $lead);
-        $this->assertStringContainsString('href="#cash-handed-to-you"', $lead);
+        $this->assertStringContainsString(route('cash-handovers.index'), $lead);
         foreach (['Exchange Rates', 'Add Customer'] as $label) {
             $this->assertStringNotContainsString('>'.$label.'</span>', $lead, $label.' is beyond a Super Agent.');
         }
@@ -401,8 +401,8 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('/china#payouts', $board);
         $this->assertStringContainsString('>Approve Cash Hand-In</span>', $board);
         $this->assertStringContainsString('1 request waiting for you', $board);
-        $this->assertStringContainsString('href="#cash-handed-to-you"', $board);
-        $this->assertStringContainsString('id="cash-handed-to-you"', $board);
+        $this->assertStringContainsString(route('cash-handovers.index'), $board);
+        $this->assertStringNotContainsString('id="cash-handed-to-you"', $board);
 
         // The queue the shortcut names, read on the same rule that counted it.
         $desk = $this->html($lead, '/china');

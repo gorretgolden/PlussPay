@@ -95,24 +95,15 @@ class DashboardController extends Controller
             ? User::role('super-agent')->where('is_active', true)->orderBy('name')->get(['id', 'name'])
             : collect();
 
-        // The super agent's queue is the cash the agents say they are bringing. It is shown here
-        // rather than only on the wallet page because this is the screen the super agent opens
-        // first, and the money should not wait on somebody remembering to look elsewhere. What was
-        // decided lately stays beside it so the card still answers "did that go through?".
+        // The super agent's queue is the cash the agents say they are bringing. It feeds the
+        // Approve quick action on the screen the super agent opens first; the requests themselves
+        // live on the cash hand-ins page, which is where they are decided.
         $handoverQueue = collect();
-        $handoverHistory = collect();
 
         if ($user->hasRole('super-agent')) {
             $handoverQueue = CashHandover::with('agent:id,name')
                 ->pendingFor($user)
                 ->oldest('id')
-                ->get();
-
-            $handoverHistory = CashHandover::with('agent:id,name')
-                ->where('super_agent_id', $user->id)
-                ->where('status', '!=', CashHandover::PENDING)
-                ->latest('decided_at')
-                ->limit(5)
                 ->get();
         }
 
@@ -196,7 +187,7 @@ class DashboardController extends Controller
             ? $this->agentTakenWindows($usdToUgx)
             : [];
 
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'chargesCollected', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'handoverHistory', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'greetAs'));
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'chargesCollected', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'greetAs'));
     }
 
     /**

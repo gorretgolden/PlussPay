@@ -233,15 +233,15 @@
             : [($me->country ?: \App\Models\User::DEFAULT_COUNTRY) === 'CN' ? $withdrawChina : $withdrawUganda])
         : [];
 
-    // The lead agent's queue already sits on this board, one Approve button per request. The
-    // shortcut goes to that card rather than opening a second copy of the same decision.
+    // Approving is one job with one home: the requests page. The shortcut names how many are
+    // waiting and opens that page rather than keeping a second copy of the queue on this board.
     $approveAction = $me->hasRole('super-agent') ? [
         'approve-cash-handover',
         'Approve Cash Hand-In',
         $handoverQueue->isNotEmpty()
             ? number_format($handoverQueue->count()).' request'.($handoverQueue->count() === 1 ? '' : 's').' waiting for you'
             : 'Approve the cash agents hand over',
-        '#cash-handed-to-you',
+        route('cash-handovers.index'),
         'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     ] : null;
 
@@ -422,60 +422,6 @@
     </div>
     <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums">{{ \App\Models\Account::format('UGX', $chargesCollected) }}</div>
     <p class="text-[13px] text-gray-700 mt-1">{{ $feesPeriod }}: your bookings' charges and what the agents handed in.</p>
-</div>
-@endif
-
-{{-- The super agent's first job of the day: the cash the agents say they are bringing. The
-     decisions themselves live on the cash hand-ins page, where every request reads with its full
-     story and its status; this card only names what is waiting and points there. --}}
-@if($me->hasRole('super-agent'))
-<div id="cash-handed-to-you" class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden scroll-mt-6">
-    <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 sm:px-5 py-3">
-        <h2 class="text-lg font-semibold text-gray-900 mr-auto">Cash Handed To You</h2>
-        @if($handoverQueue->isNotEmpty())
-        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-900 tabular-nums">
-            {{ number_format($handoverQueue->count()) }} waiting
-        </span>
-        @endif
-        <a href="{{ route('cash-handovers.index') }}" class="text-sm font-semibold text-green-800 hover:underline">Open the requests</a>
-    </div>
-    @if($handoverQueue->isNotEmpty())
-    <ul class="divide-y divide-gray-100">
-        @foreach($handoverQueue as $handover)
-        <li class="px-4 sm:px-5 py-3">
-            <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <span class="text-sm font-semibold text-gray-900">{{ $handover->agent?->name }}</span>
-                <span class="text-sm font-bold text-gray-900 tabular-nums">{{ $handover->figure() }}</span>
-                <span class="text-xs text-gray-500 tabular-nums ml-auto whitespace-nowrap">{{ $handover->created_at->format('M j, g:i A') }}</span>
-            </div>
-            <p class="text-xs text-gray-500 mt-0.5">
-                {{ $handover->reference }}
-                @if($handover->note)<span class="text-gray-400"> · </span>{{ $handover->note }}@endif
-            </p>
-        </li>
-        @endforeach
-    </ul>
-    @endif
-    @if($handoverQueue->isEmpty() && $handoverHistory->isEmpty())
-    <div class="px-4 sm:px-5 py-4">
-        <p class="text-sm text-gray-600">No cash has been handed to you yet. When an agent sends cash in, it waits on the cash hand-ins page for you to approve it.</p>
-    </div>
-    @endif
-    @if($handoverHistory->isNotEmpty())
-    <div class="border-t border-gray-200 bg-gray-50 px-4 sm:px-5 py-3">
-        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Decided lately</div>
-        <ul class="space-y-1">
-            @foreach($handoverHistory as $handover)
-            <li class="flex flex-wrap items-baseline gap-x-2 text-sm">
-                <span class="font-medium {{ $handover->status === \App\Models\CashHandover::APPROVED ? 'text-green-800' : 'text-red-700' }}">{{ $handover->status === \App\Models\CashHandover::APPROVED ? 'Received' : 'Declined' }}</span>
-                <span class="text-gray-900 tabular-nums">{{ $handover->figure() }}</span>
-                <span class="text-gray-500">from {{ $handover->agent?->name }}</span>
-                <span class="text-xs text-gray-500 ml-auto tabular-nums whitespace-nowrap">{{ $handover->decided_at?->format('M j, g:i A') }}</span>
-            </li>
-            @endforeach
-        </ul>
-    </div>
-    @endif
 </div>
 @endif
 

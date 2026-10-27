@@ -82,11 +82,11 @@ class MoneyFormGuardTest extends TestCase
         $lead = $this->person('super-agent', 'Amina Lead');
         $handover = CashHandover::request($agent, $lead, 'UGX', '480000', 'Carried in the evening');
 
-        // The first screen only names what is waiting and points at the page; the deciding lives
+        // The first screen only counts what is waiting and points at the page; the deciding lives
         // on the hand-ins page, where every money move must ask before it happens.
         $board = $this->actingAs($lead)->get('/dashboard')->assertOk()->getContent();
-        $this->assertStringContainsString('Open the requests', $board);
-        $this->assertStringNotContainsString('data-confirm-ok="Yes, I have it"', $board, 'The dashboard card still carries a decision form.');
+        $this->assertStringContainsString(route('cash-handovers.index'), $board);
+        $this->assertStringNotContainsString('data-confirm-ok="Yes, I have it"', $board, 'The dashboard still carries a decision form.');
 
         $page = $this->actingAs($lead)->get('/cash-handovers')->assertOk()->getContent();
 

@@ -98,16 +98,19 @@ class CashHandoverTest extends TestCase
         $other = $this->person('super-agent', 'Peter Lead');
         $handover = $this->request($agent, $lead);
 
+        // The queue lives on the requests page now; the board only counts it on the Approve
+        // shortcut and points there, so one lead's request never appears on the other lead's board.
         $this->flushSession();
         $this->actingAs($lead)->get('/dashboard')->assertOk()
-            ->assertSee('Cash Handed To You')
-            ->assertSee($handover->reference)
-            ->assertSee('Open the requests')
-            ->assertSee('Sarah Nalin');
+            ->assertSee('Approve Cash Hand-In')
+            ->assertSee('1 request waiting for you')
+            ->assertSee(route('cash-handovers.index'))
+            ->assertDontSee('Cash Handed To You')
+            ->assertDontSee($handover->reference);
 
         $this->flushSession();
         $this->actingAs($other)->get('/dashboard')->assertOk()
-            ->assertSee('No cash has been handed to you yet.')
+            ->assertSee('Approve the cash agents hand over')
             ->assertDontSee($handover->reference);
     }
 

@@ -156,11 +156,13 @@ class DemoLoginAutofillTest extends TestCase
 
         $this->assertAuthenticatedAs(User::where('email', 'superagent@plussave.com')->sole());
 
-        // The queue is the reason this account exists, so it is on the first screen even before
-        // any agent has sent cash in.
+        // The lead's first screen names its one job, and the empty queue reads as an empty hint
+        // rather than a missing card.
         $this->get('/dashboard')->assertOk()
-            ->assertSee('Cash Handed To You')
-            ->assertSee('No cash has been handed to you yet.');
+            ->assertSee('Approve Cash Hand-In')
+            ->assertSee('Approve the cash agents hand over')
+            ->assertSee('Charges Collected')
+            ->assertDontSee('Cash Handed To You');
     }
 
     public function test_a_blank_demo_password_leaves_the_accounts_on_what_they_already_are(): void

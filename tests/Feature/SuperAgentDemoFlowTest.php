@@ -72,8 +72,10 @@ class SuperAgentDemoFlowTest extends TestCase
         $this->signIn('superagent@plussave.com');
 
         $this->get('/dashboard')->assertOk()
-            ->assertSee('Cash Handed To You')
-            ->assertSee('No cash has been handed to you yet.');
+            ->assertSee('Approve Cash Hand-In')
+            ->assertSee('Approve the cash agents hand over')
+            ->assertSee('Charges Collected')
+            ->assertDontSee('Cash Handed To You');
     }
 
     public function test_the_demo_agent_hands_cash_to_the_demo_super_agent_who_approves_it(): void
@@ -121,12 +123,13 @@ class SuperAgentDemoFlowTest extends TestCase
 
         $this->signIn('superagent@plussave.com');
 
-        // The dashboard card names the request and points to the cash hand-ins page, where it is decided.
+        // The board counts the waiting request on the Approve shortcut, which opens the cash
+        // hand-ins page where the request itself is named and decided.
         $this->get('/dashboard')->assertOk()
-            ->assertSee('Cash Handed To You')
-            ->assertSee($handover->reference)
-            ->assertSee('Morning collection')
-            ->assertSee('Open the requests');
+            ->assertSee('Approve Cash Hand-In')
+            ->assertSee('1 request waiting for you')
+            ->assertSee(route('cash-handovers.index'))
+            ->assertDontSee('Cash Handed To You');
 
         $this->post(route('cash-handovers.approve', $handover))->assertSessionHasNoErrors();
 
@@ -138,8 +141,8 @@ class SuperAgentDemoFlowTest extends TestCase
         $this->assertSame('120000.00', Account::walletFor($lead, 'UGX')->balance());
 
         $this->get('/dashboard')->assertOk()
-            ->assertSee('Received')
             ->assertSee('UGX 120,000')
-            ->assertDontSee('No cash has been handed to you yet.');
+            ->assertSee('Approve the cash agents hand over')
+            ->assertSee('Charges Collected');
     }
 }
