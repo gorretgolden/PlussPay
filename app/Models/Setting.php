@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
@@ -21,33 +22,81 @@ class Setting extends Model
 
     protected $fillable = ['key', 'value', 'type', 'group', 'label'];
 
+    /** Everything in the table, one copy, so a page does not query once per key. */
+    public const CACHE_KEY = 'plussave.settings';
+
+    protected static function booted(): void
+    {
+        static::saved(fn () => static::flushCache());
+        static::deleted(fn () => static::flushCache());
+    }
+
     /**
      * The zone the clocks should run on. A missing or unrecognised value, or a database
      * that is not migrated yet, falls back to the default in config/app.php.
      */
     public static function timezone(): string
     {
-        $configured = (string) static::query()->where('key', 'timezone')->value('value');
+        $configured = (string) static::get('timezone', '');
 
         return array_key_exists($configured, static::TIMEZONES)
             ? $configured
             : (string) config('app.timezone', 'UTC');
     }
 
+    /**
+     * The whole settings table as key => [value, type], read once and kept in the
+     * cache. Every save or delete clears it, so the copy can never go stale.
+     *
+     * @return array<string, array{value: ?string, type: string}>
+     */
+    public static function cached(): array
+    {
+        try {
+            return Cache::rememberForever(self::CACHE_KEY, fn () => static::rows());
+        } catch (\Throwable $e) {
+            // A cache store that is not ready must never take the sign-in page down.
+            return static::rows();
+        }
+    }
+
+    /** @return array<string, array{value: ?string, type: string}> */
+    private static function rows(): array
+    {
+        return static::query()->get(['key', 'value', 'type'])
+            ->mapWithKeys(fn ($row) => [$row->key => ['value' => $row->value, 'type' => $row->type]])
+            ->all();
+    }
+
+    public static function refreshCache(): void
+    {
+        static::flushCache();
+        static::cached();
+    }
+
+    public static function flushCache(): void
+    {
+        try {
+            Cache::forget(self::CACHE_KEY);
+        } catch (\Throwable $e) {
+            // Nothing to clear when the store is unavailable.
+        }
+    }
+
     public static function get(string $key, $default = null)
     {
-        $setting = static::where('key', $key)->first();
+        $setting = static::cached()[$key] ?? null;
 
         if (!$setting) {
             return $default;
         }
 
-        return match ($setting->type) {
-            'boolean' => (bool) $setting->value,
-            'integer' => (int) $setting->value,
-            'float' => (float) $setting->value,
-            'array' => json_decode($setting->value, true),
-            default => $setting->value,
+        return match ($setting['type']) {
+            'boolean' => (bool) $setting['value'],
+            'integer' => (int) $setting['value'],
+            'float' => (float) $setting['value'],
+            'array' => json_decode((string) $setting['value'], true),
+            default => $setting['value'],
         };
     }
 
@@ -68,6 +117,8 @@ class Setting extends Model
     public static function forget(string $key): void
     {
         static::where('key', $key)->delete();
+        // A query-builder delete fires no model event, so the copy is dropped by hand.
+        static::flushCache();
     }
 
     /**

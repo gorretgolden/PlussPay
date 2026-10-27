@@ -8,6 +8,15 @@ use Illuminate\Support\ViewErrorBag;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // The array cache store lives for the whole test run, so a settings copy from
+        // one test must never answer a lookup in the next one.
+        \Illuminate\Support\Facades\Cache::flush();
+    }
+
     /**
      * Reads the message a user would actually see for a flashed validation error.
      */

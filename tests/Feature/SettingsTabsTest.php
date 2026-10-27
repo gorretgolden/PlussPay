@@ -43,7 +43,7 @@ class SettingsTabsTest extends TestCase
         $this->assertCount(7, $xpath->query('//form[@data-settings-form and @data-validate and @data-lock]'));
         $this->assertCount(7, $xpath->query('//button[@data-save and @disabled]'));
         $this->assertCount(1, $xpath->query('//*[@role="tab" and @aria-selected="true" and @id="tab-rates"]'));
-        $this->assertCount(6, $xpath->query('//*[@role="tabpanel" and @hidden]'));
+        $this->assertCount(7, $xpath->query('//*[@role="tabpanel" and @hidden]'));
         foreach ($xpath->query('//form[@data-settings-form]') as $form) {
             $this->assertCount(1, $xpath->query('.//input[@name="settings_tab" and @value="'.$form->getAttribute('data-settings-form').'"]', $form));
         }

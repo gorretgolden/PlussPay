@@ -6,7 +6,7 @@
 @section('content')
 @php
     $tabs = ['rates' => 'Rates', 'transactions' => 'Transactions', 'company' => 'Company', 'datetime' => 'Date & Time'];
-    if (auth()->user()->hasRole('superadmin')) $tabs = $tabs + ['appearance' => 'Theme', 'site' => 'Site Mode', 'login' => 'Login Page'];
+    if (auth()->user()->hasRole('superadmin')) $tabs = $tabs + ['appearance' => 'Theme', 'site' => 'Site Mode', 'login' => 'Login Page', 'cache' => 'Cache'];
     $activeTab = old('settings_tab', session('settings_saved_tab', 'rates'));
     if (!isset($tabs[$activeTab])) $activeTab = 'rates';
     $trimRate = fn ($value) => $value === null ? '' : rtrim(rtrim(number_format((float) $value, 6, '.', ''), '0'), '.');
@@ -87,6 +87,9 @@
             @if ($tab === 'rates')
                 @include('settings.partials.market-rate', ['market' => $market])
             @endif
+            @if ($tab === 'cache')
+                @include('settings.partials.cache', ['cache' => $cache])
+            @else
             <form id="settings-form-{{ $tab }}" method="POST" action="{{ route('settings.update') }}" data-validate data-lock data-settings-form="{{ $tab }}" enctype="multipart/form-data">
                 @csrf
                 @method('PUT')
@@ -276,6 +279,7 @@
                     <button type="submit" data-save disabled class="shrink-0 rounded-md bg-green-800 px-5 py-2 text-sm font-medium text-white hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:opacity-50 disabled:cursor-not-allowed">{{ $tab === 'rates' ? 'Save rates' : 'Save changes' }}</button>
                 </div>
             </form>
+            @endif
         </section>
     @endforeach
 </div>

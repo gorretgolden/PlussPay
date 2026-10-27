@@ -11,6 +11,8 @@ use App\Services\MarketRateService;
 use App\Support\LoginBackground;
 use Database\Seeders\RoleAndUserSeeder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -63,6 +65,7 @@ class SettingController extends Controller
         $usdRmbPair = ExchangeRate::pair('USD', 'RMB');
         $testingModeBlocked = self::testingModeBlocked($request);
         $market = $this->marketBoard();
+        $cache = $this->cacheStatus();
 
         return view('settings.index', compact(
             'settings',
@@ -71,8 +74,76 @@ class SettingController extends Controller
             'usdUgxPair',
             'usdRmbPair',
             'testingModeBlocked',
-            'market'
+            'market',
+            'cache'
         ));
+    }
+
+    /**
+     * What the Cache tab prints: how many settings sit in the cache, whether a copy
+     * exists, and how many compiled page templates are on disk.
+     */
+    private function cacheStatus(): array
+    {
+        $stored = false;
+
+        try {
+            $stored = Cache::has(Setting::CACHE_KEY);
+        } catch (\Throwable $e) {
+            // Report the store as cold rather than failing the whole Settings screen.
+        }
+
+        $files = glob(storage_path('framework/views/*.php')) ?: [];
+        $bytes = array_sum(array_map(fn ($file) => @filesize($file) ?: 0, $files));
+
+        return [
+            'settings' => count(Setting::cached()),
+            'settings_cached' => $stored,
+            'views' => count($files),
+            'views_bytes' => $bytes,
+            'driver' => (string) config('cache.default'),
+        ];
+    }
+
+    /**
+     * Cache or uncache the settings copy and the compiled pages. Laravel's compiled
+     * config and route files are left alone: a deploy rebuilds them, and clearing
+     * them from a web request would only slow the next visit down.
+     */
+    public function cacheSystem(Request $request)
+    {
+        abort_unless($request->user()->hasRole('superadmin'), 403);
+
+        $data = $request->validate([
+            'target' => ['required', Rule::in(['settings', 'views', 'all'])],
+            'action' => ['required', Rule::in(['warm', 'clear'])],
+        ]);
+
+        try {
+            if (in_array($data['target'], ['settings', 'all'], true)) {
+                $data['action'] === 'warm' ? Setting::refreshCache() : Setting::flushCache();
+            }
+
+            if (in_array($data['target'], ['views', 'all'], true)) {
+                Artisan::call($data['action'] === 'warm' ? 'view:cache' : 'view:clear');
+            }
+
+            if ($data['target'] === 'all' && $data['action'] === 'clear') {
+                Artisan::call('cache:clear');
+            }
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()->route('settings.index')
+                ->with('settings_saved_tab', 'cache')
+                ->withErrors(['cache' => 'The cache could not be changed: '.$e->getMessage()]);
+        }
+
+        $subject = ['settings' => 'Settings cache', 'views' => 'Page templates', 'all' => 'All caches'][$data['target']];
+
+        return redirect()->route('settings.index')
+            ->with('settings_saved_tab', 'cache')
+            ->with('success', $subject.' '.($data['action'] === 'warm' ? 'rebuilt.' : 'cleared.'));
     }
 
     public function update(Request $request)
@@ -168,7 +239,10 @@ class SettingController extends Controller
         if ($request->user()->hasRole('superadmin')) {
             if ($effectiveMode === 'testing' && ($postedMode === 'testing' || ($validated['demo_login_autofill'] ?? null) === 'on')) {
                 $validated['demo_login_autofill'] = 'on';
-            } elseif ($effectiveMode === 'production') {
+            } elseif ($effectiveMode === 'production'
+                && (($validated['demo_login_autofill'] ?? null) === 'on' || Setting::get('demo_login_autofill') === 'on')) {
+                // Only touches the switch when it is on or being forced on, so saves on
+                // other tabs never write an unrelated setting or an audit line.
                 $validated['demo_login_autofill'] = 'off';
             }
         }

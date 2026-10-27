@@ -213,7 +213,7 @@ class ShiftLegacyTimestamps extends Command
             }
         });
 
-        Setting::where('key', 'timestamps_shifted')->delete();
+        Setting::forget('timestamps_shifted');
 
         $this->info("{$count} value(s) restored from {$file}");
 
