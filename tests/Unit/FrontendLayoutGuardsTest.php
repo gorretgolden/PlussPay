@@ -144,7 +144,7 @@ class FrontendLayoutGuardsTest extends TestCase
     public function test_a_details_element_used_as_a_menu_button_hides_the_disclosure_triangle(): void
     {
         $roles = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'admin'.DIRECTORY_SEPARATOR.'roles.blade.php');
-        $this->assertMatchesRegularExpression('/<summary[^>]*list-none[^>]*>⋮<\/summary>/', $roles);
+        $this->assertMatchesRegularExpression('/<summary[^>]*list-none[^>]*>[^<]*⋮[^<]*<\/summary>/', $roles);
         $this->assertStringContainsString('[&::-webkit-details-marker]:hidden', $roles);
     }
 
