@@ -23,6 +23,9 @@ class User extends Authenticatable
 
     public const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+    /** The day the creator and editor columns were added, named on rows saved before them. */
+    public const TRACKING_STARTED_AT = '27 Oct 2026';
+
     /**
      * Any edit made by a signed-in person is attributed to them. Sign-in tracking
      * skips events on purpose so a login never shows up as the last editor.

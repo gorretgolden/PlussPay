@@ -55,7 +55,7 @@
             </div>
             <div>
                 <p class="text-xs uppercase tracking-wide text-gray-500">Last login</p>
-                <p class="text-sm text-gray-900 mt-1">{{ $user->last_login_at ? $user->last_login_at->format('M d, Y h:i A') . ($user->last_login_ip ? ' from ' . $user->last_login_ip : '') : 'Never' }}</p>
+                <p class="text-sm text-gray-900 mt-1">{{ $user->last_login_at ? $user->last_login_at->format('M d, Y g:i A') . ($user->last_login_ip ? ' from ' . $user->last_login_ip : '') : 'Never' }}</p>
             </div>
             <div>
                 <p class="text-xs uppercase tracking-wide text-gray-500">Password changed</p>
@@ -64,16 +64,19 @@
             </div>
         </div>
         <h2 class="text-sm font-semibold text-gray-900 mb-4 mt-8">Record</h2>
+        @if(!$user->creator || !$user->editor)
+        <p class="text-xs text-gray-500 -mt-2 mb-4">Who added or edited an account is recorded from {{ \App\Models\User::TRACKING_STARTED_AT }}. Older rows show Not recorded.</p>
+        @endif
         <div class="grid gap-4 md:grid-cols-2">
             <div>
                 <p class="text-xs uppercase tracking-wide text-gray-500">Created by</p>
                 <p class="text-sm text-gray-900 mt-1">{{ $user->creator?->name ?? 'Not recorded' }}</p>
-                <p class="text-xs text-gray-500 mt-1">{{ $user->created_at->format('M d, Y h:i A') }}</p>
+                <p class="text-xs text-gray-500 mt-1">{{ $user->created_at->format('M d, Y g:i A') }}</p>
             </div>
             <div>
                 <p class="text-xs uppercase tracking-wide text-gray-500">Edited by</p>
                 <p class="text-sm text-gray-900 mt-1">{{ $user->editor?->name ?? 'Not recorded' }}</p>
-                <p class="text-xs text-gray-500 mt-1">{{ $user->updated_at->format('M d, Y h:i A') }}</p>
+                <p class="text-xs text-gray-500 mt-1">{{ $user->updated_at->format('M d, Y g:i A') }}</p>
             </div>
         </div>
     </div>

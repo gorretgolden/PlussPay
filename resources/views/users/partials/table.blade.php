@@ -56,6 +56,7 @@
     @php $protected = $user->id === auth()->id() || ($user->hasRole('superadmin') && !auth()->user()->hasRole('superadmin')); $canManage = !$user->hasRole('superadmin') || auth()->user()->hasRole('superadmin'); @endphp
     @if($canManage && (auth()->user()->can('edit-user') || auth()->user()->can('delete-user')))
     <div id="user-menu-{{ $user->id }}" class="user-menu" hidden>
+        <a href="{{ route('users.show', $user) }}">View details</a>
         @can('edit-user')
         <a href="{{ route('users.edit', $user) }}">Edit user</a>
         <a href="{{ route('users.edit', $user) }}#password">Reset password</a>

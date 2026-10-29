@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
@@ -18,10 +19,10 @@ class UserDetailsPageTest extends TestCase
         foreach (['admin', 'staff'] as $role) {
             Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
-        foreach (['view-users', 'edit-user', 'export-users'] as $permission) {
+        foreach (['view-users', 'create-user', 'edit-user', 'export-users'] as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
-        Role::findByName('admin')->givePermissionTo(['view-users', 'edit-user', 'export-users']);
+        Role::findByName('admin')->givePermissionTo(['view-users', 'create-user', 'edit-user', 'export-users']);
         Role::findByName('staff')->givePermissionTo('view-users');
     }
 
@@ -70,6 +71,57 @@ class UserDetailsPageTest extends TestCase
     {
         $this->get(route('users.show', $this->user('staff')))
             ->assertRedirect(route('login'));
+    }
+
+    public function test_a_new_account_names_the_admin_who_added_it(): void
+    {
+        $admin = $this->user('admin');
+
+        $this->actingAs($admin)->post(route('users.store'), [
+            'name' => 'New Agent', 'email' => 'new.agent@example.test', 'phone' => '+256700000001',
+            'country' => 'UG', 'role' => 'staff', 'timezone' => 'Africa/Kampala',
+            'password' => 'Password123', 'password_confirmation' => 'Password123',
+        ])->assertRedirect();
+
+        $created = User::where('email', 'new.agent@example.test')->firstOrFail();
+        $this->assertSame($admin->id, $created->created_by);
+
+        $this->actingAs($admin)
+            ->get(route('users.show', $created))
+            ->assertOk()
+            ->assertSee('Created by')
+            ->assertSee($admin->name);
+    }
+
+    public function test_rows_saved_before_tracking_recover_their_names_from_the_audit_trail(): void
+    {
+        $admin = $this->user('admin');
+        $legacy = $this->user('staff', ['email' => 'legacy@example.test']);
+        $legacy->forceFill(['created_by' => null, 'updated_by' => null])->saveQuietly();
+
+        ActivityLog::create([
+            'user_id' => $admin->id, 'action' => 'user_created',
+            'description' => "User {$legacy->name} (legacy@example.test) created with role staff",
+        ]);
+        ActivityLog::create([
+            'user_id' => $admin->id, 'action' => 'user_updated',
+            'description' => "User {$legacy->name} updated",
+        ]);
+
+        $this->artisan('users:backfill-creators')->assertSuccessful();
+
+        $legacy->refresh();
+        $this->assertSame($admin->id, $legacy->created_by);
+        $this->assertSame($admin->id, $legacy->updated_by);
+    }
+
+    public function test_the_table_menu_can_open_the_details_page(): void
+    {
+        $admin = $this->user('admin');
+        $target = $this->user('staff');
+
+        $this->actingAs($admin)->get(route('users.index'))->assertOk()
+            ->assertSee('<a href="'.route('users.show', $target).'">View details</a>', false);
     }
 
     public function test_the_users_export_names_who_added_and_edited_each_account(): void
