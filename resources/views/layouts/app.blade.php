@@ -111,10 +111,13 @@
                 </a>
                 @endcanany
                 @can('view-wallets')
+                {{-- People who see every wallet find them under Accounts > User Accounts instead. --}}
+                @cannot('view-all-wallets')
                 <a href="{{ route('wallet.index') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('wallet.*') ? 'active' : '' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
                     My Wallet
                 </a>
+                @endcannot
                 <a href="{{ route('cash-handovers.index') }}" class="sidebar-link flex items-center px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('cash-handovers.*') ? 'active' : '' }}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                     Cash Hand-ins
@@ -189,34 +192,41 @@
                 </div>
                 @endcan
 
-                {{-- Accounts Group --}}
-                @can('view-accounts')
+                {{-- Accounts Group: company books plus every user's wallet --}}
+                @canany(['view-accounts', 'view-all-wallets'])
+                @php
+                    $accountsOpen = request()->routeIs('accounts.*') || (request()->routeIs('wallet.*') && auth()->user()->can('view-all-wallets'));
+                @endphp
                 <div>
-                    <button type="button" onclick="toggleAccountsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.*') ? 'bg-green-800' : '' }}">
+                    <button type="button" onclick="toggleAccountsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ $accountsOpen ? 'bg-green-800' : '' }}">
                         <span class="flex items-center">
                             <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
                             Accounts
                         </span>
-                        <svg id="accountsChevron" class="w-4 h-4 transition-transform {{ request()->routeIs('accounts.*') ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        <svg id="accountsChevron" class="w-4 h-4 transition-transform {{ $accountsOpen ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
-                    <div id="accountsGroup" class="{{ request()->routeIs('accounts.*') ? '' : 'hidden' }}">
-                        <a href="{{ route('accounts.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.index') ? 'active' : '' }}">
-                            Balances
+                    <div id="accountsGroup" class="{{ $accountsOpen ? '' : 'hidden' }}">
+                        @can('view-accounts')
+                        <a href="{{ route('accounts.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.index') || request()->routeIs('accounts.show') ? 'active' : '' }}">
+                            Company Accounts
                         </a>
+                        @endcan
+                        @can('view-all-wallets')
+                        <a href="{{ route('wallet.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('wallet.*') ? 'active' : '' }}">
+                            User Accounts
+                        </a>
+                        @endcan
+                        @can('view-accounts')
                         <a href="{{ route('accounts.movements') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.movements') ? 'active' : '' }}">
                             Money Movements
                         </a>
-                        @can('create-account-entry')
-                        <a href="{{ route('accounts.entries.create') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.entries.create') ? 'active' : '' }}">
-                            Add Ledger Entry
-                        </a>
-                        @endcan
                         <a href="{{ route('accounts.daily-balances') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.daily-balances') ? 'active' : '' }}">
                             Daily Balances
                         </a>
+                        @endcan
                     </div>
                 </div>
-                @endcan
+                @endcanany
                 @can('view-reports')
                 <div>
                     <button type="button" onclick="toggleReportsGroup()" class="w-full flex items-center justify-between px-6 py-3 text-sm hover:bg-green-800 {{ request()->routeIs('reports.*') ? 'bg-green-800' : '' }}">

@@ -4,7 +4,7 @@
 
 @section('content')
 @php
-    $filtered = request()->filled('search') || request()->filled('account_id') || request()->filled('type')
+    $filtered = request()->filled('search') || request()->filled('account_id') || request()->filled('owner_id') || request()->filled('type')
         || request()->filled('direction') || request()->filled('date_from') || request()->filled('date_to');
     $typeGroups = collect(\App\Models\AccountEntry::TYPES)
         ->groupBy(fn ($meta) => $meta['group'])
@@ -13,10 +13,12 @@
 <div class="mb-6 flex flex-wrap justify-between items-start gap-3">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Money Movements</h1>
-        <p class="text-gray-600 text-sm">Every line in the four cash books on one page. The account that went up is named next to the one that came down, so a movement can be checked without opening each ledger.</p>
+        <p class="text-gray-600 text-sm">Every entry across company and user accounts.</p>
     </div>
     <div class="flex gap-2">
+        @can('create-account-entry')
         <a href="{{ route('accounts.entries.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Add Entry</a>
+        @endcan
         <a href="{{ route('export.movements', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
     </div>
 </div>
@@ -29,12 +31,30 @@
                 class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
         </div>
         <div>
+            <label class="block text-xs text-gray-500 mb-1">Person</label>
+            <select name="owner_id" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option value="">Everyone</option>
+                @foreach($people as $person)
+                    <option value="{{ $person->id }}" @selected((int) request('owner_id') === $person->id)>{{ $person->name }}{{ $person->is_active ? '' : ' (blocked)' }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
             <label class="block text-xs text-gray-500 mb-1">Account</label>
             <select name="account_id" class="px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All accounts</option>
-                @foreach($accounts as $account)
-                    <option value="{{ $account->id }}" @selected((int) request('account_id') === $account->id)>{{ $account->name }} ({{ $account->currency }})</option>
-                @endforeach
+                <optgroup label="Company accounts">
+                    @foreach($accounts as $account)
+                        <option value="{{ $account->id }}" @selected((int) request('account_id') === $account->id)>{{ $account->name }}</option>
+                    @endforeach
+                </optgroup>
+                @if($userAccounts->isNotEmpty())
+                <optgroup label="User accounts">
+                    @foreach($userAccounts as $account)
+                        <option value="{{ $account->id }}" @selected((int) request('account_id') === $account->id)>{{ $account->label() }}</option>
+                    @endforeach
+                </optgroup>
+                @endif
             </select>
         </div>
         <div>
@@ -97,14 +117,14 @@
                     </span>
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-900">
-                    <a href="{{ route('accounts.show', $entry->account) }}" class="text-green-800 hover:underline">{{ $entry->account?->name ?? 'Deleted account' }}</a>
+                    <a href="{{ route('accounts.show', $entry->account) }}" class="text-green-800 hover:underline">{{ $entry->account?->label() ?? 'Deleted account' }}</a>
                     <span class="block text-xs text-gray-400">Holds {{ \App\Models\Account::format($entry->account?->currency, $entry->account?->balance()) }} now</span>
                 </td>
                 <td class="px-4 py-3 text-sm text-right text-gray-900 whitespace-nowrap">{{ $entry->direction === 'in' ? \App\Models\Account::format($entry->account?->currency, $entry->amount) : '' }}</td>
                 <td class="px-4 py-3 text-sm text-right text-gray-900 whitespace-nowrap">{{ $entry->direction === 'out' ? \App\Models\Account::format($entry->account?->currency, $entry->amount) : '' }}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">
                     @if($entry->counterparty)
-                        <a href="{{ route('accounts.show', $entry->counterparty) }}" class="text-green-800 hover:underline">{{ $entry->counterparty->name }}</a>
+                        <a href="{{ route('accounts.show', $entry->counterparty) }}" class="text-green-800 hover:underline">{{ $entry->counterparty->label() }}</a>
                         <span class="block text-xs text-gray-400">{{ $entry->direction === 'in' ? 'paid out of it' : 'received it into it' }}</span>
                     @else
                         <span class="text-gray-500">Outside the business</span>
@@ -113,11 +133,13 @@
                 <td class="px-4 py-3 text-sm text-gray-700">
                     {{ $entry->description }}
                     <span class="block text-xs text-gray-400">
-                        @if($entry->reference)
+                        @php $sameRef = $entry->transaction && $entry->reference === $entry->transaction->receipt_number; @endphp
+                        @if($entry->reference && ! $sameRef)
                             <a href="{{ route('accounts.movements', ['search' => $entry->reference]) }}" class="text-gray-500 underline">{{ $entry->reference }}</a>
                         @endif
                         @if($entry->transaction)
-                            &middot; <a href="{{ route('transactions.show', $entry->transaction) }}" class="text-green-800 hover:underline">{{ $entry->transaction->receipt_number }}</a>
+                            @if($entry->reference && ! $sameRef) &middot; @endif
+                            <a href="{{ route('transactions.show', $entry->transaction) }}" class="text-green-800 hover:underline">{{ $entry->transaction->receipt_number }}</a>
                         @endif
                     </span>
                 </td>
@@ -140,7 +162,7 @@
     </table>
 </div>
 
-<p class="text-xs text-gray-500 mt-3">A deal that moves money between two of our own accounts is written twice, once on each side, and both lines share the reference shown under Details. Choose that reference to see the pair together.</p>
+<p class="text-xs text-gray-500 mt-3">Paired entries share a reference. Click it to see both sides.</p>
 
 <div class="mt-4">
     {{ $entries->links() }}

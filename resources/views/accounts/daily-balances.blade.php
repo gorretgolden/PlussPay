@@ -8,9 +8,9 @@
 @endphp
 <div class="mb-6 flex flex-wrap justify-between items-center gap-3">
     <div>
-        <p class="text-sm text-gray-500"><a href="{{ route('accounts.index') }}" class="underline hover:text-gray-700">System Accounts</a> / Daily Balances</p>
+        <p class="text-sm text-gray-500"><a href="{{ route('accounts.index') }}" class="underline hover:text-gray-700">Company Accounts</a> / Daily Balances</p>
         <h1 class="text-2xl font-bold text-gray-900">End of Day Balances</h1>
-        <p class="text-gray-600">What each country was holding at the close of every day</p>
+        <p class="text-gray-600">Closing balance per day</p>
     </div>
     <a href="{{ route('export.daily-balances', request()->query()) }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Export Excel</a>
 </div>
@@ -86,8 +86,7 @@
 
 <div class="mt-4 bg-white rounded-lg shadow p-5 text-sm text-gray-600 space-y-2">
     <p class="font-medium text-gray-900">How to read this</p>
-    <p>Closing is the balance at the end of that day, carried forward from the day before. The opening figure for the first day shown is whatever the account held before it, so the table lines up with the bank statement you compare it against.</p>
-    <p>Uganda total is UGX cash plus the dollars held here at the dollar selling rate. China total is RMB plus the dollars held there at the RMB selling rate. Both rates come from System Settings, so change them once and every day in this table re-prices.</p>
+    <p>Closing = end-of-day balance. Country totals price USD at the selling rates in System Settings.</p>
 </div>
 @endif
 @endsection

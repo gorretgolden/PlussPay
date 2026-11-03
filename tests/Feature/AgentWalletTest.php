@@ -185,7 +185,7 @@ class AgentWalletTest extends TestCase
         $response = $this->actingAs($admin)->get(route('wallet.index'));
 
         $response->assertOk();
-        $response->assertSee('Agent Wallets');
+        $response->assertSee('User Accounts');
         $response->assertSee($agent->name);
         // The country is on the row so an empty yuan column reads as "not their currency".
         $response->assertSee('Uganda');
@@ -204,8 +204,7 @@ class AgentWalletTest extends TestCase
         $response->assertOk();
         $response->assertSee('China');
         // A yuan balance reaches the browser as a symbol, not as the letters that name it.
-        $this->assertStringContainsString('&yen;0.00', $response->getContent());
-        $this->assertStringNotContainsString('&amp;yen;', $response->getContent());
+        $this->assertStringContainsString('¥0.00', $response->getContent());
     }
 
     public function test_dashboard_shows_wallet_balances(): void

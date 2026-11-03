@@ -88,16 +88,27 @@ class AccountController extends Controller
      */
     public function movements(Request $request)
     {
-        $query = AccountEntry::with(['account', 'counterparty', 'creator', 'transaction'])
+        $query = AccountEntry::with(['account.owner', 'counterparty.owner', 'creator', 'transaction'])
             ->filtered($request);
 
         if ($request->filled('account_id')) {
             $query->where('account_id', (int) $request->input('account_id'));
         }
 
+        if ($request->filled('owner_id')) {
+            $query->whereHas('account', fn ($q) => $q->where('owner_id', (int) $request->input('owner_id')));
+        }
+
+        $userAccounts = Account::agentWallets()->with('owner')->get()
+            ->filter(fn (Account $a) => $a->owner !== null)
+            ->sortBy(fn (Account $a) => $a->label())
+            ->values();
+
         return view('accounts.movements', [
             'entries' => $query->latest('entry_date')->latest('id')->paginate(50)->withQueryString(),
             'accounts' => Account::ordered(),
+            'userAccounts' => $userAccounts,
+            'people' => $userAccounts->pluck('owner')->unique('id')->sortBy('name')->values(),
         ]);
     }
 

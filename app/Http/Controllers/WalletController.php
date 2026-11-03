@@ -34,6 +34,22 @@ class WalletController extends Controller
                 ];
             }
 
+            // Anyone else who still owns a wallet (a blocked agent, a changed role) stays on the
+            // list so the cash in their hand never drops out of sight. Existing wallets only:
+            // nothing is created for people who are not on the desk.
+            Account::agentWallets()->with('owner')->whereNotIn('owner_id', $agents->pluck('id'))->get()
+                ->filter(fn (Account $wallet) => $wallet->owner !== null)
+                ->groupBy('owner_id')
+                ->filter(fn ($wallets) => $wallets->contains(fn (Account $w) => bccomp($w->balance(), '0', 2) !== 0))
+                ->each(function ($wallets, $ownerId) use (&$allWallets, &$every) {
+                    $keyed = $wallets->keyBy('currency')->all();
+                    $every = array_merge($every, array_values($keyed));
+                    $allWallets[$ownerId] = [
+                        'user' => $wallets->first()->owner,
+                        'wallets' => $keyed,
+                    ];
+                });
+
             $handedIn = AccountEntry::handedInFor($every);
 
             foreach ($allWallets as $agentId => $data) {
@@ -44,7 +60,17 @@ class WalletController extends Controller
                 }
             }
 
-            return view('wallets.index', compact('allWallets'));
+            $totals = [];
+            foreach ($every as $wallet) {
+                $totals[$wallet->currency] = bcadd($totals[$wallet->currency] ?? '0.00', $wallet->balance(), 2);
+            }
+
+            return view('wallets.index', [
+                'allWallets' => $allWallets,
+                'totals' => $totals,
+                // Only people still on the desk can be adjusted; the controller refuses the rest.
+                'adjustable' => $agents,
+            ]);
         }
 
         $wallets = Account::walletsFor($user);

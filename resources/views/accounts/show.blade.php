@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $account->name.' Ledger')
+@section('title', $account->label().' Ledger')
 
 @section('content')
 @php
@@ -9,8 +9,8 @@
 @endphp
 <div class="mb-6 flex flex-wrap justify-between items-start gap-3">
     <div>
-        <p class="text-sm text-gray-500"><a href="{{ route('accounts.index') }}" class="underline hover:text-gray-700">System Accounts</a> / {{ $account->country === 'UG' ? 'Uganda' : 'China' }}</p>
-        <h1 class="text-2xl font-bold text-gray-900">{{ $account->name }}</h1>
+        <p class="text-sm text-gray-500">@if($account->isWallet())<a href="{{ route('wallet.index') }}" class="underline hover:text-gray-700">User Accounts</a>@else<a href="{{ route('accounts.index') }}" class="underline hover:text-gray-700">Company Accounts</a>@endif / {{ $account->country === 'UG' ? 'Uganda' : 'China' }}</p>
+        <h1 class="text-2xl font-bold text-gray-900">{{ $account->label() }}</h1>
         <p class="text-gray-600 text-sm">{{ $account->description }}</p>
     </div>
     <div class="flex gap-2">
@@ -106,7 +106,7 @@
                 <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $entry->direction === 'in' ? $fmt($entry->amount) : '' }}</td>
                 <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $entry->direction === 'out' ? $fmt($entry->amount) : '' }}</td>
                 <td class="px-4 py-3 text-sm text-right font-medium {{ (float) $row['balance'] < 0 ? 'text-red-700' : 'text-gray-900' }}">{{ $fmt($row['balance']) }}</td>
-                <td class="px-4 py-3 text-sm text-gray-700">{{ $entry->counterparty?->name ?? '-' }}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">{{ $entry->counterparty?->label() ?? '-' }}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">
                     {{ $entry->description }}
                     @if($entry->rate)

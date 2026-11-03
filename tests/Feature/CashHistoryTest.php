@@ -132,7 +132,7 @@ class CashHistoryTest extends TestCase
 
         $html = $this->page($agent);
 
-        $this->assertMatchesRegularExpression('/Oct \d\d, 2026<span[^>]*>, \d\d:\d\d [AP]M</', $html, 'The day and the hour sit on one line.');
+        $this->assertMatchesRegularExpression('/[A-Z][a-z]{2} \d\d, 2026<span[^>]*>, \d\d:\d\d [AP]M</', $html, 'The day and the hour sit on one line.');
         $this->assertStringContainsString('Completed', $html, 'The line names the transfer it came from.');
         $this->assertStringContainsString('href="/transactions/', $html, 'The receipt number opens the booking it was collected for.');
         $this->assertStringContainsString('Collected', $html);

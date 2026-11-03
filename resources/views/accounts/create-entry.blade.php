@@ -21,7 +21,7 @@
 @endphp
 <div class="max-w-2xl mx-auto">
     <div class="mb-6">
-        <p class="text-sm text-gray-500"><a href="{{ route('accounts.index') }}" class="underline hover:text-gray-700">System Accounts</a> / Add Entry</p>
+        <p class="text-sm text-gray-500"><a href="{{ route('accounts.index') }}" class="underline hover:text-gray-700">Company Accounts</a> / Add Entry</p>
         <h1 class="text-2xl font-bold text-gray-900">Add Ledger Entry</h1>
         <p class="text-gray-600">Completed transfers post themselves here. Use this form for everything else the business actually did with cash.</p>
     </div>

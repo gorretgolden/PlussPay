@@ -217,6 +217,17 @@ class Account extends Model
         };
     }
 
+    /**
+     * A wallet's stored name is a snapshot of the owner's name when it was opened, so read the
+     * owner's current name instead. Company books keep their own name.
+     */
+    public function label(): string
+    {
+        return $this->isWallet() && $this->owner
+            ? $this->owner->name . ' (' . $this->currency . ')'
+            : (string) $this->name;
+    }
+
     public function isWallet(): bool
     {
         return $this->owner_id !== null;

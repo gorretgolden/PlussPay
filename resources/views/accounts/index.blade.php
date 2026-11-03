@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'System Accounts')
+@section('title', 'Company Accounts')
 
 @section('content')
 @php
@@ -8,12 +8,16 @@
 @endphp
 <div class="mb-6 flex flex-wrap justify-between items-center gap-3">
     <div>
-        <h1 class="text-2xl font-bold text-gray-900">System Accounts</h1>
-        <p class="text-gray-600">What each country is holding right now, in its own money</p>
+        <h1 class="text-2xl font-bold text-gray-900">Company Accounts</h1>
+        <p class="text-gray-600">Live balances by country</p>
     </div>
     <div class="flex gap-2">
+        @can('create-account-entry')
         <a href="{{ route('accounts.entries.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Add Ledger Entry</a>
-        <a href="{{ route('accounts.daily-balances') }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">Daily Balances</a>
+        @endcan
+        @can('view-all-wallets')
+        <a href="{{ route('wallet.index') }}" class="bg-indigo-700 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-600">User Accounts</a>
+        @endcan
     </div>
 </div>
 
@@ -27,11 +31,10 @@
         <p class="text-3xl font-bold text-gray-900 mt-2">{{ $country['currency'] }} {{ $fmt($country['total'], $country['currency']) }}</p>
         @if((float) $country['rate'] > 0)
             <p class="text-xs text-gray-500 mt-2">
-                Own cash plus {{ $fmt($country['dollars'], 'USD') }} USD at {{ rtrim(rtrim(number_format((float) $country['rate'], 4, '.', ''), '0'), '.') }}
-                {{ $country['currency'] }} per dollar, the selling rate in System Settings.
+                {{ $country['currency'] }} cash + {{ \App\Models\Account::format('USD', $country['dollars']) }} at {{ rtrim(rtrim(number_format((float) $country['rate'], 4, '.', ','), '0'), '.') }}/USD
             </p>
         @else
-            <p class="text-xs text-amber-700 mt-2">Set the dollar selling rate in System Settings to total the dollars this country is holding.</p>
+            <p class="text-xs text-amber-700 mt-2">Set the USD selling rate in System Settings.</p>
         @endif
     </div>
     @endforeach
@@ -55,14 +58,5 @@
     @endforeach
 </div>
 
-<div class="bg-white rounded-lg shadow p-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-3">How these accounts are filled</h2>
-    <ul class="text-sm text-gray-600 space-y-2 list-disc list-inside">
-        <li>A transfer that turns <strong>Completed</strong> puts the money the customer handed over, fee included, into the Uganda account for that currency on its own.</li>
-        <li>Cancelling a completed transfer takes the same amount back out and records why.</li>
-        <li>Everything else you already track by hand goes in through <strong>Add Ledger Entry</strong>: dollars bought, money sent to China, RMB paid out to recipients, expenses and corrections.</li>
-        <li>An exchange writes two lines, one out of each account, so no money can vanish between countries.</li>
-        <li>Start each account once with <strong>Add Ledger Entry</strong> and pick <strong>Opening balance</strong> for the figure it already held.</li>
-    </ul>
-</div>
+<p class="text-xs text-gray-500">Completed transfers post here automatically. Record anything else with Add Ledger Entry.</p>
 @endsection
