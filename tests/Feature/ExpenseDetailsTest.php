@@ -110,8 +110,8 @@ class ExpenseDetailsTest extends TestCase
 
         // Nothing rubbed out: both sides of the correction are on the page, and the button is gone.
         $page->assertSee('Cancelled')
-            ->assertSee('Money paid out')
-            ->assertSee('Money received')
+            ->assertSee('Money out')
+            ->assertSee('Money in')
             ->assertSee('The landlord refunded part of it')
             ->assertDontSee('Cancel entry');
     }

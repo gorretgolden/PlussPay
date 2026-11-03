@@ -105,7 +105,7 @@ class ExchangeDeskTermsTest extends TestCase
         $this->assertSame('980000.00', (string) $legs->firstWhere('type', 'money_in')->amount);
         $this->assertSame('20000.00', (string) $legs->firstWhere('type', 'exchange_fee')->amount);
         $this->assertSame('260.64', (string) $legs->firstWhere('type', 'money_out')->amount);
-        $this->assertSame('Commission kept on a deal', AccountEntry::labelFor('exchange_fee'));
+        $this->assertSame('FX commission', AccountEntry::labelFor('exchange_fee'));
 
         // The price the customer got is the one the priced part of their money bought, not the
         // gross figure divided by what they received, which would read as a worse deal than it was.

@@ -8,6 +8,7 @@ use App\Models\AccountEntry;
 use App\Models\ActivityLog;
 use App\Models\ExchangeRate;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Services\AccountLedger;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -104,21 +105,73 @@ class AccountController extends Controller
                 if ($a->owner === null) {
                     return false;
                 }
-                // Always show agent and super-agent wallets, even when empty.
                 if ($a->owner->hasRole('agent') || $a->owner->hasRole('super-agent')) {
                     return true;
                 }
-                // Show any other wallet only if it still holds money.
                 return bccomp((string) $a->balance(), '0', 2) !== 0;
             })
             ->sortBy(fn (Account $a) => $a->label())
             ->values();
+
+        // Totals: one grouped query for In/Out/Net per currency across the same filter.
+        $totalsQuery = AccountEntry::join('accounts', 'account_entries.account_id', '=', 'accounts.id')
+            ->select('accounts.currency')
+            ->selectRaw("SUM(CASE WHEN account_entries.direction = 'in' THEN CAST(account_entries.amount AS DECIMAL(15,2)) ELSE 0 END) as total_in")
+            ->selectRaw("SUM(CASE WHEN account_entries.direction = 'out' THEN CAST(account_entries.amount AS DECIMAL(15,2)) ELSE 0 END) as total_out");
+
+        if ($request->filled('search')) {
+            $search = '%'.addcslashes($request->search, '%_\\').'%';
+            $totalsQuery->where(function ($q) use ($search) {
+                $q->where('account_entries.description', 'like', $search)
+                    ->orWhere('account_entries.reference', 'like', $search);
+            });
+        }
+        if ($request->filled('type')) {
+            $totalsQuery->where('account_entries.type', $request->input('type'));
+        }
+        if ($request->filled('direction')) {
+            $totalsQuery->where('account_entries.direction', $request->input('direction'));
+        }
+        if ($request->filled('date_from')) {
+            $totalsQuery->whereDate('account_entries.entry_date', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $totalsQuery->whereDate('account_entries.entry_date', '<=', $request->date_to);
+        }
+        if ($request->filled('account_id')) {
+            $totalsQuery->where('account_entries.account_id', (int) $request->input('account_id'));
+        }
+        if ($request->filled('owner_id')) {
+            $totalsQuery->where('accounts.owner_id', (int) $request->input('owner_id'));
+        }
+
+        $totals = $totalsQuery->groupBy('accounts.currency')->get()
+            ->mapWithKeys(fn ($row) => [$row->currency => [
+                'in' => number_format((float) $row->total_in, 2, '.', ''),
+                'out' => number_format((float) $row->total_out, 2, '.', ''),
+                'net' => number_format((float) $row->total_in - (float) $row->total_out, 2, '.', ''),
+            ]]);
+
+        // Person balances when owner_id is set.
+        $personBalances = null;
+        if ($request->filled('owner_id')) {
+            $person = User::find((int) $request->input('owner_id'));
+            if ($person) {
+                $wallets = Account::where('owner_id', $person->id)->where('is_active', true)->get();
+                $personBalances = [
+                    'name' => $person->name,
+                    'balances' => $wallets->mapWithKeys(fn (Account $a) => [$a->currency => $a->balance()])->toArray(),
+                ];
+            }
+        }
 
         return view('accounts.movements', [
             'entries' => $query->latest('entry_date')->latest('id')->paginate(50)->withQueryString(),
             'accounts' => Account::ordered(),
             'userAccounts' => $userAccounts,
             'people' => $userAccounts->pluck('owner')->unique('id')->sortBy('name')->values(),
+            'totals' => $totals,
+            'personBalances' => $personBalances,
         ]);
     }
 
