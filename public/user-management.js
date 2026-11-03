@@ -435,5 +435,65 @@
             form.requestSubmit(event.submitter || undefined);
         }, true);
         updateSelection();
+
+        const modal = one('#create-user-modal');
+        if (modal) {
+            const form = one('#create-user-form', modal);
+            const openButton = one('[data-open-create-modal]');
+            const closeButtons = all('[data-close-modal]', modal);
+            let previousFocus = null;
+            let dirty = false;
+
+            function openModal() {
+                previousFocus = document.activeElement;
+                modal.hidden = false;
+                document.body.style.overflow = 'hidden';
+                const firstInput = one('input:not([type=hidden]),select,textarea', form);
+                if (firstInput) setTimeout(() => firstInput.focus(), 0);
+            }
+
+            function closeModal() {
+                if (dirty && !window.confirm('Discard unsaved changes?')) return;
+                modal.hidden = true;
+                document.body.style.overflow = '';
+                form.reset();
+                all('[aria-invalid]', form).forEach(el => el.removeAttribute('aria-invalid'));
+                all('[data-field-error]', form).forEach(el => el.textContent = '');
+                const summary = one('[data-validation-summary]', form);
+                if (summary) summary.textContent = '';
+                dirty = false;
+                if (previousFocus) previousFocus.focus();
+            }
+
+            openButton?.addEventListener('click', openModal);
+            closeButtons.forEach(button => button.addEventListener('click', closeModal));
+
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape' && !modal.hidden) {
+                    event.preventDefault();
+                    closeModal();
+                }
+            });
+
+            const focusableSelector = 'input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),button:not([disabled]),a[href]';
+            modal.addEventListener('keydown', event => {
+                if (event.key !== 'Tab') return;
+                const focusable = all(focusableSelector, modal);
+                if (!focusable.length) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            });
+
+            form?.addEventListener('input', () => { dirty = true; }, true);
+            form?.addEventListener('change', () => { dirty = true; }, true);
+            form?.addEventListener('submit', () => { dirty = false; }, true);
+        }
     });
 })();

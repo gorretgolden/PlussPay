@@ -50,6 +50,7 @@ class UserController extends Controller
             ->withQueryString();
 
         $roles = Role::pluck('name');
+        $assignableRoles = $this->assignableRoles();
 
         $summary = [
             'total' => User::count(),
@@ -62,7 +63,7 @@ class UserController extends Controller
             return response()->view('users.partials.table', compact('users', 'roles'))->header('Cache-Control', 'no-store');
         }
 
-        return view('users.index', compact('users', 'roles', 'summary'));
+        return view('users.index', compact('users', 'roles', 'assignableRoles', 'summary'));
     }
 
     public function show(User $user)
