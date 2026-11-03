@@ -55,7 +55,7 @@ final class WalletHistory
             $own = [];
 
             $entries = AccountEntry::where('account_id', $wallet->id)
-                ->with('transaction:id,status,receipt_number,created_by')
+                ->with(['transaction:id,status,receipt_number,created_by', 'creator:id,name'])
                 ->orderBy('entry_date')
                 ->orderBy('id')
                 ->get();
@@ -71,7 +71,7 @@ final class WalletHistory
                     'clock' => $entry->created_at,
                     'currency' => $wallet->currency,
                     'type' => $entry->type,
-                    'label' => AccountEntry::walletLabel($entry->type),
+                    'label' => AccountEntry::walletLabel($entry->type, $entry->creator?->name),
                     'description' => $entry->description,
                     'reference' => $entry->reference,
                     'direction' => $entry->direction,

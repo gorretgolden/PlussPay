@@ -99,8 +99,12 @@ class AccountEntry extends Model
      * On the account pages a line is named by what it did to the books, so a hand-in reads as
      * "Sent to another account". Nobody stands at a counter thinking in accounts. A wallet line
      * gets the words the person holding the cash would use.
+     *
+     * A credit or a debit is the one movement a drawer cannot explain from their own day, because
+     * the office changed their money without asking, so the line names whoever typed it. A row with
+     * no person on it, which is what a back-office job leaves behind, stays the office.
      */
-    public static function walletLabel(?string $type): string
+    public static function walletLabel(?string $type, ?string $actor = null): string
     {
         return match ($type) {
             'money_in' => 'Collected',
@@ -113,8 +117,8 @@ class AccountEntry extends Model
             'handover_in' => 'Received from an agent',
             'fee_handover_out' => 'Charges handed in',
             'fee_handover_in' => 'Charges received',
-            'adjustment_in' => 'Credited by the office',
-            'adjustment_out' => 'Debited by the office',
+            'adjustment_in' => 'Credited by '.($actor ?: 'the office'),
+            'adjustment_out' => 'Debited by '.($actor ?: 'the office'),
             'reversal' => 'Given back',
             default => static::labelFor($type),
         };

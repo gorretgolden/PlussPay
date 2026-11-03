@@ -148,7 +148,10 @@
 
     function open() {
         previousFocus = document.activeElement;
-        modal.hidden = false;
+        // The box is put away with the same utility the rest of the app uses, so it has to come
+        // out the same way. Clearing the hidden property alone leaves the class in place, and the
+        // Adjust Wallet button looks like it does nothing.
+        modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
         const first = form.querySelector('select,input,textarea');
         if (first) setTimeout(() => first.focus(), 0);
@@ -156,7 +159,7 @@
 
     function close() {
         if (dirty && !confirm('Discard unsaved changes?')) return;
-        modal.hidden = true;
+        modal.classList.add('hidden');
         document.body.style.overflow = '';
         form.reset();
         dirty = false;
@@ -167,7 +170,7 @@
     closeButtons.forEach(btn => btn.addEventListener('click', close));
 
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && !modal.hidden) { e.preventDefault(); close(); }
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) { e.preventDefault(); close(); }
     });
 
     const focusableSel = 'select:not([disabled]),input:not([disabled]):not([type=hidden]),textarea:not([disabled]),button:not([disabled])';
@@ -185,14 +188,22 @@
     form?.addEventListener('submit', () => { dirty = false; }, true);
 
     form?.addEventListener('submit', () => {
-        form.querySelectorAll('select,input,textarea').forEach(el => { el.disabled = true; });
+        form.querySelectorAll('input:not([type=hidden]),textarea').forEach(el => { el.readOnly = true; el.style.opacity = '0.6'; });
+        // A field that is disabled while the browser reads the form is left out of the request, so
+        // the dropdowns stay enabled and only the searchable button in front of them is switched
+        // off. Disabling the selects here used to post an adjustment with no agent, amount or reason.
+        form.querySelectorAll('select').forEach(el => {
+            el.style.opacity = '0.6';
+            const trigger = el.parentElement?.querySelector('button[role=combobox]');
+            if (trigger) { trigger.disabled = true; trigger.style.opacity = '0.6'; }
+        });
         const btn = document.querySelector('button[form="adjust-wallet-form"]');
         if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
     });
 
     // Re-open the modal when validation errors come back from the server.
     @if($errors->any() && old('agent_id') !== null)
-    modal.hidden = false;
+    modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
     @endif
 })();

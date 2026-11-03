@@ -177,7 +177,10 @@ class WalletController extends Controller
 
         $label = $validated['direction'] === 'credit' ? 'credited' : 'debited';
 
-        return back()->with('success', "{$agent->name}'s wallet {$label} with UGX " . number_format((float) $validated['amount'], 2) . '.');
+        // The confirmation names the agent who made the movement, because the line on the drawer's
+        // own book says "Credited by <name>" and the two have to agree about whose hand moved it.
+        // Shillings are counted in notes, so the figure is whole rather than cut at the fen.
+        return back()->with('success', auth()->user()->name." {$label} {$agent->name}'s wallet with UGX ".number_format((float) $validated['amount']).'.');
     }
 
     /**

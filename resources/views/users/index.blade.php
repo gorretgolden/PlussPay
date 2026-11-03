@@ -86,7 +86,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     var modal = document.getElementById('create-user-modal');
     if (modal) {
-        modal.hidden = false;
+        modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
         var form = document.getElementById('create-user-form');
         if (form) {

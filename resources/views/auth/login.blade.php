@@ -218,7 +218,12 @@
                 box.readOnly = true;
                 box.classList.add('bg-gray-100');
             });
-            document.querySelector('input[name="remember"]').disabled = true;
+            // A disabled field is not sent, which is why the tick used to vanish before the server
+            // could read it. Hold it still without taking it out of the form.
+            const remember = document.querySelector('input[name="remember"]');
+            remember.setAttribute('aria-disabled', 'true');
+            remember.style.pointerEvents = 'none';
+            remember.style.opacity = '0.6';
             document.querySelectorAll('[data-demo-email]').forEach(function (button) { button.disabled = true; });
         });
     </script>

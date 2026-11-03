@@ -125,6 +125,18 @@ class CashHistoryTest extends TestCase
         return $this->actingAs($as)->get('/wallet'.$query)->assertOk()->getContent();
     }
 
+    /**
+     * Only the rows, because the "What happened" filter box carries the same words as a category
+     * name and would answer any question asked of the whole page.
+     */
+    private function rows(string $html): string
+    {
+        $from = strpos($html, '<tbody');
+        $to = strpos($html, '</tbody>', $from);
+
+        return $from === false || $to === false ? '' : substr($html, $from, $to - $from);
+    }
+
     public function test_a_collected_transfer_shows_the_hour_it_was_typed_and_the_status_it_became(): void
     {
         $agent = $this->agent();
@@ -308,5 +320,79 @@ class CashHistoryTest extends TestCase
         $this->assertSame('50000.00', Account::walletFor($agent, 'UGX')->fresh()->balance());
         $this->assertSame('0.00', Account::byCode(Account::UGX_UGANDA)->balance());
         $this->assertSame(0, CashHandover::count());
+    }
+
+    private function office(string $name = 'Gorret Office'): User
+    {
+        $user = User::create([
+            'name' => $name,
+            'email' => strtolower(str_replace(' ', '.', $name)).uniqid().'@plussave.test',
+            'password' => 'Password123',
+            'is_active' => true,
+            'country' => 'UG',
+        ]);
+
+        $user->assignRole('admin');
+
+        return $user;
+    }
+
+    /**
+     * A credit or a debit is the one line on a drawer's book that they cannot explain from their own
+     * day, because the office moved their money without asking. So the line says who, on the screen
+     * and in the sheet they download, and the confirmation the office gets names the same person.
+     */
+    public function test_a_credit_or_debit_names_the_person_who_moved_the_money(): void
+    {
+        $agent = $this->agent('Sarah Naigaga');
+        $admin = $this->office();
+
+        $this->flushSession();
+        $this->actingAs($admin)
+            ->post(route('wallets.adjust'), [
+                'agent_id' => $agent->id,
+                'direction' => 'credit',
+                'amount' => '50000',
+                'description' => 'Advance for the October float',
+            ])
+            ->assertSessionHas('success', $admin->name.' credited Sarah Naigaga\'s wallet with UGX 50,000.');
+
+        $this->flushSession();
+        $this->actingAs($admin)->post(route('wallets.adjust'), [
+            'agent_id' => $agent->id,
+            'direction' => 'debit',
+            'amount' => '30000',
+            'description' => 'Cash advance returned',
+        ]);
+
+        $rows = $this->rows($this->page($agent));
+        $this->assertStringContainsString('Credited by '.$admin->name, $rows);
+        $this->assertStringContainsString('Debited by '.$admin->name, $rows);
+        $this->assertStringNotContainsString('the office', $rows, 'A row with a person on it does not hide behind the office.');
+
+        // The same words in the download, because she reads the sheet back over the phone.
+        $this->flushSession();
+        $sheet = $this->actingAs($agent)->get('/export/cash-history?kind=adjustment_in')->streamedContent();
+        $file = tempnam(sys_get_temp_dir(), 'cash-credit-');
+        file_put_contents($file, $sheet);
+        $rows = array_slice(IOFactory::load($file)->getActiveSheet()->toArray(), 5);
+        unlink($file);
+
+        $line = trim(implode(' ', array_map(fn ($cell) => trim((string) $cell), $rows[0])));
+        $this->assertStringContainsString('Credited by '.$admin->name, $line);
+        $this->assertStringContainsString('Advance for the October float', $line);
+    }
+
+    /**
+     * A movement written by a job rather than by a hand has nobody to name, and an account deleted
+     * since takes its name with it. Both read as the office rather than as a blank or a guess.
+     */
+    public function test_a_movement_written_without_a_person_still_reads_the_office(): void
+    {
+        $agent = $this->agent();
+
+        AccountLedger::record(Account::walletFor($agent, 'UGX'), 'adjustment_in', '20000', 'Opened the drawer');
+
+        $this->assertStringContainsString('Credited by the office', $this->rows($this->page($agent)));
     }
 }

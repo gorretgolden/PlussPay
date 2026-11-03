@@ -446,7 +446,10 @@
 
             function openModal() {
                 previousFocus = document.activeElement;
-                modal.hidden = false;
+                // The box is put away with the same utility the rest of the app uses, so it has to
+                // come out the same way. Clearing the hidden property alone leaves the class in
+                // place, and the button appears to do nothing.
+                modal.classList.remove('hidden');
                 document.body.style.overflow = 'hidden';
                 const firstInput = one('input:not([type=hidden]),select,textarea', form);
                 if (firstInput) setTimeout(() => firstInput.focus(), 0);
@@ -454,7 +457,7 @@
 
             function closeModal() {
                 if (dirty && !window.confirm('Discard unsaved changes?')) return;
-                modal.hidden = true;
+                modal.classList.add('hidden');
                 document.body.style.overflow = '';
                 form.reset();
                 all('[aria-invalid]', form).forEach(el => el.removeAttribute('aria-invalid'));
@@ -469,7 +472,7 @@
             closeButtons.forEach(button => button.addEventListener('click', closeModal));
 
             document.addEventListener('keydown', event => {
-                if (event.key === 'Escape' && !modal.hidden) {
+                if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
                     event.preventDefault();
                     closeModal();
                 }
