@@ -98,8 +98,8 @@
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Movement</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
-                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Goes up</th>
-                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Goes down</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Goes up</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Goes down</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">The other side</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entered By</th>
@@ -120,8 +120,8 @@
                     <a href="{{ route('accounts.show', $entry->account) }}" class="text-green-800 hover:underline">{{ $entry->account?->label() ?? 'Deleted account' }}</a>
                     <span class="block text-xs text-gray-400">Holds {{ \App\Models\Account::format($entry->account?->currency, $entry->account?->balance()) }} now</span>
                 </td>
-                <td class="px-4 py-3 text-sm text-right text-gray-900 whitespace-nowrap">{{ $entry->direction === 'in' ? \App\Models\Account::format($entry->account?->currency, $entry->amount) : '' }}</td>
-                <td class="px-4 py-3 text-sm text-right text-gray-900 whitespace-nowrap">{{ $entry->direction === 'out' ? \App\Models\Account::format($entry->account?->currency, $entry->amount) : '' }}</td>
+                <td class="px-4 py-3 text-sm text-left text-gray-900 whitespace-nowrap">{{ $entry->direction === 'in' ? \App\Models\Account::format($entry->account?->currency, $entry->amount) : '' }}</td>
+                <td class="px-4 py-3 text-sm text-left text-gray-900 whitespace-nowrap">{{ $entry->direction === 'out' ? \App\Models\Account::format($entry->account?->currency, $entry->amount) : '' }}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">
                     @if($entry->counterparty)
                         <a href="{{ route('accounts.show', $entry->counterparty) }}" class="text-green-800 hover:underline">{{ $entry->counterparty->label() }}</a>
