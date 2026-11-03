@@ -15,19 +15,19 @@ use Illuminate\Validation\Rule;
 
 class AccountController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $accounts = Account::ordered();
-        $today = now()->toDateString();
+        $date = $request->input('date', now()->toDateString());
 
         return view('accounts.index', [
             'accounts' => $accounts,
-            'balances' => collect($accounts)->mapWithKeys(fn (Account $a) => [$a->id => $a->balance()]),
+            'balances' => collect($accounts)->mapWithKeys(fn (Account $a) => [$a->id => $a->balance($date)]),
             'todayMovements' => collect($accounts)->mapWithKeys(fn (Account $a) => [
-                $a->id => AccountEntry::where('account_id', $a->id)->whereDate('entry_date', $today)->count(),
+                $a->id => AccountEntry::where('account_id', $a->id)->whereDate('entry_date', $date)->count(),
             ]),
-            'countries' => $this->countryTotals($accounts, $today),
-            'date' => $today,
+            'countries' => $this->countryTotals($accounts, $date),
+            'date' => $date,
         ]);
     }
 

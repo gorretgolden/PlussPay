@@ -9,9 +9,17 @@
 <div class="mb-6 flex flex-wrap justify-between items-center gap-3">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Company Accounts</h1>
-        <p class="text-gray-600">Live balances by country</p>
+        <p class="text-gray-600">Balances by country</p>
     </div>
-    <div class="flex gap-2">
+    <div class="flex gap-2 items-center">
+        <form method="GET" action="{{ route('accounts.index') }}" class="flex gap-2 items-center">
+            <label for="date" class="text-sm text-gray-700">As of:</label>
+            <input type="date" id="date" name="date" value="{{ $date }}" class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            <button type="submit" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Show</button>
+            @if($date !== now()->toDateString())
+                <a href="{{ route('accounts.index') }}" class="text-sm text-gray-600 hover:text-gray-900 underline">Today</a>
+            @endif
+        </form>
         @can('create-account-entry')
         <a href="{{ route('accounts.entries.create') }}" class="bg-green-800 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">Add Ledger Entry</a>
         @endcan
