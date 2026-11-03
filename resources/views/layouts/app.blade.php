@@ -208,19 +208,23 @@
                     <div id="accountsGroup" class="{{ $accountsOpen ? '' : 'hidden' }}">
                         @can('view-accounts')
                         <a href="{{ route('accounts.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.index') || request()->routeIs('accounts.show') ? 'active' : '' }}">
+                            <svg class="w-4 h-4 mr-3 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                             Company Accounts
                         </a>
                         @endcan
                         @can('view-all-wallets')
                         <a href="{{ route('wallet.index') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('wallet.*') ? 'active' : '' }}">
+                            <svg class="w-4 h-4 mr-3 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                             User Accounts
                         </a>
                         @endcan
                         @can('view-accounts')
                         <a href="{{ route('accounts.movements') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.movements') ? 'active' : '' }}">
+                            <svg class="w-4 h-4 mr-3 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
                             Money Movements
                         </a>
                         <a href="{{ route('accounts.daily-balances') }}" class="sidebar-sublink flex items-center py-2 text-sm hover:bg-green-800 {{ request()->routeIs('accounts.daily-balances') ? 'active' : '' }}">
+                            <svg class="w-4 h-4 mr-3 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                             Daily Balances
                         </a>
                         @endcan
