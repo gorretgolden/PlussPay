@@ -61,9 +61,9 @@
             <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Person</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Country</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">UGX in hand</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">USD in hand</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">RMB in hand</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">UGX in hand</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">USD in hand</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">RMB in hand</th>
             </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -83,7 +83,7 @@
                 <td class="px-6 py-4 text-sm text-gray-500">{{ $data['user']->countryLabel() ?: 'Not set' }}</td>
                 @foreach(['UGX', 'USD', 'RMB'] as $currency)
                 @php $given = $data['handed_in'][$currency] ?? '0.00'; @endphp
-                <td class="px-6 py-4 text-sm text-right text-gray-900">
+                <td class="px-6 py-4 text-sm text-left text-gray-900">
                     @if($held[$currency] ?? null)
                         @can('view-accounts')
                             <a href="{{ route('accounts.show', $held[$currency]) }}" class="hover:underline">{{ \App\Models\Account::format($currency, $held[$currency]->balance()) }}</a>
@@ -105,7 +105,7 @@
             <tr>
                 <td class="px-6 py-3 text-sm font-semibold text-gray-900" colspan="2">Total</td>
                 @foreach(['UGX', 'USD', 'RMB'] as $currency)
-                <td class="px-6 py-3 text-sm text-right font-semibold text-gray-900">{{ \App\Models\Account::format($currency, $totals[$currency] ?? '0.00') }}</td>
+                <td class="px-6 py-3 text-sm text-left font-semibold text-gray-900">{{ \App\Models\Account::format($currency, $totals[$currency] ?? '0.00') }}</td>
                 @endforeach
             </tr>
         </tfoot>
