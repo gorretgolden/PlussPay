@@ -100,7 +100,17 @@ class AccountController extends Controller
         }
 
         $userAccounts = Account::agentWallets()->with('owner')->get()
-            ->filter(fn (Account $a) => $a->owner !== null)
+            ->filter(function (Account $a) {
+                if ($a->owner === null) {
+                    return false;
+                }
+                // Always show agent and super-agent wallets, even when empty.
+                if ($a->owner->hasRole('agent') || $a->owner->hasRole('super-agent')) {
+                    return true;
+                }
+                // Show any other wallet only if it still holds money.
+                return bccomp((string) $a->balance(), '0', 2) !== 0;
+            })
             ->sortBy(fn (Account $a) => $a->label())
             ->values();
 
