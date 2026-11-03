@@ -87,33 +87,33 @@
     </div>
     <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">Money Sent (USD)</div>
-        <div class="text-2xl font-bold text-green-700 mt-1">${{ number_format($stats['total_usd_sent'], 1) }}</div>
+        <div class="text-2xl font-bold text-green-700 mt-1">${{ number_format($stats['total_usd_sent'], 2) }}</div>
     </div>
     <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">RMB Still In Uganda</div>
-        <div class="text-2xl font-bold text-amber-700 mt-1">¥{{ number_format($stats['rmb_in_uganda'], 1) }}</div>
+        <div class="text-2xl font-bold text-amber-700 mt-1">¥{{ number_format($stats['rmb_in_uganda'], 2) }}</div>
         <div class="text-xs text-gray-400 mt-1">Not sent to China yet</div>
     </div>
     <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">RMB In China, Unpaid</div>
-        <div class="text-2xl font-bold text-amber-700 mt-1">¥{{ number_format($stats['rmb_in_china'], 1) }}</div>
+        <div class="text-2xl font-bold text-amber-700 mt-1">¥{{ number_format($stats['rmb_in_china'], 2) }}</div>
         <div class="text-xs text-gray-400 mt-1">Dollars arrived, receiver not paid</div>
     </div>
     <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">RMB Delivered</div>
-        <div class="text-2xl font-bold text-purple-700 mt-1">¥{{ number_format($stats['rmb_paid'], 1) }}</div>
-        <div class="text-xs text-gray-400 mt-1">Of ¥{{ number_format($stats['total_rmb_sent'], 1) }} booked</div>
+        <div class="text-2xl font-bold text-purple-700 mt-1">¥{{ number_format($stats['rmb_paid'], 2) }}</div>
+        <div class="text-xs text-gray-400 mt-1">Of ¥{{ number_format($stats['total_rmb_sent'], 2) }} booked</div>
     </div>
     <div class="bg-white rounded-lg shadow p-5">
         <div class="text-sm text-gray-500">Charges Kept</div>
         <div class="text-2xl font-bold text-green-700 mt-1">UGX {{ number_format($profit['fee_ugx']) }}</div>
-        <div class="text-xs text-gray-400 mt-1">USD {{ number_format($profit['fee_usd'], 1) }} | Avg: ${{ number_format($stats['avg_transaction'], 1) }}/tx</div>
+        <div class="text-xs text-gray-400 mt-1">USD {{ number_format($profit['fee_usd'], 2) }} | Avg: ${{ number_format($stats['avg_transaction'], 2) }}/tx</div>
     </div>
     @can('view-profit')
     <div class="bg-white rounded-lg shadow p-5 border-l-4 border-purple-500">
         <div class="text-sm text-gray-500">Overall Profit</div>
-        <div class="text-2xl font-bold {{ $profit['total_ugx'] < 0 ? 'text-red-700' : 'text-purple-700' }} mt-1">{{ $profit['total_ugx'] < 0 ? 'Loss ' : '' }}UGX {{ number_format(abs($profit['total_ugx']), 1) }}</div>
-        <div class="text-xs text-gray-400 mt-1">&yen;{{ number_format($profit['total_rmb'], 1) }} RMB | USD {{ number_format($profit['total_usd'], 1) }}</div>
+        <div class="text-2xl font-bold {{ $profit['total_ugx'] < 0 ? 'text-red-700' : 'text-purple-700' }} mt-1">{{ $profit['total_ugx'] < 0 ? 'Loss ' : '' }}UGX {{ number_format(abs($profit['total_ugx'])) }}</div>
+        <div class="text-xs text-gray-400 mt-1">&yen;{{ number_format($profit['total_rmb'], 2) }} RMB | USD {{ number_format($profit['total_usd'], 2) }}</div>
     </div>
     @endcan
 </div>
@@ -415,22 +415,22 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 p-6">
             <div class="rounded-lg border border-green-200 bg-green-50 p-4">
                 <div class="text-sm text-green-900">Overall Profit</div>
-                <div class="text-2xl font-bold {{ $profit['total_ugx'] < 0 ? 'text-red-700' : 'text-green-800' }} mt-1">{{ $profit['total_ugx'] < 0 ? 'Loss ' : '' }}UGX {{ number_format(abs($profit['total_ugx']), 1) }}</div>
-                <div class="text-xs {{ $profit['total_ugx'] < 0 ? 'text-red-600' : 'text-green-700' }} mt-1">&yen;{{ number_format(abs($profit['total_rmb']), 1) }} RMB, being the same money counted in what we pay out in China | USD {{ number_format(abs($profit['total_usd']), 1) }}</div>
+                <div class="text-2xl font-bold {{ $profit['total_ugx'] < 0 ? 'text-red-700' : 'text-green-800' }} mt-1">{{ $profit['total_ugx'] < 0 ? 'Loss ' : '' }}UGX {{ number_format(abs($profit['total_ugx'])) }}</div>
+                <div class="text-xs {{ $profit['total_ugx'] < 0 ? 'text-red-600' : 'text-green-700' }} mt-1">&yen;{{ number_format(abs($profit['total_rmb']), 2) }} RMB, being the same money counted in what we pay out in China | USD {{ number_format(abs($profit['total_usd']), 2) }}</div>
             </div>
             <div class="rounded-lg border bg-gray-50 p-4">
                 <div class="text-sm text-gray-500">Charge</div>
                 <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['fee_ugx']) }}</div>
-                <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['fee_usd'], 1) }}</div>
+                <div class="text-xs text-gray-500 mt-1">USD {{ number_format($profit['fee_usd'], 2) }}</div>
             </div>
             <div class="rounded-lg border bg-gray-50 p-4">
                 <div class="text-sm text-gray-500">Foreign Exchange Profit</div>
-                <div class="text-xl font-bold {{ $profit['exchange_ugx'] < 0 ? 'text-red-600' : 'text-gray-900' }} mt-1">{{ $profit['exchange_ugx'] < 0 ? 'Loss ' : '' }}UGX {{ number_format(abs($profit['exchange_ugx']), 1) }}</div>
-                <div class="text-xs {{ $profit['exchange_usd'] < 0 ? 'text-red-600' : 'text-gray-500' }} mt-1">{{ $profit['exchange_usd'] < 0 ? 'Loss ' : '' }}USD {{ number_format(abs($profit['exchange_usd']), 1) }}</div>
+                <div class="text-xl font-bold {{ $profit['exchange_ugx'] < 0 ? 'text-red-600' : 'text-gray-900' }} mt-1">{{ $profit['exchange_ugx'] < 0 ? 'Loss ' : '' }}UGX {{ number_format(abs($profit['exchange_ugx'])) }}</div>
+                <div class="text-xs {{ $profit['exchange_usd'] < 0 ? 'text-red-600' : 'text-gray-500' }} mt-1">{{ $profit['exchange_usd'] < 0 ? 'Loss ' : '' }}USD {{ number_format(abs($profit['exchange_usd']), 2) }}</div>
             </div>
             <div class="rounded-lg border bg-gray-50 p-4">
                 <div class="text-sm text-gray-500">Profit on One Dollar Sent</div>
-                <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['per_dollar_ugx'], 1) }}</div>
+                <div class="text-xl font-bold text-gray-900 mt-1">UGX {{ number_format($profit['per_dollar_ugx']) }}</div>
                 <div class="text-xs text-gray-500 mt-1">for each USD 1 sent</div>
             </div>
         </div>
@@ -578,7 +578,7 @@
                         <td class="py-2 font-medium">{{ $currency }}</td>
                         <td class="py-2 text-right">{{ $data['count'] }}</td>
                         <td class="py-2 text-right">{{ $currency }} {{ number_format($data['total'], \App\Models\Transaction::amountDecimals($currency)) }}</td>
-                        <td class="py-2 text-right">${{ number_format($data['usd_equivalent'], 1) }}</td>
+                        <td class="py-2 text-right">${{ number_format($data['usd_equivalent'], 2) }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -701,7 +701,7 @@
                     <td class="px-4 py-3 text-sm text-right text-green-800">{{ number_format($row['completed']) }}</td>
                     <td class="px-4 py-3 text-sm text-right text-yellow-700">{{ number_format($row['pending']) }}</td>
                     <td class="px-4 py-3 text-sm text-right text-red-700">{{ number_format($row['cancelled']) }}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format($row['total_usd'], 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format($row['total_usd'], 2) }}</td>
                     <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format($row['fee_ugx']) }}</td>
                 </tr>
                 @empty
@@ -717,7 +717,7 @@
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($myDays->sum(fn ($r) => $r['completed'])) }}</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($myDays->sum(fn ($r) => $r['pending'])) }}</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($myDays->sum(fn ($r) => $r['cancelled'])) }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($myDays->sum(fn ($r) => $r['total_usd']), 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($myDays->sum(fn ($r) => $r['total_usd']), 2) }}</td>
                     <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($myDays->sum(fn ($r) => $r['fee_ugx'])) }}</td>
                 </tr>
             </tfoot>
@@ -751,13 +751,13 @@
                 <tr>
                     <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ \Carbon\Carbon::parse($day->date)->format('M d, Y') }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $day->count }}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->total_usd, 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->total_usd, 2) }}</td>
                     @if($showProfit)
                     @php $dayTotal = (float) $day->fee_ugx + (float) $day->exchange_ugx; @endphp
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->fee_ugx) }}</td>
-                    <td class="px-4 py-3 text-sm text-right {{ (float) $day->exchange_ugx < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format((float) $day->exchange_ugx, 1) }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-medium {{ $dayTotal < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($dayTotal, 1) }}</td>
-                    <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->total_rmb, 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right {{ (float) $day->exchange_ugx < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format((float) $day->exchange_ugx) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-medium {{ $dayTotal < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($dayTotal) }}</td>
+                    <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->total_rmb, 2) }}</td>
                     @else
                     <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $day->fee_ugx) }}</td>
                     @endif
@@ -773,12 +773,12 @@
                 <tr>
                     <td class="px-6 py-3 text-sm font-bold text-gray-900">Total</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ $dailySummary->sum('count') }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $dailySummary->sum('total_usd'), 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $dailySummary->sum('total_usd'), 2) }}</td>
                     @if($showProfit)
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['fee_ugx']) }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-bold {{ $profit['exchange_ugx'] < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($profit['exchange_ugx'], 1) }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-bold {{ $profit['total_ugx'] < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($profit['total_ugx'], 1) }}</td>
-                    <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_rmb'], 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold {{ $profit['exchange_ugx'] < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($profit['exchange_ugx']) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold {{ $profit['total_ugx'] < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($profit['total_ugx']) }}</td>
+                    <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_rmb'], 2) }}</td>
                     @else
                     <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $dailySummary->sum('fee_ugx')) }}</td>
                     @endif
@@ -820,13 +820,13 @@
                 <tr>
                     <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ $agent->creator?->name ?? 'Unknown' }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $agent->count }}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->total_usd, 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->total_usd, 2) }}</td>
                     @if($showProfit)
                     @php $agentTotal = (float) $agent->fee_ugx + (float) $agent->exchange_ugx; @endphp
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->fee_ugx) }}</td>
-                    <td class="px-4 py-3 text-sm text-right {{ (float) $agent->exchange_ugx < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format((float) $agent->exchange_ugx, 1) }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-medium {{ $agentTotal < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($agentTotal, 1) }}</td>
-                    <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->total_rmb, 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right {{ (float) $agent->exchange_ugx < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format((float) $agent->exchange_ugx) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-medium {{ $agentTotal < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($agentTotal) }}</td>
+                    <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->total_rmb, 2) }}</td>
                     @else
                     <td class="px-6 py-3 text-sm text-right text-gray-900">{{ number_format((float) $agent->fee_ugx) }}</td>
                     @endif
@@ -842,12 +842,12 @@
                 <tr>
                     <td class="px-6 py-3 text-sm font-bold text-gray-900">Total</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ $byAgent->sum('count') }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byAgent->sum('total_usd'), 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byAgent->sum('total_usd'), 2) }}</td>
                     @if($showProfit)
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['fee_ugx']) }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-bold {{ $profit['exchange_ugx'] < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($profit['exchange_ugx'], 1) }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-bold {{ $profit['total_ugx'] < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($profit['total_ugx'], 1) }}</td>
-                    <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_rmb'], 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold {{ $profit['exchange_ugx'] < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($profit['exchange_ugx']) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold {{ $profit['total_ugx'] < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($profit['total_ugx']) }}</td>
+                    <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format($profit['total_rmb'], 2) }}</td>
                     @else
                     <td class="px-6 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byAgent->sum('fee_ugx')) }}</td>
                     @endif
@@ -883,8 +883,8 @@
                 <tr>
                     <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ $customer->sender_name }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $customer->count }}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->total_usd, 1) }}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->rmb_booked, 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->total_usd, 2) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->rmb_booked, 2) }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $customer->fee_ugx) }}</td>
                     <td class="px-6 py-3 text-sm text-right text-gray-900">{{ \Carbon\Carbon::parse($customer->last_transfer)->format('M d, Y') }}</td>
                 </tr>
@@ -899,8 +899,8 @@
                 <tr>
                     <td class="px-6 py-3 text-sm font-bold text-gray-900">{{ number_format($byCustomer->count()) }} {{ Str::plural('customer', $byCustomer->count()) }}</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ $byCustomer->sum('count') }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('total_usd'), 1) }}</td>
-                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('rmb_booked'), 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('total_usd'), 2) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('rmb_booked'), 2) }}</td>
                     <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">{{ number_format((float) $byCustomer->sum('fee_ugx')) }}</td>
                     <td class="px-6 py-3 text-sm text-right text-gray-500"></td>
                 </tr>
@@ -938,15 +938,15 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($byRate as $rate)
                 <tr>
-                    <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ rtrim(rtrim(number_format((float) $rate->exchange_rate, 4, '.', ''), '0'), '.') }}</td>
+                    <td class="px-6 py-3 text-sm font-medium text-gray-900">{{ rtrim(rtrim(number_format((float) $rate->exchange_rate, 4, '.', ','), '0'), '.') }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ $rate->count }}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->total_usd, 1) }}</td>
-                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->rmb_booked, 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->total_usd, 2) }}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->rmb_booked, 2) }}</td>
                     <td class="px-4 py-3 text-sm text-right text-gray-900">{{ number_format((float) $rate->fee_ugx) }}</td>
                     @if($showProfit)
-                    <td class="px-4 py-3 text-sm text-right {{ (float) $rate->exchange_ugx < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format((float) $rate->exchange_ugx, 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right {{ (float) $rate->exchange_ugx < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format((float) $rate->exchange_ugx) }}</td>
                     @php $rateTotal = (float) $rate->fee_ugx + (float) $rate->exchange_ugx; @endphp
-                    <td class="px-4 py-3 text-sm text-right font-medium {{ $rateTotal < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($rateTotal, 1) }}</td>
+                    <td class="px-4 py-3 text-sm text-right font-medium {{ $rateTotal < 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($rateTotal) }}</td>
                     @endif
                     <td class="px-4 py-3 text-sm text-gray-900">{{ \Carbon\Carbon::parse($rate->first_booked)->format('M d, Y') }}@if(\Carbon\Carbon::parse($rate->last_booked)->toDateString() !== \Carbon\Carbon::parse($rate->first_booked)->toDateString()) to {{ \Carbon\Carbon::parse($rate->last_booked)->format('M d, Y') }}@endif</td>
                     <td class="px-6 py-3 text-sm text-gray-900">

@@ -148,10 +148,12 @@
         ];
 
         // The unit is read apart from the figure so the money itself stays the darkest thing in
-        // the cell. Yuan is the exception: its symbol sits tight against the number it prices.
+        // the cell. Yuan is the exception to the space: its symbol sits tight against the number
+        // it prices. Shillings are counted in notes and print whole; dollars and yuan are counted
+        // in cents and fen, so both keep two places.
         $ugx = fn ($value) => ['UGX', number_format((float) $value)];
-        $usd = fn ($value) => ['USD', number_format((float) $value, 1)];
-        $cny = fn ($value) => '¥'.number_format((float) $value, 1);
+        $usd = fn ($value) => ['USD', number_format((float) $value, 2)];
+        $cny = fn ($value) => '¥'.number_format((float) $value, 2);
 
         $totalUgx = $ugx($all['cash_ugx']);
         $totalUsd = $usd($all['cash_usd']);
@@ -381,7 +383,7 @@
                     {{ $t->payment_method ?: '-' }}@if($t->payment_reference)<span class="text-gray-600"> · {{ $t->payment_reference }}</span>@endif
                 </td>
                 <td class="px-2 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->principalLabel() }}</td>
-                <td class="px-2 py-4 text-sm text-gray-900 whitespace-nowrap">¥{{ number_format($t->rmb_amount, 1) }}</td>
+                <td class="px-2 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">{{ $t->yuanLabel() }}</td>
                 @can('view-profit')
                 @php $usdRate = $t->shillingRateCell(); $rmbRate = $t->yuanRateCell(); @endphp
                 <td class="px-2 py-4 text-sm whitespace-nowrap tabular-nums {{ $toneClass[$usdRate['tone']] }}" title="{{ $usdRate['title'] }}">UGX {{ $usdRate['text'] }}</td>

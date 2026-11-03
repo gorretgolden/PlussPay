@@ -260,13 +260,16 @@ class FrontendLayoutGuardsTest extends TestCase
 
     /**
      * Eight columns of a receipt table crush into one letter per line on a phone unless the
-     * table is allowed to scroll inside its own card.
+     * table is allowed to scroll inside its own card. Below the tablet width the table is
+     * replaced by a card list, because eight columns never fit a phone without sideways scroll.
      */
     public function test_the_recent_transactions_table_scrolls_instead_of_shrinking_its_headers(): void
     {
         $dashboard = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'dashboard.blade.php');
 
-        $this->assertMatchesRegularExpression('/<div class="overflow-x-auto">\s*<table class="w-full min-w-\[\d+px\]/', $dashboard);
+        $this->assertMatchesRegularExpression('/<div class="[^"]*overflow-auto[^"]*">\s*<table class="w-full min-w-\[\d+px\]/', $dashboard);
+        $this->assertStringContainsString('<thead class="bg-gray-50 sticky top-0', $dashboard, 'The header row stays in sight while the list scrolls.');
         $this->assertSame(8, substr_count($dashboard, 'tracking-wide whitespace-nowrap">'), 'Every header cell stays on one line.');
+        $this->assertMatchesRegularExpression('/<ul class="md:hidden[^"]*">/', $dashboard, 'A phone gets cards instead of the table.');
     }
 }

@@ -102,17 +102,26 @@ class DashboardDeskPayoutCardsTest extends TestCase
         $this->assertGreaterThanOrEqual(3, substr_count($html, '¥500.00'), 'The yuan paid in China reads on the card.');
         $this->assertGreaterThanOrEqual(3, substr_count($html, 'UGX 2,391,427'), 'The shillings paid in Uganda read on the card.');
         $this->assertStringContainsString('handed over to receivers in China', $html);
-        $this->assertStringContainsString('paid out to receivers from bookings made in China', $html);
+        $this->assertStringContainsString('paid out from bookings made in China', $html);
     }
 
-    public function test_a_window_with_no_payouts_reads_nothing_not_zero(): void
+    public function test_a_window_with_no_payouts_reads_its_own_zero_not_a_word(): void
     {
         $office = $this->user('admin', 'Desk Admin');
 
         $html = $this->dashboardHtml($office);
 
-        // Two cards across three windows, each reading "nothing" rather than a bare 0.
-        $this->assertSame(6, substr_count($html, '>nothing</div>'));
+        // Two cards across three windows. An empty pile is the currency's own zero, because a
+        // word does not say which of the two tills is empty.
+        foreach (['Withdrawn In China' => '¥0.00', 'Received In Uganda' => 'UGX 0'] as $label => $zero) {
+            $pattern = '#<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">'
+                .preg_quote($label, '#').'</div>\s*<div class="stat-value[^"]*"[^>]*>'
+                .preg_quote($zero, '#').'</div>#';
+
+            $this->assertSame(3, preg_match_all($pattern, $html), $label.' shows its own zero in each window.');
+        }
+
+        $this->assertSame(0, substr_count($html, '>nothing</div>'), 'No money card on the board reads as a word.');
     }
 
     public function test_the_taken_by_agents_card_names_the_agents_countries(): void

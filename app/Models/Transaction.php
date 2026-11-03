@@ -279,17 +279,13 @@ class Transaction extends Model
     }
 
     /**
-     * The money the receiver is handed, written the way each currency is written elsewhere in the
-     * book: shillings in notes so no decimals, yuan to the tenth they are counted in, dollars to
-     * the cent they are credited at.
+     * The money the receiver is handed, written the same way every other figure in the book is
+     * written: shillings whole, dollars and yuan to their two decimals. A row priced before the
+     * payout was stored carries no figure of its own, so it reads as its own currency's zero.
      */
     public function payoutLabel(): string
     {
-        return match ($this->payoutCurrency()) {
-            'UGX' => 'UGX '.number_format((float) $this->ugx_amount),
-            'USD' => '$'.number_format((float) $this->total_usd_equivalent, 2),
-            default => '¥'.number_format((float) $this->rmb_amount, 1),
-        };
+        return Account::format($this->payoutCurrency(), (float) ($this->payoutAmount() ?? 0));
     }
 
     /**
@@ -313,12 +309,16 @@ class Transaction extends Model
      * Those totals as one phrase, so a mixed batch reads "¥732.30 and $111.63" and a batch that paid
      * no dollars never mentions them.
      *
+     * A caller that is filling a money field hands over the currency that field keeps its figures in,
+     * and an empty batch then reads as that currency's zero rather than as a word. A caller writing a
+     * sentence keeps the default and gets "nothing", which is the right word inside prose.
+     *
      * @param  array<string, string>  $payouts
      */
-    public static function formatPayouts(array $payouts): string
+    public static function formatPayouts(array $payouts, ?string $nilCurrency = null): string
     {
         if ($payouts === []) {
-            return 'nothing';
+            return $nilCurrency === null ? 'nothing' : Account::format($nilCurrency, 0);
         }
 
         return collect($payouts)
@@ -393,8 +393,8 @@ class Transaction extends Model
 
     /**
      * The charge is always quoted in shillings, whichever currency the transfer was booked in,
-     * so it reads the same way on every screen. It is typed by hand as a whole shilling figure,
-     * so it is printed without decimals while the money that travels keeps one.
+     * so it reads the same way on every screen. It is typed by hand as a whole shilling figure and
+     * shillings are counted in notes, so it prints without decimals.
      */
     public function feeLabel(): string
     {
@@ -402,12 +402,13 @@ class Transaction extends Model
     }
 
     /**
-     * Shillings are handed over in notes, so a UGX figure is a flat whole number. Dollars and
-     * yuan are cut by a rate, so they keep the one decimal that fraction lands in.
+     * Shillings are handed over in notes, so a UGX figure is a flat whole number. Dollars and yuan
+     * are counted in cents and fen, so both keep their two decimals even when a rate cut lands on
+     * a round figure: "$500.0" reads as a number that lost a digit, not as five hundred dollars.
      */
     public static function amountDecimals(string $currency): int
     {
-        return strtoupper($currency) === 'UGX' ? 0 : 1;
+        return strtoupper($currency) === 'UGX' ? 0 : 2;
     }
 
     public function principalLabel(): string
@@ -745,9 +746,9 @@ class Transaction extends Model
     {
         if ($this->status !== 'completed') {
             return [
-                'exchange' => ['text' => 'UGX 0.0', 'tone' => 'muted'],
+                'exchange' => ['text' => 'UGX 0', 'tone' => 'muted'],
                 'charge' => ['text' => 'UGX 0', 'tone' => 'muted'],
-                'total' => ['text' => 'UGX 0.0', 'tone' => 'muted'],
+                'total' => ['text' => 'UGX 0', 'tone' => 'muted'],
             ];
         }
 
@@ -757,7 +758,7 @@ class Transaction extends Model
 
         return [
             'exchange' => $this->shillingProfitCell($exchange),
-            'charge' => $this->shillingProfitCell($this->charge_ugx, 0),
+            'charge' => $this->shillingProfitCell($this->charge_ugx),
             'total' => $this->shillingProfitCell($this->total_profit_ugx),
         ];
     }
@@ -765,7 +766,7 @@ class Transaction extends Model
     /**
      * @return array{text: string, tone: string}
      */
-    private function shillingProfitCell(?string $ugx, int $decimals = 1): array
+    private function shillingProfitCell(?string $ugx): array
     {
         if ($ugx === null || $ugx === '') {
             return ['text' => 'n/a', 'tone' => 'muted'];
@@ -774,8 +775,8 @@ class Transaction extends Model
         $value = (float) $ugx;
 
         return $value < 0
-            ? ['text' => 'Loss UGX '.number_format(abs($value), $decimals), 'tone' => 'loss']
-            : ['text' => 'UGX '.number_format($value, $decimals), 'tone' => 'plain'];
+            ? ['text' => 'Loss UGX '.number_format(abs($value)), 'tone' => 'loss']
+            : ['text' => 'UGX '.number_format($value), 'tone' => 'plain'];
     }
 
     /**
@@ -794,7 +795,9 @@ class Transaction extends Model
             return ['text' => 'n/a', 'tone' => 'muted', 'title' => 'No price was recorded on this transfer'];
         }
 
-        $trim = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.');
+        // A price keeps the places it was set with and gives back the trailing zeros, but it is
+        // still grouped in thousands: 3,900 beside a 3,748,000 rather than 3900.
+        $trim = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ','), '0'), '.');
 
         return [
             'text' => $trim($sell),
@@ -821,7 +824,7 @@ class Transaction extends Model
 
     public function yuanLabel(): string
     {
-        return '¥'.number_format((float) $this->rmb_amount, 1);
+        return Account::format('RMB', (float) $this->rmb_amount);
     }
 
     public function scopeFiltered(Builder $query, Request $request): Builder

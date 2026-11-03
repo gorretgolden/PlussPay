@@ -14,7 +14,7 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * The agent's wallet card names total money held: the drawer balance plus what approved hand-ins
+ * The agent's wallet card names the money held: the drawer balance plus what approved hand-ins
  * carried up to the lead agent, because approval moves cash out of the balance but the agent is
  * still answerable for it until the pile is banked and sent on.
  */
@@ -76,10 +76,12 @@ class DashboardTotalHeldTest extends TestCase
         $html = $this->board($agent);
 
         $this->assertStringContainsString('UGX 95,000', $html, 'The balance shows only what is still in the drawer.');
-        $this->assertStringContainsString('Total money held UGX 300,000', $html, 'The total reads the approved pile back in.');
-        $this->assertStringContainsString('includes UGX 205,000 handed in', $html, 'Principal and the charges that crossed with it.');
+        $this->assertStringContainsString('Total held: UGX 300,000', $html, 'The total reads the approved pile back in.');
+        // The parts are named apart, because one sum that includes the charges would not match the
+        // two lines the request itself shows.
+        $this->assertStringContainsString('wallet + UGX 200,000 handed in + UGX 5,000 charges', $html);
         // One line, on the shilling card only: the dollar pile has nothing handed in.
-        $this->assertSame(1, substr_count($html, 'Total money held'));
+        $this->assertSame(1, substr_count($html, 'Total held:'));
     }
 
     public function test_a_pending_request_adds_no_line_because_it_never_left_the_balance(): void
@@ -93,7 +95,7 @@ class DashboardTotalHeldTest extends TestCase
         $html = $this->board($agent);
 
         $this->assertStringContainsString('UGX 300,000', $html);
-        $this->assertStringNotContainsString('Total money held', $html, 'A pile still in the drawer must not be printed twice.');
+        $this->assertStringNotContainsString('Total held', $html, 'A pile still in the drawer must not be printed twice.');
     }
 
     public function test_another_agents_approved_hand_in_never_leaks_onto_this_card(): void
@@ -111,6 +113,6 @@ class DashboardTotalHeldTest extends TestCase
         $html = $this->board($mine);
 
         $this->assertStringContainsString('UGX 300,000', $html);
-        $this->assertStringNotContainsString('Total money held', $html, "Another desk's pile was read back onto this board.");
+        $this->assertStringNotContainsString('Total held', $html, "Another desk's pile was read back onto this board.");
     }
 }

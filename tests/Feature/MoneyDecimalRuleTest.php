@@ -10,11 +10,10 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * The desk counts shilling notes, so the charge it takes out of them is a whole number and is
- * printed that way on every screen. The money that travels and everything computed from the rates
- * carry fractions, so those print to one decimal. This pins both halves of that rule on the four
- * screens that show the same booking, because the figures have to read the same way on the slip
- * the customer keeps and the board the office watches.
+ * Shillings are counted in notes, so every UGX figure in the book is whole. Dollars and yuan are
+ * counted in cents and fen, so both keep two decimals even when a rate cut lands on a round
+ * figure. This pins that one rule on the four screens that show the same booking, because the
+ * figures have to read the same way on the slip the customer keeps and the board the office watches.
  */
 class MoneyDecimalRuleTest extends TestCase
 {
@@ -44,8 +43,9 @@ class MoneyDecimalRuleTest extends TestCase
 
     /**
      * 250.5 dollars delivered as 1,850.5 yuan, with a 20,000 shilling charge taken out of the
-     * money handed over. Both travelling figures land on a half, so a screen that still prints
-     * two decimals, or one that has dropped to none, cannot pass unnoticed.
+     * money handed over. Both travelling figures land on a half and every profit figure lands
+     * between two notes, so a screen that rounds a dollar away or keeps shilling decimals cannot
+     * pass unnoticed.
      */
     private function booking(): Transaction
     {
@@ -76,7 +76,7 @@ class MoneyDecimalRuleTest extends TestCase
         ]);
     }
 
-    public function test_the_slip_prints_the_charge_whole_and_the_money_that_travelled_to_one_decimal(): void
+    public function test_the_slip_prints_every_figure_in_its_own_currency_form(): void
     {
         $this->booking();
 
@@ -84,10 +84,10 @@ class MoneyDecimalRuleTest extends TestCase
 
         $this->assertStringContainsString('UGX 20,000', $html);
         $this->assertStringNotContainsString('UGX 20,000.00', $html);
-        $this->assertStringContainsString('USD 250.5', $html);
-        $this->assertStringContainsString('¥1,850.5', $html);
-        $this->assertStringNotContainsString('250.50', $html);
-        $this->assertStringNotContainsString('1,850.50', $html);
+        $this->assertStringContainsString('USD 250.50', $html);
+        $this->assertStringContainsString('¥1,850.50', $html);
+        $this->assertStringNotContainsString('USD 250.5 ', $html);
+        $this->assertStringNotContainsString('¥1,850.5 ', $html);
     }
 
     public function test_the_transactions_list_and_the_transfer_page_agree_with_the_slip(): void
@@ -99,25 +99,25 @@ class MoneyDecimalRuleTest extends TestCase
 
             $this->assertStringContainsString('UGX 20,000', $html);
             $this->assertStringNotContainsString('UGX 20,000.00', $html);
-            $this->assertStringContainsString('USD 250.5', $html);
-            $this->assertStringContainsString('¥1,850.5', $html);
+            $this->assertStringContainsString('USD 250.50', $html);
+            $this->assertStringContainsString('¥1,850.50', $html);
         }
     }
 
-    public function test_the_board_charges_in_whole_shillings_and_prices_the_profit_to_one_decimal(): void
+    public function test_the_board_keeps_the_profit_in_whole_shillings_and_the_money_to_the_cent(): void
     {
         $this->booking();
 
         $html = $this->actingAs($this->admin)->get('/dashboard')->assertOk()->getContent();
 
         // 10,000.25 of margin less 3,857.14 of yuan is 6,143.11 of exchange profit, and the
-        // 20,000 charge brings the overall to 26,143.1.
+        // 20,000 charge brings the overall to 26,143.1. Shillings are never counted in fractions.
         $this->assertStringContainsString('UGX 20,000', $html);
         $this->assertStringNotContainsString('UGX 20,000.00', $html);
-        $this->assertStringContainsString('UGX 6,143.1', $html);
-        $this->assertStringContainsString('UGX 26,143.1', $html);
-        $this->assertStringNotContainsString('UGX 26,143.11', $html);
-        $this->assertStringContainsString('¥1,850.5', $html);
+        $this->assertStringContainsString('UGX 6,143', $html);
+        $this->assertStringContainsString('UGX 26,143', $html);
+        $this->assertStringNotContainsString('UGX 26,143.1', $html);
+        $this->assertStringContainsString('¥1,850.50', $html);
     }
 
     public function test_the_profit_cells_a_screen_and_the_download_both_read_from(): void
@@ -127,14 +127,14 @@ class MoneyDecimalRuleTest extends TestCase
         $labels = $transaction->profitLabels();
 
         $this->assertSame('UGX 20,000', $labels['charge']['text']);
-        $this->assertSame('UGX 6,143.1', $labels['exchange']['text']);
-        $this->assertSame('UGX 26,143.1', $labels['total']['text']);
-        $this->assertSame('USD 250.5', $transaction->principalLabel());
-        $this->assertSame('¥1,850.5', $transaction->yuanLabel());
-        $this->assertSame('USD 250.5 plus UGX 20,000', $transaction->collectedAmount());
+        $this->assertSame('UGX 6,143', $labels['exchange']['text']);
+        $this->assertSame('UGX 26,143', $labels['total']['text']);
+        $this->assertSame('USD 250.50', $transaction->principalLabel());
+        $this->assertSame('¥1,850.50', $transaction->yuanLabel());
+        $this->assertSame('USD 250.50 plus UGX 20,000', $transaction->collectedAmount());
     }
 
-    public function test_the_reports_page_shows_the_same_three_decimals_as_the_board(): void
+    public function test_the_reports_page_shows_the_same_figures_as_the_board(): void
     {
         $this->booking();
 
@@ -142,7 +142,7 @@ class MoneyDecimalRuleTest extends TestCase
 
         $this->assertStringContainsString('UGX 20,000', $html);
         $this->assertStringNotContainsString('UGX 20,000.00', $html);
-        $this->assertStringContainsString('UGX 6,143.1', $html);
-        $this->assertStringContainsString('UGX 26,143.1', $html);
+        $this->assertStringContainsString('UGX 6,143', $html);
+        $this->assertStringContainsString('UGX 26,143', $html);
     }
 }

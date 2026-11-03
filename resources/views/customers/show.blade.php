@@ -84,7 +84,7 @@
 <div class="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
     <div>
         <p class="text-sm text-gray-500">Margin on the money changed for {{ $customer->name }}</p>
-        <p class="text-xl font-semibold text-gray-900">UGX {{ number_format((float) $marginTotal, 2) }}</p>
+        <p class="text-xl font-semibold text-gray-900">UGX {{ number_format((float) $marginTotal) }}</p>
     </div>
     @if($unpriced > 0)
         <p class="text-xs text-amber-700 max-w-md">{{ Str::plural('Deal', $unpriced) }} left unpriced because no buying and selling rates were saved at the time, so {{ $unpriced === 1 ? 'it is' : 'they are' }} not counted in the figure above.</p>

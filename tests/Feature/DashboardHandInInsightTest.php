@@ -88,7 +88,7 @@ class DashboardHandInInsightTest extends TestCase
         $html = $this->board($agent);
 
         $this->assertStringContainsString('Cash You Hand In', $html);
-        $this->assertStringContainsString('Waiting on approval', $html);
+        $this->assertStringContainsString('Pending', $html);
         $this->assertStringContainsString('2 requests', $html);
         $this->assertStringContainsString('UGX 150,000', $html);
         $this->assertStringContainsString('1 request', $html);
@@ -147,7 +147,7 @@ class DashboardHandInInsightTest extends TestCase
         $this->assertStringNotContainsString('Cash You Hand In', $html, 'The insight is an agent card, not an office one.');
     }
 
-    public function test_the_insight_spans_the_right_section_beside_the_agents_wallet_cards(): void
+    public function test_the_insight_pairs_with_the_spending_card_under_the_wallets(): void
     {
         $agent = $this->person('agent', 'Amina Nabukenya');
         $lead = $this->lead();
@@ -155,26 +155,32 @@ class DashboardHandInInsightTest extends TestCase
 
         $html = $this->board($agent);
 
-        // The agent's board is one two-column grid: wallets stacked on the left, the hand-in
-        // insight spanning the right section beside them.
-        $this->assertStringContainsString('lg:grid-cols-2 gap-4 items-start', $html);
-        $this->assertStringContainsString('shadow-sm p-4 sm:p-5 h-fit', $html, 'The insight fills its own column.');
-
-        // The wallet sits in the left column, ahead of the insight in the source order.
-        $walletAt = strpos($html, 'UGX Wallet');
+        // The board reads top down: the wallets two across, then the shortcuts, then this card
+        // standing beside the day's spending at the same height. Nothing is stacked in a narrow
+        // left column under the wallet any more.
+        $walletsAt = strpos($html, 'grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch mb-6');
+        $actionsAt = strpos($html, '>Quick Actions<');
+        $pairAt = strpos($html, 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch');
         $insightAt = strpos($html, 'Cash You Hand In');
-        $this->assertNotFalse($walletAt);
-        $this->assertNotFalse($insightAt);
-        $this->assertLessThan($insightAt, $walletAt, 'The wallet card opens the left column the insight spans beside.');
+        $overviewAt = strpos($html, 'role="tabpanel"');
+
+        foreach ([$walletsAt, $actionsAt, $pairAt, $insightAt, $overviewAt] as $position) {
+            $this->assertNotFalse($position, 'The board is missing a section it is meant to open with.');
+        }
+
+        $this->assertLessThan($actionsAt, $walletsAt, 'The wallet cards come above the shortcuts.');
+        $this->assertLessThan($pairAt, $actionsAt, 'The shortcuts come above the hand-in row.');
+        $this->assertLessThan($overviewAt, $insightAt, 'The hand-in row sits above the Overview figures.');
+        $this->assertStringContainsString('shadow-sm p-4 sm:p-5 h-full flex flex-col', $html, 'The card fills its half of the row.');
     }
 
-    public function test_a_non_agent_board_keeps_the_plain_wallet_grid(): void
+    public function test_a_non_agent_board_gets_the_same_wallet_grid_and_no_insight(): void
     {
         $lead = $this->lead();
 
         $html = $this->board($lead);
 
-        $this->assertStringContainsString('sm:grid-cols-2 gap-4', $html);
-        $this->assertStringNotContainsString('lg:grid-cols-2 gap-4 items-start', $html, 'Only an agent board splits into the two columns.');
+        $this->assertStringContainsString('grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch mb-6', $html, 'Every desk gets the wallets two across.');
+        $this->assertStringNotContainsString('Cash You Hand In', $html, 'Only a desk that sends hand-ins is given the card.');
     }
 }

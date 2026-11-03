@@ -103,12 +103,12 @@ class DashboardToBeReceivedTest extends TestCase
         $html = $this->dashboardHtml($admin);
 
         $this->assertSame(3, substr_count($html, 'To Be Received'), 'the card sits in all three windows.');
-        $this->assertSame(3, substr_count($html, 'money to be sent'), 'the note reads money to be sent.');
+        $this->assertSame(3, substr_count($html, 'awaiting payout'), 'the note says the payout has not happened, which is why it is still to be received.');
         $this->assertSame(3, substr_count($html, 'UGX 686,000'), 'principal and charge from both currencies, completed rows left out.');
         // Each window's card carries the age of its newest waiting booking.
         $this->assertSame(
             3,
-            preg_match_all('/money to be sent<\/div>\s*<p class="[^"]*">\s*<time [^>]*>Updated \d+ (second|minute|hour|day)s? ago/', $html),
+            preg_match_all('/awaiting payout<\/div>\s*<p class="[^"]*">\s*<time [^>]*>Latest booking \d+ (second|minute|hour|day)s? ago/', $html),
             'a stamp sits inside the card in every window.'
         );
     }
@@ -122,7 +122,7 @@ class DashboardToBeReceivedTest extends TestCase
         $this->assertSame(3, substr_count($html, 'To Be Received'));
         $this->assertSame(
             0,
-            preg_match_all('/money to be sent<\/div>\s*<p class="[^"]*">\s*<time /', $html),
+            preg_match_all('/awaiting payout<\/div>\s*<p class="[^"]*">\s*<time /', $html),
             'a zero pile has no movement to stamp.'
         );
 

@@ -85,10 +85,12 @@ class DashboardProfitTest extends TestCase
         }
 
         // UGX 20,000 kept, UGX 10,000 from the shilling spread, a flat yuan pair, UGX 30,000
-        // overall. The charge prints as whole shillings, the computed figures to one decimal.
+        // overall. Shillings change hands as notes, so every shilling figure on the board is
+        // printed whole, including the computed ones.
         $this->assertStringContainsString('UGX 20,000', $html);
-        $this->assertStringContainsString('UGX 10,000.0', $html);
-        $this->assertStringContainsString('UGX 30,000.0', $html);
+        $this->assertStringContainsString('UGX 10,000', $html);
+        $this->assertStringContainsString('UGX 30,000', $html);
+        $this->assertStringNotContainsString('UGX 10,000.0', $html, 'A shilling figure never carries a decimal point.');
     }
 
     public function test_a_yuan_loss_shows_against_the_day_it_happened(): void
@@ -104,8 +106,9 @@ class DashboardProfitTest extends TestCase
         // 40,000 of charges and 20,000 of shilling spread, against 160,714.29 lost on the yuan
         // of the second transfer: the exchange figure is 140,714.29 short and the overall 100,714.29.
         $this->assertStringContainsString('UGX 40,000', $html);
-        $this->assertStringContainsString('Loss UGX 140,714.3', $html);
-        $this->assertStringContainsString('Loss UGX 100,714.3', $html);
+        $this->assertStringContainsString('Loss UGX 140,714', $html);
+        $this->assertStringContainsString('Loss UGX 100,714', $html);
+        $this->assertStringNotContainsString('Loss UGX 140,714.3', $html, 'A loss is a shilling figure too, so it prints whole.');
     }
 
     public function test_transfers_without_rates_are_counted_not_silently_zeroed(): void

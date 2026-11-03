@@ -91,7 +91,7 @@ class TransactionRateColumnsTest extends TestCase
         $this->assertMatchesRegularExpression('/Dollar Selling Price<\/th>\s*<th[^>]*>Yuan Selling Price<\/th>/', $html);
 
         // One figure to a cell, not two lines stacked inside one box.
-        $this->assertSame(0, preg_match_all('/<td[^>]*>\s*<div[^>]*>UGX 3760<\/div>/', $html));
+        $this->assertSame(0, preg_match_all('/<td[^>]*>\s*<div[^>]*>UGX 3,760<\/div>/', $html));
     }
 
     /**
@@ -154,14 +154,15 @@ class TransactionRateColumnsTest extends TestCase
         $this->assertStringNotContainsString('what it went out at, per 1 USD', $html);
 
         // Sent out at 3,760 shillings to the dollar and 7.24 yuan to the dollar. Each line is named
-        // by its currency so the two cannot be read the wrong way round.
-        $this->assertStringContainsString('UGX 3760', $html);
+        // by its currency so the two cannot be read the wrong way round. The shilling price reads in
+        // the same grouped shape as every other money figure on the row.
+        $this->assertStringContainsString('UGX 3,760', $html);
         $this->assertStringContainsString('RMB 7.24', $html);
 
         // The tooltip says which way the price runs, and the buying price the profit was cut from
         // appears nowhere on the row.
-        $this->assertStringContainsString('Sent at 3760 UGX per 1 USD', $html);
-        $this->assertStringNotContainsString('3750', $html);
+        $this->assertStringContainsString('Sent at 3,760 UGX per 1 USD', $html);
+        $this->assertStringNotContainsString('3,750', $html);
         $this->assertStringNotContainsString('7.2 ', $html);
     }
 
@@ -179,11 +180,11 @@ class TransactionRateColumnsTest extends TestCase
 
             // The slip prints in capitals, so the heading is matched whatever case the copy uses.
             $this->assertTrue(str_contains(strtolower($html), 'per 1 usd'), $path.' has no rate heading');
-            $this->assertStringContainsString('UGX 3760', $html, $path);
+            $this->assertStringContainsString('UGX 3,760', $html, $path);
             $this->assertStringContainsString('RMB 7.24', $html, $path);
 
             // The buying prices the margin was cut from stay off the document the customer keeps.
-            $this->assertStringNotContainsString('3750', $html, $path);
+            $this->assertStringNotContainsString('3,750', $html, $path);
             $this->assertStringNotContainsString('7.2 ', $html, $path);
         }
     }
@@ -195,7 +196,9 @@ class TransactionRateColumnsTest extends TestCase
 
         $html = $this->html('/transactions', $teller);
 
-        foreach (['Selling Price', 'UGX 3760', 'RMB 7.24', 'Dollar Selling Price', 'Yuan Selling Price'] as $gone) {
+        // The price column is checked by its heading and by the sentence in the cell's own tooltip,
+        // because the grouped figure alone would also match the shillings travelling on the row.
+        foreach (['Selling Price', 'Sent at 3,760 UGX per 1 USD', 'RMB 7.24', 'Dollar Selling Price', 'Yuan Selling Price'] as $gone) {
             $this->assertStringNotContainsString($gone, $html);
         }
 
@@ -218,7 +221,7 @@ class TransactionRateColumnsTest extends TestCase
 
         // Neither side has a price of its own, so neither prints a half-guessed figure.
         $this->assertSame(2, substr_count($html, 'No price was recorded on this transfer'));
-        $this->assertStringNotContainsString('UGX 3760', $html);
+        $this->assertStringNotContainsString('Sent at 3,760 UGX per 1 USD', $html);
     }
 
     public function test_the_book_can_be_cut_to_one_shilling_selling_price(): void
@@ -301,11 +304,11 @@ class TransactionRateColumnsTest extends TestCase
 
         $html = $this->html('/transactions/'.$priced->id, $admin);
         foreach (['Dollar selling rate:', 'Yuan selling rate:',
-                  'UGX 3760 per 1 USD', '7.24 per 1 USD'] as $line) {
+                  'UGX 3,760 per 1 USD', '7.24 per 1 USD'] as $line) {
             $this->assertStringContainsString($line, $html);
         }
         // What the office paid for those dollars is not on a customer's record.
-        $this->assertStringNotContainsString('UGX 3750 per 1 USD', $html);
+        $this->assertStringNotContainsString('UGX 3,750 per 1 USD', $html);
         $this->assertStringNotContainsString('bought at', $html);
         $this->assertSame(0, substr_count($html, 'not recorded</div>'));
 
@@ -361,10 +364,10 @@ class TransactionRateColumnsTest extends TestCase
         $this->assertStringContainsString('UGX 3,760,000', $print);
         $this->assertStringNotContainsString('UGX 3,760,000.0', $print);
 
-        // A dollar booking keeps its decimal, because dollars are cut by a rate.
+        // A dollar booking keeps its cents, because dollars are cut by a rate.
         $dollars = $this->bookUsd($admin);
-        $this->assertSame('USD 1,000.5', $dollars->principalLabel());
-        $this->assertStringContainsString('USD 1,000.5', $this->html('/transactions', $admin));
+        $this->assertSame('USD 1,000.50', $dollars->principalLabel());
+        $this->assertStringContainsString('USD 1,000.50', $this->html('/transactions', $admin));
     }
 
     private function bookUsd(User $by): Transaction

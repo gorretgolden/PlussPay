@@ -31,9 +31,19 @@
                     <span class="text-xs font-medium text-gray-500">{{ $pair['unit'] }} per USD</span>
                 </div>
                 @if($pair['updated_at'])
-                <div class="relative mt-1 flex items-center gap-1.5 text-[11px] text-gray-500 sm:text-xs">
+                {{-- A counter price is only worth what it was worth when it was set. The desk books
+                     at the figure on the card, so a price that has not been touched in a day is
+                     said out loud in the same breath as the number, not left for someone to notice
+                     the date two lines down. --}}
+                @php $isOld = $pair['updated_at']->lt(now()->subDay()); @endphp
+                <div class="relative mt-1 flex items-start gap-1.5 text-[11px] sm:text-xs {{ $isOld ? 'font-medium text-amber-700' : 'text-gray-500' }}">
+                    @if($isOld)
+                    <svg class="h-3.5 w-3.5 shrink-0 mt-px" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 4h.01M10.29 3.86l-8.02 13.89A1.5 1.5 0 003.57 20h16.86a1.5 1.5 0 001.3-2.25L13.71 3.86a1.5 1.5 0 00-2.42 0z"/></svg>
+                    <span title="{{ $pair['updated_at']->format('M j, Y, g:i A') }}">Set {{ $pair['updated_at']->diffForHumans(null, true) }} ago. Set a new price before booking.</span>
+                    @else
                     <svg class="hidden h-3.5 w-3.5 shrink-0 sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <span>Updated {{ $pair['updated_at']->format('d M, H:i') }}</span>
+                    <span>Updated {{ $pair['updated_at']->format('d M, g:i A') }}</span>
+                    @endif
                 </div>
                 @endif
                 @else

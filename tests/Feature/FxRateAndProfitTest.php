@@ -205,17 +205,18 @@ class FxRateAndProfitTest extends TestCase
     {
         $transaction = $this->storeUgxTransfer('3780000', '20000');
 
-        // 20,000 of charge plus 10,000 of exchange is 30,000 overall, on 1,000 dollars sent. The
-        // charge is whole shillings; the exchange, the overall and the per-dollar figure carry one
-        // decimal each.
+        // 20,000 of charge plus 10,000 of exchange is 30,000 overall, on 1,000 dollars sent. Notes
+        // are not cut into fractions, so every shilling figure on the report is whole.
         $this->actingAs($transaction->creator)
             ->get('/reports?type=profit')
             ->assertOk()
             ->assertSee('Profit on One Dollar Sent')
-            ->assertSee('UGX 30,000.0')
+            ->assertSee('UGX 30,000')
             ->assertSee('UGX 20,000')
-            ->assertSee('UGX 10,000.0')
-            ->assertSee('UGX 30.0');
+            ->assertSee('UGX 10,000')
+            ->assertSee('UGX 30')
+            ->assertDontSee('UGX 30,000.0')
+            ->assertDontSee('UGX 10,000.0');
     }
 
     public function test_the_profit_report_states_the_overall_in_yuan_beside_the_shillings(): void
@@ -228,8 +229,8 @@ class FxRateAndProfitTest extends TestCase
         $this->actingAs($transaction->creator)
             ->get('/reports?type=profit')
             ->assertOk()
-            ->assertSee('&yen;57.8', false)
-            ->assertSee('USD 8.0', false)
+            ->assertSee('&yen;57.78', false)
+            ->assertSee('USD 7.98', false)
             ->assertDontSee('Profit in yuan', false);
     }
 
@@ -272,12 +273,12 @@ class FxRateAndProfitTest extends TestCase
         $cells = $this->profitText();
 
         // The boss reads the profit in the yuan it was delivered as, so the file he downloads
-        // carries it the same way the page does: charge 20,000 whole shillings, exchange 10,000.0
-        // and overall 30,000.0, which is 8.0 dollars or 57.8 yuan.
+        // carries it the same way the page does: charge 20,000 whole shillings, exchange 10,000
+        // and overall 30,000, which is 7.98 dollars or 57.78 yuan.
         foreach ([
             'Charge (UGX)', 'Exchange Profit (UGX)', 'Overall Profit (UGX)', 'Overall Profit (USD)',
             'Overall Profit (RMB)', 'Transfers With No Rates',
-            '20,000', '10,000.0', '30,000.0', '8.0', '57.8',
+            '20,000', '10,000', '30,000', '7.98', '57.78',
         ] as $needle) {
             $this->assertStringContainsString($needle, $cells);
         }
@@ -305,13 +306,13 @@ class FxRateAndProfitTest extends TestCase
         $day = $line(6);
         $total = $line(7);
 
-        // charge 20,000 whole shillings + exchange 150,714.3 lost less the yuan leg already
-        // folded in, so the day line reads one loss to one decimal
+        // charge 20,000 whole shillings + exchange 150,714 lost, with the yuan leg already folded
+        // in, so the day line reads one loss. Shillings are whole, dollars and fen keep two places.
         $this->assertSame('20,000', $day[3]);
-        $this->assertSame('-150,714.3', $day[4]);
-        $this->assertSame('-130,714.3', $day[5]);
-        $this->assertSame('-33.1', $day[6]);
-        $this->assertSame('-241.7', $day[7]);
+        $this->assertSame('-150,714', $day[4]);
+        $this->assertSame('-130,714', $day[5]);
+        $this->assertSame('-33.12', $day[6]);
+        $this->assertSame('-241.75', $day[7]);
         $this->assertSame('0', $day[8]);
         $this->assertSame('TOTAL', $total[0]);
         // One transfer in the period, so the range total repeats the day line exactly.

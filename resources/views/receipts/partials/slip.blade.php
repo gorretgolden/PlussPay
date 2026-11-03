@@ -34,8 +34,8 @@
     $payoutText = match (true) {
         $payoutFigure <= 0 => 'Not recorded',
         $payoutCurrency === 'UGX' => 'UGX '.number_format((float) $transaction->ugx_amount),
-        $payoutCurrency === 'USD' => '$'.number_format((float) $transaction->total_usd_equivalent, 1).' USD',
-        default => '¥'.number_format((float) $transaction->rmb_amount, 1).' RMB',
+        $payoutCurrency === 'USD' => '$'.number_format((float) $transaction->total_usd_equivalent, 2).' USD',
+        default => '¥'.number_format((float) $transaction->rmb_amount, 2).' RMB',
     };
     $amountHeading = $intake === $payoutCurrency
         ? 'AMOUNT ('.$payoutCurrency.')'

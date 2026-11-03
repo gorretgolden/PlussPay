@@ -206,20 +206,28 @@ class ExpenseReachabilityTest extends TestCase
             $block = $this->quickActions($this->html($this->user($role, $name)));
             $tiles = substr_count($block, 'hover:border-green-300');
 
-            $this->assertSame(0, substr_count($block, 'sm:col-span-2'), $role.': a tile keeps its size instead of filling the row.');
+            $this->assertSame(0, substr_count($block, 'col-span'), $role.': a tile keeps its size instead of filling the row.');
 
-            // The rule the layout follows: exactly three shortcuts get one row from the small
-            // breakpoint up, anything else waits for the wide board before it gets a third column.
+            // One grid for every board: two tiles to a row from the tablet up and three from the
+            // wide board up, whichever number of tiles the role is actually offered. The third
+            // column waits for 1280 because at 1024 the sidebar still stands and each tile is left
+            // 216px, which is narrower than the longest label needs to stay on one line.
             $this->assertStringContainsString(
-                $tiles === 3 ? 'grid-cols-1 gap-3 sm:grid-cols-3' : 'grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3',
+                'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4',
                 $block,
                 $role.': '.$tiles.' shortcuts.'
             );
+
+            // Every tile is built the same way, so nothing is dressed up as more important.
+            $this->assertSame($tiles, substr_count($block, 'rounded-lg border border-gray-200 bg-white p-3'));
+            // A label that cannot fit gives up its tail instead of running over the chevron, and
+            // carries its full name on the tile for a pointer to read.
+            $this->assertSame($tiles, substr_count($block, 'whitespace-nowrap overflow-hidden text-ellipsis'));
         }
 
         $agent = $this->quickActions($this->html($this->user('agent', 'Amina Nabukenya')));
         $this->assertSame(3, substr_count($agent, 'hover:border-green-300'), 'The send card, the withdrawal and the spending book.');
-        $this->assertStringContainsString('sm:col-span-1', $agent, 'The primary tile is pinned to one column.');
+        $this->assertSame(3, substr_count($agent, 'w-10 h-10 shrink-0 rounded-full'), 'Each tile carries one 40px mark.');
     }
 
     public function test_the_board_offers_no_typed_hand_in_anymore(): void
@@ -422,20 +430,20 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('Pay receivers in China', $this->html($agent, '/china'));
     }
 
-    public function test_the_shortcuts_sit_above_the_rates_and_the_till_under_both(): void
+    public function test_the_till_and_its_price_come_first_and_the_shortcuts_under_both(): void
     {
         $html = $this->html($this->user('agent', 'Amina Nabukenya'));
 
-        // A desk opens with what it can do, reads the counter price it works from, and only then
-        // looks at the till those two run on.
-        $actions = strpos($html, '>Quick Actions</h2>');
-        $rates = strpos($html, 'id="dashboard-rate-heading"');
+        // A desk opens on what it holds, reads the counter price those figures are kept at, and
+        // only then reaches for the work it can do.
         $wallets = strpos($html, 'Wallet</div>');
+        $rates = strpos($html, 'id="dashboard-rate-heading"');
+        $actions = strpos($html, '>Quick Actions</h2>');
 
-        $this->assertIsInt($actions);
-        $this->assertIsInt($rates);
         $this->assertIsInt($wallets);
-        $this->assertLessThan($rates, $actions, 'Quick Actions renders above the rate card.');
-        $this->assertLessThan($wallets, $rates, 'The rate card renders above the wallet cards.');
+        $this->assertIsInt($rates);
+        $this->assertIsInt($actions);
+        $this->assertLessThan($rates, $wallets, 'The wallet cards open the board above the rate card.');
+        $this->assertLessThan($actions, $rates, 'The rate card sits above the shortcuts.');
     }
 }

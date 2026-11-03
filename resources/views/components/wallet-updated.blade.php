@@ -1,6 +1,6 @@
 @props([
     'at' => null,
-    'label' => 'Updated',
+    'label' => 'Last activity',
     'emptyText' => 'No movement yet',
 ])
 

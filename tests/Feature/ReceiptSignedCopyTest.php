@@ -159,13 +159,13 @@ class ReceiptSignedCopyTest extends TestCase
             // turned at, the charge stands alone, and the amount cell says what travelled and what
             // the receiver is handed. The total is its own row under the table.
             $this->assertStringContainsString('Sending money to China', $html);
-            $this->assertStringContainsString('UGX 3760', $html);
+            $this->assertStringContainsString('UGX 3,760', $html);
             $this->assertStringContainsString('RMB 7.3', $html);
             $this->assertStringContainsString('UGX 20,000', $html);
-            $this->assertStringContainsString('USD 250.5', $html);
-            $this->assertStringContainsString('¥1,850.5 RMB', $html);
+            $this->assertStringContainsString('USD 250.50', $html);
+            $this->assertStringContainsString('¥1,850.50 RMB', $html);
             $this->assertStringContainsString('Total cash handed over', $html);
-            $this->assertStringContainsString('USD 250.5 plus UGX 20,000', $html);
+            $this->assertStringContainsString('USD 250.50 plus UGX 20,000', $html);
 
             // A dollar customer pays the charge beside the money, rather than out of it.
             $this->assertStringContainsString('The charge is paid alongside the cash handed over.', $html);
@@ -206,7 +206,7 @@ class ReceiptSignedCopyTest extends TestCase
             $this->assertStringContainsString('AMOUNT (RMB/UGX)', $slip);
             $this->assertStringContainsString('RMB 500', $slip);
             $this->assertStringContainsString('(UGX 240,416)', $slip);
-            $this->assertStringContainsString('UGX 3760', $slip);
+            $this->assertStringContainsString('UGX 3,760', $slip);
             $this->assertStringContainsString('RMB 7.2', $slip);
 
             // The charge comes out of the shillings the receiver is handed on this route, so the
@@ -241,8 +241,8 @@ class ReceiptSignedCopyTest extends TestCase
             $slip = $this->slipOnly($html);
 
             $this->assertStringContainsString('AMOUNT (USD)', $slip);
-            $this->assertStringContainsString('($250.5 USD)', $slip);
-            $this->assertStringContainsString('UGX 3760', $slip);
+            $this->assertStringContainsString('($250.50 USD)', $slip);
+            $this->assertStringContainsString('UGX 3,760', $slip);
             $this->assertStringNotContainsString('RMB 7', $slip);
             $this->assertStringNotContainsString('¥', $slip);
         }

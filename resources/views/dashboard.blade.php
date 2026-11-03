@@ -21,47 +21,50 @@
     $desk = $me->countryLabel();
 
 
-    // Stored UGX, not a fresh conversion, so these match the Reports page. The charge is typed as
-    // a whole shilling figure, so it prints with no decimals. A computed figure carries one
-    // decimal, because that is where the fractions of a booking land. What the customer handed
-    // over stays a whole shilling.
-    $money = fn ($ugx, $usd, int $dec = 2) => $usdToUgx ? 'UGX ' . number_format($ugx, $dec) : '$' . number_format($usd, $dec);
+    // Stored UGX, not a fresh conversion, so these match the Reports page. A shilling figure is
+    // always whole because the coins are not in circulation, and a dollar or yuan figure always
+    // carries its two decimals. A zero keeps its own currency sign rather than turning into a word:
+    // "UGX 0" says the till is empty, "nothing" does not say which till.
+    $money = fn ($ugx, $usd, ?int $dec = null) => $usdToUgx
+        ? 'UGX ' . number_format($ugx, $dec ?? 0)
+        : '$' . number_format($usd, $dec ?? 2);
     $shilling = fn ($value) => $value < 0
-        ? 'Loss UGX '.number_format(abs($value), 1)
-        : 'UGX '.number_format($value, 1);
+        ? 'Loss UGX '.number_format(abs($value), 0)
+        : 'UGX '.number_format($value, 0);
     $shillingTone = fn ($value) => $value < 0 ? 'text-red-600' : 'text-gray-900';
 
-    // One card set per window, so no figure is printed in two places on the same page.
+    // One card set per window, so no figure is printed in two places on the same page. The figures
+    // are split by the side of the corridor they stand on, because "Yuan To Receive In China" only
+    // reads next to the other China numbers, and a desk that works one side should be able to read
+    // its own half without sorting the rows out itself.
     $panels = [];
     foreach (['today' => 'Today', 'month' => 'This Month', 'all' => 'All Time'] as $key => $label) {
         $t = $windows[$key];
-        $cards = [
-            ['Completed', number_format($t['completed']), 'text-gray-900'],
-            ['Sent', $money($t['sent_ugx'], $t['sent_usd'], 0), 'text-gray-900'],
-            // The whole pile the customer handed over that is still waiting to be moved,
-            // charge and all because they cross together, with the age of the newest booking.
-            ['To Be Received', $money($t['pending_ugx'], $t['pending_usd'], 0), 'text-gray-900', 'money to be sent', $t['latest_at']],
-            // The yuan a booking promised is one figure, but it is in three different hands
-            // depending on how far the money has actually travelled, so it is shown as three cards
-            // rather than one total that reads as if China already has it.
-            ['Yuan To Receive In China', '¥' . number_format($t['yuan_in_uganda'], 1), 'text-gray-900',
-                $t['yuan_in_uganda_transfers'] . ' held in Uganda'],
-            ['Yuan In China, Unpaid', '¥' . number_format($t['yuan_in_china'], 1), 'text-gray-900',
-                $t['yuan_in_china_transfers'] . ' waiting to be handed over'],
-            ['Yuan Paid In China', '¥' . number_format($t['yuan_paid'], 1), 'text-gray-900',
-                $t['yuan_paid_transfers'] . ' paid to receivers'],
-            // The money the receivers were actually handed at each end, in the currency they
-            // were paid in. These are payouts, not booked yuan: a window with none reads
-            // "nothing" rather than a zero that would look like a forgotten figure.
-            ['Withdrawn In China', \App\Models\Transaction::formatPayouts($deskPayouts[$key]['china']), 'text-gray-900',
-                'handed over to receivers in China'],
-            ['Received In Uganda', \App\Models\Transaction::formatPayouts($deskPayouts[$key]['uganda']), 'text-gray-900',
-                'paid out to receivers from bookings made in China'],
-            ['Charge', $money($t['charge_ugx'], $t['charge_usd'], 0), 'text-gray-900'],
+        $groups = [
+            'Uganda side' => [
+                ['Completed', number_format($t['completed']), 'text-gray-900'],
+                ['Sent', $money($t['sent_ugx'], $t['sent_usd']), 'text-gray-900'],
+                ['To Be Received', $money($t['pending_ugx'], $t['pending_usd']), 'text-gray-900', 'awaiting payout', $t['latest_at']],
+                ['Received In Uganda', \App\Models\Transaction::formatPayouts($deskPayouts[$key]['uganda'], 'UGX'), 'text-gray-900',
+                    'paid out from bookings made in China'],
+                ['Charge', $money($t['charge_ugx'], $t['charge_usd']), 'text-gray-900'],
+            ],
+            'China side' => [
+                ['Yuan To Receive In China', '¥' . number_format($t['yuan_in_uganda'], 2), 'text-gray-900',
+                    'from money held in Uganda'],
+                ['Yuan In China, Unpaid', '¥' . number_format($t['yuan_in_china'], 2), 'text-gray-900',
+                    $t['yuan_in_china_transfers'] . ' waiting for receiver'],
+                ['Yuan Paid In China', '¥' . number_format($t['yuan_paid'], 2), 'text-gray-900',
+                    $t['yuan_paid_transfers'] . ' paid to receivers'],
+                ['Withdrawn In China', \App\Models\Transaction::formatPayouts($deskPayouts[$key]['china'], 'RMB'), 'text-gray-900',
+                    'handed over to receivers in China'],
+            ],
         ];
-        // The desks the agents answer to get one extra figure: the slice of the window above
-        // that the agents' own hands collected. Everyone else never sees the card at all. The
-        // title names the country those agents stand in, so the two desks' cash stays apart.
+        // The desks the agents answer to get their own row: the slice of the window above that the
+        // agents' own hands collected, plus the profit figures. Everyone else never sees them at all.
+        // The taken figure names the country those agents stand in, so the two desks' cash stays
+        // apart.
+        $atTheCounter = [];
         if (isset($agentTaken[$key])) {
             $takenBy = 'Taken By Agents';
             if (count($agentTakenCountries) === 1) {
@@ -69,20 +72,19 @@
             } elseif (count($agentTakenCountries) > 1) {
                 $takenBy .= ' In '.implode(' And ', $agentTakenCountries);
             }
-            $cards[] = [$takenBy, $money($agentTaken[$key], 0, 0), 'text-gray-900', 'principal plus charge collected at the counter'];
+            $atTheCounter[] = [$takenBy, $money($agentTaken[$key], 0), 'text-gray-900', 'principal plus charge collected at the counter'];
         }
         if (isset($profit[$key])) {
-            $cards[] = ['FX profit', $shilling($profit[$key]['exchange']), $shillingTone($profit[$key]['exchange'])];
-            $cards[] = ['Overall profit', $shilling($profit[$key]['total']), $shillingTone($profit[$key]['total'])];
+            $atTheCounter[] = ['FX profit', $shilling($profit[$key]['exchange']), $shillingTone($profit[$key]['exchange'])];
+            $atTheCounter[] = ['Overall profit', $shilling($profit[$key]['total']), $shillingTone($profit[$key]['total'])];
+        }
+        if ($atTheCounter !== []) {
+            $groups['Every desk'] = $atTheCounter;
         }
 
-        // Six figures read as two rows of three, four read as one row. The card then sizes its
-        // own number down only as far as it has to, so a long loss stays on one line at the
-        // headline size rather than spilling past the border the way a fixed size would.
         $panels[$key] = [
             'label' => $label,
-            'cards' => $cards,
-            'minCol' => count($cards) > 4 ? '300px' : '220px',
+            'groups' => $groups,
             'pending' => $t['pending'],
             'cancelled' => $t['cancelled'],
             'avg_ugx' => $t['avg_ugx_sent'],
@@ -137,12 +139,8 @@
                  guessing at a time nobody asked for. --}}
             <span class="block text-[13px] text-gray-400 tabular-nums" id="lastRefreshed"></span>
         </div>
-        {{-- Log out and Reload sit here as well as at the bottom of the sidebar, because the
-             sidebar is hidden on a phone and the clock line is where eyes already land. --}}
+        {{-- Reload sits here; the sidebar already carries Log out. --}}
         <div class="flex items-center gap-2 ml-auto sm:ml-0 no-print">
-            {{-- A phone gets the glyphs at 40px each with the words dropped. Reload is the
-                 solid one, the bell opens What Happened with its unread count, and the sign-out
-                 is the ghost that only colours up once it is actually being aimed at. --}}
             @if($bellGate)
             <a href="{{ route('notifications.index') }}"
                 aria-label="{{ $bellCount > 0 ? 'What happened, '.number_format($bellCount).' unread' : 'What happened' }}"
@@ -159,40 +157,26 @@
                 <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 <span class="hidden sm:inline">Reload</span>
             </button>
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit" aria-label="Log out"
-                    class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
-                    <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                    <span class="hidden sm:inline">Log out</span>
-                </button>
-            </form>
         </div>
     </div>
     @unless($desk)
-    {{-- Only the missing case is printed. When a country is set the sidebar footer already names it,
-         and a second copy beside the greeting is the duplication she asked to take out. --}}
     <p class="text-[13px] text-gray-600 mt-2">{{ $desk ?: 'Desk country not set' }}. The balances below follow Uganda by default, so set the country on your account to see the right till.</p>
     @endunless
-</div>
-
-{{-- One box that searches the whole desk: the pages this account can open, under the same
-     names the sidebar gives them. The list is read off the sidebar links already on the page,
-     so a page only ever appears here if the sidebar itself shows it, and no permission check
-     has to live in two places. --}}
-<div class="relative mb-6" data-dashboard-search>
-    <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-white shadow-sm px-3.5 py-2.5 focus-within:ring-2 focus-within:ring-green-600">
-        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        <input type="search" id="dashboardSearch" placeholder="Search the desk"
-            class="w-full bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400"
-            autocomplete="off" spellcheck="false"
-            role="combobox" aria-expanded="false" aria-controls="dashboardSearchResults"
-            aria-autocomplete="list" aria-label="Search the desk's pages">
-        <kbd class="hidden sm:inline-block text-[11px] text-gray-400 border border-gray-200 rounded px-1.5 py-0.5 leading-5">/</kbd>
-    </div>
-    <div id="dashboardSearchResults" class="hidden absolute left-0 right-0 top-full mt-1.5 z-40 rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden">
-        <ul id="dashboardSearchList" role="listbox" aria-label="Matching pages" class="max-h-72 overflow-y-auto py-1"></ul>
-        <p id="dashboardSearchEmpty" class="hidden px-4 py-3 text-sm text-gray-500">Nothing on the desk matches that.</p>
+    {{-- Search lives inside the header so it does not take a card of its own. --}}
+    <div class="relative mt-3" data-dashboard-search>
+        <div class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 focus-within:ring-2 focus-within:ring-green-600 focus-within:bg-white">
+            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="search" id="dashboardSearch" placeholder="Search the desk"
+                class="w-full bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400"
+                autocomplete="off" spellcheck="false"
+                role="combobox" aria-expanded="false" aria-controls="dashboardSearchResults"
+                aria-autocomplete="list" aria-label="Search the desk's pages">
+            <kbd class="hidden sm:inline-block text-[11px] text-gray-400 border border-gray-200 rounded px-1.5 py-0.5 leading-5">/</kbd>
+        </div>
+        <div id="dashboardSearchResults" class="hidden absolute left-0 right-0 top-full mt-1.5 z-40 rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden">
+            <ul id="dashboardSearchList" role="listbox" aria-label="Matching pages" class="max-h-72 overflow-y-auto py-1"></ul>
+            <p id="dashboardSearchEmpty" class="hidden px-4 py-3 text-sm text-gray-500">Nothing on the desk matches that.</p>
+        </div>
     </div>
 </div>
 
@@ -204,8 +188,7 @@
     // label starts with the verb for what the tile does, and is the words the screen it opens uses,
     // so one thing never carries two names. Sending opens with the corridor already chosen, since
     // which way the money goes is the first thing a desk knows about the booking standing in front
-    // of it, and it is the job the whole board exists for, so it is the one tile that keeps a
-    // soft green wash while the rest stay white.
+    // of it.
     //
     // A hand only ever sends one way: the cash is handed over where the desk is, so an agent in
     // Uganda sends to China and an agent in China sends to Uganda. Whoever sees the whole book
@@ -214,8 +197,8 @@
     //
     // The mark on the send tile is a note with a road leaving it, not a plain right arrow: an
     // arrow alone reads as "next", and this tile is the desk's main job rather than a step.
-    $sendToChina = ['create-transaction', 'Send Money to China', 'Cash in Uganda, paid in China', route('transactions.create', ['destination' => \App\Models\Transaction::TO_CHINA]), 'M4 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM8 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM13.5 12.5L20 5.5M15.5 5H20v4.5', true];
-    $sendToUganda = ['create-transaction', 'Send Money to Uganda', 'Cash in China, paid in Uganda', route('transactions.create', ['destination' => \App\Models\Transaction::TO_UGANDA]), 'M11 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2h-4.5a2 2 0 01-2-2v-4zM15 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM10.5 12.5L4 5.5M8.5 5H4v4.5', true];
+    $sendToChina = ['create-transaction', 'Send Money to China', 'Cash in Uganda, paid in China', route('transactions.create', ['destination' => \App\Models\Transaction::TO_CHINA]), 'M4 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM8 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM13.5 12.5L20 5.5M15.5 5H20v4.5'];
+    $sendToUganda = ['create-transaction', 'Send Money to Uganda', 'Cash in China, paid in Uganda', route('transactions.create', ['destination' => \App\Models\Transaction::TO_UGANDA]), 'M11 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2h-4.5a2 2 0 01-2-2v-4zM15 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM10.5 12.5L4 5.5M8.5 5H4v4.5'];
     $sendActions = $me->can('view-all-transactions')
         ? [$sendToChina, $sendToUganda]
         : [\App\Models\Transaction::destinationForDesk($me->country) === \App\Models\Transaction::TO_UGANDA ? $sendToUganda : $sendToChina];
@@ -287,39 +270,6 @@
     ], fn (array $a) => $me->can($a[0])));
 @endphp
 
-@if($quickActions !== [])
-@php
-    // A desk with exactly three shortcuts puts all three in one row from the small breakpoint up,
-    // so the third never waits below the fold. Any other count steps up a column at lg instead.
-    $tilesPerRow = count($quickActions) === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2 lg:grid-cols-3';
-@endphp
-<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 sm:p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-    {{-- A tile never stretches across the row on its own, because a full-width card looks like a
-         heading rather than something to press. --}}
-    <div class="grid grid-cols-1 gap-3 {{ $tilesPerRow }}">
-        @foreach($quickActions as $action)
-        @php [$ability, $label, $hint, $url, $glyph, $primary] = array_pad($action, 6, null); @endphp
-        <a href="{{ $url }}" class="group flex items-center gap-3 min-w-0 rounded-lg border p-3 transition hover:border-green-300 hover:bg-green-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1{{ $primary ? ' bg-green-50 border-green-200 sm:col-span-1' : ' border-gray-200 bg-white' }}">
-            <span aria-hidden="true" class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center bg-green-100 text-green-800">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $glyph }}"/></svg>
-            </span>
-            <span class="min-w-0 flex-1">
-                <span class="block text-sm font-semibold text-gray-900">{{ $label }}</span>
-                <span class="block text-[13px] text-gray-700">{{ $hint }}</span>
-            </span>
-            {{-- The chevron is what says "this goes somewhere". Nothing else on a card is a link,
-                 and a tile that only changes colour under the cursor says nothing until the
-                 cursor is already on it. --}}
-            <svg class="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 text-gray-400 group-hover:text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-        </a>
-        @endforeach
-    </div>
-</div>
-@endif
-
-<x-live-rate-card />
-
 <style>
     /* The tab look follows aria-selected alone, so the styling cannot drift from the state. */
     [role="tab"][aria-selected="true"] { background: #fff; color: #111827; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); }
@@ -333,42 +283,55 @@
        A browser without container queries keeps the 1.5rem above and behaves as it did before. */
     .stat-card { container-type: inline-size; }
     .stat-value { font-size: 1.5rem; font-size: clamp(.875rem, calc(100cqi / (var(--len) * .52)), 1.5rem); }
+    /* The wallet's own figure is the one number the board is opened to read, so it is allowed a
+       larger headline than the rest, but it gives size back before it ever gives up the line. */
+    .balance-value { font-size: 1.5rem; font-size: clamp(1.05rem, calc(100cqi / (var(--len) * .52)), 1.875rem); }
 </style>
 
-{{-- The till sits under the prices and the shortcuts: the desk opens with its actions, reads the
-     counter price, then the wallets it has to work with. Account::currenciesFor() orders the
-     wallets by the desk's country, so the local currency is always the first card. The controller
-     hands an empty list to anyone who reads every wallet instead of holding one, and the row is
-     left out for them.
+{{-- The till comes next: the desk reads the counter price and the wallets it has to work with
+     before it does anything with them. Account::currenciesFor() orders the wallets by the desk's
+     country, so the local currency is always the first card. The controller hands an empty list to
+     anyone who reads every wallet instead of holding one, and the row is left out for them.
 
      A card is one figure, its stamp and its links. The splits that used to stand under the balance
      (awaiting approval, fees, handed in) live on the wallet page and the reports, so the board
-     stays clean. --}}
-@if($wallets !== [] || $handoverInsight)
-{{-- An agent's hand-in requests span the right section beside their account cards, so the
-     cash they hold and the cash on its way up read as one picture. Every other wallet
-     holder keeps the plain two-across grid. --}}
-<div class="mb-6 {{ $handoverInsight ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-start' : '' }}">
-<div class="{{ $handoverInsight ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 sm:grid-cols-2 gap-4' }}">
+     stays clean. The two cards are held to the same height, and each card keeps its links on the
+     bottom edge, so a pair reads as one row rather than two blocks of different sizes. --}}
+@if($wallets !== [])
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch mb-6">
     @foreach($wallets as $currency => $account)
     @php
         $balance = (string) $account->balance();
         $figure = fn (string|int|float $value) => \App\Models\Account::format($currency, $value);
     @endphp
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
+    <div class="flex h-full flex-col bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        {{-- The figure column is a track, not a flex item: a size container has no width of its
+             own to measure against, so in a flex row it collapses and every line wraps to one
+             word. The grid gives the column its width first and the query then reads it back. --}}
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div class="stat-card min-w-0">
                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $currency }} Wallet</div>
-                <a href="{{ route('wallet.index') }}" class="block text-2xl font-bold text-gray-900 mt-2 tabular-nums whitespace-nowrap hover:underline">{{ $figure($balance) }}</a>
+                {{-- The balance is the figure the desk is opened to read, so it takes the largest
+                     size its own column can hold on one line and gives up only what it must. --}}
+                <a href="{{ route('wallet.index') }}" class="balance-value block mt-2 font-bold text-gray-900 tabular-nums whitespace-nowrap hover:underline" style="--len: {{ strlen($figure($balance)) }}">{{ $figure($balance) }}</a>
                 <x-wallet-updated :at="$account->lastMovementAt()" class="mt-1" />
                 {{-- Approved hand-ins left the drawer, so the money the agent is still answerable
-                     for reads them back in. The line stays off the card until there is a pile to
-                     add, so the balance is never printed twice. --}}
-                @if($handoverInsight && bccomp((string) ($handoverInsight['approved'][$currency] ?? '0.00'), '0', 2) > 0)
-                @php $heldTotal = bcadd((string) $account->balance(), (string) $handoverInsight['approved'][$currency], 2); @endphp
+                     for reads them back in. The cash and the charges are named apart, because the
+                     request a reader can go and look up shows them on two lines, and one sum with no
+                     parts looks like a figure that does not match the book. The line stays off the
+                     card until there is a pile to add, so the balance is never printed twice. --}}
+                @php
+                    $cashHandedIn = (string) ($handoverInsight['approved_cash'][$currency] ?? '0.00');
+                    $chargesHandedIn = $currency === 'UGX' ? (string) ($handoverInsight['approved_charges'] ?? '0.00') : '0.00';
+                    $heldParts = [];
+                    if (bccomp($cashHandedIn, '0', 2) > 0) { $heldParts[] = $figure($cashHandedIn).' handed in'; }
+                    if (bccomp($chargesHandedIn, '0', 2) > 0) { $heldParts[] = $figure($chargesHandedIn).' charges'; }
+                @endphp
+                @if($heldParts !== [])
+                @php $heldTotal = bcadd(bcadd((string) $account->balance(), $cashHandedIn, 2), $chargesHandedIn, 2); @endphp
                 <p class="text-[13px] mt-2">
-                    <span class="font-semibold text-gray-900">Total money held {{ $figure($heldTotal) }}</span>
-                    <span class="text-gray-500">· includes {{ $figure($handoverInsight['approved'][$currency]) }} handed in</span>
+                    <span class="font-semibold text-gray-900 tabular-nums">Total held: {{ $figure($heldTotal) }}</span>
+                    <span class="text-gray-500 tabular-nums"> (wallet + {{ implode(' + ', $heldParts) }})</span>
                 </p>
                 @endif
             </div>
@@ -383,7 +346,7 @@
         <p class="text-[13px] text-gray-700 mt-2">No balance yet. @can('adjust-wallets')<a href="{{ route('accounts.entries.create') }}" class="font-semibold text-gray-800 underline underline-offset-2">Add money</a>@endcan</p>
         @endif
 
-        <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-gray-100 pt-3">
+        <div class="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-gray-100 pt-3">
             @if($me->hasRole('agent'))
             <a href="{{ route('cash-handovers.index') }}" class="text-[13px] font-semibold text-green-800 hover:underline">History</a>
             @endif
@@ -392,7 +355,52 @@
     </div>
     @endforeach
 </div>
+@endif
 
+{{-- The price the desk works from, straight under the tills it prices, and above the shortcuts that
+     use it. A desk reads what it holds, then what it holds it at, then what it can do with it. --}}
+<x-live-rate-card />
+
+{{-- Shortcuts to the work people come here to do, under the till they act on. Each one is dropped
+     when its ability is missing, so nobody is handed a button that bounces back with a permission
+     error, and a role that books nothing at all gets no card rather than a row of dead links. --}}
+@if($quickActions !== [])
+<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 sm:p-5 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+    {{-- Three across once the board is wide enough to hold the longest label on one line. At 1024
+         the sidebar still stands, so a third column leaves each tile 216px and the words "Withdraw
+         Money in Uganda" run over the chevron; two wider tiles keep every name readable instead of
+         meeting the count asked for at a width where it cannot be shown. --}}
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        @foreach($quickActions as $action)
+        @php [$ability, $label, $hint, $url, $glyph] = $action; @endphp
+        {{-- Every tile is built the same way: a 40px mark, the words that name the screen it opens,
+             one line of why, and the chevron that says it goes somewhere. No tile is dressed up as
+             more important than another, because the desk picks by the job in front of it. --}}
+        <a href="{{ $url }}" title="{{ $label }}" class="group flex items-center gap-3 min-w-0 rounded-lg border border-gray-200 bg-white p-3 transition hover:border-green-300 hover:bg-green-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full flex items-center justify-center bg-green-100 text-green-800">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $glyph }}"/></svg>
+            </span>
+            <span class="min-w-0 flex-1">
+                {{-- The name stays on one line and gives up its tail rather than painting over the
+                     chevron; the whole label is on the tile itself, so a pointer reads it in full. --}}
+                <span class="block text-sm font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">{{ $label }}</span>
+                <span class="block text-[13px] text-gray-500 line-clamp-2">{{ $hint }}</span>
+            </span>
+            <svg class="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 text-gray-400 group-hover:text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </a>
+        @endforeach
+    </div>
+</div>
+@endif
+
+@php
+    // The money going out on both sides of the board sits on one row: what this hand has pushed up
+    // to the lead agent, and what the desk spent today. Two cards of the same height on a wide
+    // board, one under the other when the board narrows.
+    $lowerCards = ($handoverInsight ? 1 : 0) + ($chargesCollected !== null ? 1 : 0) + ($me->can('view-expenses') ? 1 : 0);
+@endphp
+<div class="{{ $lowerCards > 0 ? 'mb-6' : '' }}{{ $lowerCards > 1 ? ' grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch' : '' }}">
 {{-- An insight, not a desk: how much of this hand's cash has gone up to the lead agent, in whose
      hands it is sitting now, and how long ago the last one was sent. Every figure is this person's
      own, read from their account in the controller rather than from anything the address bar
@@ -400,19 +408,32 @@
 @if($handoverInsight)
 @php
     $insightLabels = [
-        \App\Models\CashHandover::PENDING => 'Waiting on approval',
+        \App\Models\CashHandover::PENDING => 'Pending',
         \App\Models\CashHandover::APPROVED => 'Approved',
         \App\Models\CashHandover::DECLINED => 'Sent back',
+    ];
+    // The three piles are the three answers the lead agent can give, so each keeps the colour the
+    // requests page uses for it: a hand-in still sitting with the lead is the one to chase, an
+    // approved one is settled money, a sent-back one needs doing again.
+    $insightTones = [
+        \App\Models\CashHandover::PENDING => 'border-l-4 border-l-amber-400',
+        \App\Models\CashHandover::APPROVED => 'border-l-4 border-l-green-600',
+        \App\Models\CashHandover::DECLINED => 'border-l-4 border-l-red-500',
+    ];
+    $insightDots = [
+        \App\Models\CashHandover::PENDING => 'bg-amber-400',
+        \App\Models\CashHandover::APPROVED => 'bg-green-600',
+        \App\Models\CashHandover::DECLINED => 'bg-red-500',
     ];
     $nilCurrency = array_key_first($wallets) ?? 'UGX';
     $lastSent = $handoverInsight['latest'];
 @endphp
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 h-fit">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 h-full flex flex-col">
     <div class="flex flex-wrap items-center gap-2">
         <h2 class="text-base font-semibold text-gray-900 mr-auto">Cash You Hand In</h2>
         <a href="{{ route('cash-handovers.index') }}" class="text-sm font-semibold text-green-800 hover:underline">Every hand-in</a>
     </div>
-    <ul class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <ul class="mt-3 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-3 flex-1">
         @foreach($handoverInsight['statuses'] as $status => $group)
         @php
             $totals = collect($group['totals'])
@@ -421,8 +442,11 @@
                 ->values()
                 ->all();
         @endphp
-        <li class="rounded-lg border border-gray-200 p-3">
-            <div class="text-[13px] font-semibold uppercase tracking-wide text-gray-500">{{ $insightLabels[$status] ?? ucfirst($status) }}</div>
+        <li class="rounded-lg border border-gray-200 {{ $insightTones[$status] ?? '' }} p-3">
+            <div class="flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wide text-gray-500">
+                <span aria-hidden="true" class="w-2 h-2 shrink-0 rounded-full {{ $insightDots[$status] ?? 'bg-gray-400' }}"></span>
+                <span>{{ $insightLabels[$status] ?? ucfirst($status) }}</span>
+            </div>
             <div class="text-xl font-bold text-gray-900 mt-1 tabular-nums whitespace-nowrap">{{ number_format($group['count']) }} {{ $group['count'] === 1 ? 'request' : 'requests' }}</div>
             <div class="text-[13px] text-gray-700 mt-0.5 tabular-nums">{{ $totals === [] ? \App\Models\Account::format($nilCurrency, 0) : implode(' and ', $totals) }}</div>
         </li>
@@ -438,47 +462,54 @@
     @endif
 </div>
 @endif
-</div>
-@endif
 
 {{-- The lead's own earnings: the charges on the bookings they took plus the charges the agents
      handed in with their cash, this month, in shillings. The wallet page keeps the history; the
      card names the month's figure on the screen the desk opens first. --}}
 @if($chargesCollected !== null)
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 mb-6">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 h-full flex flex-col">
     <div class="flex flex-wrap items-center gap-2">
         <h2 class="text-base font-semibold text-gray-900 mr-auto">Charges Collected</h2>
         <a href="{{ route('wallet.index') }}" class="text-sm font-semibold text-green-800 hover:underline">Open the wallet</a>
     </div>
-    <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums">{{ \App\Models\Account::format('UGX', $chargesCollected) }}</div>
+    <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums whitespace-nowrap">{{ \App\Models\Account::format('UGX', $chargesCollected) }}</div>
     <p class="text-[13px] text-gray-700 mt-1">{{ $feesPeriod }}: your bookings' charges and what the agents handed in.</p>
 </div>
 @endif
 
-{{-- Money going out on the same day as the money coming in above it. Each desk keeps its own
-     totals, because shillings spent in Kampala and yuan spent in Guangzhou are not one number. --}}
+{{-- Money going out on the same day as the money coming in beside it. Each desk keeps its own
+     totals, because shillings spent in Kampala and yuan spent in Guangzhou are not one number. A
+     day with nothing logged is a fact worth one line, not a box the height of the card next to it. --}}
 @can('view-expenses')
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 class="text-lg font-semibold text-gray-900">Spent today</h2>
-        <a href="{{ route('expenses.index') }}" class="text-sm text-green-800 hover:underline">Open the spending book</a>
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 h-full flex flex-col">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-base font-semibold text-gray-900">Spent Today</h2>
+        <a href="{{ route('expenses.index') }}" class="text-sm font-semibold text-green-800 hover:underline">Every entry</a>
     </div>
     @if($spending['desks'] === [])
-        <p class="text-sm text-gray-500">Nothing has been recorded as spent today.</p>
+        <div class="mt-3 flex flex-1 flex-col items-start justify-center gap-3 rounded-lg border border-dashed border-gray-200 px-4 py-5">
+            <p class="text-sm text-gray-500">Nothing recorded as spent today.</p>
+            @can('create-expense')
+            <a href="{{ route('expenses.create') }}" class="inline-flex items-center gap-1.5 rounded-md border border-green-800 px-3 py-1.5 text-[13px] font-semibold text-green-800 hover:bg-green-50">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Record expense
+            </a>
+            @endcan
+        </div>
     @else
-    <div class="grid grid-cols-[repeat(auto-fit,minmax(min(15rem,100%),1fr))] gap-4">
-        @foreach($spending['desks'] as $desk)
+    <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 flex-1">
+        @foreach($spending['desks'] as $spendDesk)
         @php
-            $who = collect($desk['people'])->take(3);
-            $rest = count($desk['people']) - $who->count();
+            $who = collect($spendDesk['people'])->take(3);
+            $rest = count($spendDesk['people']) - $who->count();
         @endphp
-        <div class="stat-card min-w-0 rounded-lg border border-gray-200 p-4">
-            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $desk['label'] }}</div>
-            @foreach($desk['totals'] as $currency => $amount)
-            <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums whitespace-nowrap">{{ \App\Models\Account::format($currency, $amount) }}</div>
+        <div class="stat-card min-w-0 rounded-lg border border-gray-200 bg-white p-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $spendDesk['label'] }}</div>
+            @foreach($spendDesk['totals'] as $currency => $amount)
+            <div class="stat-value mt-2 font-bold text-gray-900 tabular-nums whitespace-nowrap" style="--len: {{ strlen(\App\Models\Account::format($currency, $amount)) }}">{{ \App\Models\Account::format($currency, $amount) }}</div>
             @endforeach
-            <div class="text-xs text-gray-500 mt-2">
-                {{ number_format($desk['count']) }} {{ $desk['count'] === 1 ? 'entry' : 'entries' }} today
+            <div class="text-xs text-gray-500 mt-2 tabular-nums">
+                {{ number_format($spendDesk['count']) }} {{ $spendDesk['count'] === 1 ? 'entry' : 'entries' }} today
                 @if($who->isNotEmpty()) · {{ $who->implode(', ') }}@if($rest > 0) and {{ $rest }} more @endif @endif
             </div>
         </div>
@@ -487,8 +518,9 @@
     @endif
 </div>
 @endcan
+</div>
 
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 mb-6">
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             Overview
@@ -499,33 +531,43 @@
             </span>
             @endif
         </h2>
-        <div role="tablist" aria-label="Time window" class="inline-flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+        {{-- Three windows, one row of figures. The tabs sit right of the title on a wide board and
+             take the whole width under it, where three small tabs are too tight to press. --}}
+        <div role="tablist" aria-label="Time window" class="inline-flex w-full sm:w-auto gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
             @foreach($panels as $key => $panel)
-            <button type="button" role="tab" id="tab-{{ $key }}" data-window="{{ $key }}" aria-controls="panel-{{ $key }}" aria-selected="{{ $loop->first ? 'true' : 'false' }}" tabindex="{{ $loop->first ? '0' : '-1' }}" class="rounded-md px-3 py-1.5 text-sm font-medium">{{ $panel['label'] }}</button>
+            <button type="button" role="tab" id="tab-{{ $key }}" data-window="{{ $key }}" aria-controls="panel-{{ $key }}" aria-selected="{{ $loop->first ? 'true' : 'false' }}" tabindex="{{ $loop->first ? '0' : '-1' }}" class="flex-1 sm:flex-none rounded-md px-3 py-1.5 text-sm font-medium">{{ $panel['label'] }}</button>
             @endforeach
         </div>
     </div>
 
     @foreach($panels as $key => $panel)
     <div role="tabpanel" id="panel-{{ $key }}" aria-labelledby="tab-{{ $key }}" @if(! $loop->first) hidden @endif>
-        <div class="grid grid-cols-[repeat(auto-fit,minmax(min({{ $panel['minCol'] }},100%),1fr))] gap-4">
-            @foreach($panel['cards'] as $card)
-            @php [$cardLabel, $cardValue, $cardTone, $cardNote, $cardStamp] = array_pad($card, 5, null); @endphp
-            <div class="stat-card min-w-0 rounded-lg border border-gray-200 p-4">
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $cardLabel }}</div>
-                <div class="stat-value mt-2 font-bold {{ $cardTone }} tabular-nums whitespace-nowrap" style="--len: {{ strlen($cardValue) }}">{{ $cardValue }}</div>
-                @if($cardNote !== null)
-                <div class="text-xs text-gray-500 mt-1">{{ $cardNote }}</div>
-                @endif
-                @if($cardStamp !== null)
-                <x-wallet-updated :at="$cardStamp" class="mt-1 text-xs" />
-                @endif
+        @foreach($panel['groups'] as $groupLabel => $groupCards)
+        <div class="{{ $loop->first ? '' : 'mt-6' }}">
+            <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">{{ $groupLabel }}</h3>
+            {{-- Three across on a desk board, two on a tablet, one on a phone. The card sizes its own
+                 number down only as far as it has to, so a long figure or a loss stays on one line at
+                 the headline size rather than spilling past the border a fixed size would give it. --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                @foreach($groupCards as $card)
+                @php [$cardLabel, $cardValue, $cardTone, $cardNote, $cardStamp] = array_pad($card, 5, null); @endphp
+                <div class="stat-card min-w-0 rounded-lg border border-gray-200 bg-white p-4">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $cardLabel }}</div>
+                    <div class="stat-value mt-2 font-bold {{ $cardTone }} tabular-nums whitespace-nowrap" style="--len: {{ strlen($cardValue) }}">{{ $cardValue }}</div>
+                    @if($cardNote !== null)
+                    <div class="text-xs text-gray-500 mt-1">{{ $cardNote }}</div>
+                    @endif
+                    @if($cardStamp !== null)
+                    <x-wallet-updated :at="$cardStamp" label="Latest booking" class="mt-1 text-xs" />
+                    @endif
+                </div>
+                @endforeach
             </div>
-            @endforeach
         </div>
-        <p class="text-xs text-gray-500 mt-3">{{ number_format($panel['pending']) }} pending · {{ number_format($panel['cancelled']) }} cancelled · average transfer {{ $money($panel['avg_ugx'], $panel['avg_usd'], 0) }}</p>
+        @endforeach
+        <p class="text-xs text-gray-500 mt-4 tabular-nums">{{ number_format($panel['pending']) }} pending · {{ number_format($panel['cancelled']) }} cancelled · average transfer {{ $money($panel['avg_ugx'], $panel['avg_usd']) }}</p>
         @if($panel['yuanTotal'] > 0)
-        <p class="text-xs text-gray-500 mt-2">The three yuan cards are the same ¥{{ number_format($panel['yuanTotal'], 1) }} of booked yuan split by whose hands it is in: held in Uganda until its
+        <p class="text-xs text-gray-500 mt-2">The three yuan cards under China side are the same ¥{{ number_format($panel['yuanTotal'], 2) }} of booked yuan split by whose hands it is in: held in Uganda until its
             dollars are sent, with a desk in China until the receiver is paid, then paid. Withdrawn
             In China and Received In Uganda are the money the receivers were actually handed, in the
             currency each one was paid.
@@ -535,7 +577,7 @@
         </p>
         @endif
         @if($panel['unpriced'] > 0)
-        <p class="text-xs text-amber-700 mt-2">{{ number_format($panel['unpriced']) }} without rates</p>
+        <p class="text-xs text-amber-700 mt-2 tabular-nums">{{ number_format($panel['unpriced']) }} without rates</p>
         @endif
     </div>
     @endforeach
@@ -591,80 +633,104 @@
 @endif
 @endcan
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 min-w-0">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Completed Transfers (Last 7 Days)</h2>
+{{-- The two seven-day pictures sit side by side on a desk board. A week with nothing in it is one
+     short line, not a box drawn at chart height: an empty frame the size of the figure it is
+     missing makes an idle week look like the biggest thing on the screen. --}}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 min-w-0">
+        <h2 class="text-base font-semibold text-gray-900 mb-4">Completed Transfers (Last 7 Days)</h2>
         @if($hasTransfers)
         <div class="relative h-[250px] max-w-full">
             <canvas id="transactionsChart"></canvas>
         </div>
         @else
-        <div class="h-[250px] flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">No transfers in the last 7 days.</div>
+        <div class="flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-200 px-4 py-5 text-center">
+            <svg class="h-5 w-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v18h18M7 15l4-5 3 3 5-7"/></svg>
+            <p class="text-sm text-gray-500">No transfers in the last 7 days.</p>
+        </div>
         @endif
     </div>
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 min-w-0">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 min-w-0">
         @can('view-profit')
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Profit (Last 7 Days)</h2>
+        <h2 class="text-base font-semibold text-gray-900 mb-4">Profit (Last 7 Days)</h2>
         @if($hasCharge || $hasExchange)
         <div class="relative h-[250px] max-w-full">
             <canvas id="profitChart"></canvas>
         </div>
         @else
-        <div class="h-[250px] flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">No charge or FX profit in the last 7 days.</div>
+        <div class="flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-200 px-4 py-5 text-center">
+            <svg class="h-5 w-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v18h18M7 15l4-5 3 3 5-7"/></svg>
+            <p class="text-sm text-gray-500">No charge or FX profit in the last 7 days.</p>
+        </div>
         @endif
         @else
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Charge Collected (Last 7 Days)</h2>
+        <h2 class="text-base font-semibold text-gray-900 mb-4">Charge Collected (Last 7 Days)</h2>
         @if($hasCharge)
         <div class="relative h-[250px] max-w-full">
             <canvas id="revenueChart"></canvas>
         </div>
         @else
-        <div class="h-[250px] flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">No charge collected in the last 7 days.</div>
+        <div class="flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-200 px-4 py-5 text-center">
+            <svg class="h-5 w-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v18h18M7 15l4-5 3 3 5-7"/></svg>
+            <p class="text-sm text-gray-500">No charge collected in the last 7 days.</p>
+        </div>
         @endif
         @endcan
     </div>
 </div>
 
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-    <div class="px-4 sm:px-6 py-4 border-b border-gray-200 flex flex-wrap justify-between items-center gap-3">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
+    <div class="px-4 sm:px-5 py-4 border-b border-gray-200 flex flex-wrap justify-between items-center gap-3">
         {{-- The button that used to sit here booked the same thing as Send Money in Quick
              Actions above, under a second name. One call per action per page. --}}
-        <h2 class="text-lg font-semibold text-gray-900">Recent Transactions</h2>
+        <h2 class="text-base font-semibold text-gray-900">Recent Transactions</h2>
+        @can('view-transactions')
+        <a href="{{ route('transactions.index') }}" class="text-sm font-semibold text-green-800 hover:underline">View all</a>
+        @endcan
     </div>
-    <div class="overflow-x-auto">
-        <table class="w-full min-w-[760px] divide-y divide-gray-200">
-            <thead class="bg-gray-50">
+    {{-- A desk board shows the book as rows and keeps the column names on screen while the rows
+         run: the list scrolls inside its own box, so a header that stays put is the only thing
+         telling a reader which column of money they are looking at. Names that do not fit are cut
+         with the whole name carried in the title, so a long sender is never half-shown.
+         The cells take 12px of side padding rather than the usual 16 because the date column keeps
+         its hour and AM/PM, and at 1280 the eight columns together need every one of those pixels
+         to stay inside the box instead of opening a sideways scroll under a board that fits. --}}
+    <div class="hidden md:block overflow-auto max-h-[26rem]">
+        <table class="w-full min-w-[720px] divide-y divide-gray-200">
+            <thead class="bg-gray-50 sticky top-0 z-10">
                 <tr>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receipt #</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Sender</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receiver</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Amount</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">RMB</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Date</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receipt #</th>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Sender</th>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receiver</th>
+                    <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Amount</th>
+                    <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Paid out</th>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Date</th>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($recentTransactions as $t)
                 <tr>
-                    <td class="px-4 py-4 text-sm font-medium text-green-800 whitespace-nowrap">
+                    <td class="px-3 py-3 text-sm font-medium text-green-800 whitespace-nowrap tabular-nums">
                         <a href="{{ route('receipts.show', $t->receipt_number) }}">{{ $t->receipt_number }}</a>
                     </td>
-                    <td class="px-4 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">{{ $t->principalLabel() }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">¥{{ number_format($t->rmb_amount, 1) }}</td>
-                    <td class="px-4 py-4">
-                        <span class="px-2 py-1 text-xs rounded-full whitespace-nowrap
+                    <td class="px-3 py-3 text-sm text-gray-900 max-w-[11rem] truncate" title="{{ $t->sender_name }}">{{ $t->sender_name }}</td>
+                    <td class="px-3 py-3 text-sm text-gray-900 max-w-[11rem] truncate" title="{{ $t->receiver_name }}">{{ $t->receiver_name }}</td>
+                    <td class="px-3 py-3 text-sm text-right text-gray-900 whitespace-nowrap tabular-nums">{{ $t->principalLabel() }}</td>
+                    <td class="px-3 py-3 text-sm text-right text-gray-900 whitespace-nowrap tabular-nums" title="{{ $t->payoutAmount() === null ? 'No handed-over figure on this booking' : 'Handed to the receiver in '.\App\Models\Account::currencyLabel($t->payoutCurrency()) }}">
+                        {{ $t->payoutAmount() === null ? '-' : \App\Models\Account::format($t->payoutCurrency(), $t->payoutAmount()) }}
+                    </td>
+                    <td class="px-3 py-3 whitespace-nowrap">
+                        <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap
                             @if($t->status === 'completed') bg-green-100 text-green-800
-                            @elseif($t->status === 'pending') bg-yellow-100 text-yellow-800
+                            @elseif($t->status === 'pending') bg-amber-100 text-amber-800
                             @else bg-red-100 text-red-800 @endif">
                             {{ ucfirst($t->status) }}
                         </span>
                     </td>
-                    <td class="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('Y-m-d h:i A') }}</td>
-                    <td class="px-4 py-4 text-sm whitespace-nowrap">
+                    <td class="px-3 py-3 text-sm text-gray-500 whitespace-nowrap tabular-nums">{{ $t->created_at->format('M j, Y, g:i A') }}</td>
+                    <td class="px-3 py-3 text-sm whitespace-nowrap">
                         <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="text-green-600 hover:text-green-800 mr-2">Print</a>
                         <a href="{{ route('receipts.show', $t->receipt_number) }}" class="text-green-600 hover:text-green-800">View</a>
                     </td>
@@ -680,6 +746,38 @@
             </tbody>
         </table>
     </div>
+    {{-- On a phone the same rows become cards, because eight columns cannot be read at once and a
+         sideways scroll across the whole board makes every row feel broken. The money and its stamp
+         keep the order the table uses, so one list is being read either way. --}}
+    <ul class="md:hidden divide-y divide-gray-200">
+        @forelse($recentTransactions as $t)
+        <li class="p-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <a href="{{ route('receipts.show', $t->receipt_number) }}" class="text-sm font-semibold text-green-800 tabular-nums">{{ $t->receipt_number }}</a>
+                <span class="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap
+                    @if($t->status === 'completed') bg-green-100 text-green-800
+                    @elseif($t->status === 'pending') bg-amber-100 text-amber-800
+                    @else bg-red-100 text-red-800 @endif">
+                    {{ ucfirst($t->status) }}
+                </span>
+            </div>
+            <p class="text-sm text-gray-900 mt-2">{{ $t->sender_name }} <span aria-hidden="true">&rarr;</span> {{ $t->receiver_name }}</p>
+            <p class="text-sm font-semibold text-gray-900 mt-1 tabular-nums">{{ $t->principalLabel() }}
+                <span class="font-normal text-gray-500">&middot; {{ $t->payoutAmount() === null ? '-' : \App\Models\Account::format($t->payoutCurrency(), $t->payoutAmount()) }}</span>
+            </p>
+            <p class="text-xs text-gray-500 mt-1 tabular-nums">{{ $t->created_at->format('M j, Y, g:i A') }}</p>
+            <p class="mt-2 flex gap-4 text-sm">
+                <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="text-green-600 hover:text-green-800">Print</a>
+                <a href="{{ route('receipts.show', $t->receipt_number) }}" class="text-green-600 hover:text-green-800">View</a>
+            </p>
+        </li>
+        @empty
+        <li class="p-4 text-sm text-gray-500">
+            No transactions yet.
+            @can('create-transaction') Book the first one from <a href="{{ route('transactions.create') }}" class="text-green-700 underline">Send Money</a>.@endcan
+        </li>
+        @endforelse
+    </ul>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>

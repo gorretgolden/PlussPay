@@ -73,7 +73,7 @@
             {{-- The dollar credit is the figure the corridor is settled in. It is the same money as
                  the payout when the receiver is paid in dollars, so it is not printed twice. --}}
             @if($transaction->payoutCurrency() !== 'USD')
-            <div><span class="text-gray-500">Dollars Credited:</span> ${{ number_format($transaction->total_usd_equivalent, 1) }}</div>
+            <div><span class="text-gray-500">Dollars Credited:</span> ${{ number_format((float) $transaction->total_usd_equivalent, 2) }}</div>
             @endif
             <div>
                 <span class="text-gray-500">Progress:</span>
@@ -212,7 +212,7 @@
     @php
         // A transfer booked before its prices were stored says so out loud instead of printing a
         // zero rate, which would read as a dollar bought for nothing.
-        $trim = fn ($v) => rtrim(rtrim(number_format((float) $v, 4, '.', ''), '0'), '.');
+        $trim = fn ($v) => rtrim(rtrim(number_format((float) $v, 4, '.', ','), '0'), '.');
         $price = fn ($value, string $unit = '') => (float) $value === 0.0
             ? 'not recorded'
             : trim($unit.' '.$trim($value)).' per 1 USD';
@@ -224,7 +224,7 @@
         <div class="grid grid-cols-2 gap-4 text-sm">
             <div><span class="text-gray-500">Dollar selling rate:</span> {{ $price($transaction->rate_sell_ugx, 'UGX') }}</div>
             <div><span class="text-gray-500">Yuan selling rate:</span> {{ $price($transaction->exchange_rate) }}</div>
-            <div><span class="text-gray-500">Dollars credited:</span> ${{ number_format($transaction->total_usd_equivalent, 1) }}</div>
+            <div><span class="text-gray-500">Dollars credited:</span> ${{ number_format((float) $transaction->total_usd_equivalent, 2) }}</div>
             <div><span class="text-gray-500">Paid out at the far end:</span> {{ $dueToBeHanded ? $transaction->payoutLabel() : 'not recorded' }}</div>
             <div><span class="text-gray-500">Foreign exchange profit:</span> <span class="{{ $toneClass[$profit['exchange']['tone']] }}">{{ $profit['exchange']['text'] }}</span></div>
             <div><span class="text-gray-500">Charge:</span> <span class="{{ $toneClass[$profit['charge']['tone']] }}">{{ $profit['charge']['text'] }}</span></div>

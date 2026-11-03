@@ -304,7 +304,9 @@ class CurrencyExchangeDeskTest extends TestCase
             ->assertOk()
             ->assertSee($exchange->reference)
             ->assertSee('Wei Chen')
-            ->assertSee('2,650.00')
+            // Shillings are counted in notes, so the margin reads as a whole figure here exactly
+            // as it does in the downloaded book.
+            ->assertSee('2,650')
             ->assertSee('Margin on');
     }
 
@@ -355,7 +357,7 @@ class CurrencyExchangeDeskTest extends TestCase
             ->assertOk()
             ->assertSee('Times they changed money')
             ->assertSee('2')
-            ->assertSee('3,975.00');
+            ->assertSee('UGX 3,975');
     }
 
     public function test_the_exchange_book_filters_to_one_customer_and_exports(): void

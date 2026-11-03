@@ -10,6 +10,9 @@
     );
     $filtered = request()->filled('search') || request()->filled('currency') || request()->filled('status')
         || request()->filled('date_from') || request()->filled('date_to');
+    // A counter price is not money handed over, so it keeps the places it was set with and gives
+    // back the trailing zeros: 3,800 rather than 3,800.00, exactly as the rate card prints it.
+    $rate = fn ($value) => rtrim(rtrim(number_format((float) $value, 4, '.', ','), '0'), '.');
 @endphp
 <div class="mb-6 flex flex-wrap justify-between items-start gap-3">
     <div>
@@ -30,7 +33,7 @@
     @can('view-profit')
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs uppercase tracking-wide text-gray-500">Margin on {{ $filtered ? 'this filter' : 'all deals' }}</p>
-        <p class="text-xl font-semibold {{ $marginTotal < 0 ? 'text-red-700' : 'text-gray-900' }}">UGX {{ number_format($marginTotal, 2) }}</p>
+        <p class="text-xl font-semibold {{ $marginTotal < 0 ? 'text-red-700' : 'text-gray-900' }}">UGX {{ number_format((float) $marginTotal) }}</p>
     </div>
     <div class="bg-white rounded-lg shadow p-4">
         <p class="text-xs uppercase tracking-wide text-gray-500">Unpriced deals</p>
@@ -40,8 +43,8 @@
         <p class="text-xs uppercase tracking-wide text-gray-500">Card used</p>
         <p class="text-sm font-medium text-gray-900 mt-1">
             @if($card)
-                UGX {{ number_format((float) $card['usd_buy'], 2) }} / {{ number_format((float) $card['usd_sell'], 2) }} per dollar<br>
-                {{ number_format((float) $card['rmb_buy'], 2) }} / {{ number_format((float) $card['rmb_sell'], 2) }} yuan per dollar
+                UGX {{ $rate($card['usd_buy']) }} / {{ $rate($card['usd_sell']) }} per dollar<br>
+                {{ $rate($card['rmb_buy']) }} / {{ $rate($card['rmb_sell']) }} yuan per dollar
             @else
                 <span class="text-amber-700">Not complete</span>
             @endif
@@ -133,7 +136,7 @@
                         <span class="text-amber-700">No rate card</span>
                     @else
                         <span class="{{ (float) $exchange->margin_ugx < 0 ? 'text-red-700' : 'text-gray-900' }}">
-                            {{ number_format((float) $exchange->margin_ugx, 2) }}
+                            {{ number_format((float) $exchange->margin_ugx) }}
                         </span>
                     @endif
                 </td>

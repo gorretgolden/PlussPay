@@ -85,7 +85,7 @@ class WalletUpdatedStampTest extends TestCase
         foreach (['/dashboard', '/wallet', '/reports?type=wallet'] as $url) {
             $html = $this->actingAs($agent)->get($url)->assertOk()->getContent();
 
-            $this->assertStringContainsString('Updated 2 minutes ago', $html, "{$url} does not say when the wallet changed.");
+            $this->assertStringContainsString('Last activity 2 minutes ago', $html, "{$url} does not say when the wallet changed.");
             $this->assertStringContainsString('Oct 21, 2026, 9:58 AM', $html, "{$url} does not print the exact time.");
             $this->assertStringNotContainsString('Oct 21, 2026, 9:40 AM', $html, "{$url} is showing when the wallet was opened, not its last movement.");
             $this->assertStringContainsString('No movement yet', $html, "{$url} does not mark the untouched dollar wallet.");

@@ -86,8 +86,8 @@
     @auth
     <div class="flex">
         {{-- Sidebar --}}
-        <aside id="appSidebar" class="w-64 bg-green-900 text-white flex flex-col no-print fixed h-full z-40 -translate-x-full md:translate-x-0 transition-transform duration-200">
-            <button type="button" onclick="toggleSidebar(false)" class="md:hidden absolute right-2 top-2 p-2 rounded bg-green-800" aria-label="Close the menu">&times;</button>
+        <aside id="appSidebar" class="w-64 bg-green-900 text-white flex flex-col no-print fixed h-full z-40 -translate-x-full lg:translate-x-0 transition-transform duration-200">
+            <button type="button" onclick="toggleSidebar(false)" class="lg:hidden absolute right-2 top-2 p-2 rounded bg-green-800" aria-label="Close the menu">&times;</button>
             <div class="p-4 border-b border-green-800">
                 <a href="{{ route('dashboard') }}" class="block">
                     <img src="{{ asset('logo.webp') }}" alt="PlusPay" width="640" height="232" class="w-full h-auto">
@@ -389,9 +389,9 @@
         </aside>
 
         {{-- Main content --}}
-        <div id="sidebarOverlay" class="hidden fixed inset-0 bg-black/50 z-30 md:hidden no-print" onclick="toggleSidebar(false)"></div>
-        <div class="app-shell ml-0 md:ml-64 w-full md:w-[calc(100%-16rem)] min-w-0">
-            <div class="md:hidden flex items-center gap-3 bg-green-900 text-white px-4 py-3 no-print sticky top-0 z-20">
+        <div id="sidebarOverlay" class="hidden fixed inset-0 bg-black/50 z-30 lg:hidden no-print" onclick="toggleSidebar(false)"></div>
+        <div class="app-shell ml-0 lg:ml-64 w-full lg:w-[calc(100%-16rem)] min-w-0">
+            <div class="lg:hidden flex items-center gap-3 bg-green-900 text-white px-4 py-3 no-print sticky top-0 z-20">
                 <button type="button" onclick="toggleSidebar()" aria-label="Open the menu" aria-controls="appSidebar" aria-expanded="false"
                     class="p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
@@ -540,14 +540,14 @@
 
             bar.classList.toggle('-translate-x-full', !open);
             overlay.classList.toggle('hidden', !open);
-            bar.inert = !open && !window.matchMedia('(min-width: 768px)').matches;
+            bar.inert = !open && !window.matchMedia('(min-width: 1024px)').matches;
             if (button) button.setAttribute('aria-expanded', open ? 'true' : 'false');
             if (open) bar.querySelector('button').focus();
             else button?.focus();
         }
 
         const sidebar = document.getElementById('appSidebar');
-        const desktopNav = window.matchMedia('(min-width: 768px)');
+        const desktopNav = window.matchMedia('(min-width: 1024px)');
         if (sidebar) {
             sidebar.inert = !desktopNav.matches;
             desktopNav.addEventListener('change', () => {

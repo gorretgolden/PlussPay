@@ -179,8 +179,8 @@ class CashHandoverTest extends TestCase
         $handover = $this->request($agent, $lead);
 
         // The wallet card is one figure now; the money a lead has not taken yet is named on the
-        // hand-in insight card below it. The test pins the figure beside "Waiting on approval"
-        // there. It falls to zero when the lead agent approves, and the wallet total never changes
+        // hand-in insight card below it. The test pins the figure beside the "Pending" row there.
+        // It falls to zero when the lead agent approves, and the wallet total never changes
         // at that moment.
         $pendingOnBoard = function (User $viewer): string {
             $this->flushSession();
@@ -194,7 +194,7 @@ class CashHandoverTest extends TestCase
             $insight = substr($html, $start, $end - $start);
             $this->assertSame(
                 1,
-                preg_match('#Waiting on approval</div>.*?<div class="text-\[13px\] text-gray-700 mt-0\.5 tabular-nums">([^<]+)</div>#s', $insight, $m),
+                preg_match('#Pending</span>.*?<div class="text-\[13px\] text-gray-700 mt-0\.5 tabular-nums">([^<]+)</div>#s', $insight, $m),
                 'The insight card names the part of the balance a super agent has not taken yet.'
             );
 

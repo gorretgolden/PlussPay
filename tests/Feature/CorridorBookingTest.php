@@ -161,7 +161,7 @@ class CorridorBookingTest extends TestCase
             'money_in:UGX-UG' => '2000.00',
         ], $this->lines($transfer->id));
 
-        $this->assertStringContainsString('USD 112.0 plus UGX 2,000 posted to the ledger', session('success'));
+        $this->assertStringContainsString('USD 112.00 plus UGX 2,000 posted to the ledger', session('success'));
     }
 
     public function test_yuan_handed_over_in_china_is_booked_into_the_china_yuan_account(): void
@@ -200,7 +200,7 @@ class CorridorBookingTest extends TestCase
         // The charge is held back from the shillings paid out here, so it is not money the till
         // received and there is no commission line for it.
         $this->assertArrayNotHasKey('agent_fee:RMB-CN', $this->lines($transfer->id));
-        $this->assertStringContainsString('RMB 6,610.0 posted to the ledger', session('success'));
+        $this->assertStringContainsString('RMB 6,610.00 posted to the ledger', session('success'));
     }
 
     public function test_dollars_a_china_agent_holds_are_kept_in_that_agent_s_dollar_wallet(): void

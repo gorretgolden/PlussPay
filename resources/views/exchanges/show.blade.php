@@ -70,7 +70,7 @@
             @if($margin === null)
                 <span class="text-sm">No rate card</span>
             @else
-                UGX {{ number_format($margin, 2) }}
+                UGX {{ number_format((float) $margin) }}
             @endif
         </p>
     </div>

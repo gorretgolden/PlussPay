@@ -41,8 +41,8 @@ class ExportController extends Controller
                 //
                 // A transfer that has not finished earned nothing yet, and one booked before
                 // the rates were snapshotted has no exchange figure to add. Those two states are
-                // kept apart here exactly as on the screen: 0.0 for the first, n/a for the
-                // second, and never a zero that reads as break-even.
+                // kept apart here exactly as on the screen: the currency's own zero for the first,
+                // n/a for the second, and never a zero that reads as break-even.
                 $labels = $t->profitLabels();
                 $counts = $t->status === 'completed';
                 $yuanUsd = $counts ? $t->yuanLegUsd() : 0.0;
@@ -72,14 +72,14 @@ class ExportController extends Controller
                     $t->collectedAmount(),
                     $t->principalLabel(),
                     $this->ugx((float) $t->total_usd_equivalent),
-                    '¥' . number_format((float) $t->rmb_amount, 1),
+                    '¥' . number_format((float) $t->rmb_amount, 2),
                     'UGX ' . number_format((float) $t->charge_ugx),
-                    'USD ' . number_format((float) $t->charge_amount, 1),
+                    'USD ' . number_format((float) $t->charge_amount, 2),
                     $this->rate($t->rate_sell_ugx),
                     $this->rate($t->exchange_rate),
                     $labels['exchange']['text'],
                     $labels['total']['text'],
-                    $signed($totalUsd, 1, 'USD '),
+                    $signed($totalUsd, 2, 'USD '),
                     $t->purpose ?? '-',
                     $t->payment_method ?? '-',
                     $t->payment_reference ?? '-',
@@ -125,7 +125,7 @@ class ExportController extends Controller
                 $t->sender_name,
                 $t->receiver_name,
                 $t->principalLabel(),
-                '¥' . number_format((float) $t->rmb_amount, 1),
+                '¥' . number_format((float) $t->rmb_amount, 2),
                 'UGX ' . number_format((float) $t->charge_ugx),
                 $this->bookedBy($t),
                 $t->deskLabel(),
@@ -361,7 +361,7 @@ class ExportController extends Controller
                 Account::format($x->in_currency, $x->in_amount),
                 Account::format($x->out_currency, $x->out_amount),
                 $x->quotedRate() ?? '-',
-                $x->margin_ugx === null ? 'no rate card' : 'UGX '.number_format((float) $x->margin_ugx, 2),
+                $x->margin_ugx === null ? 'no rate card' : 'UGX '.number_format((float) $x->margin_ugx),
                 $x->inAccount?->name ?? '-',
                 $x->outAccount?->name ?? '-',
                 $x->notes ?? '-',
@@ -588,8 +588,8 @@ class ExportController extends Controller
             ->get();
 
         $line = fn ($row) => array_merge(
-            [(string) $row->count, number_format((float) $row->usd_sent, 1)],
-            [number_format((float) $row->fee_ugx), number_format((float) $row->exchange_ugx, 1)],
+            [(string) $row->count, number_format((float) $row->usd_sent, 2)],
+            [number_format((float) $row->fee_ugx), number_format((float) $row->exchange_ugx)],
             $this->money($row->total_ugx, $row->total_usd, $row->total_rmb),
             [(string) $row->unpriced]
         );
@@ -617,15 +617,16 @@ class ExportController extends Controller
     }
 
     /**
-     * One profit group written in the three currencies the book is kept in, shillings first.
-     * A negative figure is the minus sign's job, so the cells stay plain numbers to sum.
+     * One profit group written in the three currencies the book is kept in, shillings first, in the
+     * same form the screens print: notes are whole, cents and fen keep their two places. A negative
+     * figure is the minus sign's job, so the cells stay plain numbers to sum.
      */
     private function money($ugx, $usd, $rmb): array
     {
         return [
-            number_format((float) $ugx, 1),
-            number_format((float) $usd, 1),
-            number_format((float) $rmb, 1),
+            number_format((float) $ugx),
+            number_format((float) $usd, 2),
+            number_format((float) $rmb, 2),
         ];
     }
 
@@ -653,7 +654,7 @@ class ExportController extends Controller
 
         return $rate
             ? 'UGX ' . number_format($usd * $rate)
-            : 'USD ' . number_format($usd, 1);
+            : 'USD ' . number_format($usd, 2);
     }
 
     /**

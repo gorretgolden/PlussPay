@@ -78,7 +78,7 @@ class DashboardSpendingTodayTest extends TestCase
     private function card(User $reader): string
     {
         $html = $this->actingAs($reader)->get('/dashboard')->assertOk()->getContent();
-        $start = strpos($html, 'Spent today');
+        $start = strpos($html, 'Spent Today');
 
         if ($start === false) {
             return '';
@@ -141,7 +141,7 @@ class DashboardSpendingTodayTest extends TestCase
     public function test_a_day_with_no_spending_says_so_and_a_role_without_the_book_gets_no_card(): void
     {
         $faith = $this->user('agent', 'Faith Nansere');
-        $this->assertStringContainsString('Nothing has been recorded as spent today', $this->card($faith));
+        $this->assertStringContainsString('Nothing recorded as spent today', $this->card($faith));
 
         $desk = $this->user('staff', 'Office Desk');
         $this->assertSame('', $this->card($desk), 'No reach into the book, so no figure to check.');

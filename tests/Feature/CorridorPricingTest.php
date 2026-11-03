@@ -215,7 +215,7 @@ class CorridorPricingTest extends TestCase
         $dollars = $this->row(['destination' => 'CN', 'payout_currency' => 'USD', 'total_usd_equivalent' => '111.63']);
         $shillings = $this->row(['destination' => 'UG', 'payout_currency' => 'UGX', 'ugx_amount' => '3980000.00']);
 
-        $this->assertSame('¥732.3', $yuan->payoutLabel());
+        $this->assertSame('¥732.28', $yuan->payoutLabel());
         $this->assertSame('$111.63', $dollars->payoutLabel());
         $this->assertSame('UGX 3,980,000', $shillings->payoutLabel());
 
