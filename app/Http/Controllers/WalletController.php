@@ -65,6 +65,22 @@ class WalletController extends Controller
                 $totals[$wallet->currency] = bcadd($totals[$wallet->currency] ?? '0.00', $wallet->balance(), 2);
             }
 
+            // Sort by the most recent entry across all of a person's wallets, so the people who
+            // moved money lately sit at the top of the table.
+            $latestEntry = AccountEntry::whereIn('account_id', collect($every)->pluck('id'))
+                ->selectRaw('account_id, MAX(entry_date) as latest')
+                ->groupBy('account_id')
+                ->pluck('latest', 'account_id');
+
+            uasort($allWallets, function ($a, $b) use ($latestEntry) {
+                $aLatest = collect($a['wallets'])->pluck('id')->map(fn ($id) => $latestEntry[$id] ?? null)->filter()->max();
+                $bLatest = collect($b['wallets'])->pluck('id')->map(fn ($id) => $latestEntry[$id] ?? null)->filter()->max();
+                if ($aLatest === null && $bLatest === null) { return 0; }
+                if ($aLatest === null) { return 1; }
+                if ($bLatest === null) { return -1; }
+                return $bLatest <=> $aLatest;
+            });
+
             return view('wallets.index', [
                 'allWallets' => $allWallets,
                 'totals' => $totals,
