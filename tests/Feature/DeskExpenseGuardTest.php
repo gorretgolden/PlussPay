@@ -13,13 +13,17 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * An agent pays for transport, airtime and mobile money charges out of the cash sitting in their
- * hand, and the office should not have to type those in for them. Two things have to hold for that
- * to be safe: the money leaves the agent's own wallet and never the office till, and their page of
+ * A desk pays for transport, airtime and mobile money charges out of the cash sitting in its
+ * hand, and the office should not have to type those in for it. Two things have to hold for that
+ * to be safe: the money leaves the desk's own wallet and never the office till, and their page of
  * the book is the rows they entered. Both are checked here from the outside, through the same
- * routes the agent uses.
+ * routes the desk uses.
+ *
+ * The desk that records spending is the lead agent now: she ruled on 2026-11-04 that the agent
+ * role does no expenses at all, so every door of the module is closed to it and the guards below
+ * are read through the lead instead.
  */
-class AgentExpenseDeskTest extends TestCase
+class DeskExpenseGuardTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -50,10 +54,10 @@ class AgentExpenseDeskTest extends TestCase
         return $user;
     }
 
-    /** The cash an agent is holding, in shillings. */
-    private function wallet(User $agent, string $currency = 'UGX'): Account
+    /** The cash a desk is holding, in shillings. */
+    private function wallet(User $desk, string $currency = 'UGX'): Account
     {
-        $wallet = Account::walletFor($agent, $currency);
+        $wallet = Account::walletFor($desk, $currency);
 
         AccountLedger::record($wallet, 'opening_balance', '900000.00', 'Cash collected on deliveries');
 
@@ -75,9 +79,9 @@ class AgentExpenseDeskTest extends TestCase
             ?? ExpenseCategory::orderBy('id')->value('id');
     }
 
-    private function typed(User $agent, Account $from, string $amount = '45000.00'): \Illuminate\Testing\TestResponse
+    private function typed(User $desk, Account $from, string $amount = '45000.00'): \Illuminate\Testing\TestResponse
     {
-        return $this->actingAs($agent)->post('/expenses', [
+        return $this->actingAs($desk)->post('/expenses', [
             'category_id' => $this->headId(),
             'description' => 'Boda to the Mbale customer',
             'amount' => $amount,
@@ -87,68 +91,77 @@ class AgentExpenseDeskTest extends TestCase
         ]);
     }
 
-    public function test_an_agent_is_offered_the_expense_desk_at_all(): void
+    public function test_the_lead_is_offered_the_expense_desk_and_an_agent_is_not(): void
     {
+        $lead = $this->user('super-agent', 'Amina Lead');
         $agent = $this->user('agent', 'Amina Nabukenya');
 
-        $this->assertTrue($agent->can('view-expenses'), 'The door to their own page of the book.');
-        $this->assertTrue($agent->can('create-expense'));
-        $this->assertFalse($agent->can('view-all-expenses'), 'Reading the office entries stays with the office.');
-        $this->assertFalse($agent->can('void-expense'), 'Cancelling a record is not theirs to do.');
-        $this->assertFalse($agent->can('export-expenses'));
+        $this->assertTrue($lead->can('view-expenses'), 'The door to the lead\'s own page of the book.');
+        $this->assertTrue($lead->can('create-expense'));
+        $this->assertFalse($lead->can('view-all-expenses'), 'Reading the office entries stays with the office.');
+        $this->assertFalse($lead->can('void-expense'), 'Cancelling a record is not theirs to do.');
+        $this->assertFalse($lead->can('export-expenses'));
+
+        $this->assertFalse($agent->can('view-expenses'), 'She ruled the agent role does no expenses at all.');
+        $this->assertFalse($agent->can('create-expense'));
 
         $this->flushSession();
-        $this->actingAs($agent)->get('/expenses/create')->assertOk();
+        $this->actingAs($lead)->get('/expenses/create')->assertOk();
+
+        $this->flushSession();
+        $this->actingAs($agent)->get('/expenses/create')->assertForbidden();
+        $this->actingAs($agent)->get('/expenses')->assertForbidden();
+        $this->actingAs($agent)->post('/expenses', [])->assertForbidden();
     }
 
-    public function test_the_only_account_an_agent_can_pay_from_is_the_wallet_in_their_hand(): void
+    public function test_the_only_account_a_desk_can_pay_from_is_the_wallet_in_their_hand(): void
     {
-        $agent = $this->user('agent', 'Amina Nabukenya');
-        $wallet = $this->wallet($agent);
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $wallet = $this->wallet($lead);
         $this->fund(Account::UGX_UGANDA, '5000000.00');
 
         $this->flushSession();
-        $html = $this->actingAs($agent)->get('/expenses/create')->assertOk()->getContent();
+        $html = $this->actingAs($lead)->get('/expenses/create')->assertOk()->getContent();
 
         $this->assertStringContainsString($wallet->name, $html);
         $this->assertStringNotContainsString('(UGX) (UGX)', $html, 'A wallet is named after its currency once.');
-        $this->assertStringNotContainsString('UGX Cash (Uganda)', $html, 'The office till is not on an agent\'s list.');
+        $this->assertStringNotContainsString('UGX Cash (Uganda)', $html, 'The office till is not on a desk\'s list.');
         $this->assertStringNotContainsString('Dollar Account (Uganda)', $html);
     }
 
-    public function test_recording_takes_the_money_out_of_the_agents_wallet_and_not_the_office_till(): void
+    public function test_recording_takes_the_money_out_of_the_desks_wallet_and_not_the_office_till(): void
     {
-        $agent = $this->user('agent', 'Amina Nabukenya');
-        $wallet = $this->wallet($agent);
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $wallet = $this->wallet($lead);
         $till = $this->fund(Account::UGX_UGANDA, '5000000.00');
 
-        $this->typed($agent, $wallet)->assertSessionHasNoErrors();
+        $this->typed($lead, $wallet)->assertSessionHasNoErrors();
 
         $expense = Expense::latest('id')->firstOrFail();
 
-        $this->assertSame($agent->id, (int) $expense->created_by);
+        $this->assertSame($lead->id, (int) $expense->created_by);
         $this->assertSame($wallet->id, (int) $expense->account_id);
         $this->assertSame('45000.00', (string) $expense->amount);
         $this->assertSame(855000.0, (float) $wallet->fresh()->balance());
         $this->assertSame(5000000.0, (float) $till->fresh()->balance(), 'The office cash book is untouched.');
     }
 
-    public function test_an_agent_cannot_push_an_expense_onto_the_office_till(): void
+    public function test_a_desk_cannot_push_an_expense_onto_the_office_till(): void
     {
-        $agent = $this->user('agent', 'Amina Nabukenya');
-        $this->wallet($agent);
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $this->wallet($lead);
         $till = $this->fund(Account::UGX_UGANDA, '5000000.00');
 
-        $this->typed($agent, $till)->assertSessionHasErrors('account_id');
+        $this->typed($lead, $till)->assertSessionHasErrors('account_id');
 
         $this->assertSame(0, Expense::count());
         $this->assertSame(5000000.0, (float) $till->fresh()->balance());
     }
 
-    public function test_an_agents_page_of_the_book_holds_only_what_they_recorded(): void
+    public function test_a_desks_page_of_the_book_holds_only_what_they_recorded(): void
     {
-        $amina = $this->user('agent', 'Amina Nabukenya');
-        $peter = $this->user('agent', 'Peter Okello');
+        $amina = $this->user('super-agent', 'Amina Lead');
+        $peter = $this->user('super-agent', 'Peter Lead');
         $office = $this->user('admin', 'Grace Naigaga');
 
         $this->typed($amina, $this->wallet($amina))->assertSessionHasNoErrors();
@@ -196,10 +209,10 @@ class AgentExpenseDeskTest extends TestCase
         return Expense::latest('id')->firstOrFail();
     }
 
-    public function test_an_agent_opens_their_own_entry_and_is_turned_away_from_every_other_one(): void
+    public function test_a_desk_opens_their_own_entry_and_is_turned_away_from_every_other_one(): void
     {
-        $amina = $this->user('agent', 'Amina Nabukenya');
-        $peter = $this->user('agent', 'Peter Okello');
+        $amina = $this->user('super-agent', 'Amina Lead');
+        $peter = $this->user('super-agent', 'Peter Lead');
 
         $this->typed($amina, $this->wallet($amina))->assertSessionHasNoErrors();
         $hers = Expense::latest('id')->firstOrFail();
@@ -221,15 +234,15 @@ class AgentExpenseDeskTest extends TestCase
         $this->assertStringNotContainsString('/accounts/'.$hers->account_id, $html);
     }
 
-    public function test_an_agent_cannot_cancel_or_export_even_their_own_entry(): void
+    public function test_a_desk_cannot_cancel_or_export_even_their_own_entry(): void
     {
-        $amina = $this->user('agent', 'Amina Nabukenya');
-        $wallet = $this->wallet($amina);
-        $this->typed($amina, $wallet)->assertSessionHasNoErrors();
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $wallet = $this->wallet($lead);
+        $this->typed($lead, $wallet)->assertSessionHasNoErrors();
         $expense = Expense::latest('id')->firstOrFail();
 
         $this->flushSession();
-        $this->actingAs($amina)->post('/expenses/'.$expense->id.'/void', ['reason' => 'Typed twice'])
+        $this->actingAs($lead)->post('/expenses/'.$expense->id.'/void', ['reason' => 'Typed twice'])
             ->assertForbidden();
 
         $this->assertSame('active', $expense->fresh()->status);
@@ -237,7 +250,7 @@ class AgentExpenseDeskTest extends TestCase
         $this->assertSame(855000.0, (float) $wallet->fresh()->balance());
 
         $this->flushSession();
-        $this->actingAs($amina)->get('/export/expenses')->assertForbidden();
+        $this->actingAs($lead)->get('/export/expenses')->assertForbidden();
     }
 
     /**
@@ -247,9 +260,9 @@ class AgentExpenseDeskTest extends TestCase
      */
     public function test_a_desk_allowed_to_export_downloads_only_its_own_expenses(): void
     {
-        $amina = $this->user('agent', 'Amina Nabukenya');
-        $wallet = $this->wallet($amina);
-        $this->typed($amina, $wallet)->assertSessionHasNoErrors();
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $wallet = $this->wallet($lead);
+        $this->typed($lead, $wallet)->assertSessionHasNoErrors();
         $hers = Expense::latest('id')->firstOrFail();
 
         $office = $this->user('admin', 'Grace Naigaga');
@@ -257,10 +270,10 @@ class AgentExpenseDeskTest extends TestCase
         $this->typed($office, $this->fund(Account::UGX_UGANDA, '5000000.00'))->assertSessionHasNoErrors();
         $officeEntry = Expense::latest('id')->firstOrFail();
 
-        Role::findByName('agent', 'web')->givePermissionTo('export-expenses');
+        Role::findByName('super-agent', 'web')->givePermissionTo('export-expenses');
 
         $this->flushSession();
-        $response = $this->actingAs($amina->fresh())->get('/export/expenses');
+        $response = $this->actingAs($lead->fresh())->get('/export/expenses');
         $this->assertSame(200, $response->getStatusCode());
 
         $path = storage_path('app/expense-export-check.xlsx');

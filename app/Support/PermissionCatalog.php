@@ -31,7 +31,7 @@ final class PermissionCatalog
         'superadmin' => 'Full access to every module. This protected role cannot be changed.',
         'admin' => 'Manages daily operations, people and permissions. System internals stay with Super Admin.',
         'accountant' => 'Reads every book, the customers, the profit and the prices, and writes customer and account entries. Records no expenses: the spending book is opened to check it and report on it.',
-        'agent' => 'Books transfers and logs what they spent out of the cash in hand. Sees only their own transactions, expenses, receipts, reports and wallets.',
+        'agent' => 'Books transfers. Sees only their own transactions, receipts, reports and wallets.',
         'super-agent' => 'The lead agent. Books and sends money like an agent, handles the currency exchange desk, sees every agent\'s transfers, and approves the cash they hand in.',
         'staff' => 'Desk staff. Reads their own transactions, receipts and reports; books nothing and changes nothing.',
     ];
@@ -86,16 +86,15 @@ final class PermissionCatalog
             'accountant' => array_merge($read, [
                 'create-customer', 'edit-customer', 'delete-customer', 'create-account-entry',
             ]),
+            // Agents used to record their own spending out of the cash in hand. She ruled on
+            // 2026-11-04 that the agent role does no expenses at all, so the module stays off
+            // their board, their sidebar and their routes in one move: recording what a desk
+            // paid out is the lead agent's and the office's job now.
             'agent' => [
                 'view-dashboard', 'create-transaction', 'view-transactions', 'view-own-transactions',
                 'export-transactions',
                 'view-wallets', 'view-receipts', 'print-receipt', 'export-receipts', 'view-reports', 'export-reports',
                 'confirm-china-payout',
-                // An agent pays for transport, airtime and mobile money charges out of the cash they
-                // are already holding, so they record that spending themselves. view-expenses opens
-                // their own page of the book; the rows other people entered stay behind
-                // view-all-expenses, and cancelling one stays with the office.
-                'view-expenses', 'create-expense',
             ],
             // The lead agent is the hand the others answer to. He keeps the custody pair on his
             // dashboard because the cash handed in lands in his own wallets, so he is deliberately

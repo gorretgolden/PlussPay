@@ -121,18 +121,22 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('Pay receivers of money sent from China', $superadmin);
         $this->assertStringNotContainsString('>Approve Cash Hand-In</span>', $superadmin, 'That queue belongs to the lead agent.');
 
-        // A desk agent books transfers and logs what they spent out of the cash in hand, so the
-        // spending tile hands him the pen. The counter, the prices and the customer list stay with
-        // the office and the super agent. Each check reads the shortcut card itself, because the
-        // sidebar carries the same words further up the page. Handing cash in is a tile that opens
-        // the form where he ticks the transfers whose cash he holds; it is still not a dialog with
-        // a figure typed into it.
+        // A desk agent books transfers and hands cash in. She ruled the agent role does no
+        // expenses, so no spending tile is his; the counter, the prices, the customer list and the
+        // spending book stay with the office and the super agent. Each check reads the shortcut
+        // card itself, because the sidebar carries the same words further up the page. Handing
+        // cash in is a tile that opens the form where he ticks the transfers whose cash he holds;
+        // it is still not a dialog with a figure typed into it.
         $agentPage = $this->html($this->user('agent', 'Amina Nabukenya'));
         $agent = $this->quickActions($agentPage);
         $this->assertStringContainsString('>Send Money to China</span>', $agent);
         $this->assertStringNotContainsString('>Send Money to Uganda</span>', $agent, 'Uganda is where this agent already stands.');
-        $this->assertStringContainsString('>Record Expense</span>', $agent, 'The desk that paid the cash out is the desk that records it.');
-        $this->assertStringContainsString('Log what you spent today', $agent);
+        // She ruled the agent role does no expenses at all, so the spending tile is off the board
+        // along with the sidebar group and the card that sums a desk's day.
+        $this->assertStringNotContainsString('>Record Expense</span>', $agent, 'The agent role records no spending anymore.');
+        $this->assertStringNotContainsString('Log what you spent today', $agent);
+        $this->assertStringNotContainsString('id="expensesGroup"', $agentPage, 'The sidebar offers an agent no Expenses group.');
+        $this->assertStringNotContainsString('Spent Today', $agentPage, 'Nor the card that sums a desk\'s day.');
         $this->assertStringContainsString('>Hand in Cash</span>', $agent, 'A hand holding collected notes is offered the way in.');
         $this->assertStringContainsString('/cash-handovers/create', $agent, 'The shortcut lands on the form that names the transfers, not the whole book.');
         $this->assertStringNotContainsString('>Hand Cash In</span>', $agent, 'The typed flat hand-in tile stays gone; this one only opens the page.');
@@ -231,8 +235,8 @@ class ExpenseReachabilityTest extends TestCase
         }
 
         $agent = $this->quickActions($this->html($this->user('agent', 'Amina Nabukenya')));
-        $this->assertSame(4, substr_count($agent, 'hover:border-green-300'), 'The send card, the withdrawal, the hand-in and the spending book.');
-        $this->assertSame(4, substr_count($agent, 'w-10 h-10 shrink-0 rounded-full'), 'Each tile carries one 40px mark.');
+        $this->assertSame(3, substr_count($agent, 'hover:border-green-300'), 'The send card, the withdrawal and the hand-in.');
+        $this->assertSame(3, substr_count($agent, 'w-10 h-10 shrink-0 rounded-full'), 'Each tile carries one 40px mark.');
     }
 
     public function test_the_board_offers_no_typed_hand_in_anymore(): void
@@ -286,9 +290,13 @@ class ExpenseReachabilityTest extends TestCase
     {
         $agent = $this->user('agent', 'Amina Nabukenya');
 
-        foreach (['/transactions/create', '/expenses', '/expenses/create'] as $path) {
+        $this->flushSession();
+        $this->actingAs($agent)->get('/transactions/create')->assertOk();
+
+        // She ruled the agent role does no expenses at all, so every door of the module is shut.
+        foreach (['/expenses', '/expenses/create'] as $path) {
             $this->flushSession();
-            $this->actingAs($agent)->get($path)->assertOk();
+            $this->actingAs($agent)->get($path)->assertForbidden();
         }
 
         $this->flushSession();

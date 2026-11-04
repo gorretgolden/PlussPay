@@ -91,7 +91,7 @@ class DashboardSpendingTodayTest extends TestCase
 
     public function test_a_desk_reads_its_own_spending_on_the_board(): void
     {
-        $faith = $this->user('agent', 'Faith Nansere');
+        $faith = $this->user('super-agent', 'Faith Nansere');
         $this->spent($faith, 'UGX', 'Transport', '45000.00');
         $this->spent($faith, 'UGX', 'Airtime and internet', '20000.00');
 
@@ -106,8 +106,8 @@ class DashboardSpendingTodayTest extends TestCase
     public function test_the_office_reads_every_desk_split_by_country(): void
     {
         $office = $this->user('superadmin', 'Gorret Nabatanzi');
-        $faith = $this->user('agent', 'Faith Nansere');
-        $mei = $this->user('agent', 'Mei Chen', 'CN');
+        $faith = $this->user('super-agent', 'Faith Nansere');
+        $mei = $this->user('super-agent', 'Mei Chen', 'CN');
 
         $this->spent($faith, 'UGX', 'Transport', '45000.00');
         $this->spent($mei, 'RMB', 'Salaries', '3000.00');
@@ -125,8 +125,8 @@ class DashboardSpendingTodayTest extends TestCase
 
     public function test_a_desk_never_sees_another_desks_spending(): void
     {
-        $faith = $this->user('agent', 'Faith Nansere');
-        $mei = $this->user('agent', 'Mei Chen', 'CN');
+        $faith = $this->user('super-agent', 'Faith Nansere');
+        $mei = $this->user('super-agent', 'Mei Chen', 'CN');
 
         $this->spent($faith, 'UGX', 'Transport', '45000.00');
         $this->spent($mei, 'RMB', 'Salaries', '3000.00');
@@ -140,8 +140,12 @@ class DashboardSpendingTodayTest extends TestCase
 
     public function test_a_day_with_no_spending_says_so_and_a_role_without_the_book_gets_no_card(): void
     {
-        $faith = $this->user('agent', 'Faith Nansere');
+        $faith = $this->user('super-agent', 'Faith Nansere');
         $this->assertStringContainsString('Nothing recorded as spent today', $this->card($faith));
+
+        // She ruled the agent role does no expenses at all, so an agent's board carries no card.
+        $agent = $this->user('agent', 'Amina Nabukenya');
+        $this->assertSame('', $this->card($agent));
 
         $desk = $this->user('staff', 'Office Desk');
         $this->assertSame('', $this->card($desk), 'No reach into the book, so no figure to check.');
@@ -150,7 +154,7 @@ class DashboardSpendingTodayTest extends TestCase
     public function test_the_card_counts_the_day_it_was_recorded_and_a_cancelled_entry_goes_back_off(): void
     {
         $office = $this->user('admin', 'Grace Naigaga');
-        $amina = $this->user('agent', 'Amina Nabukenya');
+        $amina = $this->user('super-agent', 'Amina Lead');
 
         $yesterday = $this->spent($amina, 'UGX', 'Supplies', '30000.00');
         $yesterday->forceFill(['created_at' => now()->subDay()])->save();
@@ -170,7 +174,7 @@ class DashboardSpendingTodayTest extends TestCase
     public function test_the_board_and_the_spending_book_split_the_same_rows_the_same_way(): void
     {
         $office = $this->user('admin', 'Grace Naigaga');
-        $amina = $this->user('agent', 'Amina Nabukenya');
+        $amina = $this->user('super-agent', 'Amina Lead');
         $this->spent($amina, 'UGX', 'Transport', '45000.00');
 
         $book = $this->actingAs($office)->get('/expenses')->assertOk()->getContent();

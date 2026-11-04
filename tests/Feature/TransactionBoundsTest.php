@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\AccountLedger;
+use App\Support\PermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Spatie\Permission\Models\Permission;
@@ -30,24 +31,31 @@ class TransactionBoundsTest extends TestCase
     {
         parent::setUp();
 
+        // The desk roles carry their real abilities rather than borrowing them from another
+        // test's permission cache: the booking gate and the expense gate are what these
+        // tests walk through, so the roles must hold those pens themselves.
+        foreach (['agent', 'super-agent'] as $role) {
+            Role::firstOrCreate(['name' => $role, 'guard_name' => 'web'])
+                ->syncPermissions(PermissionCatalog::defaults()[$role]);
+        }
+
         Permission::firstOrCreate(['name' => 'bulk-import-transactions', 'guard_name' => 'web']);
-        $role = Role::firstOrCreate(['name' => 'agent', 'guard_name' => 'web']);
-        $role->givePermissionTo('bulk-import-transactions');
+        Role::findByName('agent', 'web')->givePermissionTo('bulk-import-transactions');
 
         ExchangeRate::setPair('USD', 'UGX', 3760, 3750, 3760);
         ExchangeRate::setPair('USD', 'RMB', 7.24, 7.24, 7.24);
     }
 
-    private function user(string $country = 'UG'): User
+    private function user(string $country = 'UG', string $role = 'agent'): User
     {
         $user = User::create([
-            'name' => 'Desk Agent',
+            'name' => $role === 'super-agent' ? 'Lead Desk' : 'Desk Agent',
             'email' => 'bounds'.uniqid().'@plussave.test',
             'password' => 'Password123',
             'is_active' => true,
             'country' => $country,
         ]);
-        $user->assignRole('agent');
+        $user->assignRole($role);
 
         return $user;
     }
@@ -75,9 +83,9 @@ class TransactionBoundsTest extends TestCase
             ?? ExpenseCategory::orderBy('id')->value('id');
     }
 
-    private function expense(User $agent, Account $from, string $amount): \Illuminate\Testing\TestResponse
+    private function expense(User $desk, Account $from, string $amount): \Illuminate\Testing\TestResponse
     {
-        return $this->actingAs($agent)->post('/expenses', [
+        return $this->actingAs($desk)->post('/expenses', [
             'category_id' => $this->headId(),
             'description' => 'Boda to the Mbale customer',
             'amount' => $amount,
@@ -177,11 +185,13 @@ class TransactionBoundsTest extends TestCase
     {
         Setting::set('max_transaction_ugx', '10000', 'float', 'transaction');
 
-        $agent = $this->user();
-        $wallet = Account::walletFor($agent, 'UGX');
+        // She ruled the agent role does no expenses at all, so the desk that records spending
+        // here is the lead agent.
+        $lead = $this->user('UG', 'super-agent');
+        $wallet = Account::walletFor($lead, 'UGX');
         AccountLedger::record($wallet, 'opening_balance', '900000.00', 'Cash collected on deliveries');
 
-        $response = $this->expense($agent, $wallet, '20000');
+        $response = $this->expense($lead, $wallet, '20000');
 
         $response->assertSessionHasErrors('amount');
         $this->assertStringContainsString('largest', (string) session('errors')->first('amount'));
@@ -192,11 +202,12 @@ class TransactionBoundsTest extends TestCase
     {
         Setting::set('min_transaction_ugx', '1000', 'float', 'transaction');
 
-        $agent = $this->user();
-        $wallet = Account::walletFor($agent, 'UGX');
+        // The desk that records spending is the lead agent now, not a plain agent.
+        $lead = $this->user('UG', 'super-agent');
+        $wallet = Account::walletFor($lead, 'UGX');
         AccountLedger::record($wallet, 'opening_balance', '900000.00', 'Cash collected on deliveries');
 
-        $response = $this->expense($agent, $wallet, '500');
+        $response = $this->expense($lead, $wallet, '500');
 
         $response->assertSessionHasErrors('amount');
         $this->assertStringContainsString('smallest', (string) session('errors')->first('amount'));

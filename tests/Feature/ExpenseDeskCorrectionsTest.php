@@ -22,6 +22,9 @@ use Tests\TestCase;
  * desk takes or because the account named does not hold it, is refused before the books are
  * touched. And the words of an entry that is already paid can be corrected by the person who
  * recorded it, while the money it moved stays exactly as it was posted.
+ *
+ * The desk that records spending is the lead agent now: she ruled on 2026-11-04 that the agent
+ * role does no expenses at all, so the desk below is read through the lead.
  */
 class ExpenseDeskCorrectionsTest extends TestCase
 {
@@ -57,9 +60,9 @@ class ExpenseDeskCorrectionsTest extends TestCase
         return $user;
     }
 
-    private function wallet(User $agent, string $amount = '900000.00'): Account
+    private function wallet(User $lead, string $amount = '900000.00'): Account
     {
-        $wallet = Account::walletFor($agent, 'UGX');
+        $wallet = Account::walletFor($lead, 'UGX');
         AccountLedger::record($wallet, 'opening_balance', $amount, 'Cash collected on deliveries');
 
         return $wallet;
@@ -85,12 +88,12 @@ class ExpenseDeskCorrectionsTest extends TestCase
 
     public function test_the_drawer_names_itself_with_the_money_it_holds_and_is_chosen_first(): void
     {
-        $agent = $this->user('agent', 'Amina Nabukenya');
-        $this->wallet($agent);
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $this->wallet($lead);
 
-        $html = $this->actingAs($agent)->get('/expenses/create')->assertOk()->getContent();
+        $html = $this->actingAs($lead)->get('/expenses/create')->assertOk()->getContent();
 
-        $this->assertStringContainsString('Amina Nabukenya (UGX) (900,000)', $html,
+        $this->assertStringContainsString('Amina Lead (UGX) (900,000)', $html,
             'The balance is read inside the choice itself, not on a line below it.');
         $this->assertStringNotContainsString('(UGX) (UGX', $html, 'One currency code, not two.');
         $this->assertLessThan(strpos($html, 'Amount paid'), strpos($html, 'Paid out of'),
@@ -99,10 +102,10 @@ class ExpenseDeskCorrectionsTest extends TestCase
 
     public function test_the_method_select_opens_on_a_choice_rather_than_nothing_recorded(): void
     {
-        $agent = $this->user('agent', 'Amina Nabukenya');
-        $this->wallet($agent);
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $this->wallet($lead);
 
-        $html = $this->actingAs($agent)->get('/expenses/create')->assertOk()->getContent();
+        $html = $this->actingAs($lead)->get('/expenses/create')->assertOk()->getContent();
 
         $this->assertStringNotContainsString('Not recorded', $html);
         $this->assertStringContainsString('Choose how it was paid', $html);
@@ -111,10 +114,10 @@ class ExpenseDeskCorrectionsTest extends TestCase
 
     public function test_an_amount_under_the_smallest_entry_the_desk_takes_is_refused(): void
     {
-        $agent = $this->user('agent', 'Amina Nabukenya');
-        $wallet = $this->wallet($agent);
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $wallet = $this->wallet($lead);
 
-        $this->typed($agent, $wallet, '500.00')->assertSessionHasErrors('amount');
+        $this->typed($lead, $wallet, '500.00')->assertSessionHasErrors('amount');
 
         $this->assertStringContainsString('UGX 1,000', session('errors')->first('amount'));
         $this->assertSame(0, Expense::count());
@@ -124,10 +127,10 @@ class ExpenseDeskCorrectionsTest extends TestCase
 
     public function test_nothing_is_recorded_for_free(): void
     {
-        $agent = $this->user('agent', 'Amina Nabukenya');
-        $wallet = $this->wallet($agent);
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $wallet = $this->wallet($lead);
 
-        $this->typed($agent, $wallet, '0')->assertSessionHasErrors('amount');
+        $this->typed($lead, $wallet, '0')->assertSessionHasErrors('amount');
 
         $this->assertSame(0, Expense::count());
         $this->assertSame(900000.0, (float) $wallet->fresh()->balance());
@@ -135,10 +138,10 @@ class ExpenseDeskCorrectionsTest extends TestCase
 
     public function test_an_expense_larger_than_the_wallet_holds_is_refused_with_the_figure_named(): void
     {
-        $agent = $this->user('agent', 'Amina Nabukenya');
-        $wallet = $this->wallet($agent);
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $wallet = $this->wallet($lead);
 
-        $this->typed($agent, $wallet, '950000.00')->assertSessionHasErrors('amount');
+        $this->typed($lead, $wallet, '950000.00')->assertSessionHasErrors('amount');
 
         $this->assertStringContainsString('holds UGX 900,000', session('errors')->first('amount'));
         $this->assertSame(0, Expense::count());
@@ -165,10 +168,10 @@ class ExpenseDeskCorrectionsTest extends TestCase
 
     public function test_the_edit_page_offers_every_word_and_no_figure(): void
     {
-        $agent = $this->user('agent', 'Amina Nabukenya');
-        $expense = $this->expense($agent);
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $expense = $this->expense($lead);
 
-        $html = $this->actingAs($agent)->get('/expenses/'.$expense->id.'/edit')->assertOk()->getContent();
+        $html = $this->actingAs($lead)->get('/expenses/'.$expense->id.'/edit')->assertOk()->getContent();
 
         foreach (['name="category_id"', 'name="description"', 'name="expense_date"', 'name="paid_via"', 'name="notes"'] as $field) {
             $this->assertStringContainsString($field, $html, 'Every word of the entry is correctable.');
@@ -184,15 +187,15 @@ class ExpenseDeskCorrectionsTest extends TestCase
 
     public function test_the_person_who_recorded_an_entry_fixes_its_words_and_the_money_stands(): void
     {
-        $agent = $this->user('agent', 'Amina Nabukenya');
-        $wallet = $this->wallet($agent);
-        $this->typed($agent, $wallet)->assertSessionHasNoErrors();
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $wallet = $this->wallet($lead);
+        $this->typed($lead, $wallet)->assertSessionHasNoErrors();
 
         $entry = Expense::firstOrFail();
         $this->assertSame(855000.0, (float) $wallet->fresh()->balance());
 
         $this->flushSession();
-        $this->actingAs($agent)->put('/expenses/'.$entry->id, [
+        $this->actingAs($lead)->put('/expenses/'.$entry->id, [
             'category_id' => $this->headId('Airtime and internet'),
             'description' => 'Airtime for the customer in Mbale',
             'expense_date' => now()->subDay()->toDateString(),
@@ -221,10 +224,10 @@ class ExpenseDeskCorrectionsTest extends TestCase
             'The book line and the entry cannot describe the same cash two ways.');
     }
 
-    public function test_an_agent_cannot_rewrite_someone_elses_spending(): void
+    public function test_a_desk_cannot_rewrite_someone_elses_spending(): void
     {
-        $amina = $this->user('agent', 'Amina Nabukenya');
-        $peter = $this->user('agent', 'Peter Okello');
+        $amina = $this->user('super-agent', 'Amina Lead');
+        $peter = $this->user('super-agent', 'Peter Lead');
 
         $mine = $this->expense($amina);
         $theirs = $this->expense($peter);
@@ -243,13 +246,13 @@ class ExpenseDeskCorrectionsTest extends TestCase
 
     public function test_a_cancelled_entry_is_closed_to_editing(): void
     {
-        $agent = $this->user('agent', 'Amina Nabukenya');
-        $expense = $this->expense($agent);
+        $lead = $this->user('super-agent', 'Amina Lead');
+        $expense = $this->expense($lead);
         $expense->void('Entered twice');
 
         $this->flushSession();
-        $this->actingAs($agent)->get('/expenses/'.$expense->id.'/edit')->assertForbidden();
-        $this->actingAs($agent)->put('/expenses/'.$expense->id, [
+        $this->actingAs($lead)->get('/expenses/'.$expense->id.'/edit')->assertForbidden();
+        $this->actingAs($lead)->put('/expenses/'.$expense->id, [
             'category_id' => $this->headId('Other'),
             'description' => 'Anything',
             'expense_date' => now()->toDateString(),
@@ -261,7 +264,7 @@ class ExpenseDeskCorrectionsTest extends TestCase
     public function test_editing_is_not_a_way_to_write_in_a_book_one_cannot_write_in(): void
     {
         $accountant = $this->user('accountant', 'Faith Nansere');
-        $expense = $this->expense($this->user('agent', 'Amina Nabukenya'));
+        $expense = $this->expense($this->user('super-agent', 'Amina Lead'));
 
         $this->flushSession();
         $this->actingAs($accountant)->get('/expenses/'.$expense->id.'/edit')->assertForbidden();
@@ -275,7 +278,7 @@ class ExpenseDeskCorrectionsTest extends TestCase
     public function test_the_office_fixes_any_desks_words(): void
     {
         $office = $this->user('admin', 'Grace Naigaga');
-        $expense = $this->expense($this->user('agent', 'Amina Nabukenya'));
+        $expense = $this->expense($this->user('super-agent', 'Amina Lead'));
 
         $this->actingAs($office)->get('/expenses/'.$expense->id.'/edit')->assertOk();
         $this->actingAs($office)->put('/expenses/'.$expense->id, [
@@ -289,8 +292,8 @@ class ExpenseDeskCorrectionsTest extends TestCase
 
     public function test_the_correction_is_offered_on_the_list_and_the_entry_page(): void
     {
-        $amina = $this->user('agent', 'Amina Nabukenya');
-        $peter = $this->user('agent', 'Peter Okello');
+        $amina = $this->user('super-agent', 'Amina Lead');
+        $peter = $this->user('super-agent', 'Peter Lead');
 
         $mine = $this->expense($amina);
         $theirs = $this->expense($peter);

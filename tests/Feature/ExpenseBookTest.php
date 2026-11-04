@@ -260,10 +260,11 @@ class ExpenseBookTest extends TestCase
         $this->actingAs($accountant)->post('/expenses/'.$expense->id.'/void', ['reason' => 'Nothing'])
             ->assertForbidden();
 
-        // An agent keeps their own page of the book, not the office's. The entry above was recorded
-        // by the admin, so it is nowhere on the agent's screen, and cancelling it is not theirs.
+        // She ruled the agent role does no expenses at all, so the book is not opened to them even
+        // for their own page. The desk page an agent used to keep is now the lead agent's own page
+        // of the book, which DeskExpenseGuardTest pins.
         $agent = $this->makeUser('agent');
-        $this->actingAs($agent)->get('/expenses')->assertOk()->assertDontSee($expense->reference);
+        $this->actingAs($agent)->get('/expenses')->assertForbidden();
         $this->actingAs($agent)->get('/expenses/'.$expense->id)->assertForbidden();
         $this->actingAs($agent)->post('/expenses/'.$expense->id.'/void', ['reason' => 'Nothing'])
             ->assertForbidden();
