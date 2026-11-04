@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\TotpService;
+use App\Support\PasswordPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -16,14 +17,22 @@ use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
-    private const PASSWORD_RULES = 'string|min:8|max:72|regex:/[a-zA-Z]/|regex:/[0-9]/';
-
     private const PASSWORD_MESSAGES = [
         'password.min' => 'Password must be at least 8 characters.',
         'password.max' => 'Password cannot be longer than 72 characters.',
-        'password.regex' => 'Password must contain both letters and at least one number.',
         'password.confirmed' => 'Password confirmation does not match.',
     ];
+
+    /**
+     * The letters requirement is the only part of the rule Site Mode moves, so the words that
+     * explain it are read when the form is posted rather than fixed beside the other two.
+     *
+     * @return array<string, string>
+     */
+    private static function passwordMessages(): array
+    {
+        return self::PASSWORD_MESSAGES + ['password.regex' => PasswordPolicy::serverMessage()];
+    }
 
     /**
      * First and last name, each starting with a letter. Casing is corrected by
@@ -308,8 +317,8 @@ class UserController extends Controller
         }
 
         $validated = $request->validate([
-            'password' => 'required|'.self::PASSWORD_RULES.'|confirmed',
-        ], self::PASSWORD_MESSAGES + [
+            'password' => 'required|'.PasswordPolicy::ruleString().'|confirmed',
+        ], self::passwordMessages() + [
             'password.required' => 'New password is required.',
         ]);
 
@@ -522,7 +531,7 @@ class UserController extends Controller
             'must_change_password' => 'sometimes|boolean',
             'is_active' => 'sometimes|boolean',
             'restrict_hours' => 'sometimes|boolean',
-            'password' => 'exclude_if:send_password_link,1|' . ($user ? 'nullable|' : 'required|') . self::PASSWORD_RULES . '|confirmed',
+            'password' => 'exclude_if:send_password_link,1|' . ($user ? 'nullable|' : 'required|') . PasswordPolicy::ruleString() . '|confirmed',
             'role' => 'required|exists:roles,name',
             'country' => ['nullable', Rule::in(array_keys(User::COUNTRIES))],
             'timezone' => ['nullable', Rule::in(array_keys(Setting::TIMEZONES))],
@@ -530,7 +539,7 @@ class UserController extends Controller
             'days.*' => 'integer|min:1|max:7|distinct',
             'allowed_from' => 'required_if:restrict_hours,1|nullable|date_format:H:i',
             'allowed_to' => 'required_if:restrict_hours,1|nullable|date_format:H:i|different:allowed_from',
-        ], self::PASSWORD_MESSAGES + [
+        ], self::passwordMessages() + [
             'name.required' => 'Full name is required.',
             'name.min' => 'Name must be at least 3 characters.',
             'name.regex' => self::NAME_MESSAGE,

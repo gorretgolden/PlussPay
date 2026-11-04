@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Support\PasswordPolicy;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Mailable;
@@ -15,7 +16,17 @@ use Illuminate\Support\Str;
 
 class UserPasswordController extends Controller
 {
-    private const RULES = ['required', 'string', 'min:8', 'max:72', 'regex:/[a-zA-Z]/', 'regex:/[0-9]/', 'confirmed'];
+    /**
+     * Read when the form is posted rather than baked into a constant, because Site Mode can move
+     * between the deploy and the click, and a password typed into a Testing desk must not be
+     * judged by the rule a production site would apply to it.
+     *
+     * @return list<string>
+     */
+    private static function rules(): array
+    {
+        return ['required', ...PasswordPolicy::rules(), 'confirmed'];
+    }
 
     public function enroll()
     {
@@ -29,7 +40,9 @@ class UserPasswordController extends Controller
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'email' => 'required|email|max:100',
             'token' => 'required|string|max:200',
-            'password' => self::RULES,
+            'password' => self::rules(),
+        ], [
+            'password.regex' => PasswordPolicy::serverMessage(),
         ]);
         if ($validator->fails()) {
             return $request->expectsJson()
@@ -70,9 +83,10 @@ class UserPasswordController extends Controller
     {
         $validated = $request->validate([
             'current_password' => ['required', 'current_password'],
-            'password' => [...self::RULES, 'different:current_password'],
+            'password' => [...self::rules(), 'different:current_password'],
         ], [
             'current_password.current_password' => 'Current password is wrong.',
+            'password.regex' => PasswordPolicy::serverMessage(),
         ]);
 
         $this->savePassword($request->user(), $validated['password']);
