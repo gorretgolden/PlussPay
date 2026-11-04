@@ -218,6 +218,21 @@ class User extends Authenticatable
         return false;
     }
 
+    /**
+     * Whether this person hands cash up to a lead agent, so whether any screen should offer the
+     * pen. An ordinary hand in Uganda collects notes over the counter and owes them to a lead; a
+     * lead already holds what the others gave him, and a desk in China pays receivers out of what
+     * was sent to it instead of handing anything up. Both the board and the transactions list ask
+     * this one question, so a shortcut cannot point at a page that then refuses the button.
+     */
+    public function mayHandInCash(): bool
+    {
+        return $this->can('view-wallets')
+            && $this->hasRole('agent')
+            && ! $this->hasRole('super-agent')
+            && ($this->country ?: self::DEFAULT_COUNTRY) !== 'CN';
+    }
+
     public function recordFailedLogin(): void
     {
         $maxAttempts = (int) \App\Models\Setting::get('max_login_attempts', 5);

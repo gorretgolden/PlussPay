@@ -124,15 +124,18 @@ class ExpenseReachabilityTest extends TestCase
         // A desk agent books transfers and logs what they spent out of the cash in hand, so the
         // spending tile hands him the pen. The counter, the prices and the customer list stay with
         // the office and the super agent. Each check reads the shortcut card itself, because the
-        // sidebar carries the same words further up the page. Handing cash in is not a tile: it is
-        // the per-transfer modal on the Transactions page.
+        // sidebar carries the same words further up the page. Handing cash in is a tile, and it is
+        // a way in rather than a form: it opens the book narrowed to the transfers whose money is
+        // still in his hand, where each row carries the modal that raises the request.
         $agentPage = $this->html($this->user('agent', 'Amina Nabukenya'));
         $agent = $this->quickActions($agentPage);
         $this->assertStringContainsString('>Send Money to China</span>', $agent);
         $this->assertStringNotContainsString('>Send Money to Uganda</span>', $agent, 'Uganda is where this agent already stands.');
         $this->assertStringContainsString('>Record Expense</span>', $agent, 'The desk that paid the cash out is the desk that records it.');
         $this->assertStringContainsString('Log what you spent today', $agent);
-        $this->assertStringNotContainsString('>Hand Cash In</span>', $agent, 'The typed hand-in tile is gone; the modal on the Transactions page is the way in.');
+        $this->assertStringContainsString('>Hand in Cash</span>', $agent, 'A hand holding collected notes is offered the way in.');
+        $this->assertStringContainsString('/transactions?stage=cash', $agent, 'The shortcut lands on the money still in hand, not the whole book.');
+        $this->assertStringNotContainsString('>Hand Cash In</span>', $agent, 'The typed flat hand-in tile stays gone; this one only opens the page.');
         $this->assertStringContainsString('>Withdraw Money in Uganda</span>', $agent, 'A desk in Uganda withdraws where its own receivers collect.');
         $this->assertStringNotContainsString('>Withdraw Money in China</span>', $agent, 'The China queue stays on the China Desk page, not as a second tile.');
         foreach (['Record Exchange', 'Exchange Rates', 'Add Customer', 'Transactions'] as $label) {
@@ -145,6 +148,7 @@ class ExpenseReachabilityTest extends TestCase
         // the agents hand over is.
         $lead = $this->quickActions($this->html($lead));
         $this->assertStringNotContainsString('>Hand Cash In</span>', $lead, 'The lead agent receives the hand-in.');
+        $this->assertStringNotContainsString('>Hand in Cash</span>', $lead, 'He holds the cash others already gave him, so no tile sends it further up.');
         foreach (['Send Money to China', 'Send Money to Uganda', 'Withdraw Money in China', 'Withdraw Money in Uganda', 'Approve Cash Hand-In', 'Record Exchange', 'Record Expense', 'Transactions'] as $label) {
             $this->assertStringContainsString('>'.$label.'</span>', $lead, $label.' is a Super Agent shortcut.');
         }
@@ -166,6 +170,7 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringNotContainsString('>Withdraw Money in Uganda</span>', $china, 'The Uganda queue is not this desk\'s counter.');
         $this->assertStringNotContainsString('>Send Money to China</span>', $china);
         $this->assertStringNotContainsString('>Hand Cash In</span>', $china, 'Cash in China is paid to receivers, not handed up to a super agent.');
+        $this->assertStringNotContainsString('>Hand in Cash</span>', $china, 'Nor does the China desk hand anything up; its money leaves at the counter.');
 
         // The accountant checks the spending book and reports on it, so the book is one click away
         // while the pen that writes it is not offered.
@@ -226,8 +231,8 @@ class ExpenseReachabilityTest extends TestCase
         }
 
         $agent = $this->quickActions($this->html($this->user('agent', 'Amina Nabukenya')));
-        $this->assertSame(3, substr_count($agent, 'hover:border-green-300'), 'The send card, the withdrawal and the spending book.');
-        $this->assertSame(3, substr_count($agent, 'w-10 h-10 shrink-0 rounded-full'), 'Each tile carries one 40px mark.');
+        $this->assertSame(4, substr_count($agent, 'hover:border-green-300'), 'The send card, the withdrawal, the hand-in and the spending book.');
+        $this->assertSame(4, substr_count($agent, 'w-10 h-10 shrink-0 rounded-full'), 'Each tile carries one 40px mark.');
     }
 
     public function test_the_board_offers_no_typed_hand_in_anymore(): void
@@ -235,6 +240,9 @@ class ExpenseReachabilityTest extends TestCase
         $agent = $this->user('agent', 'Amina Nabukenya');
 
         $this->assertStringNotContainsString('Hand Cash In', $this->quickActions($this->html($agent)), 'The typed hand-in tile is gone from the board.');
+        // The tile the board does carry only walks him to the page that holds the pen; it is not a
+        // dialog of its own with a figure typed into it.
+        $this->assertStringNotContainsString('openHandInModal', $this->quickActions($this->html($agent)), 'No shortcut on the board opens a hand-in dialog.');
 
         $this->user('super-agent', 'Amina Lead');
 

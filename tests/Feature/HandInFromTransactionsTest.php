@@ -392,4 +392,36 @@ class HandInFromTransactionsTest extends TestCase
 
         $this->assertStringNotContainsString($booking->receipt_number, $this->actingAs($this->office)->get('/transactions?stage=cash')->assertOk()->getContent());
     }
+
+    /**
+     * The shortcut on the board and the pen it opens are checked together, because the complaint
+     * that started this was an agent saying the feature does not exist. A tile that names the job
+     * but lands on a page with no button for it would fail the same test.
+     */
+    public function test_the_agent_board_shortcut_reaches_the_hand_in_pen(): void
+    {
+        $booking = $this->booked('HT-101', $this->agent, 'UGX', '480000', '20000');
+
+        $board = $this->actingAs($this->agent)->get('/dashboard')->assertOk()->getContent();
+        $this->assertStringContainsString('>Hand in Cash</span>', $board, 'The hand holding collected notes is offered the way in.');
+        $this->assertStringContainsString('/transactions?stage=cash', $board, 'The shortcut opens the book narrowed to money still in hand.');
+
+        $book = $this->actingAs($this->agent)->get('/transactions?stage=cash')->assertOk()->getContent();
+        $this->assertStringContainsString($booking->receipt_number, $book, 'The transfer he is holding is on the page the tile opens.');
+        $this->assertStringContainsString('Hand in this cash', $book, 'And that page carries the pen.');
+        $this->assertStringContainsString('id="handInModal"', $book, 'The dialog the pen opens is on the page too.');
+
+        // The mirror: a lead receives what his hands sent up, and the China desk pays its receivers
+        // out of what was sent to it. Neither is offered a shortcut to hand anything further up.
+        $this->assertStringNotContainsString(
+            '>Hand in Cash</span>',
+            $this->actingAs($this->lead)->get('/dashboard')->assertOk()->getContent(),
+            'The lead agent holds the cash already handed up.'
+        );
+        $this->assertStringNotContainsString(
+            '>Hand in Cash</span>',
+            $this->actingAs($this->china)->get('/dashboard')->assertOk()->getContent(),
+            'The China desk pays out rather than handing in.'
+        );
+    }
 }

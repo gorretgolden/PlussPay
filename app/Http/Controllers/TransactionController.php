@@ -72,8 +72,7 @@ class TransactionController extends Controller
      */
     private function handInDesk(User $viewer): array
     {
-        $mayHandIn = $viewer->can('view-wallets') && $viewer->hasRole('agent') && ! $viewer->hasRole('super-agent')
-            && ($viewer->country ?: User::DEFAULT_COUNTRY) !== 'CN';
+        $mayHandIn = $viewer->mayHandInCash();
 
         return [
             $mayHandIn,
