@@ -98,7 +98,7 @@ class DashboardAgentTakenTest extends TestCase
 
             $this->assertSame(3, substr_count($html, 'Taken By Agents'), $overseer->name.' gets the card in all three windows.');
             $this->assertSame(3, substr_count($html, 'UGX 561,000'), $overseer->name.' reads the agents\' principal and charge summed.');
-            $this->assertStringContainsString('principal plus charge collected at the counter', $html);
+            $this->assertStringContainsString('principal plus charge at the counter', $html);
         }
     }
 

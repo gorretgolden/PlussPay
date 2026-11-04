@@ -12,9 +12,10 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * The Overview card that shows the money still to be sent: pending bookings summed, stamped with
- * the age of the newest one. It sits beside Sent so the two never disagree, and it appears in
- * all three windows.
+ * The Overview figure for the money still to settle: pending bookings summed, stamped with the age
+ * of the newest one. It sits beside Amount sent so the two never disagree, and it appears in all
+ * three windows. It used to be called "To Be Received" under the line "money to be sent", which
+ * named the opposite direction from the figure beside it.
  */
 class DashboardToBeReceivedTest extends TestCase
 {
@@ -77,7 +78,7 @@ class DashboardToBeReceivedTest extends TestCase
         return $this->actingAs($viewer)->get('/dashboard')->assertOk()->getContent();
     }
 
-    public function test_pending_bookings_sum_onto_the_to_be_received_card_in_every_window(): void
+    public function test_pending_bookings_sum_onto_the_settling_figure_in_every_window(): void
     {
         $agent = $this->user('agent');
         $admin = $this->user('admin');
@@ -102,13 +103,13 @@ class DashboardToBeReceivedTest extends TestCase
 
         $html = $this->dashboardHtml($admin);
 
-        $this->assertSame(3, substr_count($html, 'To Be Received'), 'the card sits in all three windows.');
-        $this->assertSame(3, substr_count($html, 'money to be sent'), 'the note reads money to be sent.');
+        $this->assertSame(3, substr_count($html, 'Money still to settle'), 'the figure sits in all three windows.');
+        $this->assertSame(3, substr_count($html, '>2 bookings open<'), 'the note counts the bookings still open.');
         $this->assertSame(3, substr_count($html, 'UGX 686,000'), 'principal and charge from both currencies, completed rows left out.');
         // Each window's card carries the age of its newest waiting booking.
         $this->assertSame(
             3,
-            preg_match_all('/money to be sent<\/div>\s*<p class="[^"]*">\s*<time [^>]*>Updated \d+ (second|minute|hour|day)s? ago/', $html),
+            preg_match_all('/bookings open<\/div>\s*<p class="[^"]*">\s*<time [^>]*>Updated \d+ (second|minute|hour|day)s? ago/', $html),
             'a stamp sits inside the card in every window.'
         );
     }
@@ -119,14 +120,14 @@ class DashboardToBeReceivedTest extends TestCase
 
         $html = $this->dashboardHtml($admin);
 
-        $this->assertSame(3, substr_count($html, 'To Be Received'));
+        $this->assertSame(3, substr_count($html, 'Money still to settle'));
         $this->assertSame(
             0,
-            preg_match_all('/money to be sent<\/div>\s*<p class="[^"]*">\s*<time /', $html),
+            preg_match_all('/nothing open<\/div>\s*<p class="[^"]*">\s*<time /', $html),
             'a zero pile has no movement to stamp.'
         );
 
-        preg_match_all('/To Be Received<\/div>\s*<div class="stat-value[^"]*"[^>]*>([^<]+)<\/div>/', $html, $values);
+        preg_match_all('/Money still to settle<\/div>\s*<div class="stat-value[^"]*"[^>]*>([^<]+)<\/div>/', $html, $values);
         $this->assertSame(3, count($values[1]));
         foreach ($values[1] as $value) {
             $this->assertSame('UGX 0', $value);

@@ -176,20 +176,20 @@ class UgandaPayoutTest extends TestCase
         // A desk in Uganda sees the queue at its own counter and not the China one.
         $this->actingAs($this->agent)->get('/dashboard')
             ->assertOk()
-            ->assertSee('Withdraw Money in Uganda')
+            ->assertSee('Pay out in Uganda')
             ->assertSee('1 receiver waiting to be paid')
-            ->assertDontSee('Withdraw Money in China');
+            ->assertDontSee('Pay out in China');
 
         // The China desk keeps its own queue, and the Uganda one is not its tile.
         $this->actingAs($this->china)->get('/dashboard')
             ->assertOk()
-            ->assertSee('Withdraw Money in China')
-            ->assertDontSee('Withdraw Money in Uganda');
+            ->assertSee('Pay out in China')
+            ->assertDontSee('Pay out in Uganda');
 
         // Whoever sees the whole book is offered both queues.
         $this->actingAs($this->office)->get('/dashboard')
             ->assertOk()
-            ->assertSee('Withdraw Money in China')
-            ->assertSee('Withdraw Money in Uganda');
+            ->assertSee('Pay out in China')
+            ->assertSee('Pay out in Uganda');
     }
 }

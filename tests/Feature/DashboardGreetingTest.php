@@ -51,7 +51,7 @@ class DashboardGreetingTest extends TestCase
         $this->flushSession();
         $html = $this->actingAs($this->user('agent', 'Amina Nabukenya'))->get('/dashboard')->getContent();
 
-        preg_match('/<p class="text-gray-900 mt-1">([^<]*)<\/p>/', $html, $match);
+        preg_match('/<p class="[^"]*text-gray-900">([^<]*)<\/p>/', $html, $match);
 
         return trim($match[1] ?? '');
     }
@@ -73,11 +73,11 @@ class DashboardGreetingTest extends TestCase
         $this->travelTo(now()->setTime(3, 14));
 
         $html = $this->actingAs($this->user('superadmin', 'Super Admin'))->get('/dashboard')->getContent();
-        $this->assertStringContainsString('<p class="text-gray-900 mt-1">Hello, Super Admin.</p>', $html);
+        $this->assertMatchesRegularExpression('#<p class="[^"]*text-gray-900">Hello, Super Admin\.</p>#', $html);
         $this->assertStringNotContainsString('Hello, Super.', $html, 'The first word of a role is not a person.');
 
         $html = $this->actingAs($this->user('agent', 'Gorret Oketayut'))->get('/dashboard')->getContent();
-        $this->assertStringContainsString('<p class="text-gray-900 mt-1">Hello, Gorret Oketayut.</p>', $html);
+        $this->assertMatchesRegularExpression('#<p class="[^"]*text-gray-900">Hello, Gorret Oketayut\.</p>#', $html);
     }
 
     public function test_the_badge_carries_the_role_display_name_the_sidebar_uses(): void

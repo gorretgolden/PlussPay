@@ -72,8 +72,8 @@ class SuperAgentDemoFlowTest extends TestCase
         $this->signIn('superagent@plussave.com');
 
         $this->get('/dashboard')->assertOk()
-            ->assertSee('Approve Cash Hand-In')
-            ->assertSee('Approve the cash agents hand over')
+            ->assertSee('Approve hand-ins')
+            ->assertSee('Nothing is waiting for you yet')
             ->assertSee('Charges Collected')
             ->assertDontSee('Cash Handed To You');
     }
@@ -126,7 +126,7 @@ class SuperAgentDemoFlowTest extends TestCase
         // The board counts the waiting request on the Approve shortcut, which opens the cash
         // hand-ins page where the request itself is named and decided.
         $this->get('/dashboard')->assertOk()
-            ->assertSee('Approve Cash Hand-In')
+            ->assertSee('Approve hand-ins')
             ->assertSee('1 request waiting for you')
             ->assertSee(route('cash-handovers.index'))
             ->assertDontSee('Cash Handed To You');
@@ -142,7 +142,7 @@ class SuperAgentDemoFlowTest extends TestCase
 
         $this->get('/dashboard')->assertOk()
             ->assertSee('UGX 120,000')
-            ->assertSee('Approve the cash agents hand over')
+            ->assertSee('Approve hand-ins')
             ->assertSee('Charges Collected');
     }
 }

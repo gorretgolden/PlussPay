@@ -6,11 +6,15 @@ use App\Models\ExchangeRate;
 use App\Models\RateSnapshot;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\View\Component;
 
 class LiveRateCard extends Component
 {
+    /**
+     * The card carries two lines and nothing else: the price the desk books at, then the market it
+     * is standing on. It used to be a tile per pair with a sparkline and a paragraph of change under
+     * each, which spent a screen of the board on figures a desk reads in a second.
+     */
     public function render(): View
     {
         $user = auth()->user();
@@ -19,66 +23,57 @@ class LiveRateCard extends Component
         $showMarket = $user !== null
             && ($user->hasRole('superadmin') || $user->hasRole('super-agent'));
 
-        $pairs = [];
-        foreach (['UGX' => 'Dollar to shilling', 'RMB' => 'Dollar to yuan'] as $quote => $label) {
+        $desk = [];
+        $market = [];
+
+        foreach (['UGX', 'RMB'] as $quote) {
             $row = ExchangeRate::getActiveRate('USD', $quote);
             $sell = $row ? (float) ($row->sell_rate ?: $row->rate) : null;
 
-            $pairs[$quote] = [
-                'label' => $label,
-                'unit' => $quote,
-                'value' => $sell === null || $sell <= 0 ? null : $this->figure($sell, $quote),
-                'updated_at' => $row?->updated_at,
+            $desk[$quote] = $sell === null || $sell <= 0 ? null : $this->figure($sell, $quote);
+
+            if (! $showMarket) {
+                continue;
+            }
+
+            $latest = RateSnapshot::latestFor('USD', $quote);
+
+            if (! $latest) {
+                continue;
+            }
+
+            $history = RateSnapshot::dailyCloses('USD', $quote, 30);
+            $previous = $history->count() > 1 ? $history[$history->count() - 2] : null;
+            $change = $previous ? (float) $latest->rate - (float) $previous->rate : null;
+            $percent = $change !== null && (float) $previous->rate > 0
+                ? ($change / (float) $previous->rate) * 100
+                : null;
+
+            $market[$quote] = [
+                'value' => $this->figure((float) $latest->rate, $quote),
+                // A card with one reading on it has nothing to compare the latest to, and saying so
+                // twice on one line is noise rather than information. The clause is simply absent
+                // until there is a second day to move from.
+                'change' => $previous ? $this->changeText($change, $percent, $previous->rate_date) : null,
+                'source' => $latest->source,
             ];
         }
 
-        $market = [];
-        $lastPulled = null;
-        $stale = false;
-
-        if ($showMarket) {
-            $lastPulled = RateSnapshot::lastPulledAt();
-            $stale = $lastPulled !== null && $lastPulled->lt(now()->subHours(26));
-
-            foreach (['UGX', 'RMB'] as $quote) {
-                $latest = RateSnapshot::latestFor('USD', $quote);
-
-                if (! $latest) {
-                    continue;
-                }
-
-                $history = RateSnapshot::dailyCloses('USD', $quote, 30);
-                $previous = $history->count() > 1 ? $history[$history->count() - 2] : null;
-                $change = $previous ? (float) $latest->rate - (float) $previous->rate : null;
-                $percent = $change !== null && (float) $previous->rate > 0
-                    ? ($change / (float) $previous->rate) * 100
-                    : null;
-                $rising = $change !== null && $change > 0;
-                $falling = $change !== null && $change < 0;
-
-                $market[] = [
-                    'label' => $quote === 'UGX' ? 'shilling' : 'yuan',
-                    'unit' => $quote,
-                    'display' => $this->figure((float) $latest->rate, $quote),
-                    'change_text' => $this->changeText($change, $percent, $previous?->rate_date, $quote),
-                    'source' => $latest->source,
-                    'tone' => $rising ? 'text-green-700' : ($falling ? 'text-red-700' : 'text-gray-500'),
-                    'line' => $rising ? 'text-green-700' : ($falling ? 'text-red-700' : 'text-gray-400'),
-                    'points' => $history->count() > 1 ? $this->points($history) : null,
-                    'chart_label' => $history->count() > 1
-                        ? 'USD to '.$quote.' from '.$this->figure((float) $history->first()->rate, $quote)
-                            .' on '.$history->first()->rate_date->format('d M').' to '
-                            .$this->figure((float) $latest->rate, $quote).' on '.$latest->rate_date->format('d M')
-                        : '',
-                ];
-            }
-        }
-
-        // The two readings can come from different feeds when the first one fails, so the footer
+        // The two readings can come from different feeds when the first one fails, so the footnote
         // names every feed that supplied a figure rather than attributing both to one.
         $sources = collect($market)->pluck('source')->unique()->values()->all();
 
-        return view('components.live-rate-card', compact('pairs', 'market', 'lastPulled', 'sources', 'stale', 'showMarket'));
+        $lastPulled = $showMarket ? RateSnapshot::lastPulledAt() : null;
+
+        // Hourly pulls mean anything older than a day and a bit is a pull that did not run, not a
+        // quiet market. The badge says how long ago the last one landed, because "stale" on its own
+        // cannot be told apart from a feed that is simply slow to publish.
+        $stale = $showMarket && ($lastPulled === null || $lastPulled->lt(now()->subHours(26)));
+        $staleSince = $lastPulled === null ? null : $lastPulled->diffForHumans(['parts' => 1]);
+
+        return view('components.live-rate-card', compact(
+            'desk', 'market', 'lastPulled', 'sources', 'stale', 'staleSince', 'showMarket'
+        ));
     }
 
     private function figure(float $value, string $quote): string
@@ -88,36 +83,17 @@ class LiveRateCard extends Component
         return rtrim(rtrim(number_format($value, $decimals, '.', ','), '0'), '.');
     }
 
-    private function changeText(?float $change, ?float $percent, ?Carbon $since, string $quote): string
-    {
-        if ($since === null) {
-            return 'First reading recorded.';
-        }
-
-        if ($change === null || abs($change) < 0.0000005) {
-            return 'Unchanged since '.$since->format('d M').'.';
-        }
-
-        return ($change > 0 ? 'Up' : 'Down').' '.$this->figure(abs($change), $quote)
-            .' ('.number_format(abs((float) $percent), 2).'%) since '.$since->format('d M').'.';
-    }
-
     /**
-     * Points for a 120 by 36 sparkline. A flat market sits on the middle line instead
-     * of dividing by a zero range.
+     * One clause, not a sentence: the figure and the day it moved from, which is all the grey line
+     * beside the market reading has room for.
      */
-    private function points(Collection $history): string
+    private function changeText(?float $change, ?float $percent, Carbon $since): string
     {
-        $values = $history->map(fn ($reading) => (float) $reading->rate)->values();
-        $count = $values->count();
-        $minimum = (float) $values->min();
-        $range = (float) $values->max() - $minimum;
+        if ($change === null || abs($change) < 0.0000005) {
+            return 'unchanged since '.$since->format('j M');
+        }
 
-        return $values->map(function (float $value, int $index) use ($count, $minimum, $range): string {
-            $x = $count === 1 ? 60 : ($index / ($count - 1)) * 120;
-            $y = $range == 0.0 ? 18 : 30 - (($value - $minimum) / $range) * 24;
-
-            return round($x, 2).','.round($y, 2);
-        })->implode(' ');
+        return ($change > 0 ? 'up ' : 'down ').rtrim(rtrim(number_format(abs($change), 2, '.', ''), '0'), '.')
+            .' ('.number_format(abs((float) $percent), 2).'%), '.$since->format('j M');
     }
 }

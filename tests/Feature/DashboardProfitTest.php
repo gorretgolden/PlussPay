@@ -85,10 +85,11 @@ class DashboardProfitTest extends TestCase
         }
 
         // UGX 20,000 kept, UGX 10,000 from the shilling spread, a flat yuan pair, UGX 30,000
-        // overall. The charge prints as whole shillings, the computed figures to one decimal.
+        // overall. The charge prints as whole shillings, and a computed figure keeps its decimal
+        // only when there is one to keep.
         $this->assertStringContainsString('UGX 20,000', $html);
-        $this->assertStringContainsString('UGX 10,000.0', $html);
-        $this->assertStringContainsString('UGX 30,000.0', $html);
+        $this->assertStringContainsString('UGX 10,000', $html);
+        $this->assertStringContainsString('UGX 30,000', $html);
     }
 
     public function test_a_yuan_loss_shows_against_the_day_it_happened(): void
@@ -115,9 +116,9 @@ class DashboardProfitTest extends TestCase
 
         $html = $this->actingAs($this->user('admin'))->get('/dashboard')->getContent();
 
-        // The rule is stated once, in the tooltip beside the heading, and each window that holds
-        // the transfer counts it: today sits inside this month, which sits inside all time.
-        $this->assertSame(1, substr_count($html, 'Transfers booked before their rates were stored count as 0'));
+        // The board says which windows hold an unpriced transfer rather than explaining the rule
+        // behind it, which read like a note left in the code for whoever came next.
+        $this->assertStringNotContainsString('count as 0', $html);
         $this->assertSame(3, substr_count($html, '>1 without rates<'));
     }
 

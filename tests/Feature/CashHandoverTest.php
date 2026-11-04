@@ -102,7 +102,7 @@ class CashHandoverTest extends TestCase
         // shortcut and points there, so one lead's request never appears on the other lead's board.
         $this->flushSession();
         $this->actingAs($lead)->get('/dashboard')->assertOk()
-            ->assertSee('Approve Cash Hand-In')
+            ->assertSee('Approve hand-ins')
             ->assertSee('1 request waiting for you')
             ->assertSee(route('cash-handovers.index'))
             ->assertDontSee('Cash Handed To You')
@@ -110,7 +110,8 @@ class CashHandoverTest extends TestCase
 
         $this->flushSession();
         $this->actingAs($other)->get('/dashboard')->assertOk()
-            ->assertSee('Approve the cash agents hand over')
+            ->assertSee('Approve hand-ins')
+            ->assertSee('Nothing is waiting for you yet')
             ->assertDontSee($handover->reference);
     }
 

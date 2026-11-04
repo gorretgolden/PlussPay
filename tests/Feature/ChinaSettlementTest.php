@@ -484,7 +484,7 @@ class ChinaSettlementTest extends TestCase
 
         $this->actingAs($this->china)->get('/dashboard')
             ->assertOk()
-            ->assertSee('Withdraw Money in China')
+            ->assertSee('Pay out in China')
             ->assertSee('1 receiver waiting to be paid')
             ->assertDontSee('Hand Cash In');
 
@@ -502,7 +502,7 @@ class ChinaSettlementTest extends TestCase
         // The lead agent keeps the same shortcut and count, as the hand that may clear any desk.
         $this->actingAs($this->lead)->get('/dashboard')
             ->assertOk()
-            ->assertSee('Withdraw Money in China')
+            ->assertSee('Pay out in China')
             ->assertSee('1 receiver waiting to be paid');
 
         $this->actingAs($this->china)->post('/china/payout', [
@@ -738,12 +738,19 @@ class ChinaSettlementTest extends TestCase
 
         AccountLedger::payOutReceiver($paid->fresh(), Account::walletFor($this->china, 'RMB'));
 
+        // Two figures per direction rather than the four yuan cards the board used to carry: what
+        // the desk there still owes and what it has handed over. The pile whose dollars have not
+        // crossed yet is named in the note under the owed figure, because it is the same debt.
         $this->actingAs($this->office)->get('/dashboard')
             ->assertOk()
-            ->assertSee('Yuan To Receive In China')
-            ->assertSee('¥6,750.0')
-            ->assertSee('Yuan In China, Unpaid')
-            ->assertSee('Yuan Paid In China');
+            ->assertSee('To pay in China')
+            ->assertSee('¥13,500.00')
+            ->assertSee('1 pile not sent yet')
+            ->assertSee('Paid in China')
+            ->assertSee('¥6,750.00')
+            ->assertDontSee('Yuan To Receive');
+
+        unset($held, $waiting, $paid);
     }
 
     public function test_the_reports_hub_reports_the_yuan_still_in_uganda_as_pending(): void

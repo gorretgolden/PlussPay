@@ -253,20 +253,29 @@ class FrontendLayoutGuardsTest extends TestCase
         $this->assertStringContainsString('style="--len: {{ strlen($cardValue) }}"', $dashboard);
         $this->assertStringContainsString('whitespace-nowrap', $dashboard);
 
-        // The paragraph that explained the profit figures is a tooltip on the heading now.
+        // The paragraph that explained the profit figures went from a tooltip to nothing at all:
+        // "Transfers booked before their rates were stored count as 0" read like a note left in the
+        // code, and a figure a desk cannot act on does not need a heading of its own.
         $this->assertStringNotContainsString('never guessed', $dashboard);
-        $this->assertSame(1, substr_count($dashboard, 'role="tooltip"'));
+        $this->assertStringNotContainsString('count as 0', $dashboard);
+        $this->assertStringNotContainsString('role="tooltip"', $dashboard);
     }
 
     /**
-     * Eight columns of a receipt table crush into one letter per line on a phone unless the
-     * table is allowed to scroll inside its own card.
+     * The five columns a desk actually reads fit a laptop without sideways travel. The old eight
+     * crushed into one letter per line on a phone, and the two buttons in the last column were a
+     * third way to open a receipt that was already the whole row.
      */
-    public function test_the_recent_transactions_table_scrolls_instead_of_shrinking_its_headers(): void
+    public function test_the_recent_transactions_table_fits_the_screen_and_the_row_is_the_link(): void
     {
         $dashboard = $this->read('resources'.DIRECTORY_SEPARATOR.'views'.DIRECTORY_SEPARATOR.'dashboard.blade.php');
 
-        $this->assertMatchesRegularExpression('/<div class="overflow-x-auto">\s*<table class="w-full min-w-\[\d+px\]/', $dashboard);
-        $this->assertSame(8, substr_count($dashboard, 'tracking-wide whitespace-nowrap">'), 'Every header cell stays on one line.');
+        $this->assertMatchesRegularExpression('/<div class="overflow-x-auto">\s*<table class="w-full/', $dashboard);
+        $this->assertStringNotContainsString('min-w-[760px]', $dashboard, 'The table scrolls only when it genuinely has to.');
+        $this->assertSame(5, substr_count($dashboard, 'tracking-wide whitespace-nowrap">'), 'Every header cell stays on one line.');
+
+        // Each row goes to the booking it shows, so the row does not need buttons inside it.
+        $this->assertStringContainsString('data-row-link=', $dashboard);
+        $this->assertStringNotContainsString('>Print</button>', $dashboard);
     }
 }

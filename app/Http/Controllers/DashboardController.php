@@ -11,11 +11,9 @@ use App\Models\LoginLog;
 use App\Models\SystemLog;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Support\ActivityNews;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 
 class DashboardController extends Controller
 {
@@ -57,14 +55,12 @@ class DashboardController extends Controller
             'avg_ugx_sent' => $all['avg_ugx_sent'],
         ];
 
-        $stats['total_users'] = $user->can('view-users') ? User::where('is_active', true)->count() : 0;
-        $stats['total_agents'] = $user->can('view-users') ? User::role('agent')->where('is_active', true)->count() : 0;
-        $stats['active_rates'] = $user->can('view-exchange-rates') ? ExchangeRate::where('is_active', true)->count() : 0;
-
+        // Five bookings, because the board is a place to see what moved today rather than the book
+        // itself. The Transactions page is where the whole list lives and the table links to it.
         $recentTransactions = Transaction::query()
             ->visibleTo($user)
             ->latest()
-            ->take(10)
+            ->take(5)
             ->get();
 
         $chartData = $this->buildChartData($user, $usdToUgx);
@@ -179,8 +175,12 @@ class DashboardController extends Controller
         }
 
         // The spending book is a different reach from the transfer book: a role that may not open
-        // it gets no card at all rather than a figure it cannot check.
-        $spending = $user->can('view-expenses') ? $this->spendingToday($user) : ['count' => 0, 'desks' => []];
+        // it gets no figure at all rather than a number it cannot check. The figure still has to be
+        // present in every window, because a missing card would read as a window with no spending.
+        $noSpending = ['count' => 0, 'desks' => []];
+        $spending = $user->can('view-expenses')
+            ? $this->spendingWindows($user)
+            : ['today' => $noSpending, 'month' => $noSpending, 'all' => $noSpending];
 
         // The desks the agents answer to get one extra Overview card: the cash those agents
         // collected themselves, principal plus charge, so the whole book's Sent figure can be
@@ -196,25 +196,15 @@ class DashboardController extends Controller
                 ->filter()->unique()->sort()->values()->all()
             : [];
 
-        // What the two far ends of the corridor have actually handed over, windowed by the day
-        // of the payout itself, because that is the day the money moved.
+        // What each end owes a receiver and what each has already handed over, so the board can say
+        // how far the money has travelled in each direction rather than printing one yuan pile that
+        // reads as though China already has it.
         $deskPayouts = $this->payoutWindows($user);
 
-        // The bell beside the clock opens What Happened, and its badge is the same unread
-        // total the sidebar badges are read from, so the two can never disagree. A desk on
-        // the receiving end of no news gets no bell at all.
-        $bellGate = Gate::any(ActivityNews::AUDIENCE);
-        $bellCount = 0;
-
-        if ($bellGate) {
-            try {
-                $bellCount = ActivityNews::badgeCounts($user)['total'];
-            } catch (\Throwable) {
-                // notifications not migrated yet on a fresh deploy; show no badge.
-            }
-        }
-
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'chargesCollected', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'agentTakenCountries', 'deskPayouts', 'greetAs', 'bellGate', 'bellCount'));
+        // The bell used to sit beside the clock here as well as in the sidebar, with its own copy of
+        // the unread total. The sidebar carries the same badge off the same counts, so the board no
+        // longer needs a second one to keep the two honest.
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'chargesCollected', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'agentTakenCountries', 'deskPayouts', 'greetAs'));
     }
 
     /**
@@ -354,45 +344,56 @@ class DashboardController extends Controller
     }
 
     /**
-     * What was spent today, kept apart by the desk that paid it out. The transfers above the fold
-     * are money coming in; this is the money going out on the same day, and until now the only way
-     * to see it was to open the spending book.
+     * What was spent, kept apart by the desk that paid it out and stretched over the same three
+     * windows the Overview reads. Money is coming in above and going out in the same row below, so
+     * both have to answer to the same Today / This Month / All Time switch or one of them is lying.
      *
-     * Today means recorded today rather than dated today, because a fare paid on Friday and typed up
-     * on Monday was made today. The country is read off the account that paid, which is the same rule
-     * the spending book filters by, so the two screens cannot split the same entry two ways.
+     * Spent means recorded in the window rather than dated in it, because a fare paid on Friday and
+     * typed up on Monday was made today. The country is read off the account that paid, which is the
+     * same rule the spending book filters by, so the two screens cannot split the entry two ways.
      *
-     * @return array{count: int, desks: array<int, array<string, mixed>>}
+     * @return array<string, array{count: int, desks: array<int, array<string, mixed>>}>
      */
-    private function spendingToday(User $user): array
+    private function spendingWindows(User $user): array
     {
-        $rows = Expense::with(['account:id,country,currency', 'creator:id,name'])
-            ->where('status', Expense::ACTIVE)
-            ->whereDate('created_at', today())
-            // A desk without the whole book sees its own spending, which is the same reach the
-            // spending page gives it.
-            ->when(! $user->can('view-all-expenses'), fn (Builder $q) => $q->where('created_by', $user->id))
-            ->get();
+        $windows = [
+            'today' => fn (Builder $q) => $q->whereDate('created_at', today()),
+            'month' => fn (Builder $q) => $q->whereBetween('created_at', [now()->startOfMonth(), now()]),
+            'all' => fn (Builder $q) => $q,
+        ];
 
         $ownCountry = $user->country ?: User::DEFAULT_COUNTRY;
         $corridor = array_flip(array_keys(User::COUNTRIES));
 
-        $desks = $rows->groupBy(fn (Expense $row) => $row->account?->country ?: User::DEFAULT_COUNTRY)
-            // Their own desk's money first, the other country after it, in the order the two
-            // countries are declared rather than alphabetically.
-            ->sortBy(fn ($group, string $country) => [$country === $ownCountry ? 0 : 1, $corridor[$country] ?? count($corridor)])
-            ->map(fn ($group, string $country) => [
-                'label' => User::COUNTRIES[$country] ?? $country,
-                'count' => $group->count(),
-                'people' => $group->pluck('creator.name')->filter()->unique()->sort()->values()->all(),
-                'totals' => $group->groupBy('currency')
-                    ->map(fn ($byCurrency) => (string) $byCurrency->sum('amount'))
-                    ->all(),
-            ])
-            ->values()
-            ->all();
+        $sums = [];
 
-        return ['count' => $rows->count(), 'desks' => $desks];
+        foreach ($windows as $window => $restrict) {
+            $rows = $restrict(Expense::with(['account:id,country,currency', 'creator:id,name'])
+                ->where('status', Expense::ACTIVE)
+                // A desk without the whole book sees its own spending, which is the same reach the
+                // spending page gives it.
+                ->when(! $user->can('view-all-expenses'), fn (Builder $q) => $q->where('created_by', $user->id)))
+                ->get();
+
+            $desks = $rows->groupBy(fn (Expense $row) => $row->account?->country ?: User::DEFAULT_COUNTRY)
+                // Their own desk's money first, the other country after it, in the order the two
+                // countries are declared rather than alphabetically.
+                ->sortBy(fn ($group, string $country) => [$country === $ownCountry ? 0 : 1, $corridor[$country] ?? count($corridor)])
+                ->map(fn ($group, string $country) => [
+                    'label' => User::COUNTRIES[$country] ?? $country,
+                    'count' => $group->count(),
+                    'people' => $group->pluck('creator.name')->filter()->unique()->sort()->values()->all(),
+                    'totals' => $group->groupBy('currency')
+                        ->map(fn ($byCurrency) => (string) $byCurrency->sum('amount'))
+                        ->all(),
+                ])
+                ->values()
+                ->all();
+
+            $sums[$window] = ['count' => $rows->count(), 'desks' => $desks];
+        }
+
+        return $sums;
     }
 
     private function usdToUgxRate(): ?float
@@ -506,10 +507,6 @@ class DashboardController extends Controller
                         + COALESCE(SUM(CASE WHEN status = 'pending' THEN charge_amount ELSE 0 END), 0) as pending_usd,
                     MAX(CASE WHEN status = 'pending' THEN created_at ELSE NULL END) as latest_pending_at
                 ")
-                // The yuan each booking promised splits three ways by how far it has actually
-                // travelled, and the six figures come off the same rows as the totals above.
-                ->selectRaw(implode(', ', Transaction::yuanPileSql()))
-                ->selectRaw(implode(', ', Transaction::yuanPileCountSql()))
                 ->toBase()
                 ->first();
 
@@ -527,12 +524,6 @@ class DashboardController extends Controller
                 'pending_ugx' => (float) $row['pending_ugx'],
                 'pending_usd' => (float) $row['pending_usd'],
                 'latest_at' => $row['latest_pending_at'] ? \Illuminate\Support\Carbon::parse($row['latest_pending_at']) : null,
-                'yuan_in_uganda' => (float) $row['rmb_in_uganda'],
-                'yuan_in_china' => (float) $row['rmb_in_china'],
-                'yuan_paid' => (float) $row['rmb_paid'],
-                'yuan_in_uganda_transfers' => (int) $row['transfers_in_uganda'],
-                'yuan_in_china_transfers' => (int) $row['transfers_in_china'],
-                'yuan_paid_transfers' => (int) $row['transfers_paid'],
                 // Derived here from the shillings already summed, so the average cannot disagree
                 // with the Sent figure the way an average of re-converted dollars did.
                 'avg_ugx_sent' => $completed > 0 ? (float) $row['sent_ugx'] / $completed : 0.0,
@@ -582,34 +573,67 @@ class DashboardController extends Controller
     }
 
     /**
-     * The two desks' handed-over money per window, in the currency each receiver was actually
-     * paid. A batch that paid yuan and dollars reads as both figures, and a window with nothing
-     * paid reads as nothing rather than a zero that would look like a figure the desk forgot.
+     * What each end of the corridor still owes receivers and what it has already handed over, per
+     * window, in the money the receiver was actually paid. A batch that paid yuan and dollars reads
+     * as both figures, so a pile never adds up across two wallets.
      *
-     * @return array<string, array{china: array<string, string>, uganda: array<string, string>}>
+     * The paid pile is stamped by the day the money moved, because that is the day the desk did the
+     * work. An open queue does not move, so stamping it the same way would print one identical figure
+     * in all three windows and send the reader hunting for a difference that is not there; it is read
+     * off the day the booking was taken instead, so "what this month's business still owes" is the
+     * question it answers.
+     *
+     * @return array<string, array{china: array<string, mixed>, uganda: array<string, mixed>}>
      */
     private function payoutWindows(User $user): array
     {
-        $windows = [
+        $paidBy = [
             'today' => fn (Builder $q) => $q->whereDate('delivered_at', today()),
             'month' => fn (Builder $q) => $q->whereBetween('delivered_at', [now()->startOfMonth(), now()]),
             'all' => fn (Builder $q) => $q,
         ];
+        $bookedBy = [
+            'today' => fn (Builder $q) => $q->whereDate('created_at', today()),
+            'month' => fn (Builder $q) => $q->whereBetween('created_at', [now()->startOfMonth(), now()]),
+            'all' => fn (Builder $q) => $q,
+        ];
+
+        // settled_at says whether the dollars have crossed, which is the one thing a reader has to
+        // know about an unpaid pile: is it waiting for a hand-over at the far desk or for the money
+        // to leave Uganda at all.
+        $columns = ['id', 'rmb_amount', 'total_usd_equivalent', 'ugx_amount', 'payout_currency', 'destination', 'settled_at'];
 
         $sums = [];
 
-        foreach ($windows as $window => $restrict) {
-            $rows = $restrict(Transaction::query()
-                ->visibleTo($user)
+        foreach (array_keys($paidBy) as $window) {
+            $paid = $paidBy[$window](Transaction::query()->visibleTo($user)
                 ->where('status', 'completed')
                 ->whereNotNull('delivered_at')
                 ->owingPayout())
-                ->get(['id', 'rmb_amount', 'total_usd_equivalent', 'ugx_amount', 'payout_currency', 'destination']);
+                ->get($columns);
 
-            $sums[$window] = [
-                'china' => Transaction::sumPayouts($rows->where('destination', Transaction::TO_CHINA)),
-                'uganda' => Transaction::sumPayouts($rows->where('destination', Transaction::TO_UGANDA)),
-            ];
+            $owed = $bookedBy[$window](Transaction::query()->visibleTo($user)
+                ->where('status', 'completed')
+                ->whereNull('delivered_at')
+                ->owingPayout())
+                ->get($columns);
+
+            foreach (['china' => Transaction::TO_CHINA, 'uganda' => Transaction::TO_UGANDA] as $desk => $destination) {
+                $paidDesk = $paid->where('destination', $destination);
+                $owedDesk = $owed->where('destination', $destination);
+
+                $sums[$window][$desk] = [
+                    'paid' => Transaction::sumPayouts($paidDesk),
+                    'paid_count' => $paidDesk->count(),
+                    'owed' => Transaction::sumPayouts($owedDesk),
+                    'owed_count' => $owedDesk->count(),
+                    // A booking into Uganda arrives with its money already in the country, so the
+                    // split only means anything at the other end.
+                    'owed_stranded' => $destination === Transaction::TO_CHINA
+                        ? $owedDesk->whereNull('settled_at')->count()
+                        : null,
+                ];
+            }
         }
 
         return $sums;

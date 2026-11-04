@@ -159,8 +159,8 @@ class DemoLoginAutofillTest extends TestCase
         // The lead's first screen names its one job, and the empty queue reads as an empty hint
         // rather than a missing card.
         $this->get('/dashboard')->assertOk()
-            ->assertSee('Approve Cash Hand-In')
-            ->assertSee('Approve the cash agents hand over')
+            ->assertSee('Approve hand-ins')
+            ->assertSee('Nothing is waiting for you yet')
             ->assertSee('Charges Collected')
             ->assertDontSee('Cash Handed To You');
     }

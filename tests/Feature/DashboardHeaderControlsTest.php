@@ -9,8 +9,9 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * On a phone the sidebar is a closed drawer, so the one control every shift ends with was hidden.
- * The sign-out and a way to pull fresh figures now sit in the header card as well.
+ * The header card carries the one control that belongs beside the clock: a way to pull fresh figures.
+ * The sign-out stays in the sidebar alone, because a control that lives in two places on one screen is
+ * two places to keep working.
  */
 class DashboardHeaderControlsTest extends TestCase
 {
@@ -54,24 +55,22 @@ class DashboardHeaderControlsTest extends TestCase
         return count($m[0]);
     }
 
-    public function test_the_header_card_repeats_the_sign_out_and_points_at_the_real_route(): void
+    public function test_the_board_offers_one_sign_out_and_it_posts_to_the_real_route(): void
     {
         $html = $this->board();
 
-        $this->assertSame(2, $this->logoutForms($html),
-            'The sidebar keeps its sign-out and the header card adds one.');
+        $this->assertSame(1, $this->logoutForms($html),
+            'The sidebar holds the only sign-out; the header card does not repeat it.');
 
         preg_match_all('#<form[^>]*action="'.preg_quote(route('logout', absolute: true), '#').'"[^>]*>(.*?)</form>#s', $html, $forms);
-        $this->assertCount(2, $forms[1]);
+        $this->assertCount(1, $forms[1]);
         foreach ($forms[1] as $body) {
             $this->assertStringContainsString('name="_token"', $body, 'A sign-out without the token only 419s.');
         }
     }
 
-    public function test_the_idle_sign_out_is_bound_to_the_sidebar_form_not_the_new_one(): void
+    public function test_the_idle_sign_out_is_bound_to_the_sidebar_form(): void
     {
-        // Two sign-out forms now exist, so the auto sign-out names its form outright instead of
-        // taking whichever appears first in the markup.
         $html = $this->board();
 
         $this->assertSame(1, substr_count($html, 'id="sidebarLogoutForm"'));
@@ -84,7 +83,7 @@ class DashboardHeaderControlsTest extends TestCase
         $html = $this->board();
 
         $this->assertMatchesRegularExpression('#<button type="button" onclick="reloadDashboard\(this\)"#', $html);
-        $this->assertStringContainsString('<span class="hidden sm:inline">Reload</span>', $html);
+        $this->assertStringContainsString('<span class="hidden md:inline">Reload</span>', $html);
         $this->assertStringContainsString('function reloadDashboard(button)', $html);
         $this->assertStringContainsString('window.location.reload();', $html);
         // The click is never silent: the button disables and names itself as working.
@@ -92,25 +91,25 @@ class DashboardHeaderControlsTest extends TestCase
         $this->assertStringContainsString("'Reloading...'", $html);
     }
 
-    public function test_both_controls_are_left_out_of_a_printed_board(): void
+    public function test_the_reload_is_left_out_of_a_printed_board(): void
     {
         $html = $this->board();
 
-        preg_match('#<div class="flex items-center gap-2 ml-auto sm:ml-0 no-print">(.*?)</div>\s*</div>#s', $html, $group);
-        $this->assertNotSame([], $group, 'The two buttons share one no-print group.');
+        preg_match('#<div class="flex shrink-0 items-center gap-2 no-print xl:order-3">(.*?)</div>#s', $html, $group);
+        $this->assertNotSame([], $group, 'The reload sits in a no-print group.');
         $this->assertStringContainsString('Reload', $group[1]);
-        $this->assertStringContainsString('Log out', $group[1]);
+        $this->assertStringNotContainsString('Log out', $group[1], 'The sign-out is not the header card\'s to carry.');
     }
 
-    public function test_an_agent_sees_the_same_two_controls(): void
+    public function test_an_agent_gets_the_reload_without_losing_the_sign_out(): void
     {
         $html = $this->board('agent');
 
-        $this->assertSame(2, $this->logoutForms($html));
+        $this->assertSame(1, $this->logoutForms($html));
         $this->assertStringContainsString('reloadDashboard(this)', $html);
     }
 
-    public function test_signing_out_from_the_header_ends_the_session(): void
+    public function test_signing_out_ends_the_session(): void
     {
         $this->actingAs($this->desk())->post('/logout')
             ->assertRedirect(route('login'))
@@ -125,7 +124,7 @@ class DashboardHeaderControlsTest extends TestCase
 
         // Several desks share the role, so the board has to say whose hand the balances are in.
         // It is said once, in the greeting, and the chips are left for the role and the desk.
-        $this->assertMatchesRegularExpression('#<p class="text-gray-900 mt-1">\w[^<]*, Amina Nabukenya\.</p>#', $html);
+        $this->assertMatchesRegularExpression('#<p class="[^"]*text-gray-900">\w[^<]*, Amina Nabukenya\.</p>#', $html);
         $this->assertStringNotContainsString('max-w-[12rem]', $html, 'A name chip beside a role chip says the same thing twice.');
     }
 
@@ -137,16 +136,16 @@ class DashboardHeaderControlsTest extends TestCase
         $this->travelTo(now()->setTime(13, 5));
 
         $super = $this->board('superadmin', 'Super Admin');
-        $this->assertMatchesRegularExpression('#<p class="text-gray-900 mt-1">Good afternoon, Super Admin\.</p>#', $super);
+        $this->assertMatchesRegularExpression('#<p class="[^"]*text-gray-900">Good afternoon, Super Admin\.</p>#', $super);
         $this->assertStringNotContainsString('Good afternoon, Super.', $super, 'A role name is never cut to its first word.');
 
         $this->flushSession();
         $agent = $this->board('agent', 'Agent');
-        $this->assertMatchesRegularExpression('#<p class="text-gray-900 mt-1">Good afternoon, Agent\.</p>#', $agent);
+        $this->assertMatchesRegularExpression('#<p class="[^"]*text-gray-900">Good afternoon, Agent\.</p>#', $agent);
 
         $this->flushSession();
         $named = $this->board('agent', 'Charles Kato Mulondo');
-        $this->assertMatchesRegularExpression('#<p class="text-gray-900 mt-1">Good afternoon, Charles Kato Mulondo\.</p>#', $named);
+        $this->assertMatchesRegularExpression('#<p class="[^"]*text-gray-900">Good afternoon, Charles Kato Mulondo\.</p>#', $named);
     }
 
     public function test_the_clock_is_stamped_to_the_minute_with_no_running_second(): void
@@ -169,29 +168,16 @@ class DashboardHeaderControlsTest extends TestCase
         $this->assertStringContainsString('setInterval(updateClock, 10000)', $html);
     }
 
-    public function test_on_a_phone_the_two_controls_are_40_pixels_wide_and_still_named(): void
+    public function test_on_a_phone_the_reload_is_a_40_pixel_square_that_keeps_its_name(): void
     {
         $html = $this->board('agent');
 
-        // The words are dropped below the small breakpoint, so each button keeps its accessible
-        // name and a tap target a thumb can hit without catching its neighbour.
-        $this->assertSame(2, substr_count($html, 'w-10 h-10 sm:w-auto sm:h-auto'), 'Both buttons grow to 40px on a phone.');
-        $this->assertSame(2, substr_count($html, '<span class="hidden sm:inline">'), 'Both labels are the ones hidden on a phone.');
+        // The word is dropped below the tablet breakpoint, so the button keeps its accessible name
+        // and a tap target a thumb can hit without catching its neighbour.
+        preg_match('#aria-label="Reload this board"[^>]*class="([^"]+)"#', $html, $reload);
+        $this->assertStringContainsString('w-10 h-10', $reload[1] ?? '', 'The reload is a 40px square until its word fits.');
+        $this->assertStringContainsString('<span class="hidden md:inline">Reload</span>', $html, 'The label is the one hidden on a phone.');
         $this->assertStringContainsString('aria-label="Reload this board"', $html);
-        $this->assertStringContainsString('aria-label="Log out"', $html);
-    }
-
-    public function test_the_sign_out_is_the_quieter_of_the_two_until_it_is_aimed_at(): void
-    {
-        $html = $this->board();
-
-        // It ends the session, so it must not read as the primary action or match the reload beside
-        // it. It colours up only once a pointer is actually on it.
-        preg_match('#aria-label="Log out"\s+class="([^"]+)"#', $html, $signOut);
-        $this->assertStringContainsString('text-gray-700', $signOut[1] ?? '');
-        $this->assertStringContainsString('border-gray-300', $signOut[1] ?? '', 'The outline keeps it quieter than the solid reload.');
-        $this->assertStringContainsString('hover:bg-gray-50', $signOut[1] ?? '');
-        $this->assertStringNotContainsString('bg-green-800 text-white', $signOut[1] ?? '', 'It is the ghost beside the solid reload button.');
     }
 
     public function test_the_hour_mark_is_dark_enough_to_read_against_its_circle(): void

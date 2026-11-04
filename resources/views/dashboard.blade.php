@@ -20,48 +20,67 @@
     // unset rather than leave a reader guessing which till they are looking at.
     $desk = $me->countryLabel();
 
+    // One shape for every figure on the board, so a zero never appears in three different words.
+    // Shillings are handed over in notes, so a whole shilling figure prints without decimals and a
+    // nil one prints "UGX 0". Yuan and dollars are cut by a rate, so they keep the cents they are
+    // counted in and a nil one prints "¥0.00" or "$0.00" the same way. The old board mixed "nothing",
+    // "UGX 0", "UGX 0.0" and "¥0.0" across four cards that all meant zero, and a reader who has to
+    // work out which of them is a real figure stops trusting the ones that are not.
+    $money = function ($ugx, $usd, int $dec = 0) use ($usdToUgx): string {
+        if ($usdToUgx) {
+            return (float) $ugx === 0.0 ? 'UGX 0' : 'UGX ' . number_format((float) $ugx, $dec);
+        }
 
-    // Stored UGX, not a fresh conversion, so these match the Reports page. The charge is typed as
-    // a whole shilling figure, so it prints with no decimals. A computed figure carries one
-    // decimal, because that is where the fractions of a booking land. What the customer handed
-    // over stays a whole shilling.
-    $money = fn ($ugx, $usd, int $dec = 2) => $usdToUgx ? 'UGX ' . number_format($ugx, $dec) : '$' . number_format($usd, $dec);
-    $shilling = fn ($value) => $value < 0
-        ? 'Loss UGX '.number_format(abs($value), 1)
-        : 'UGX '.number_format($value, 1);
+        return (float) $usd === 0.0 ? '$0.00' : '$' . number_format((float) $usd, 2);
+    };
+    // A computed figure still carries the one decimal that fractions of a booking land in, but a
+    // computed figure that comes out even drops the ".0" rather than standing out from every other
+    // even shilling on the page. A loss keeps the word so a minus sign is never the only clue.
+    $shilling = function ($value): string {
+        $figure = number_format(abs((float) $value), 1);
+        if (str_ends_with($figure, '.0')) {
+            $figure = substr($figure, 0, -2);
+        }
+
+        return ((float) $value < 0 ? 'Loss ' : '') . 'UGX ' . $figure;
+    };
     $shillingTone = fn ($value) => $value < 0 ? 'text-red-600' : 'text-gray-900';
+    // "3 receivers", "1 receiver": the count and the word it counts, so no card on the board has to
+    // spell its own plural out and no reader meets "1 agents".
+    $plural = function (int $count, string $one, ?string $many = null): string {
+        return number_format($count) . ' ' . ($count === 1 ? $one : ($many ?? $one . 's'));
+    };
+    // The money a pile with nothing in it would have been paid in, taken from where this desk stands
+    // so a China board prints ¥0.00 rather than a shilling zero it never deals in.
+    $nilPayout = (($me->country ?: \App\Models\User::DEFAULT_COUNTRY) === 'CN') ? 'RMB' : 'UGX';
 
-    // One card set per window, so no figure is printed in two places on the same page.
+    // One card set per window, split into the three questions the board is asked, in the order they
+    // get asked: what was booked, how far the money has travelled, what it came to. Fourteen cards
+    // stacked one per row made the figures a desk reads every day sit three screens below the fold;
+    // three labelled rows of four put the whole book above it.
     $panels = [];
     foreach (['today' => 'Today', 'month' => 'This Month', 'all' => 'All Time'] as $key => $label) {
         $t = $windows[$key];
-        $cards = [
-            ['Completed', number_format($t['completed']), 'text-gray-900'],
-            ['Sent', $money($t['sent_ugx'], $t['sent_usd'], 0), 'text-gray-900'],
-            // The whole pile the customer handed over that is still waiting to be moved,
-            // charge and all because they cross together, with the age of the newest booking.
-            ['To Be Received', $money($t['pending_ugx'], $t['pending_usd'], 0), 'text-gray-900', 'money to be sent', $t['latest_at']],
-            // The yuan a booking promised is one figure, but it is in three different hands
-            // depending on how far the money has actually travelled, so it is shown as three cards
-            // rather than one total that reads as if China already has it.
-            ['Yuan To Receive In China', '¥' . number_format($t['yuan_in_uganda'], 1), 'text-gray-900',
-                $t['yuan_in_uganda_transfers'] . ' held in Uganda'],
-            ['Yuan In China, Unpaid', '¥' . number_format($t['yuan_in_china'], 1), 'text-gray-900',
-                $t['yuan_in_china_transfers'] . ' waiting to be handed over'],
-            ['Yuan Paid In China', '¥' . number_format($t['yuan_paid'], 1), 'text-gray-900',
-                $t['yuan_paid_transfers'] . ' paid to receivers'],
-            // The money the receivers were actually handed at each end, in the currency they
-            // were paid in. These are payouts, not booked yuan: a window with none reads
-            // "nothing" rather than a zero that would look like a forgotten figure.
-            ['Withdrawn In China', \App\Models\Transaction::formatPayouts($deskPayouts[$key]['china']), 'text-gray-900',
-                'handed over to receivers in China'],
-            ['Received In Uganda', \App\Models\Transaction::formatPayouts($deskPayouts[$key]['uganda']), 'text-gray-900',
-                'paid out to receivers from bookings made in China'],
-            ['Charge', $money($t['charge_ugx'], $t['charge_usd'], 0), 'text-gray-900'],
+        $china = $deskPayouts[$key]['china'];
+        $uganda = $deskPayouts[$key]['uganda'];
+        $spent = $spending[$key];
+
+        $transfers = [
+            ['Transfers completed', number_format($t['completed']), 'text-gray-900'],
+            ['Amount sent', $money($t['sent_ugx'], $t['sent_usd']), 'text-gray-900'],
+            // The whole pile on the bookings that are not finished yet, charge and all because they
+            // cross together, with the age of the newest one. It used to be called "To Be Received"
+            // under the line "money to be sent", which named the opposite direction from the figure
+            // beside it; what is actually waiting is the settling.
+            ['Money still to settle', $money($t['pending_ugx'], $t['pending_usd']), 'text-gray-900',
+                $t['pending'] === 0 ? 'nothing open' : $plural((int) $t['pending'], 'booking') . ' open',
+                $t['latest_at']],
+            ['Charge collected', $money($t['charge_ugx'], $t['charge_usd']), 'text-gray-900',
+                'what the desk charged for the transfers above'],
         ];
-        // The desks the agents answer to get one extra figure: the slice of the window above
-        // that the agents' own hands collected. Everyone else never sees the card at all. The
-        // title names the country those agents stand in, so the two desks' cash stays apart.
+        // The desks the agents answer to get one extra figure: the slice of the window above that the
+        // agents' own hands collected. Everyone else never sees the card at all. The title names the
+        // country those agents stand in, so the two desks' cash stays apart.
         if (isset($agentTaken[$key])) {
             $takenBy = 'Taken By Agents';
             if (count($agentTakenCountries) === 1) {
@@ -69,26 +88,70 @@
             } elseif (count($agentTakenCountries) > 1) {
                 $takenBy .= ' In '.implode(' And ', $agentTakenCountries);
             }
-            $cards[] = [$takenBy, $money($agentTaken[$key], 0, 0), 'text-gray-900', 'principal plus charge collected at the counter'];
-        }
-        if (isset($profit[$key])) {
-            $cards[] = ['FX profit', $shilling($profit[$key]['exchange']), $shillingTone($profit[$key]['exchange'])];
-            $cards[] = ['Overall profit', $shilling($profit[$key]['total']), $shillingTone($profit[$key]['total'])];
+            $transfers[] = [$takenBy, $money($agentTaken[$key], 0, 0), 'text-gray-900', 'principal plus charge at the counter'];
         }
 
-        // Six figures read as two rows of three, four read as one row. The card then sizes its
-        // own number down only as far as it has to, so a long loss stays on one line at the
-        // headline size rather than spilling past the border the way a fixed size would.
+        // Two figures per direction, which is all the corridor can honestly answer: what the far desk
+        // still owes a receiver, and what it has already handed over. Four cards used to cover the
+        // same ground (Yuan To Receive, Yuan In China Unpaid, Yuan Paid, Withdrawn In China) and every
+        // one of them was a yuan pile in a different pair of hands, so the reader had to add three of
+        // them to find the money actually moving. The send is folded into the note instead: an unpaid
+        // booking whose dollars have not crossed is the same debt, and the desk needs to know how many
+        // of them are waiting on that rather than on a hand-over.
+        $payouts = [
+            ['To pay in China', \App\Models\Transaction::formatPayouts($china['owed'], 'RMB'), 'text-gray-900',
+                $china['owed_count'] === 0 ? 'every receiver there is paid'
+                    : $plural((int) $china['owed_count'], 'receiver') . ' owed'
+                        . ($china['owed_stranded'] > 0 ? ' · ' . $plural((int) $china['owed_stranded'], 'pile') . ' not sent yet' : '')],
+            ['Paid in China', \App\Models\Transaction::formatPayouts($china['paid'], 'RMB'), 'text-gray-900',
+                $china['paid_count'] === 0 ? 'nothing handed over there yet' : 'handed to ' . $plural((int) $china['paid_count'], 'receiver')],
+            ['To pay in Uganda', \App\Models\Transaction::formatPayouts($uganda['owed'], 'UGX'), 'text-gray-900',
+                $uganda['owed_count'] === 0 ? 'every receiver there is paid' : $plural((int) $uganda['owed_count'], 'receiver') . ' owed'],
+            ['Paid in Uganda', \App\Models\Transaction::formatPayouts($uganda['paid'], 'UGX'), 'text-gray-900',
+                $uganda['paid_count'] === 0 ? 'nothing handed over there yet' : 'handed to ' . $plural((int) $uganda['paid_count'], 'receiver')],
+        ];
+
+        $earnings = [];
+        if (isset($profit[$key])) {
+            $earnings[] = ['FX profit', $shilling($profit[$key]['exchange']), $shillingTone($profit[$key]['exchange'])];
+            $earnings[] = ['Overall profit', $shilling($profit[$key]['total']), $shillingTone($profit[$key]['total'])];
+        }
+        if ($me->can('view-expenses')) {
+            // Money going out beside the money coming in, in the same window the switch above is set
+            // to. It was a card of its own under the Overview, and on a day with no spending that
+            // card was a heading over one empty sentence.
+            // Whoever reads the whole book is shown which desk each pile was spent at, because yuan
+            // and shillings on one line otherwise read as one figure that has been broken in two. A
+            // desk that only ever spends its own money does not need its own country named back to it.
+            $namesDesks = $me->can('view-all-expenses') && count($spent['desks']) > 1;
+            $spentFigures = collect($spent['desks'])
+                ->map(fn (array $deskRow) => collect($deskRow['totals'])
+                    ->map(fn ($amount, string $currency) => \App\Models\Account::format($currency, $amount))
+                    ->implode(' and ')
+                    .($namesDesks ? ' at '.$deskRow['label'] : ''))
+                ->implode(' · ');
+            $spentNames = collect($spent['desks'])
+                ->flatMap(fn (array $deskRow) => $deskRow['people'])
+                ->unique()->sort()->take(2)->values();
+
+            $earnings[] = ['Spent', $spentFigures !== '' ? $spentFigures : \App\Models\Account::format($nilPayout, 0), 'text-gray-900',
+                $spent['count'] === 0 ? 'nothing recorded'
+                    : $plural((int) $spent['count'], 'entry', 'entries')
+                        . ($spentNames->isNotEmpty() ? ' · '.$spentNames->implode(', ').($spent['count'] > $spentNames->count() ? ' and more' : '') : '')];
+        }
+
         $panels[$key] = [
             'label' => $label,
-            'cards' => $cards,
-            'minCol' => count($cards) > 4 ? '300px' : '220px',
+            'rows' => array_values(array_filter([
+                ['label' => 'Transfers', 'cards' => $transfers],
+                ['label' => 'China and Uganda payouts', 'cards' => $payouts],
+                ['label' => 'Money and profit', 'cards' => $earnings],
+            ], fn (array $row) => $row['cards'] !== [])),
             'pending' => $t['pending'],
             'cancelled' => $t['cancelled'],
             'avg_ugx' => $t['avg_ugx_sent'],
             'avg_usd' => $t['avg_usd_sent'],
             'unpriced' => $profit[$key]['unpriced'] ?? 0,
-            'yuanTotal' => $t['rmb'],
         ];
     }
 
@@ -106,219 +169,6 @@
     $clockDate = now()->format('D, j M Y');
     $clockTime = now()->format('g:i A');
 @endphp
-{{-- The board opens with a plain white header: the greeting, the role, the hour and the two
-     controls. The page title is kept for a screen reader and the sidebar already says which screen
-     this is, so the big word "Dashboard" is gone. The desk's country and the account name are not
-     repeated here either, because the sidebar footer under them carries both, word for word. --}}
-<div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm p-3 sm:p-4">
-    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h1 class="sr-only">Dashboard</h1>
-        {{-- The mark follows the same hour bands as the words: a sun for the desk hours, a moon
-             for the night shift. It carries no text, so it cannot repeat anything on the page. --}}
-        <div class="flex min-w-0 items-center gap-3 mr-auto">
-            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full flex items-center justify-center {{ $hour >= 6 && $hour < 18 ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700' }}">
-                @if($hour >= 6 && $hour < 18)
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66l1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14l-1.41-1.41M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-                @else
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.5 13.5A8.5 8.5 0 1110.5 3.5a7 7 0 0010 10z"/></svg>
-                @endif
-            </span>
-            <p class="text-gray-900 mt-1">{{ $greeting }}, {{ $greetAs }}.</p>
-        </div>
-        {{-- The badge is kept even though the sidebar footer names the role too: it is the board's
-             statement of what this account may do, and it sits beside the balances it governs. --}}
-        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize ring-1 ring-inset ring-green-200">{{ $role }}</span>
-        {{-- No seconds: the figure only has to be right to the minute, and a digit running every
-             second pulls the eye away from the balances. The zone is printed because every figure
-             on this board is kept in Kampala time, whatever the machine reading it is set to. --}}
-        <div class="text-right leading-tight">
-            <span class="block text-[13px] text-gray-600 tabular-nums" id="liveClock" data-zone-offset="180">{{ $clockDate }} · {{ $clockTime }} EAT</span>
-            {{-- Set once the board has been pulled again. Until then the line is empty rather than
-                 guessing at a time nobody asked for. --}}
-            <span class="block text-[13px] text-gray-400 tabular-nums" id="lastRefreshed"></span>
-        </div>
-        {{-- Log out and Reload sit here as well as at the bottom of the sidebar, because the
-             sidebar is hidden on a phone and the clock line is where eyes already land. --}}
-        <div class="flex items-center gap-2 ml-auto sm:ml-0 no-print">
-            {{-- A phone gets the glyphs at 40px each with the words dropped. Reload is the
-                 solid one, the bell opens What Happened with its unread count, and the sign-out
-                 is the ghost that only colours up once it is actually being aimed at. --}}
-            @if($bellGate)
-            <a href="{{ route('notifications.index') }}"
-                aria-label="{{ $bellCount > 0 ? 'What happened, '.number_format($bellCount).' unread' : 'What happened' }}"
-                class="relative inline-flex items-center justify-center w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
-                <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-                <span class="hidden sm:inline">What happened</span>
-                @if($bellCount > 0)
-                <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center leading-none tabular-nums">{{ $bellCount > 99 ? '99+' : $bellCount }}</span>
-                @endif
-            </a>
-            @endif
-            <button type="button" onclick="reloadDashboard(this)" aria-label="Reload this board"
-                class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold bg-green-800 text-white hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
-                <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                <span class="hidden sm:inline">Reload</span>
-            </button>
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit" aria-label="Log out"
-                    class="inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
-                    <svg class="w-4 h-4 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                    <span class="hidden sm:inline">Log out</span>
-                </button>
-            </form>
-        </div>
-    </div>
-    @unless($desk)
-    {{-- Only the missing case is printed. When a country is set the sidebar footer already names it,
-         and a second copy beside the greeting is the duplication she asked to take out. --}}
-    <p class="text-[13px] text-gray-600 mt-2">{{ $desk ?: 'Desk country not set' }}. The balances below follow Uganda by default, so set the country on your account to see the right till.</p>
-    @endunless
-</div>
-
-{{-- One box that searches the whole desk: the pages this account can open, under the same
-     names the sidebar gives them. The list is read off the sidebar links already on the page,
-     so a page only ever appears here if the sidebar itself shows it, and no permission check
-     has to live in two places. --}}
-<div class="relative mb-6" data-dashboard-search>
-    <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-white shadow-sm px-3.5 py-2.5 focus-within:ring-2 focus-within:ring-green-600">
-        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        <input type="search" id="dashboardSearch" placeholder="Search the desk"
-            class="w-full bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400"
-            autocomplete="off" spellcheck="false"
-            role="combobox" aria-expanded="false" aria-controls="dashboardSearchResults"
-            aria-autocomplete="list" aria-label="Search the desk's pages">
-        <kbd class="hidden sm:inline-block text-[11px] text-gray-400 border border-gray-200 rounded px-1.5 py-0.5 leading-5">/</kbd>
-    </div>
-    <div id="dashboardSearchResults" class="hidden absolute left-0 right-0 top-full mt-1.5 z-40 rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden">
-        <ul id="dashboardSearchList" role="listbox" aria-label="Matching pages" class="max-h-72 overflow-y-auto py-1"></ul>
-        <p id="dashboardSearchEmpty" class="hidden px-4 py-3 text-sm text-gray-500">Nothing on the desk matches that.</p>
-    </div>
-</div>
-
-@php
-    // Shortcuts to the work people come here to do, the first card under the greeting: the actions
-    // open the board rather than waiting under the till it describes. Each one is dropped when its
-    // ability is missing, so nobody is handed a button that bounces back with a permission error,
-    // and a role that books nothing at all gets no card rather than a row of dead links. Every
-    // label starts with the verb for what the tile does, and is the words the screen it opens uses,
-    // so one thing never carries two names. Sending opens with the corridor already chosen, since
-    // which way the money goes is the first thing a desk knows about the booking standing in front
-    // of it, and it is the job the whole board exists for, so it is the one tile that keeps a
-    // soft green wash while the rest stay white.
-    //
-    // A hand only ever sends one way: the cash is handed over where the desk is, so an agent in
-    // Uganda sends to China and an agent in China sends to Uganda. Whoever sees the whole book
-    // keys in for either desk, which the booking form already lets them do, so the lead agent and
-    // the office are offered both roads rather than having to turn the form around by hand.
-    //
-    // The mark on the send tile is a note with a road leaving it, not a plain right arrow: an
-    // arrow alone reads as "next", and this tile is the desk's main job rather than a step.
-    $sendToChina = ['create-transaction', 'Send Money to China', 'Cash in Uganda, paid in China', route('transactions.create', ['destination' => \App\Models\Transaction::TO_CHINA]), 'M4 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM8 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM13.5 12.5L20 5.5M15.5 5H20v4.5', true];
-    $sendToUganda = ['create-transaction', 'Send Money to Uganda', 'Cash in China, paid in Uganda', route('transactions.create', ['destination' => \App\Models\Transaction::TO_UGANDA]), 'M11 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2h-4.5a2 2 0 01-2-2v-4zM15 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM10.5 12.5L4 5.5M8.5 5H4v4.5', true];
-    $sendActions = $me->can('view-all-transactions')
-        ? [$sendToChina, $sendToUganda]
-        : [\App\Models\Transaction::destinationForDesk($me->country) === \App\Models\Transaction::TO_UGANDA ? $sendToUganda : $sendToChina];
-
-    // The spending tile is named for the pen its reader holds. A desk that records its own
-    // spending is offered the recording; a role that only reads the book is offered the book.
-    $canWriteExpense = $me->can('create-expense') && ! $me->can('view-all-expenses');
-    $expenseLabel = $canWriteExpense ? 'Record Expense' : 'Expenses';
-    $expenseHint = match (true) {
-        $canWriteExpense => 'Log what you spent today',
-        $me->can('create-expense') && $me->can('view-all-expenses') => 'Record spending, read every entry',
-        $me->can('view-all-expenses') => 'Every expense logged',
-        default => 'What you spent',
-    };
-
-    // Money is withdrawn where the receiver collects it: receivers in China collect at a desk in
-    // China, and receivers in Uganda collect at a desk in Uganda. A hand at one desk is offered
-    // the queue at its own counter, while whoever sees the whole book is offered both, exactly as
-    // the send tiles split. The payout pen clears either queue wherever its own desk stands, so
-    // the same ability opens both pages.
-    $canWithdraw = $me->can('view-transactions') && $me->can('confirm-china-payout');
-
-    $withdrawGlyph = 'M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v10m0 0l-4-4m4 4l4-4';
-    $withdrawChina = ['confirm-china-payout', 'Withdraw Money in China',
-        $withdrawalsWaiting > 0
-            ? number_format($withdrawalsWaiting).' receiver'.($withdrawalsWaiting === 1 ? '' : 's').' waiting to be paid'
-            : 'Pay receivers of money sent from Uganda',
-        route('china.index').'#payouts',
-        $withdrawGlyph];
-    $withdrawUganda = ['confirm-china-payout', 'Withdraw Money in Uganda',
-        $ugandaWithdrawalsWaiting > 0
-            ? number_format($ugandaWithdrawalsWaiting).' receiver'.($ugandaWithdrawalsWaiting === 1 ? '' : 's').' waiting to be paid'
-            : 'Pay receivers of money sent from China',
-        route('uganda.index').'#payouts',
-        $withdrawGlyph];
-
-    $withdrawActions = $canWithdraw
-        ? ($me->can('view-all-transactions')
-            ? [$withdrawChina, $withdrawUganda]
-            : [($me->country ?: \App\Models\User::DEFAULT_COUNTRY) === 'CN' ? $withdrawChina : $withdrawUganda])
-        : [];
-
-    // Approving is one job with one home: the requests page. The shortcut names how many are
-    // waiting and opens that page rather than keeping a second copy of the queue on this board.
-    $approveAction = $me->hasRole('super-agent') ? [
-        'approve-cash-handover',
-        'Approve Cash Hand-In',
-        $handoverQueue->isNotEmpty()
-            ? number_format($handoverQueue->count()).' request'.($handoverQueue->count() === 1 ? '' : 's').' waiting for you'
-            : 'Approve the cash agents hand over',
-        route('cash-handovers.index'),
-        'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-    ] : null;
-
-    // Handing cash in happens on the Transactions page, where a transfer's own row opens the
-    // modal that raises the request. There is no flat-amount hand-in anymore.
-
-    $quickActions = array_values(array_filter([
-        ...$sendActions,
-        ...$withdrawActions,
-        ...($approveAction ? [$approveAction] : []),
-        ['create-exchange', 'Record Exchange', 'Buy or sell notes', route('exchanges.create'), 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4'],
-        ['view-expenses', $expenseLabel, $expenseHint, route('expenses.index'), 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
-        ['view-exchange-rates', 'Exchange Rates', "Today's prices", route('exchange-rates.index'), 'M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2zm3-14h4m-4 4h4m-4 4h4'],
-        ['create-customer', 'Add Customer', 'Save a person', route('customers.create'), 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
-        // The lead agent is the one person besides the office who reads every agent's work, so the
-        // whole book is a shortcut of its own rather than a trip through the sidebar.
-        ['view-all-transactions', 'Transactions', 'Every transfer in the book', route('transactions.index'), 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'],
-    ], fn (array $a) => $me->can($a[0])));
-@endphp
-
-@if($quickActions !== [])
-@php
-    // A desk with exactly three shortcuts puts all three in one row from the small breakpoint up,
-    // so the third never waits below the fold. Any other count steps up a column at lg instead.
-    $tilesPerRow = count($quickActions) === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2 lg:grid-cols-3';
-@endphp
-<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 sm:p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-    {{-- A tile never stretches across the row on its own, because a full-width card looks like a
-         heading rather than something to press. --}}
-    <div class="grid grid-cols-1 gap-3 {{ $tilesPerRow }}">
-        @foreach($quickActions as $action)
-        @php [$ability, $label, $hint, $url, $glyph, $primary] = array_pad($action, 6, null); @endphp
-        <a href="{{ $url }}" class="group flex items-center gap-3 min-w-0 rounded-lg border p-3 transition hover:border-green-300 hover:bg-green-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1{{ $primary ? ' bg-green-50 border-green-200 sm:col-span-1' : ' border-gray-200 bg-white' }}">
-            <span aria-hidden="true" class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center bg-green-100 text-green-800">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $glyph }}"/></svg>
-            </span>
-            <span class="min-w-0 flex-1">
-                <span class="block text-sm font-semibold text-gray-900">{{ $label }}</span>
-                <span class="block text-[13px] text-gray-700">{{ $hint }}</span>
-            </span>
-            {{-- The chevron is what says "this goes somewhere". Nothing else on a card is a link,
-                 and a tile that only changes colour under the cursor says nothing until the
-                 cursor is already on it. --}}
-            <svg class="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 text-gray-400 group-hover:text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-        </a>
-        @endforeach
-    </div>
-</div>
-@endif
-
-<x-live-rate-card />
 
 <style>
     /* The tab look follows aria-selected alone, so the styling cannot drift from the state. */
@@ -330,14 +180,238 @@
     /* A figure takes the headline size whenever its card can hold it on one line and gives up
        only the pixels it needs. Digits and commas in tabular figures measure about half a font
        size each, so dividing the card by the length of the string is the largest size it fits.
-       A browser without container queries keeps the 1.5rem above and behaves as it did before. */
+       Four cards across a laptop card is roughly a third of the width the old single-column row
+       gave each one, so this is what keeps a long loss on the headline line. A browser without
+       container queries keeps the 1.5rem above and behaves as it did before. */
     .stat-card { container-type: inline-size; }
     .stat-value { font-size: 1.5rem; font-size: clamp(.875rem, calc(100cqi / (var(--len) * .52)), 1.5rem); }
+
+    /* The desk box wears a light grey fill so it reads as a field inside the white card. The
+       layout's dark theme paints every input with its own darker surface, which would sink a well
+       into that fill, so the box keeps a transparent field and the wrapper carries the colour. */
+    .dark [data-dashboard-search] input { background-color: transparent; }
 </style>
 
-{{-- The till sits under the prices and the shortcuts: the desk opens with its actions, reads the
-     counter price, then the wallets it has to work with. Account::currenciesFor() orders the
-     wallets by the desk's country, so the local currency is always the first card. The controller
+{{-- The board opens with one card that holds everything a desk reaches for before it reads a
+     figure: the greeting, the role, the hour, the box that searches the desk and the controls.
+     The search used to sit in a card of its own underneath, which spent a band of vertical space
+     on one line; it now shares this card, and on a narrow board it drops to a row of its own at
+     full width instead of squeezing the greeting. The page title is kept for a screen reader and
+     the sidebar already says which screen this is, so the big word "Dashboard" is gone. The desk's
+     country and the account name are not repeated here either, because the sidebar footer under
+     them carries both, word for word. What happened and Log out have gone too: both are already
+     in the sidebar with the same unread badge and the same form, and a control that lives in two
+     places on one screen is two places to keep working. --}}
+<div class="mb-4 rounded-2xl border border-gray-200 bg-white shadow-sm p-4 sm:p-5 xl:p-6">
+    <div class="flex flex-wrap items-start gap-x-3 gap-y-3 xl:items-center xl:gap-x-4">
+        <h1 class="sr-only">Dashboard</h1>
+        {{-- The mark follows the same hour bands as the words: a sun for the desk hours, a moon
+             for the night shift. It carries no text, so it cannot repeat anything on the page.
+             This block is the one that gives way when the board is narrow: the greeting truncates
+             rather than pushing the controls off the screen, and the meta line under it is free to
+             wrap onto as many short lines as it needs. --}}
+        <div class="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+            <span aria-hidden="true" class="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full flex items-center justify-center {{ $hour >= 6 && $hour < 18 ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700' }}">
+                @if($hour >= 6 && $hour < 18)
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66l1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14l-1.41-1.41M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                @else
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.5 13.5A8.5 8.5 0 1110.5 3.5a7 7 0 0010 10z"/></svg>
+                @endif
+            </span>
+            <div class="min-w-0 flex-1">
+                <p class="truncate text-base xl:text-lg font-semibold leading-snug text-gray-900">{{ $greeting }}, {{ $greetAs }}.</p>
+                {{-- The badge is kept even though the sidebar footer names the role too: it is the
+                     board's statement of what this account may do, and it sits beside the balances
+                     it governs. No seconds on the clock: the figure only has to be right to the
+                     minute, and a digit running every second pulls the eye away from the balances.
+                     The zone is printed because every figure on this board is kept in Kampala
+                     time, whatever the machine reading it is set to. --}}
+                <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-tight text-gray-600">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 capitalize ring-1 ring-inset ring-green-200">{{ $role }}</span>
+                    <span class="tabular-nums" id="liveClock" data-zone-offset="180">{{ $clockDate }} · {{ $clockTime }} EAT</span>
+                    {{-- Set once the board has been pulled again. Until then the line is empty rather than
+                         guessing at a time nobody asked for. --}}
+                    <span class="tabular-nums text-gray-400" id="lastRefreshed"></span>
+                </div>
+            </div>
+        </div>
+        {{-- Reload is the one control that belongs up here rather than only in the sidebar: every
+             figure on the board is a reading of a moment, and the way to ask for the current one has
+             to be beside the clock that says how old it is. Below the tablet breakpoint it is a 40px
+             glyph with the word dropped. --}}
+        <div class="flex shrink-0 items-center gap-2 no-print xl:order-3">
+            <button type="button" onclick="reloadDashboard(this)" aria-label="Reload this board" title="Reload"
+                class="inline-flex items-center justify-center w-10 h-10 md:w-auto md:gap-1.5 md:px-3 rounded-xl text-[13px] font-semibold bg-green-800 text-white transition duration-150 hover:bg-green-700 active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span class="hidden md:inline">Reload</span>
+            </button>
+        </div>
+        {{-- One box that searches the whole desk: the pages this account can open, under the same
+             names the sidebar gives them. The list is read off the sidebar links already on the
+             page, so a page only ever appears here if the sidebar itself shows it, and no
+             permission check has to live in two places. On a wide board it takes the middle of the
+             row between the greeting and the controls; anywhere narrower it is a row of its own.
+             The "/" hint is dropped below the tablet breakpoint, where the box is full width and no
+             keyboard is in reach. --}}
+        <div class="relative w-full xl:order-2 xl:w-[20rem] xl:min-w-[16rem] xl:max-w-full 2xl:w-[32rem]" data-dashboard-search>
+            <div class="flex h-11 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 transition duration-150 focus-within:ring-2 focus-within:ring-green-600">
+                <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <input type="search" id="dashboardSearch" placeholder="Search the desk"
+                    class="w-full min-w-0 bg-transparent outline-none text-sm text-gray-900 placeholder:text-gray-400"
+                    autocomplete="off" spellcheck="false"
+                    role="combobox" aria-expanded="false" aria-controls="dashboardSearchResults"
+                    aria-autocomplete="list" aria-label="Search the desk's pages">
+                <kbd class="hidden md:inline-block text-[11px] text-gray-400 border border-gray-200 rounded px-1.5 py-0.5 leading-5">/</kbd>
+            </div>
+            <div id="dashboardSearchResults" class="hidden absolute left-0 right-0 top-full mt-1.5 z-40 rounded-xl border border-gray-200 bg-white shadow-xl overflow-hidden">
+                <ul id="dashboardSearchList" role="listbox" aria-label="Matching pages" class="max-h-72 overflow-y-auto py-1"></ul>
+                <p id="dashboardSearchEmpty" class="hidden px-4 py-3 text-sm text-gray-500">Nothing on the desk matches that.</p>
+            </div>
+        </div>
+    </div>
+    @unless($desk)
+    {{-- Only the missing case is printed. When a country is set the sidebar footer already names it,
+         and a second copy beside the greeting is the duplication she asked to take out. --}}
+    <p class="text-[13px] text-gray-600 mt-2">{{ $desk ?: 'Desk country not set' }}. The balances below follow Uganda by default, so set the country on your account to see the right till.</p>
+    @endunless
+</div>
+
+{{-- The till comes first. It used to sit under the shortcuts and the prices, three screens down,
+     even though it is the only part of this page anybody reads every day. The switch decides which
+     stretch every figure below answers for, so it is stamped on the card that holds them rather than
+     repeated per row. --}}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">Overview</h2>
+        <div role="tablist" aria-label="Time window" class="inline-flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+            @foreach($panels as $key => $panel)
+            <button type="button" role="tab" id="tab-{{ $key }}" data-window="{{ $key }}" aria-controls="panel-{{ $key }}" aria-selected="{{ $loop->first ? 'true' : 'false' }}" tabindex="{{ $loop->first ? '0' : '-1' }}" class="rounded-md px-3 py-1.5 text-sm font-medium">{{ $panel['label'] }}</button>
+            @endforeach
+        </div>
+    </div>
+
+    @foreach($panels as $key => $panel)
+    <div role="tabpanel" id="panel-{{ $key }}" aria-labelledby="tab-{{ $key }}" @if(! $loop->first) hidden @endif>
+        @foreach($panel['rows'] as $row)
+        <div class="{{ $loop->first ? '' : 'mt-5' }}">
+            <h3 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">{{ $row['label'] }}</h3>
+            {{-- Four across on a laptop, two on a phone. The old row sized itself by a min-width and
+                 gave way to one card per line at exactly the width the desk's screen is. --}}
+            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                @foreach($row['cards'] as $card)
+                @php [$cardLabel, $cardValue, $cardTone, $cardNote, $cardStamp] = array_pad($card, 5, null); @endphp
+                <div class="stat-card min-w-0 rounded-lg border border-gray-200 p-3">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $cardLabel }}</div>
+                    <div class="stat-value mt-1.5 font-bold {{ $cardTone }} tabular-nums whitespace-nowrap" style="--len: {{ strlen($cardValue) }}">{{ $cardValue }}</div>
+                    @if($cardNote !== null)
+                    <div class="mt-1 truncate text-xs text-gray-500" title="{{ $cardNote }}">{{ $cardNote }}</div>
+                    @endif
+                    @if($cardStamp !== null)
+                    <x-wallet-updated :at="$cardStamp" class="mt-1 text-xs" />
+                    @endif
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endforeach
+        <p class="text-xs text-gray-500 mt-3">{{ number_format($panel['cancelled']) }} cancelled · average transfer {{ $money($panel['avg_ugx'], $panel['avg_usd']) }}</p>
+        @if($panel['unpriced'] > 0)
+        <p class="text-xs text-amber-700 mt-2">{{ number_format($panel['unpriced']) }} without rates</p>
+        @endif
+    </div>
+    @endforeach
+</div>
+
+@php
+    // Shortcuts to the work people come here to do, kept to the five bookings and payouts a desk
+    // actually reaches for from this screen. Expenses, Exchange Rates, Transactions and Add Customer
+    // were tiles here as well as sidebar links, and nine tiles two lines tall pushed the figures off
+    // the page. A page that already opened with them no longer needs a second copy of the menu.
+    // Each tile is dropped when its ability is missing, so nobody is handed a button that bounces
+    // back with a permission error, and a role that books nothing at all gets no card rather than a
+    // row of dead links.
+    //
+    // A hand only ever sends one way: the cash is handed over where the desk is, so an agent in
+    // Uganda sends to China and an agent in China sends to Uganda. Whoever sees the whole book
+    // keys in for either desk, which the booking form already lets them do, so the lead agent and
+    // the office are offered both roads rather than having to turn the form around by hand.
+    $sendToChina = ['create-transaction', 'Send to China', route('transactions.create', ['destination' => \App\Models\Transaction::TO_CHINA]), 'M4 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM8 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM13.5 12.5L20 5.5M15.5 5H20v4.5', null, true];
+    $sendToUganda = ['create-transaction', 'Send to Uganda', route('transactions.create', ['destination' => \App\Models\Transaction::TO_UGANDA]), 'M11 13a2 2 0 012-2h4.5a2 2 0 012 2v4a2 2 0 01-2 2h-4.5a2 2 0 01-2-2v-4zM15 14.1a1.2 1.2 0 100 2.6 1.2 1.2 0 000-2.6zM10.5 12.5L4 5.5M8.5 5H4v4.5', null, true];
+    $sendActions = $me->can('view-all-transactions')
+        ? [$sendToChina, $sendToUganda]
+        : [\App\Models\Transaction::destinationForDesk($me->country) === \App\Models\Transaction::TO_UGANDA ? $sendToUganda : $sendToChina];
+
+    // Money is withdrawn where the receiver collects it: receivers in China collect at a desk in
+    // China, and receivers in Uganda collect at a desk in Uganda. A hand at one desk is offered the
+    // queue at its own counter, while whoever sees the whole book is offered both, exactly as the
+    // send tiles split. The payout pen clears either queue wherever its own desk stands, so the same
+    // ability opens both pages. The badge is the one thing worth the pixels: it is the number of
+    // people standing at that counter, and it is why the tile was pressed.
+    $canWithdraw = $me->can('view-transactions') && $me->can('confirm-china-payout');
+
+    $withdrawGlyph = 'M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v10m0 0l-4-4m4 4l4-4';
+    $withdrawChina = ['confirm-china-payout', 'Pay out in China', route('china.index').'#payouts', $withdrawGlyph,
+        $withdrawalsWaiting > 0 ? number_format($withdrawalsWaiting) : null, false,
+        $withdrawalsWaiting === 1 ? '1 receiver waiting to be paid' : $withdrawalsWaiting.' receivers waiting to be paid'];
+    $withdrawUganda = ['confirm-china-payout', 'Pay out in Uganda', route('uganda.index').'#payouts', $withdrawGlyph,
+        $ugandaWithdrawalsWaiting > 0 ? number_format($ugandaWithdrawalsWaiting) : null, false,
+        $ugandaWithdrawalsWaiting === 1 ? '1 receiver waiting to be paid' : $ugandaWithdrawalsWaiting.' receivers waiting to be paid'];
+
+    $withdrawActions = $canWithdraw
+        ? ($me->can('view-all-transactions')
+            ? [$withdrawChina, $withdrawUganda]
+            : [($me->country ?: \App\Models\User::DEFAULT_COUNTRY) === 'CN' ? $withdrawChina : $withdrawUganda])
+        : [];
+
+    // Approving is one job with one home: the requests page. The chip stays on a lead agent's board
+    // whether or not anything is waiting, because it is what they are there for and an empty queue
+    // is information; the count only appears when there is a queue to clear.
+    $approveAction = $me->hasRole('super-agent') ? [
+        'approve-cash-handover',
+        'Approve hand-ins',
+        route('cash-handovers.index'),
+        'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+        $handoverQueue->isNotEmpty() ? number_format($handoverQueue->count()) : null,
+        false,
+        $handoverQueue->isEmpty()
+            ? 'Nothing is waiting for you yet'
+            : ($handoverQueue->count() === 1 ? '1 request waiting for you' : $handoverQueue->count().' requests waiting for you'),
+    ] : null;
+
+    $quickActions = array_values(array_filter([
+        ...$sendActions,
+        ...$withdrawActions,
+        ...($approveAction ? [$approveAction] : []),
+        ['create-exchange', 'Record Exchange', route('exchanges.create'), 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4', null, false, 'Book money swapped at the counter'],
+    ], fn (array $a) => $me->can($a[0])));
+@endphp
+
+@if($quickActions !== [])
+<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-3 sm:p-4 mb-6">
+    <h2 class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Quick Actions</h2>
+    {{-- One line of chips that wraps rather than a grid of tall tiles: the labels are three words at
+         most, so nothing needs the height, and the row is what keeps this card above the figures
+         instead of in front of them. --}}
+    <div class="flex flex-wrap gap-2">
+        @foreach($quickActions as $action)
+        @php [$ability, $label, $url, $glyph, $badge, $primary, $hint] = array_pad($action, 7, null); @endphp
+        <a href="{{ $url }}" @if($hint !== null) title="{{ $hint }}" @endif class="inline-flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-[13px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1 {{ $primary ? 'border-green-200 bg-green-50 text-green-900 hover:border-green-300 hover:bg-green-100' : 'border-gray-200 bg-white text-gray-900 hover:border-green-300 hover:bg-green-50' }}">
+            <span aria-hidden="true" class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full {{ $primary ? 'bg-green-200 text-green-900' : 'bg-green-100 text-green-800' }}">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $glyph }}"/></svg>
+            </span>
+            {{ $label }}
+            @if($badge !== null)
+            <span class="ml-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-red-700 ring-1 ring-inset ring-red-200">{{ $badge }}</span>
+            @endif
+        </a>
+        @endforeach
+    </div>
+</div>
+@endif
+
+{{-- The till sits under the figures and the shortcuts: the desk reads its day, presses the thing it
+     needs, and only then looks at the wallets it has to work with. Account::currenciesFor() orders
+     the wallets by the desk's country, so the local currency is always the first card. The controller
      hands an empty list to anyone who reads every wallet instead of holding one, and the row is
      left out for them.
 
@@ -455,120 +529,7 @@
 </div>
 @endif
 
-{{-- Money going out on the same day as the money coming in above it. Each desk keeps its own
-     totals, because shillings spent in Kampala and yuan spent in Guangzhou are not one number. --}}
-@can('view-expenses')
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 class="text-lg font-semibold text-gray-900">Spent today</h2>
-        <a href="{{ route('expenses.index') }}" class="text-sm text-green-800 hover:underline">Open the spending book</a>
-    </div>
-    @if($spending['desks'] === [])
-        <p class="text-sm text-gray-500">Nothing has been recorded as spent today.</p>
-    @else
-    <div class="grid grid-cols-[repeat(auto-fit,minmax(min(15rem,100%),1fr))] gap-4">
-        @foreach($spending['desks'] as $desk)
-        @php
-            $who = collect($desk['people'])->take(3);
-            $rest = count($desk['people']) - $who->count();
-        @endphp
-        <div class="stat-card min-w-0 rounded-lg border border-gray-200 p-4">
-            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $desk['label'] }}</div>
-            @foreach($desk['totals'] as $currency => $amount)
-            <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums whitespace-nowrap">{{ \App\Models\Account::format($currency, $amount) }}</div>
-            @endforeach
-            <div class="text-xs text-gray-500 mt-2">
-                {{ number_format($desk['count']) }} {{ $desk['count'] === 1 ? 'entry' : 'entries' }} today
-                @if($who->isNotEmpty()) · {{ $who->implode(', ') }}@if($rest > 0) and {{ $rest }} more @endif @endif
-            </div>
-        </div>
-        @endforeach
-    </div>
-    @endif
-</div>
-@endcan
-
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            Overview
-            @if(isset($profit['all']))
-            <span class="relative inline-flex group" tabindex="0" aria-describedby="profit-note">
-                <svg class="w-4 h-4 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h3m-3 0a3 3 0 116 0 3 3 0 01-6 0zm0 0v3m0 0a9 9 0 110-12 9 9 0 010 12z"/></svg>
-                <span role="tooltip" id="profit-note" class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-60 -translate-x-1/2 rounded-md bg-gray-900 px-3 py-2 text-left text-xs font-normal leading-snug text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100">Overall profit is the charge plus FX profit. Transfers booked before their rates were stored count as 0.</span>
-            </span>
-            @endif
-        </h2>
-        <div role="tablist" aria-label="Time window" class="inline-flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
-            @foreach($panels as $key => $panel)
-            <button type="button" role="tab" id="tab-{{ $key }}" data-window="{{ $key }}" aria-controls="panel-{{ $key }}" aria-selected="{{ $loop->first ? 'true' : 'false' }}" tabindex="{{ $loop->first ? '0' : '-1' }}" class="rounded-md px-3 py-1.5 text-sm font-medium">{{ $panel['label'] }}</button>
-            @endforeach
-        </div>
-    </div>
-
-    @foreach($panels as $key => $panel)
-    <div role="tabpanel" id="panel-{{ $key }}" aria-labelledby="tab-{{ $key }}" @if(! $loop->first) hidden @endif>
-        <div class="grid grid-cols-[repeat(auto-fit,minmax(min({{ $panel['minCol'] }},100%),1fr))] gap-4">
-            @foreach($panel['cards'] as $card)
-            @php [$cardLabel, $cardValue, $cardTone, $cardNote, $cardStamp] = array_pad($card, 5, null); @endphp
-            <div class="stat-card min-w-0 rounded-lg border border-gray-200 p-4">
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $cardLabel }}</div>
-                <div class="stat-value mt-2 font-bold {{ $cardTone }} tabular-nums whitespace-nowrap" style="--len: {{ strlen($cardValue) }}">{{ $cardValue }}</div>
-                @if($cardNote !== null)
-                <div class="text-xs text-gray-500 mt-1">{{ $cardNote }}</div>
-                @endif
-                @if($cardStamp !== null)
-                <x-wallet-updated :at="$cardStamp" class="mt-1 text-xs" />
-                @endif
-            </div>
-            @endforeach
-        </div>
-        <p class="text-xs text-gray-500 mt-3">{{ number_format($panel['pending']) }} pending · {{ number_format($panel['cancelled']) }} cancelled · average transfer {{ $money($panel['avg_ugx'], $panel['avg_usd'], 0) }}</p>
-        @if($panel['yuanTotal'] > 0)
-        <p class="text-xs text-gray-500 mt-2">The three yuan cards are the same ¥{{ number_format($panel['yuanTotal'], 1) }} of booked yuan split by whose hands it is in: held in Uganda until its
-            dollars are sent, with a desk in China until the receiver is paid, then paid. Withdrawn
-            In China and Received In Uganda are the money the receivers were actually handed, in the
-            currency each one was paid.
-            @canany(['send-to-china', 'confirm-china-payout'])
-            <a href="{{ route('china.index') }}" class="text-green-800 font-medium hover:underline">Move the money at the China Desk</a>.
-            @endcanany
-        </p>
-        @endif
-        @if($panel['unpriced'] > 0)
-        <p class="text-xs text-amber-700 mt-2">{{ number_format($panel['unpriced']) }} without rates</p>
-        @endif
-    </div>
-    @endforeach
-</div>
-
 @can('view-users')
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-    <a href="{{ route('users.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow transition-shadow block">
-        <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Active Users</div>
-                <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums">{{ number_format($stats['total_users']) }}</div>
-                <div class="text-xs text-gray-500 mt-1">{{ number_format($stats['total_agents']) }} agents</div>
-            </div>
-            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-            </span>
-        </div>
-    </a>
-    <a href="{{ route('exchange-rates.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:shadow transition-shadow block">
-        <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Rates</div>
-                <div class="text-2xl font-bold text-gray-900 mt-2 tabular-nums">{{ number_format($stats['active_rates']) }}</div>
-                <div class="text-xs text-gray-500 mt-1">Live currency pairs</div>
-            </div>
-            <span aria-hidden="true" class="w-10 h-10 shrink-0 rounded-full bg-green-100 text-green-800 flex items-center justify-center">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-            </span>
-        </div>
-    </a>
-</div>
-
 @if(($logAlerts['failed_logins_24h'] ?? 0) > 0 || ($logAlerts['unresolved_errors'] ?? 0) > 0)
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
     @if(($logAlerts['failed_logins_24h'] ?? 0) > 0)
@@ -591,87 +552,96 @@
 @endif
 @endcan
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 min-w-0">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Completed Transfers (Last 7 Days)</h2>
+{{-- The week's shape, the price it was booked at, and the five most recent bookings, all on the
+     bands a reader scans after the numbers rather than the bands that hide them. The two charts sat
+     under the Overview and the prices sat above it, each in a box as tall as a screen. --}}
+<div class="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 mb-6">
+    <div class="min-w-0 rounded-xl border border-gray-200 bg-white shadow-sm p-4 sm:p-5">
+        <h2 class="text-sm font-semibold text-gray-900">Completed Transfers (Last 7 Days)</h2>
         @if($hasTransfers)
-        <div class="relative h-[250px] max-w-full">
+        <div class="relative mt-3 h-[200px] max-w-full">
             <canvas id="transactionsChart"></canvas>
         </div>
         @else
-        <div class="h-[250px] flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">No transfers in the last 7 days.</div>
+        {{-- One line, not a bordered box held open at chart height: an empty 250px well reads as a
+             fault in the page rather than a quiet week. --}}
+        <p class="mt-1 text-[13px] text-gray-500">Nothing completed in the last 7 days.</p>
         @endif
     </div>
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 min-w-0">
+    <div class="min-w-0 rounded-xl border border-gray-200 bg-white shadow-sm p-4 sm:p-5">
         @can('view-profit')
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Profit (Last 7 Days)</h2>
+        <h2 class="text-sm font-semibold text-gray-900">Profit (Last 7 Days)</h2>
         @if($hasCharge || $hasExchange)
-        <div class="relative h-[250px] max-w-full">
+        <div class="relative mt-3 h-[200px] max-w-full">
             <canvas id="profitChart"></canvas>
         </div>
         @else
-        <div class="h-[250px] flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">No charge or FX profit in the last 7 days.</div>
+        <p class="mt-1 text-[13px] text-gray-500">No charge or FX profit in the last 7 days.</p>
         @endif
         @else
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Charge Collected (Last 7 Days)</h2>
+        <h2 class="text-sm font-semibold text-gray-900">Charge Collected (Last 7 Days)</h2>
         @if($hasCharge)
-        <div class="relative h-[250px] max-w-full">
+        <div class="relative mt-3 h-[200px] max-w-full">
             <canvas id="revenueChart"></canvas>
         </div>
         @else
-        <div class="h-[250px] flex items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-500">No charge collected in the last 7 days.</div>
+        <p class="mt-1 text-[13px] text-gray-500">No charge collected in the last 7 days.</p>
         @endif
         @endcan
+    </div>
+    <div class="min-w-0 xl:col-span-2 lg:col-span-2 xl:col-span-1">
+        <x-live-rate-card />
     </div>
 </div>
 
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-    <div class="px-4 sm:px-6 py-4 border-b border-gray-200 flex flex-wrap justify-between items-center gap-3">
-        {{-- The button that used to sit here booked the same thing as Send Money in Quick
+    <div class="px-4 sm:px-5 py-3.5 border-b border-gray-200 flex flex-wrap justify-between items-center gap-3">
+        {{-- The button that used to sit here booked the same thing as Send to China in Quick
              Actions above, under a second name. One call per action per page. --}}
-        <h2 class="text-lg font-semibold text-gray-900">Recent Transactions</h2>
+        <h2 class="text-base font-semibold text-gray-900">Recent Transactions</h2>
+        @can('view-transactions')
+        <a href="{{ route('transactions.index') }}" class="text-sm font-semibold text-green-800 hover:underline">View all</a>
+        @endcan
     </div>
+    {{-- Five columns that fit the page instead of eight that scroll off it. The sender, the yuan leg
+         and the two receipt buttons all live on the booking itself, so the row links there instead
+         of carrying three ways to reach the same page. --}}
     <div class="overflow-x-auto">
-        <table class="w-full min-w-[760px] divide-y divide-gray-200">
+        <table class="w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receipt #</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Sender</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receiver</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Amount</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">RMB</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Date</th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
+                    <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receipt</th>
+                    <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receiver</th>
+                    <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Amount</th>
+                    <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
+                    <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Date</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse($recentTransactions as $t)
-                <tr>
-                    <td class="px-4 py-4 text-sm font-medium text-green-800 whitespace-nowrap">
+                <tr data-row-link="{{ route('receipts.show', $t->receipt_number) }}" tabindex="0"
+                    class="cursor-pointer transition-colors hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-green-300">
+                    <td class="px-4 py-3 text-sm font-medium text-green-800 whitespace-nowrap">
                         <a href="{{ route('receipts.show', $t->receipt_number) }}">{{ $t->receipt_number }}</a>
                     </td>
-                    <td class="px-4 py-4 text-sm text-gray-900">{{ $t->sender_name }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-900">{{ $t->receiver_name }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">{{ $t->principalLabel() }}</td>
-                    <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap tabular-nums">¥{{ number_format($t->rmb_amount, 1) }}</td>
-                    <td class="px-4 py-4">
-                        <span class="px-2 py-1 text-xs rounded-full whitespace-nowrap
+                    <td class="max-w-0 truncate px-4 py-3 text-sm text-gray-900" title="{{ $t->receiver_name }}">{{ $t->receiver_name }}</td>
+                    <td class="px-4 py-3 text-right text-sm text-gray-900 whitespace-nowrap tabular-nums">{{ \App\Models\Account::format($t->currency, $t->amount) }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs rounded-full
                             @if($t->status === 'completed') bg-green-100 text-green-800
                             @elseif($t->status === 'pending') bg-yellow-100 text-yellow-800
                             @else bg-red-100 text-red-800 @endif">
                             {{ ucfirst($t->status) }}
                         </span>
                     </td>
-                    <td class="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('Y-m-d h:i A') }}</td>
-                    <td class="px-4 py-4 text-sm whitespace-nowrap">
-                        <a href="{{ route('receipts.print', $t->receipt_number) }}" target="_blank" class="text-green-600 hover:text-green-800 mr-2">Print</a>
-                        <a href="{{ route('receipts.show', $t->receipt_number) }}" class="text-green-600 hover:text-green-800">View</a>
-                    </td>
+                    {{-- The day, not the minute: the board asks which bookings are recent and the
+                         stamp on the receipt answers to the second. It also matches the other
+                         tables, which all write the date the same three words round. --}}
+                    <td class="px-4 py-3 text-right text-sm text-gray-500 whitespace-nowrap tabular-nums">{{ $t->created_at->format('M j, Y') }}</td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="5" class="px-4 py-8 text-center text-gray-500">
                         No transactions yet.
                         @can('create-transaction') Book the first one from <a href="{{ route('transactions.create') }}" class="text-green-700 underline">Send Money</a>.@endcan
                     </td>
@@ -706,6 +676,23 @@
             if (!step) return;
             event.preventDefault();
             pick(tabs[(tabs.indexOf(tab) + step + tabs.length) % tabs.length], true);
+        });
+    });
+
+    // A booking row is the booking. The whole line goes, because five rows a day are read by
+    // reaching for the next one rather than aiming at a link two centimetres wide inside it. A
+    // click that lands on the receipt link itself is left to do what a link does.
+    document.querySelectorAll('tr[data-row-link]').forEach((row) => {
+        const open = () => { window.location.href = row.dataset.rowLink; };
+
+        row.addEventListener('click', (event) => {
+            if (event.target.closest('a')) return;
+            open();
+        });
+        row.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            open();
         });
     });
 
@@ -984,7 +971,14 @@
             if (event.key === 'ArrowDown') { event.preventDefault(); active = Math.min(active + 1, items.length - 1); paintActive(); }
             else if (event.key === 'ArrowUp') { event.preventDefault(); active = Math.max(active - 1, 0); paintActive(); }
             else if (event.key === 'Enter') { event.preventDefault(); go(); }
-            else if (event.key === 'Escape') { panel.classList.add('hidden'); input.setAttribute('aria-expanded', 'false'); }
+            // Escape is the way out of the box: the list closes, what was typed is dropped and the
+            // hands leave the field, so a board escaped from is not left holding a stale query.
+            else if (event.key === 'Escape') {
+                panel.classList.add('hidden');
+                input.setAttribute('aria-expanded', 'false');
+                input.value = '';
+                input.blur();
+            }
         });
 
         document.addEventListener('click', function (event) {

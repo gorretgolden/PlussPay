@@ -12,10 +12,9 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * The two far ends of the corridor read as their own Overview cards: what the China desk has
- * handed over there, and what receivers in Uganda have been handed from bookings made in China.
- * The Taken By Agents card names the country the agents stand in, so the two desks' cash stays
- * apart.
+ * The two far ends of the corridor read as their own Overview row: what the China desk still owes
+ * receivers there and has already handed over, and the same two figures for Uganda. The Taken By
+ * Agents card names the country the agents stand in, so the two desks' cash stays apart.
  */
 class DashboardDeskPayoutCardsTest extends TestCase
 {
@@ -86,7 +85,7 @@ class DashboardDeskPayoutCardsTest extends TestCase
         return $this->actingAs($viewer)->get('/dashboard')->assertOk()->getContent();
     }
 
-    public function test_the_payout_cards_read_the_money_handed_over_in_each_country(): void
+    public function test_the_payout_row_reads_the_money_handed_over_in_each_country(): void
     {
         $office = $this->user('admin', 'Desk Admin');
 
@@ -95,24 +94,32 @@ class DashboardDeskPayoutCardsTest extends TestCase
 
         $html = $this->dashboardHtml($office);
 
-        // The yuan explainer under the Overview also names the two cards, so the assertions pin
-        // the card label markup itself, not the bare phrases.
-        $this->assertSame(3, substr_count($html, '<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Withdrawn In China</div>'), 'One card per window.');
-        $this->assertSame(3, substr_count($html, '<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Received In Uganda</div>'), 'One card per window.');
-        $this->assertGreaterThanOrEqual(3, substr_count($html, '¥500.00'), 'The yuan paid in China reads on the card.');
-        $this->assertGreaterThanOrEqual(3, substr_count($html, 'UGX 2,391,427'), 'The shillings paid in Uganda read on the card.');
-        $this->assertStringContainsString('handed over to receivers in China', $html);
-        $this->assertStringContainsString('paid out to receivers from bookings made in China', $html);
+        // The row heading and the four figures, one set per window.
+        $this->assertSame(3, substr_count($html, '>China and Uganda payouts<'), 'One row per window.');
+        $this->assertSame(3, substr_count($html, '>Paid in China<'), 'One paid figure per window.');
+        $this->assertSame(3, substr_count($html, '>Paid in Uganda<'), 'One paid figure per window.');
+        $this->assertSame(3, substr_count($html, '>To pay in China<'), 'One owed figure per window.');
+        $this->assertSame(3, substr_count($html, '>To pay in Uganda<'), 'One owed figure per window.');
+
+        $this->assertGreaterThanOrEqual(3, substr_count($html, '¥500.00'), 'The yuan paid in China reads on the row.');
+        $this->assertGreaterThanOrEqual(3, substr_count($html, 'UGX 2,391,427'), 'The shillings paid in Uganda read on the row.');
+        $this->assertStringContainsString('handed to 1 receiver', $html);
     }
 
-    public function test_a_window_with_no_payouts_reads_nothing_not_zero(): void
+    public function test_a_pile_with_nothing_in_it_reads_a_formatted_zero(): void
     {
         $office = $this->user('admin', 'Desk Admin');
 
         $html = $this->dashboardHtml($office);
 
-        // Two cards across three windows, each reading "nothing" rather than a bare 0.
-        $this->assertSame(6, substr_count($html, '>nothing</div>'));
+        // "nothing", "UGX 0", "UGX 0.0" and "¥0.0" all used to mean the same figure on one screen.
+        // Every empty pile now prints the zero its own currency is written at.
+        $this->assertStringContainsString('>¥0.00<', $html);
+        $this->assertStringContainsString('>UGX 0<', $html);
+        $this->assertStringNotContainsString('>nothing<', $html, 'The word is gone from the money figures.');
+        $this->assertStringNotContainsString('UGX 0.0', $html);
+        $this->assertStringNotContainsString('¥0.0<', $html);
+        $this->assertStringContainsString('every receiver there is paid', $html);
     }
 
     public function test_the_taken_by_agents_card_names_the_agents_countries(): void
@@ -129,14 +136,14 @@ class DashboardDeskPayoutCardsTest extends TestCase
         $this->assertStringContainsString('Taken By Agents In China And Uganda', $html);
     }
 
-    public function test_an_agent_gets_the_payout_cards_without_the_taken_card(): void
+    public function test_an_agent_gets_the_payout_row_without_the_taken_card(): void
     {
         $agent = $this->user('agent', 'Agent Betty', 'UG');
 
         $html = $this->dashboardHtml($agent);
 
-        $this->assertStringContainsString('Withdrawn In China', $html);
-        $this->assertStringContainsString('Received In Uganda', $html);
+        $this->assertStringContainsString('Paid in China', $html);
+        $this->assertStringContainsString('Paid in Uganda', $html);
         $this->assertStringNotContainsString('Taken By Agents', $html);
     }
 }

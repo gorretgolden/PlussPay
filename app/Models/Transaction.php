@@ -313,12 +313,16 @@ class Transaction extends Model
      * Those totals as one phrase, so a mixed batch reads "¥732.30 and $111.63" and a batch that paid
      * no dollars never mentions them.
      *
+     * A pile with nothing in it prints a zero in the money that pile would have been paid in, rather
+     * than the word "nothing". Every other nil figure on the board is a number, and a reader who sees
+     * one word among the figures cannot tell whether it means zero or means the sum was never run.
+     *
      * @param  array<string, string>  $payouts
      */
-    public static function formatPayouts(array $payouts): string
+    public static function formatPayouts(array $payouts, string $nilCurrency = 'UGX'): string
     {
         if ($payouts === []) {
-            return 'nothing';
+            return Account::format($nilCurrency, 0);
         }
 
         return collect($payouts)
@@ -474,59 +478,6 @@ class Transaction extends Model
         }
 
         return $query->where('created_by', $user->id);
-    }
-
-    /**
-     * The rule that puts a transfer's yuan in one of the three piles, as a SQL fragment per pile.
-     * Kept in one place because the money total and the count of transfers beside it have to be
-     * cut on the same rule, and a board that sums one way and counts the other reads as a fault
-     * in the books rather than a fault on the page.
-     *
-     * A transfer with no yuan in it belongs to no pile: there is nothing on its way to anybody, so
-     * counting it as zero in the paid pile would hide how many receivers are still owed money.
-     *
-     * @return array<string, string> pile key => WHERE fragment
-     */
-    private static function yuanPileConditions(): array
-    {
-        $live = "status = 'completed' AND rmb_amount > 0";
-
-        return [
-            'in_uganda' => "{$live} AND settled_at IS NULL AND delivered_at IS NULL",
-            'in_china' => "{$live} AND settled_at IS NOT NULL AND delivered_at IS NULL",
-            'paid' => "{$live} AND delivered_at IS NOT NULL",
-        ];
-    }
-
-    /**
-     * The three piles the yuan sits in, as SQL, so a board and a report cut the book on exactly
-     * the same rule and can never disagree about what has actually reached China. The three are
-     * exclusive and add back to every yuan a completed transfer ever promised.
-     *
-     * @return array<string, string> pile key => select expression
-     */
-    public static function yuanPileSql(): array
-    {
-        return array_map(
-            fn (string $where, string $key) => "COALESCE(SUM(CASE WHEN {$where} THEN rmb_amount ELSE 0 END), 0) as rmb_{$key}",
-            array_values(static::yuanPileConditions()),
-            array_keys(static::yuanPileConditions()),
-        );
-    }
-
-    /**
-     * The same three piles counted, for the line under a yuan total that says how many transfers
-     * make it up.
-     *
-     * @return array<string, string> pile key => select expression
-     */
-    public static function yuanPileCountSql(): array
-    {
-        return array_map(
-            fn (string $where, string $key) => "COALESCE(SUM(CASE WHEN {$where} THEN 1 ELSE 0 END), 0) as transfers_{$key}",
-            array_values(static::yuanPileConditions()),
-            array_keys(static::yuanPileConditions()),
-        );
     }
 
     /**

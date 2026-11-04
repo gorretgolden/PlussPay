@@ -128,11 +128,17 @@ class CashHistoryTest extends TestCase
     public function test_a_collected_transfer_shows_the_hour_it_was_typed_and_the_status_it_became(): void
     {
         $agent = $this->agent();
-        $this->shillingBooking($agent, 'PS-20261017-0101');
+        $booking = $this->shillingBooking($agent, 'PS-20261017-0101');
 
         $html = $this->page($agent);
 
-        $this->assertMatchesRegularExpression('/Oct \d\d, 2026<span[^>]*>, \d\d:\d\d [AP]M</', $html, 'The day and the hour sit on one line.');
+        // The line is stamped when the desk typed it in, so the day the page prints is the day the
+        // booking carries rather than a fixed date the test would age out of.
+        $this->assertMatchesRegularExpression(
+            '/'.preg_quote($booking->created_at->format('M d, Y'), '/').'<span[^>]*>, \d\d:\d\d [AP]M</',
+            $html,
+            'The day and the hour sit on one line.'
+        );
         $this->assertStringContainsString('Completed', $html, 'The line names the transfer it came from.');
         $this->assertStringContainsString('href="/transactions/', $html, 'The receipt number opens the booking it was collected for.');
         $this->assertStringContainsString('Collected', $html);

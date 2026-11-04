@@ -18,8 +18,9 @@ use Tests\TestCase;
 
 /**
  * The board showed money coming in and nothing going out, so the day's spending had to be opened
- * on its own page to be seen. It is kept apart by the desk that paid, because shillings spent in
- * Kampala and yuan spent in Guangzhou do not add up to anything, and each desk reads only its own.
+ * on its own page to be seen. It is a figure in the Overview now, in whichever window the board is
+ * set to, and it is kept apart by the desk that paid, because shillings spent in Kampala and yuan
+ * spent in Guangzhou do not add up to anything.
  */
 class DashboardSpendingTodayTest extends TestCase
 {
@@ -78,15 +79,13 @@ class DashboardSpendingTodayTest extends TestCase
     private function card(User $reader): string
     {
         $html = $this->actingAs($reader)->get('/dashboard')->assertOk()->getContent();
-        $start = strpos($html, 'Spent today');
+        $start = strpos($html, '>Spent</div>');
 
         if ($start === false) {
             return '';
         }
 
-        $end = strpos($html, 'Overview', $start);
-
-        return preg_replace('/\s+/', ' ', strip_tags(substr($html, $start, ($end ?: $start + 2400) - $start)));
+        return preg_replace('/\s+/', ' ', strip_tags(substr($html, $start, 3000)));
     }
 
     public function test_a_desk_reads_its_own_spending_on_the_board(): void
@@ -97,9 +96,8 @@ class DashboardSpendingTodayTest extends TestCase
 
         $card = $this->card($faith);
 
-        $this->assertStringContainsString('Uganda', $card);
         $this->assertStringContainsString('UGX 65,000', $card, 'Both entries under one head of shillings.');
-        $this->assertStringContainsString('2 entries today', $card);
+        $this->assertStringContainsString('2 entries', $card);
         $this->assertStringContainsString('Faith Nansere', $card);
     }
 
@@ -114,13 +112,11 @@ class DashboardSpendingTodayTest extends TestCase
 
         $card = $this->card($office);
 
-        $this->assertStringContainsString('Uganda', $card);
-        $this->assertStringContainsString('UGX 45,000', $card);
+        $this->assertStringContainsString('UGX 45,000 at Uganda', $card);
         $this->assertStringContainsString('Faith Nansere', $card);
-        $this->assertStringContainsString('China', $card);
-        $this->assertStringContainsString('¥3,000.00', $card);
+        $this->assertStringContainsString('¥3,000.00 at China', $card);
         $this->assertStringContainsString('Mei Chen', $card);
-        $this->assertLessThan(strpos($card, 'China'), strpos($card, 'Uganda'), 'Uganda is listed first.');
+        $this->assertLessThan(strpos($card, ' at China'), strpos($card, ' at Uganda'), 'Uganda is listed first.');
     }
 
     public function test_a_desk_never_sees_another_desks_spending(): void
@@ -135,19 +131,24 @@ class DashboardSpendingTodayTest extends TestCase
 
         $this->assertStringContainsString('UGX 45,000', $card);
         $this->assertStringNotContainsString('China', $card);
+        $this->assertStringNotContainsString('¥', $card);
         $this->assertStringNotContainsString('Mei Chen', $card, 'The card cuts on the same reach as the book.');
     }
 
-    public function test_a_day_with_no_spending_says_so_and_a_role_without_the_book_gets_no_card(): void
+    public function test_a_day_with_no_spending_gives_a_plain_zero_and_a_role_without_the_book_gets_no_figure(): void
     {
         $faith = $this->user('agent', 'Faith Nansere');
-        $this->assertStringContainsString('Nothing has been recorded as spent today', $this->card($faith));
+        $card = $this->card($faith);
+
+        $this->assertStringContainsString('UGX 0', $card, 'The same zero the rest of the board prints.');
+        $this->assertStringContainsString('nothing recorded', $card);
+        $this->assertStringNotContainsString('0.0', $card);
 
         $desk = $this->user('staff', 'Office Desk');
         $this->assertSame('', $this->card($desk), 'No reach into the book, so no figure to check.');
     }
 
-    public function test_the_card_counts_the_day_it_was_recorded_and_a_cancelled_entry_goes_back_off(): void
+    public function test_the_figure_counts_the_day_it_was_recorded_and_a_cancelled_entry_goes_back_off(): void
     {
         $office = $this->user('admin', 'Grace Naigaga');
         $amina = $this->user('agent', 'Amina Nabukenya');
@@ -158,13 +159,12 @@ class DashboardSpendingTodayTest extends TestCase
         $cancelled = $this->spent($amina, 'UGX', 'Transport', '45000.00');
         $cancelled->void('Entered twice');
 
-        $kept = $this->spent($amina, 'UGX', 'Airtime and internet', '10000.00');
+        $this->spent($amina, 'UGX', 'Airtime and internet', '10000.00');
 
         $card = $this->card($office);
 
         $this->assertStringContainsString('UGX 10,000', $card);
-        $this->assertStringContainsString('1 entry today', $card, 'Recorded yesterday and cancelled today are both out.');
-        unset($office, $kept);
+        $this->assertStringContainsString('1 entry', $card, 'Recorded yesterday and cancelled today are both out.');
     }
 
     public function test_the_board_and_the_spending_book_split_the_same_rows_the_same_way(): void

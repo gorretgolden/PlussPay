@@ -77,8 +77,8 @@ class DashboardAgentReachTest extends TestCase
     private function todayCards(User $reader): string
     {
         $html = $this->actingAs($reader)->get('/dashboard')->assertOk()->getContent();
-        $start = strpos($html, 'Overview');
-        $end = strpos($html, 'pending ·', $start);
+        $start = strpos($html, 'id="panel-today"');
+        $end = strpos($html, 'id="panel-month"', $start);
 
         return preg_replace('/\s+/', ' ', strip_tags(substr($html, $start, $end - $start)));
     }
@@ -90,18 +90,18 @@ class DashboardAgentReachTest extends TestCase
         $first = $this->booked($faith, '480000', '20000');
         $cards = $this->todayCards($faith);
 
-        $this->assertStringContainsString('Completed 1', $cards);
-        $this->assertStringContainsString('Sent UGX 460,000', $cards);
-        $this->assertStringContainsString('Charge UGX 20,000', $cards);
+        $this->assertStringContainsString('Transfers completed 1', $cards);
+        $this->assertStringContainsString('Amount sent UGX 460,000', $cards);
+        $this->assertStringContainsString('Charge collected UGX 20,000', $cards);
         $this->assertStringContainsString('¥885.7', $cards, 'The yuan the row promised at its own rate.');
         $this->assertSame(460000.0, (float) $first->amount);
 
         $this->booked($faith, '190000', '10000');
         $cards = $this->todayCards($faith);
 
-        $this->assertStringContainsString('Completed 2', $cards);
-        $this->assertStringContainsString('Sent UGX 640,000', $cards, '1,200,000 handed over less 30,000 of charges.');
-        $this->assertStringContainsString('Charge UGX 30,000', $cards);
+        $this->assertStringContainsString('Transfers completed 2', $cards);
+        $this->assertStringContainsString('Amount sent UGX 640,000', $cards, '1,200,000 handed over less 30,000 of charges.');
+        $this->assertStringContainsString('Charge collected UGX 30,000', $cards);
     }
 
     public function test_a_desk_board_never_carries_another_desks_money(): void
@@ -112,13 +112,13 @@ class DashboardAgentReachTest extends TestCase
         $this->booked($faith, '480000', '20000');
         $this->booked($amina, '760000', '40000');
 
-        $this->assertStringContainsString('Sent UGX 460,000', $this->todayCards($faith));
-        $this->assertStringContainsString('Sent UGX 720,000', $this->todayCards($amina));
+        $this->assertStringContainsString('Amount sent UGX 460,000', $this->todayCards($faith));
+        $this->assertStringContainsString('Amount sent UGX 720,000', $this->todayCards($amina));
 
         // The office keeps every book, so its board is the sum of both.
         $office = $this->desk('admin', 'Grace Naigaga');
-        $this->assertStringContainsString('Completed 2', $this->todayCards($office));
-        $this->assertStringContainsString('Sent UGX 1,180,000', $this->todayCards($office));
+        $this->assertStringContainsString('Transfers completed 2', $this->todayCards($office));
+        $this->assertStringContainsString('Amount sent UGX 1,180,000', $this->todayCards($office));
     }
 
     public function test_a_board_only_cuts_a_booking_into_today_on_the_day_it_was_typed_in(): void
@@ -127,24 +127,25 @@ class DashboardAgentReachTest extends TestCase
         $booking = $this->booked($faith, '480000', '20000');
         $booking->forceFill(['created_at' => now()->subDays(9)])->save();
 
-        $html = $this->actingAs($faith)->get('/dashboard')->assertOk()->getContent();
-        $start = strpos($html, 'Overview');
-        $end = strpos($html, 'The three yuan cards', $start) ?: $start + 20000;
-        $cards = preg_replace('/\s+/', ' ', strip_tags(substr($html, $start, $end - $start)));
-
-        $this->assertStringContainsString('Today', $cards);
-        $this->assertStringContainsString('All Time', $cards);
+        $cards = $this->todayCards($faith);
 
         // The panels print in tab order, so the old booking has to be missing from Today and
         // present further along the same text.
-        $today = strpos($cards, 'Completed 0 Sent UGX 0');
-        $all = strpos($cards, 'Completed 1');
+        $today = strpos($cards, 'Transfers completed 0 Amount sent UGX 0');
+        $all = $this->allTimeCards($faith);
         $this->assertNotFalse($today, 'Nothing of theirs today.');
-        $this->assertNotFalse($all, 'Nine days ago still counts as all time.');
-        $this->assertLessThan($all, $today);
+        $this->assertStringContainsString('Transfers completed 1', $all, 'Nine days ago still counts as all time.');
 
         // The booking keeps the prices it was sold at, so the yuan on the board is those prices.
-        $this->assertStringContainsString('¥885.7', $cards);
+        $this->assertStringContainsString('¥885.7', $all);
+    }
+
+    private function allTimeCards(User $reader): string
+    {
+        $html = $this->actingAs($reader)->get('/dashboard')->assertOk()->getContent();
+        $start = strpos($html, 'id="panel-all"');
+
+        return preg_replace('/\s+/', ' ', strip_tags(substr($html, $start, 6000)));
     }
 
     public function test_a_cancelled_booking_is_counted_by_status_and_left_out_of_the_money(): void
@@ -157,8 +158,8 @@ class DashboardAgentReachTest extends TestCase
 
         $cards = $this->todayCards($faith);
 
-        $this->assertStringContainsString('Completed 1', $cards);
-        $this->assertStringContainsString('Sent UGX 180,000', $cards);
+        $this->assertStringContainsString('Transfers completed 1', $cards);
+        $this->assertStringContainsString('Amount sent UGX 180,000', $cards);
         $this->assertStringNotContainsString('460,000', $cards, 'The cancelled money is off the board entirely.');
     }
 }
