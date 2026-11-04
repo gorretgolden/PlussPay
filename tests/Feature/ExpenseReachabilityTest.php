@@ -124,9 +124,9 @@ class ExpenseReachabilityTest extends TestCase
         // A desk agent books transfers and logs what they spent out of the cash in hand, so the
         // spending tile hands him the pen. The counter, the prices and the customer list stay with
         // the office and the super agent. Each check reads the shortcut card itself, because the
-        // sidebar carries the same words further up the page. Handing cash in is a tile, and it is
-        // a way in rather than a form: it opens the book narrowed to the transfers whose money is
-        // still in his hand, where each row carries the modal that raises the request.
+        // sidebar carries the same words further up the page. Handing cash in is a tile that opens
+        // the form where he ticks the transfers whose cash he holds; it is still not a dialog with
+        // a figure typed into it.
         $agentPage = $this->html($this->user('agent', 'Amina Nabukenya'));
         $agent = $this->quickActions($agentPage);
         $this->assertStringContainsString('>Send Money to China</span>', $agent);
@@ -134,7 +134,7 @@ class ExpenseReachabilityTest extends TestCase
         $this->assertStringContainsString('>Record Expense</span>', $agent, 'The desk that paid the cash out is the desk that records it.');
         $this->assertStringContainsString('Log what you spent today', $agent);
         $this->assertStringContainsString('>Hand in Cash</span>', $agent, 'A hand holding collected notes is offered the way in.');
-        $this->assertStringContainsString('/transactions?stage=cash', $agent, 'The shortcut lands on the money still in hand, not the whole book.');
+        $this->assertStringContainsString('/cash-handovers/create', $agent, 'The shortcut lands on the form that names the transfers, not the whole book.');
         $this->assertStringNotContainsString('>Hand Cash In</span>', $agent, 'The typed flat hand-in tile stays gone; this one only opens the page.');
         $this->assertStringContainsString('>Withdraw Money in Uganda</span>', $agent, 'A desk in Uganda withdraws where its own receivers collect.');
         $this->assertStringNotContainsString('>Withdraw Money in China</span>', $agent, 'The China queue stays on the China Desk page, not as a second tile.');

@@ -355,6 +355,45 @@ class CashHandoverController extends Controller
     }
 
     /**
+     * The form a hand fills in to ask the lead to take the cash: the transfers whose money is
+     * still in their drawer, ticked and sent up as names rather than as a typed figure. The same
+     * pen the row menu on the Transactions page offers, but on its own page with the totals
+     * standing beside the ticks, so a hand that never found the little menu still finds the form.
+     *
+     * The list is the same cut the store below will accept: this person's own bookings, completed,
+     * not yet sent on and not already named on a request. A row that would bounce the request is
+     * never offered in the first place.
+     */
+    public function create(Request $request)
+    {
+        $viewer = $request->user();
+
+        if ($message = $this->refusalFor($viewer)) {
+            return redirect()->route('cash-handovers.index')->withErrors(['handover' => $message]);
+        }
+
+        $superAgents = User::role('super-agent')->where('is_active', true)->orderBy('name')->get(['id', 'name']);
+
+        $transfers = Transaction::where('created_by', $viewer->id)
+            ->where('status', 'completed')
+            ->whereNull('settled_at')
+            ->whereNull('delivered_at')
+            ->whereNull('cash_handover_id')
+            ->orderBy('receipt_number')
+            ->get();
+
+        // One money per request, so the ticks are grouped by what the transfer was booked in and
+        // the page reads the two piles per group. On a mixed hand the first group starts ticked
+        // and the rest start clear, so the form never opens on a selection it would refuse.
+        $groups = $transfers
+            ->groupBy(fn (Transaction $t) => strtoupper($t->currency))
+            ->map(fn ($rows, $currency) => ['currency' => $currency, 'rows' => $rows])
+            ->values();
+
+        return view('cash-handovers.create', compact('viewer', 'superAgents', 'groups'));
+    }
+
+    /**
      * The usual way to hand cash in: name the transfers whose money is in front of you and send
      * those names up, rather than a figure nobody can check. The request carries the whole of what
      * those bookings are worth, which is the cash they put in your hand plus the charges they earned,

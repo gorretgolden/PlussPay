@@ -56,6 +56,7 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     // in is the agent naming the transfers whose cash is in hand, and they may call the request
     // back again while nobody has decided it.
     Route::post('/cash-handovers/from-transactions', [CashHandoverController::class, 'storeFromTransactions'])->middleware('can:view-wallets')->name('cash-handovers.from-transactions');
+    Route::get('/cash-handovers/create', [CashHandoverController::class, 'create'])->middleware('can:view-wallets')->name('cash-handovers.create');
     Route::post('/cash-handovers/{cashHandover}/cancel', [CashHandoverController::class, 'cancel'])->middleware('can:view-wallets')->name('cash-handovers.cancel');
     // The desk page for the requests, the sheet off the same filters, and one pen for approving a
     // stack of them. The words export and bulk are never read as a hand-in id.

@@ -253,13 +253,13 @@
         'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     ] : null;
 
-    // Handing cash in happens on the Transactions page, where a transfer's own row opens the
-    // modal that raises the request. There is no flat-amount hand-in anymore. What was missing was
-    // the way in: the page sits in the sidebar only, so the hands holding the notes never found
-    // the pen. The shortcut opens the book already narrowed to the stage it acts on, the transfers
-    // whose money is still in hand and not yet handed over.
+    // Handing cash in happens on its own form now: the page where a hand ticks the transfers whose
+    // money is still in their drawer and sends those names up. There is no flat-amount hand-in
+    // anymore. What was missing before was the way in and the form itself: the page sat in the
+    // sidebar only, and the pen hid in each row's little menu, so the hands holding the notes
+    // never found either.
     $handInAction = $me->mayHandInCash()
-        ? ['view-wallets', 'Hand in Cash', 'Send the cash you hold to your lead', route('transactions.index', ['stage' => 'cash']), 'M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 14V4m0 0L8 8m4-4l4 4']
+        ? ['view-wallets', 'Hand in Cash', 'Send the cash you hold to your lead', route('cash-handovers.create'), 'M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 14V4m0 0L8 8m4-4l4 4']
         : null;
 
     $quickActions = array_values(array_filter([

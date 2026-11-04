@@ -38,10 +38,18 @@
                 : 'What you handed in, and what was handed to you to decide.' }}
         </p>
     </div>
-    <a href="{{ route('cash-handovers.export', request()->query()) }}"
-        class="border border-gray-300 bg-white text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-50 whitespace-nowrap">
-        Export Excel
-    </a>
+    <div class="flex flex-wrap gap-2">
+        @if($me->mayHandInCash())
+        <a href="{{ route('cash-handovers.create') }}"
+            class="bg-green-800 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-green-700 whitespace-nowrap">
+            New hand-in
+        </a>
+        @endif
+        <a href="{{ route('cash-handovers.export', request()->query()) }}"
+            class="border border-gray-300 bg-white text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-50 whitespace-nowrap">
+            Export Excel
+        </a>
+    </div>
 </div>
 
 <form method="GET" action="{{ route('cash-handovers.index') }}" class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 mb-6 no-print">
