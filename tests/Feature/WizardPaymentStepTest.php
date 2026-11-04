@@ -390,6 +390,28 @@ class WizardPaymentStepTest extends TestCase
         $this->assertStringContainsString('Next: Review →', $html);
     }
 
+    public function test_the_two_money_routes_are_chosen_before_any_figure_is_typed(): void
+    {
+        $html = $this->page('agent');
+
+        preg_match('/<div class="wizard-step[^"]*" id="step-3">(.*?)<div class="rounded-2xl/s', $html, $match);
+        $step = $match[0] ?? '';
+
+        // A two column grid pairs what it prints in source order, so the first four fields are the
+        // two rows the desk reads top to bottom: what came in beside what goes out, then the cash
+        // and the charge taken out of it.
+        $currency = strpos($step, 'for="currency"');
+        $payout = strpos($step, 'for="payout_currency"');
+        $amount = strpos($step, 'for="amount"');
+        $charge = strpos($step, 'for="charge_ugx"');
+
+        $this->assertNotFalse($currency, 'The step carries the money in.');
+        $this->assertNotFalse($payout, 'The step carries the money out.');
+        $this->assertLessThan($payout, $currency, 'Handed over in leads its row.');
+        $this->assertLessThan($amount, $payout, 'Receiver gets stands beside Handed over in, not two rows down.');
+        $this->assertLessThan($charge, $amount, 'The cash and its charge stay on one row.');
+    }
+
     public function test_a_money_figure_outside_the_bounds_warns_at_the_top_of_the_form(): void
     {
         $html = $this->page('agent');

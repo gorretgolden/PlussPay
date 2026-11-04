@@ -238,6 +238,25 @@
                     </select>
                     <p class="text-xs text-gray-500 mt-1" id="currency_help">Choose what the customer pays in.</p>
                 </div>
+                {{-- She asked for the two currency choices side by side, because the desk decides
+                     what came in and what goes out in one look before it starts typing figures.
+                     The order here is the reading and tabbing order on a phone too. --}}
+                <div id="payout_wrap">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label class="block text-sm font-medium text-gray-700" for="payout_currency">Receiver gets *</label>
+                        @include('transactions.partials.field-tip', [
+                            'id' => 'payout-help-tip',
+                            'text' => 'Yuan is the usual payout in China: the dollars that transfer is worth go across, are changed there, and the receiver is handed yuan. Dollars when the receiver wants dollars, which means the money stops as dollars and is never changed. A receiver in Uganda is always paid shillings out of the till here, so there is nothing to choose on that route.',
+                        ])
+                    </div>
+                    <select name="payout_currency" id="payout_currency" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <option value="RMB" data-routes="CN" {{ $payoutCurrency === 'RMB' ? 'selected' : '' }}>RMB</option>
+                        <option value="USD" data-routes="CN" {{ $payoutCurrency === 'USD' ? 'selected' : '' }}>USD</option>
+                        <option value="UGX" data-routes="UG" {{ $payoutCurrency === 'UGX' ? 'selected' : '' }}>UGX</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1" id="payout_help">Choose what the receiver is handed.</p>
+                </div>
                 <div>
                     <div class="flex items-center justify-between gap-2 mb-1">
                         <label class="block text-sm font-medium text-gray-700" id="cash_label" for="amount">Money handed over *</label>
@@ -277,22 +296,6 @@
                     <input type="text" id="travels_out" readonly aria-readonly="true" placeholder="-"
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-900 tabular-nums cursor-default">
                     <p class="text-xs text-gray-500 mt-1" id="travels_help">Fills itself in from the two boxes above.</p>
-                </div>
-                <div id="payout_wrap">
-                    <div class="flex items-center justify-between gap-2 mb-1">
-                        <label class="block text-sm font-medium text-gray-700" for="payout_currency">Receiver gets *</label>
-                        @include('transactions.partials.field-tip', [
-                            'id' => 'payout-help-tip',
-                            'text' => 'Yuan is the usual payout in China: the dollars that transfer is worth go across, are changed there, and the receiver is handed yuan. Dollars when the receiver wants dollars, which means the money stops as dollars and is never changed. A receiver in Uganda is always paid shillings out of the till here, so there is nothing to choose on that route.',
-                        ])
-                    </div>
-                    <select name="payout_currency" id="payout_currency" required
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                        <option value="RMB" data-routes="CN" {{ $payoutCurrency === 'RMB' ? 'selected' : '' }}>RMB</option>
-                        <option value="USD" data-routes="CN" {{ $payoutCurrency === 'USD' ? 'selected' : '' }}>USD</option>
-                        <option value="UGX" data-routes="UG" {{ $payoutCurrency === 'UGX' ? 'selected' : '' }}>UGX</option>
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1" id="payout_help">Choose what the receiver is handed.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1" for="payment_method">Paid how? *</label>
