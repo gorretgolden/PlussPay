@@ -409,6 +409,78 @@ class WizardPaymentStepTest extends TestCase
     }
 
     /**
+     * The box is a flex row, and a flex utility outranks the display rule behind the hidden
+     * attribute, so putting it away with the attribute left an empty yellow strip on screen all
+     * day. Only the hidden class actually hides it, and the script has to keep using that one.
+     */
+    public function test_an_unused_warning_is_put_away_with_the_class_that_beats_flex(): void
+    {
+        $html = $this->page('agent');
+
+        preg_match('/<div id="bounds_warning"[^>]*>/', $html, $box);
+
+        $this->assertMatchesRegularExpression('/class="[^"]*\bhidden\b[^"]*"/', $box[0] ?? '');
+        // The attribute is the one that does nothing here, so it may not reappear.
+        $this->assertDoesNotMatchRegularExpression('/\shidden(\s|=|>)/', $box[0] ?? '');
+
+        $this->assertStringContainsString("document.getElementById('bounds_warning').classList.toggle('hidden', warning === '');", $html);
+    }
+
+    /**
+     * A shilling charge is deducted from the money on the counter and a dollar charge is added on
+     * top in shillings, so the line under the charge box cannot be one sentence for both. It is
+     * written from the money the customer actually handed over.
+     */
+    public function test_the_charge_line_follows_the_money_handed_over(): void
+    {
+        $html = $this->page('agent');
+
+        $this->assertStringContainsString('Taken out of the money handed over.', $html);
+        $this->assertStringContainsString('Collected on top, in shillings.', $html);
+        $this->assertStringContainsString('Taken out of the shillings paid to the receiver.', $html);
+        $this->assertStringContainsString("document.getElementById('charge_help').textContent = chargeHelpBase + ' ' + chargeNote(f.route, f.currency);", $html);
+    }
+
+    /**
+     * The card and the box beside it are read side by side, so the same figure cannot appear as
+     * ¥656 in one place and ¥656.00 in the other. Shillings have no smaller note, so they carry
+     * no decimals anywhere.
+     */
+    public function test_each_money_prints_the_same_way_everywhere_it_appears(): void
+    {
+        $html = $this->page('agent');
+
+        $this->assertStringContainsString("'UGX ' + n.toLocaleString(undefined, {maximumFractionDigits: 0})", $html);
+
+        preg_match('/function showMoney\(.*?\n\}/s', $html, $printer);
+        $this->assertMatchesRegularExpression("/currency === 'RMB'.*minimumFractionDigits: 2, maximumFractionDigits: 2/s", $printer[0] ?? '');
+        $this->assertMatchesRegularExpression("/return '\\\$'.*minimumFractionDigits: 2, maximumFractionDigits: 2/s", $printer[0] ?? '');
+    }
+
+    /**
+     * The booking is already in the boxes when the bar appears, so the bar only says what happened
+     * and offers the one action still open. Starting over wipes typed work, so it asks first.
+     */
+    public function test_the_restored_draft_is_announced_once_and_starting_over_is_confirmed(): void
+    {
+        $html = $this->page('agent');
+
+        $this->assertStringContainsString('Restored your unfinished transaction for', $html);
+        $this->assertStringContainsString('>Start over</button>', $html);
+        $this->assertStringNotContainsString('Edit Draft', $html);
+        $this->assertStringNotContainsString('Welcome back', $html);
+        $this->assertStringNotContainsString('saved in this browser', $html);
+
+        // Nothing may point at a page that no longer answers the question, and no key may be
+        // left behind for a switch that has been taken out.
+        $this->assertSame(0, substr_count($html, 'keep_draft'), 'The keep-draft switch is gone.');
+        $this->assertStringNotContainsString('sessionStorage', $html);
+
+        $this->assertStringContainsString('await askConfirm({', $html);
+        $this->assertStringContainsString('title: \'Start this booking over?\'', $html);
+    }
+
+    /**
      * The review step is the same card with the customer-facing wording, painted by the one
      * renderer, so there is no second summary that can drift from the first.
      */

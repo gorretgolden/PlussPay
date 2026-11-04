@@ -7,7 +7,6 @@
     $serverRepopulated = $errors->any();
     $errorFields = $errors->keys();
     $draftKey = 'pluspay_send_draft_u' . (auth()->id() ?? 'guest');
-    $keepKey = 'pluspay_keep_draft_u' . (auth()->id() ?? 'guest');
     $trimRate = fn ($r) => rtrim(rtrim(number_format((float) $r, 6, '.', ''), '0'), '.');
 
     // Which way the money is going is decided before the first box is answered, because it changes
@@ -30,21 +29,17 @@
     $payoutOld = old('payout_currency');
     $payoutCurrency = in_array($payoutOld, $payoutChoices, true) ? $payoutOld : $payoutChoices[0];
 @endphp
-<div class="max-w-4xl mx-auto">
+<div class="max-w-4xl lg:max-w-6xl mx-auto">
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900" id="page_title">{{ $toUganda ? 'Send Money to Uganda' : 'Send Money to China' }}</h1>
     </div>
 
-    {{-- Draft restored banner --}}
-    <div id="draftBar" class="hidden mb-6 bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-center justify-between gap-4">
-        <div>
-            <p class="text-sm font-medium text-amber-900" id="draftMessage">Draft restored</p>
-            <p class="text-xs text-amber-700 mt-1">Your unfinished transaction was saved in this browser.</p>
-        </div>
-        <div class="flex items-center gap-2 shrink-0">
-            <a href="{{ route('transactions.create') }}" id="editLink" class="text-sm bg-white border border-amber-300 text-amber-900 px-4 py-2 rounded-lg hover:bg-amber-100 font-medium">Edit Draft</a>
-            <button type="button" id="discardDraft" class="text-sm bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-500 font-medium">Discard</button>
-        </div>
+    {{-- The desk is already editing the restored booking, so the bar only reports that it happened
+         and offers the one action that is still open. The amber-800 text is the shade the dark
+         theme knows about; amber-900 on the dimmed background reads as an empty bar. --}}
+    <div id="draftBar" class="hidden mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 flex items-center justify-between gap-4">
+        <p class="text-sm font-medium text-amber-800" id="draftMessage">Restored your unfinished transaction.</p>
+        <button type="button" id="discardDraft" class="shrink-0 text-sm font-medium text-red-700 rounded-lg px-2 py-1 underline hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600">Start over</button>
     </div>
 
     {{-- Stepper --}}
@@ -76,10 +71,12 @@
 
         {{-- A money figure outside the desk's bounds is the one mistake that must be seen while
              it is being typed, not discovered under a dead button two steps later, so the
-             warning sits above every step of the wizard. --}}
-        <div id="bounds_warning" role="alert" hidden class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
+             warning sits above every step of the wizard. It is put away with the hidden class
+             rather than the hidden attribute: this box is a flex row, and the flex utility beats
+             the attribute's display rule, so an empty warning stayed on screen all day. --}}
+        <div id="bounds_warning" role="alert" class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3 hidden">
             <svg aria-hidden="true" class="w-5 h-5 text-amber-700 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            <p class="text-sm text-amber-900" id="bounds_warning_text"></p>
+            <p class="text-sm text-amber-800" id="bounds_warning_text"></p>
         </div>
 
         {{-- Step 1: Sender --}}
@@ -217,7 +214,12 @@
         </div>
 
         {{-- Step 3: Payment --}}
-        <div class="wizard-step bg-white rounded-lg shadow p-8 hidden" id="step-3">
+        <div class="wizard-step hidden" id="step-3">
+            {{-- The working is what the desk is really reading while it types, so on a wide screen it
+                sits beside the boxes rather than a scroll below them. The hidden switch stays on the
+                outer step because a responsive grid utility outranks it on the inner one. --}}
+            <div class="flex flex-col lg:grid lg:grid-cols-5 lg:items-start lg:gap-6">
+            <div class="bg-white rounded-lg shadow p-8 order-1 lg:order-none lg:col-span-3">
             <h2 class="text-lg font-semibold text-gray-800 mb-6">Payment Details</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -332,8 +334,9 @@
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                 </div>
             </div>
+            </div>
 
-            <div class="mt-6">
+            <div class="mt-6 lg:mt-0 lg:col-span-2 lg:sticky lg:top-6 order-2 lg:order-none">
                 @include('transactions.partials.calculation-card', [
                     'panel' => 'live',
                     'ratesLink' => true,
@@ -341,8 +344,11 @@
                 ])
             </div>
 
-            <div class="flex items-start justify-between mt-8">
-                <button type="button" onclick="prevStep(3)" class="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 font-medium">
+            {{-- On a phone the working comes before the buttons, because the figure it ends with is
+                 what the desk is agreeing to when they press Next. On a wide screen the same block
+                 drops back under the form column. --}}
+            <div class="mt-6 flex items-start justify-between order-3 lg:order-none lg:col-span-3 lg:row-start-2">
+                <button type="button" onclick="prevStep(3)" class="border border-gray-300 bg-white text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-50 font-medium">
                     ← Back
                 </button>
                 <div class="flex flex-col items-end gap-2">
@@ -351,6 +357,7 @@
                     </button>
                     <p class="text-xs text-gray-500" id="step3_hint"></p>
                 </div>
+            </div>
             </div>
         </div>
 
@@ -387,7 +394,7 @@
             </div>
 
             <div class="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <button type="button" onclick="prevStep(4)" class="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 font-medium self-start sm:self-auto">
+                <button type="button" onclick="prevStep(4)" class="border border-gray-300 bg-white text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-50 font-medium self-start sm:self-auto">
                     ← Edit Details
                 </button>
                 <div class="flex flex-col items-start gap-2 sm:items-end">
@@ -442,7 +449,6 @@ const ROUTES = {
         cashHelp: { UGX: 'Total received, charge included.', USD: 'All of these dollars travel.' },
         travelsHelp: { UGX: 'Money handed over minus the charge.', USD: 'Every dollar handed over, since the charge comes on top.' },
         currencyHelp: 'Choose what the customer pays in.',
-        chargeNote: 'Taken out of the money handed over.',
         phone: { sender: ['+256', '700 000 000'], receiver: ['+86', '138 0000 0000'] },
         name: { sender: 'e.g. John Okello', receiver: 'e.g. Zhang Wei' },
     },
@@ -456,7 +462,6 @@ const ROUTES = {
         cashHelp: { RMB: 'Yuan counted over there. The whole of it is taken in.', USD: 'Dollars counted over there. The whole of them are taken in.' },
         travelsHelp: { RMB: 'The whole of the yuan crosses. The charge comes out of the payout instead.', USD: 'The whole of the dollars cross. The charge comes out of the payout instead.' },
         currencyHelp: 'Choose what the customer handed over in China.',
-        chargeNote: 'Taken out of the shillings paid to the receiver.',
         phone: { sender: ['+86', '138 0000 0000'], receiver: ['+256', '700 000 000'] },
         name: { sender: 'e.g. Zhang Wei', receiver: 'e.g. John Okello' },
     },
@@ -472,6 +477,16 @@ const BOUNDS = @json($bounds);
 
 // What the charge box was told before the route had anything to say about it.
 const chargeHelpBase = document.getElementById('charge_help').textContent.trim();
+
+// Where the charge comes out of, which on the China road depends on the money handed over:
+// shillings carry it inside the cash counted at the counter, dollars have it added on top in
+// shillings. The old line said "taken out of the money handed over" for both, which contradicted
+// the working the card shows a dollar booking through.
+function chargeNote(route, currency) {
+    if (route === 'UG') return 'Taken out of the shillings paid to the receiver.';
+
+    return currency === 'USD' ? 'Collected on top, in shillings.' : 'Taken out of the money handed over.';
+}
 
 function chosenRoute() {
     // An office picks the route from the two cards; a desk that only has one road carries it in a
@@ -536,7 +551,6 @@ function applyRoute() {
         ? 'Charge, out of the payout (UGX) *'
         : 'Charge (UGX) *';
     document.getElementById('currency_help').textContent = r.currencyHelp;
-    document.getElementById('charge_help').textContent = chargeHelpBase + ' ' + r.chargeNote;
 
     // The note the page opens with names the corridor, so it is only rewritten while it still says
     // what the other corridor would have said, or nothing at all.
@@ -756,13 +770,16 @@ function trimRate(n) {
     return parseFloat(Number(n).toFixed(6)).toString();
 }
 
+// The same places the rest of the book uses: shillings are counted in notes so they print whole,
+// dollars and yuan are counted in cents and fen so they always carry two places. The card used to
+// drop the places on a round yuan figure, so the header said ¥656.00 and the step said ¥656.
 function ugx(n) {
-    return 'UGX ' + n.toLocaleString(undefined, {maximumFractionDigits: 2});
+    return 'UGX ' + n.toLocaleString(undefined, {maximumFractionDigits: 0});
 }
 
 function showMoney(currency, n) {
     if (currency === 'UGX') return ugx(n);
-    if (currency === 'RMB') return '¥' + n.toLocaleString(undefined, {maximumFractionDigits: 2});
+    if (currency === 'RMB') return '¥' + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
     return '$' + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
@@ -1027,6 +1044,7 @@ function calculate() {
     const cb = BOUNDS[f.currency] || BOUNDS.UGX;
 
     document.getElementById('cash_help').textContent = r.cashHelp[f.currency] || '';
+    document.getElementById('charge_help').textContent = chargeHelpBase + ' ' + chargeNote(f.route, f.currency);
     amountEl.min = cb.min || 0;
     amountEl.max = cb.max || 0;
 
@@ -1096,7 +1114,7 @@ function boundsMessage() {
 function syncStep3() {
     const warning = boundsMessage();
     document.getElementById('bounds_warning_text').textContent = warning;
-    document.getElementById('bounds_warning').hidden = warning === '';
+    document.getElementById('bounds_warning').classList.toggle('hidden', warning === '');
 
     const hint = step3Hint();
     document.getElementById('next-3').disabled = hint !== '' || warning !== '';
@@ -1191,9 +1209,7 @@ document.getElementById('transactionForm').addEventListener('submit', function(e
 
 // ---- Draft save / restore (scoped to the signed-in user) ----
 const DRAFT_KEY = @json($draftKey);
-const KEEP_KEY = @json($keepKey);
 localStorage.removeItem('pluspay_send_draft');
-localStorage.removeItem('pluspay_keep_draft');
 const DRAFT_FIELDS = ['sender_name', 'sender_contact', 'receiver_name', 'receiver_contact', 'currency', 'payout_currency', 'amount', 'charge_ugx', 'purpose', 'purpose_other', 'payment_method', 'payment_reference', 'notes', 'agent_id'];
 let draftCleared = false;
 
@@ -1274,7 +1290,7 @@ function restoreDraft() {
     form.querySelectorAll('select').forEach(sel => sel.dispatchEvent(new Event('change', { bubbles: true })));
 
     document.getElementById('draftMessage').textContent =
-        'Welcome back - we restored your unfinished transaction for ' + (data.sender_name || 'the sender') + '.';
+        'Restored your unfinished transaction for ' + (data.sender_name || 'the sender') + '.';
 
     // Step 4 is the review screen; it needs live data, so restore up to step 3 max.
     const step = Math.min(parseInt(data.step) || 1, 3);
@@ -1282,20 +1298,22 @@ function restoreDraft() {
 
     const bar = document.getElementById('draftBar');
     bar.classList.remove('hidden');
-    document.getElementById('discardDraft').addEventListener('click', function () {
+    document.getElementById('discardDraft').addEventListener('click', async () => {
+        // The booking is already typed into the boxes, so wiping it is a real loss and the desk
+        // may only be reaching for the wrong button.
+        const startOver = await askConfirm({
+            title: 'Start this booking over?',
+            message: 'The saved draft is deleted and every box on this page is emptied.',
+            confirmText: 'Start over',
+            danger: true,
+        });
+        if (!startOver) return;
+        // The typed boxes are still on the page while the browser leaves for the reload, and the
+        // save timer would otherwise hand the draft back the moment it is deleted.
+        draftCleared = true;
         localStorage.removeItem(DRAFT_KEY);
         location.reload();
     });
-    document.getElementById('editLink').addEventListener('click', function () {
-        // Keep editing on the fresh page without the banner; draft itself stays until submitted or discarded.
-        sessionStorage.setItem(KEEP_KEY, '1');
-    });
-
-    if (sessionStorage.getItem(KEEP_KEY)) {
-        sessionStorage.removeItem(KEEP_KEY);
-        document.getElementById('draftBar').classList.add('hidden');
-        return;
-    }
 }
 restoreDraft();
 </script>

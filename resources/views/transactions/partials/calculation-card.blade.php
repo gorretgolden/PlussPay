@@ -25,8 +25,8 @@
         <div class="mt-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
                 <span class="block text-[11px] font-semibold uppercase tracking-wider text-gray-500">Receiver gets</span>
-                <div class="mt-1 text-3xl font-bold leading-none text-purple-700">
-                    <span class="font-medium text-purple-400" data-c="payout-glyph">¥</span><span class="tabular-nums" data-c="payout-total">0.00</span>
+                <div class="mt-1 text-3xl font-bold leading-none text-green-800 whitespace-nowrap">
+                    <span class="font-medium text-green-600" data-c="payout-glyph">¥</span><span class="tabular-nums" data-c="payout-total">0.00</span>
                 </div>
             </div>
             <p class="text-xs text-gray-500 tabular-nums sm:text-right" data-c="rates"></p>
@@ -38,15 +38,15 @@
                 <div class="min-w-0 flex-1">
                     <div class="flex items-baseline justify-between gap-4">
                         <span class="text-gray-600" data-c="cash-label">Handed over</span>
-                        <span class="font-semibold text-gray-900 tabular-nums" data-c="cash">-</span>
+                        <span class="font-semibold text-gray-900 tabular-nums shrink-0 whitespace-nowrap" data-c="cash">-</span>
                     </div>
                     <div class="mt-1 flex items-baseline justify-between gap-4">
                         <span class="text-gray-600" data-c="charge-label">Service charge</span>
-                        <span class="font-semibold text-red-600 tabular-nums" data-c="charge">-</span>
+                        <span class="font-semibold text-gray-700 tabular-nums shrink-0 whitespace-nowrap" data-c="charge">-</span>
                     </div>
                     <div class="mt-2 flex items-baseline justify-between gap-4 border-t-2 border-green-300 pt-2">
                         <span class="text-gray-600" data-c="travels-label">Amount that travels</span>
-                        <span class="font-bold text-gray-900 tabular-nums" data-c="travels">-</span>
+                        <span class="font-bold text-gray-900 tabular-nums shrink-0 whitespace-nowrap" data-c="travels">-</span>
                     </div>
                 </div>
             </li>
@@ -55,7 +55,7 @@
                 <div class="min-w-0 flex-1">
                     <div class="flex items-baseline justify-between gap-4">
                         <span class="text-gray-600" data-c="usd-label">Converted to USD</span>
-                        <span class="font-bold text-gray-900 tabular-nums" data-c="usd">-</span>
+                        <span class="font-bold text-gray-900 tabular-nums shrink-0 whitespace-nowrap" data-c="usd">-</span>
                     </div>
                     <p class="mt-1 text-xs text-gray-500 tabular-nums" data-c="usd-hint"></p>
                 </div>
@@ -65,7 +65,7 @@
                 <div class="min-w-0 flex-1">
                     <div class="flex items-baseline justify-between gap-4">
                         <span class="text-gray-600" data-c="payout-label">Converted to RMB</span>
-                        <span class="font-bold text-gray-900 tabular-nums" data-c="payout-line">-</span>
+                        <span class="font-bold text-gray-900 tabular-nums shrink-0 whitespace-nowrap" data-c="payout-line">-</span>
                     </div>
                     <p class="mt-1 text-xs text-gray-500 tabular-nums" data-c="payout-hint"></p>
                 </div>
