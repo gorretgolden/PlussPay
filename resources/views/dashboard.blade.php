@@ -709,8 +709,8 @@
                     <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receipt #</th>
                     <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Sender</th>
                     <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Receiver</th>
-                    <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Amount</th>
-                    <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Paid out</th>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Amount</th>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Paid out</th>
                     <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
                     <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Date</th>
                     <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
@@ -724,17 +724,17 @@
                     </td>
                     <td class="px-3 py-3 text-sm text-gray-900 max-w-[11rem] truncate" title="{{ $t->sender_name }}">{{ $t->sender_name }}</td>
                     <td class="px-3 py-3 text-sm text-gray-900 max-w-[11rem] truncate" title="{{ $t->receiver_name }}">{{ $t->receiver_name }}</td>
-                    <td class="px-3 py-3 text-sm text-right text-gray-900 whitespace-nowrap tabular-nums">{{ $t->principalLabel() }}</td>
-                    <td class="px-3 py-3 text-sm text-right text-gray-900 whitespace-nowrap tabular-nums" title="{{ $t->payoutAmount() === null ? 'No handed-over figure on this booking' : 'Handed to the receiver in '.\App\Models\Account::currencyLabel($t->payoutCurrency()) }}">
+                    <td class="px-3 py-3 text-sm text-gray-900 whitespace-nowrap tabular-nums">{{ $t->principalLabel() }}</td>
+                    <td class="px-3 py-3 text-sm text-gray-900 whitespace-nowrap tabular-nums" title="{{ $t->payoutAmount() === null ? 'No handed-over figure on this booking' : 'Handed to the receiver in '.\App\Models\Account::currencyLabel($t->payoutCurrency()) }}">
                         {{ $t->payoutAmount() === null ? '-' : \App\Models\Account::format($t->payoutCurrency(), $t->payoutAmount()) }}
                     </td>
                     <td class="px-3 py-3 whitespace-nowrap">
-                        <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap
-                            @if($t->status === 'completed') bg-green-100 text-green-800
-                            @elseif($t->status === 'pending') bg-amber-100 text-amber-800
-                            @else bg-red-100 text-red-800 @endif">
-                            {{ ucfirst($t->status) }}
-                        </span>
+                        {{-- The books call a booking completed the moment the counter takes the cash,
+                             but on this card a reader is asking where the money is, so the stamp
+                             follows the journey instead: Cash taken, then Waiting in China, then
+                             Paid. Same badge the transactions list uses, so the two lists never say
+                             different things about one booking. --}}
+                        <x-progress-badge :transaction="$t" />
                     </td>
                     <td class="px-3 py-3 text-sm text-gray-500 whitespace-nowrap tabular-nums">{{ $t->created_at->format('M j, Y, g:i A') }}</td>
                     <td class="px-3 py-3 text-sm whitespace-nowrap">
@@ -761,12 +761,7 @@
         <li class="p-4">
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <a href="{{ route('receipts.show', $t->receipt_number) }}" class="text-sm font-semibold text-green-800 tabular-nums">{{ $t->receipt_number }}</a>
-                <span class="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap
-                    @if($t->status === 'completed') bg-green-100 text-green-800
-                    @elseif($t->status === 'pending') bg-amber-100 text-amber-800
-                    @else bg-red-100 text-red-800 @endif">
-                    {{ ucfirst($t->status) }}
-                </span>
+                <x-progress-badge :transaction="$t" />
             </div>
             <p class="text-sm text-gray-900 mt-2">{{ $t->sender_name }} <span aria-hidden="true">&rarr;</span> {{ $t->receiver_name }}</p>
             <p class="text-sm font-semibold text-gray-900 mt-1 tabular-nums">{{ $t->principalLabel() }}

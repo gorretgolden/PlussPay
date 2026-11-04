@@ -469,7 +469,7 @@ class ExportController extends Controller
                 $line['currency'],
                 $line['label'],
                 $line['reference'] ?? '-',
-                $line['status'] ? ucfirst($line['status']) : '',
+                $line['stage']['label'] ?? '',
                 $line['in'] !== null ? Account::format($line['currency'], $line['in']) : '',
                 $line['out'] !== null ? Account::format($line['currency'], $line['out']) : '',
                 Account::format($line['currency'], $line['running']),

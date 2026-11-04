@@ -420,7 +420,7 @@ class AccountLedger
             $wallet,
             'agent_fee',
             $fee,
-            "Commission on transfer {$transaction->receipt_number}",
+            "Charge on transfer {$transaction->receipt_number}",
             $transaction->created_at?->toDateString(),
             $transaction->receipt_number,
             $transaction->id,
@@ -454,7 +454,7 @@ class AccountLedger
             $wallet ?? Account::walletFor(User::find($transaction->created_by), 'UGX'),
             'agent_fee_reversal',
             (string) $deposit->amount,
-            "Reversed commission on cancelled transfer {$transaction->receipt_number}",
+            "Charge given back on cancelled transfer {$transaction->receipt_number}",
             now()->toDateString(),
             $transaction->receipt_number,
             $transaction->id,
@@ -504,7 +504,7 @@ class AccountLedger
                     $in,
                     'exchange_fee',
                     $fee,
-                    'Commission on currency exchange '.$exchange->reference.': '
+                    'Charge on currency exchange '.$exchange->reference.': '
                         .Account::format($in->currency, $fee).' kept from '.$exchange->person_name,
                     $exchange->exchange_date->toDateString(),
                     $exchange->reference,

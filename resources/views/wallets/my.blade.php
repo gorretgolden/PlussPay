@@ -180,7 +180,10 @@
                     <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{{ $line['currency'] }}</td>
                     <td class="px-4 py-3 text-sm text-gray-900">
                         {{ $line['label'] }}
-                        <span class="block text-xs text-gray-500">{{ $line['description'] }}</span>
+                        {{-- The note can run to two lines of a paragraph, and a table whose widest
+                             column is somebody's sentence cannot be scanned. One line, cut, with
+                             the whole note still there for a pointer. --}}
+                        <span class="block max-w-[15rem] truncate text-xs text-gray-500" title="{{ $line['description'] }}">{{ $line['description'] }}</span>
                     </td>
                     <td class="px-4 py-3 text-sm whitespace-nowrap">
                         @if($line['transaction_id'] && (auth()->id() === $line['booked_by'] || auth()->user()->can('view-all-transactions')))
@@ -190,8 +193,12 @@
                         @endif
                     </td>
                     <td class="px-4 py-3 text-sm whitespace-nowrap">
-                        @if($line['status'])
-                            <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ $line['status'] === 'completed' ? 'bg-green-100 text-green-800' : ($line['status'] === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800') }}">{{ ucfirst($line['status']) }}</span>
+                        {{-- The stamp here is where the booking's own money has got to, not the
+                             word the books put on the row when the counter took the cash. A line
+                             saying Completed over a transfer the receiver has not been paid for
+                             reads as a mistake in the drawer's own book. --}}
+                        @if($line['stage'])
+                            <x-stage-badge :stage="$line['stage']" />
                         @else
                             <span class="text-gray-400">-</span>
                         @endif

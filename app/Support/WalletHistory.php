@@ -19,11 +19,15 @@ use Illuminate\Pagination\LengthAwarePaginator;
  */
 final class WalletHistory
 {
-    /** The kinds a drawer can show, in the order the filter box lists them. */
+    /**
+     * The kinds a drawer can show, in the order the filter box lists them. What a collector keeps
+     * out of the cash they took in is a charge here, not a commission: she ruled the word on
+     * 2026-11-04, and it matches the Charges column the hand-in desk already uses.
+     */
     public const KINDS = [
         'money_in' => 'Collected',
-        'agent_fee' => 'Commission',
-        'agent_fee_reversal' => 'Commission given back',
+        'agent_fee' => 'Charge',
+        'agent_fee_reversal' => 'Charge given back',
         'transfer_out' => 'Handed in',
         'transfer_in' => 'Received back',
         'handover_out' => 'Handed in',
@@ -44,6 +48,11 @@ final class WalletHistory
      * day with this morning's hour, which is the honest pair: the books say when it counts, the
      * clock says when somebody typed it.
      *
+     * A line that belongs to a booking carries that booking's journey stage rather than its own
+     * stamp, because the books mark a transfer completed the moment the counter takes the cash and
+     * the drawer is asking a different question: has it reached the receiver yet. The stage travels
+     * on the line so the page and the sheet cannot say two things about one movement.
+     *
      * @return array<int, array<string, mixed>>
      */
     public static function lines(User $user): array
@@ -55,7 +64,7 @@ final class WalletHistory
             $own = [];
 
             $entries = AccountEntry::where('account_id', $wallet->id)
-                ->with(['transaction:id,status,receipt_number,created_by', 'creator:id,name'])
+                ->with(['transaction:id,status,receipt_number,created_by,delivered_at,settled_at,hand_in_status,destination', 'creator:id,name'])
                 ->orderBy('entry_date')
                 ->orderBy('id')
                 ->get();
@@ -75,7 +84,7 @@ final class WalletHistory
                     'description' => $entry->description,
                     'reference' => $entry->reference,
                     'direction' => $entry->direction,
-                    'status' => $entry->transaction?->status,
+                    'stage' => $entry->transaction?->progress(),
                     'transaction_id' => $entry->transaction_id,
                     'booked_by' => $entry->transaction?->created_by,
                     'in' => $entry->direction === 'in' ? (string) $entry->amount : null,

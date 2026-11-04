@@ -153,12 +153,7 @@
                     <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->yuanLabel() }}</td>
                     <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->feeLabel() }}</td>
                     <td class="px-4 py-4">
-                        <span class="px-2 py-1 text-xs rounded-full
-                            @if($t->status === 'completed') bg-green-100 text-green-800
-                            @elseif($t->status === 'pending') bg-yellow-100 text-yellow-800
-                            @else bg-red-100 text-red-800 @endif">
-                            {{ ucfirst($t->status) }}
-                        </span>
+                        <x-progress-badge :transaction="$t" />
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('M d, Y h:i A') }}</td>
                 </tr>
@@ -651,12 +646,7 @@
                     <td class="px-4 py-4 text-sm text-gray-900 whitespace-nowrap">{{ $t->feeLabel() }}</td>
                     <td class="px-4 py-4 text-sm text-gray-900">{{ $t->creator?->name ?? 'Unknown' }}</td>
                     <td class="px-4 py-4">
-                        <span class="px-2 py-1 text-xs rounded-full
-                            @if($t->status === 'completed') bg-green-100 text-green-800
-                            @elseif($t->status === 'pending') bg-yellow-100 text-yellow-800
-                            @else bg-red-100 text-red-800 @endif">
-                            {{ ucfirst($t->status) }}
-                        </span>
+                        <x-progress-badge :transaction="$t" />
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ $t->created_at->format('M d, Y h:i A') }}</td>
                 </tr>

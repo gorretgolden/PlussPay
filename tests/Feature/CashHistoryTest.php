@@ -137,7 +137,7 @@ class CashHistoryTest extends TestCase
         return $from === false || $to === false ? '' : substr($html, $from, $to - $from);
     }
 
-    public function test_a_collected_transfer_shows_the_hour_it_was_typed_and_the_status_it_became(): void
+    public function test_a_collected_transfer_shows_the_hour_it_was_typed_and_the_stage_it_reached(): void
     {
         $agent = $this->agent();
         $this->shillingBooking($agent, 'PS-20261017-0101');
@@ -145,10 +145,44 @@ class CashHistoryTest extends TestCase
         $html = $this->page($agent);
 
         $this->assertMatchesRegularExpression('/[A-Z][a-z]{2} \d\d, 2026<span[^>]*>, \d\d:\d\d [AP]M</', $html, 'The day and the hour sit on one line.');
-        $this->assertStringContainsString('Completed', $html, 'The line names the transfer it came from.');
+        $this->assertStringContainsString('>Cash taken</span>', $html, 'The line says where the money is, not that the booking was keyed in.');
         $this->assertStringContainsString('href="/transactions/', $html, 'The receipt number opens the booking it was collected for.');
         $this->assertStringContainsString('Collected', $html);
-        $this->assertStringContainsString('Commission', $html);
+        $this->assertStringContainsString('Charge', $this->rows($html), 'What the collector keeps is a charge here.');
+    }
+
+    public function test_a_wallet_line_follows_the_money_across_the_corridor(): void
+    {
+        $agent = $this->agent('Aisha Namutebi');
+        $booking = $this->shillingBooking($agent, 'PS-20261017-0116');
+
+        // The books mark the booking completed the moment the counter takes the cash, but on this
+        // page the reader is asking after the receiver, so the stamp has to move with the money.
+        $this->assertStringContainsString('>Cash taken</span>', $this->page($agent));
+
+        $booking->forceFill(['settled_at' => now()])->save();
+        $this->assertStringContainsString('>Waiting in China</span>', $this->page($agent));
+
+        $booking->forceFill(['delivered_at' => now()])->save();
+        $paid = $this->page($agent);
+        $this->assertStringContainsString('>Paid</span>', $paid);
+        $this->assertStringNotContainsString('>Completed<', $paid, 'The word the books use never stands in for the journey.');
+    }
+
+    public function test_a_long_note_is_cut_to_one_line_with_the_whole_of_it_still_behind(): void
+    {
+        $agent = $this->agent('Faith Wamala');
+        $this->shillingBooking($agent, 'PS-20261017-0117');
+        AccountLedger::record(
+            Account::walletFor($agent, 'UGX'),
+            'adjustment_out',
+            '1000',
+            'Spent on the counter: rent for the kiosk, the two boxes of airtime, the generator fuel and the courier to the bus park',
+        );
+
+        $html = $this->page($agent);
+
+        $this->assertStringContainsString('class="block max-w-[15rem] truncate text-xs text-gray-500" title="Spent on the counter', $html);
     }
 
     public function test_a_cancelled_booking_shows_that_status_on_its_wallet_lines(): void
@@ -159,7 +193,7 @@ class CashHistoryTest extends TestCase
 
         $html = $this->page($agent);
 
-        $this->assertStringContainsString('bg-red-100 text-red-700">Cancelled', $html);
+        $this->assertStringContainsString('bg-red-100 text-red-800">Cancelled', $html);
     }
 
     public function test_every_line_of_the_table_is_read_left_to_right_instead_of_jumped_at(): void
@@ -196,11 +230,11 @@ class CashHistoryTest extends TestCase
         $agent = $this->agent('Ruth Asawa');
         $this->shillingBooking($agent, 'PS-20261017-0106');
 
-        $commission = $this->page($agent, '?kind=agent_fee');
+        $charge = $this->page($agent, '?kind=agent_fee');
 
-        $this->assertStringContainsString('Commission on transfer PS-20261017-0106', $commission);
-        $this->assertStringNotContainsString('held by', $commission, 'The collection line is not in a commission filter.');
-        $this->assertStringContainsString('Left in hand', $commission);
+        $this->assertStringContainsString('Charge on transfer PS-20261017-0106', $charge);
+        $this->assertStringNotContainsString('held by', $charge, 'The collection line is not in a charge filter.');
+        $this->assertStringContainsString('Left in hand', $charge);
 
         $handed = $this->page($agent, '?kind=transfer_out');
         $this->assertStringContainsString('No movement of your wallets fits that filter', $handed);
@@ -232,7 +266,7 @@ class CashHistoryTest extends TestCase
         $one = $this->page($agent, '?search=PS-20261017-0109');
 
         $this->assertStringContainsString('held by Miriam Kase until handed in', $one);
-        $this->assertStringContainsString('Commission on transfer PS-20261017-0109', $one);
+        $this->assertStringContainsString('Charge on transfer PS-20261017-0109', $one);
         $this->assertStringNotContainsString('PS-20261017-0108', $one);
     }
 
@@ -272,7 +306,7 @@ class CashHistoryTest extends TestCase
         $this->assertStringContainsString('PS-20261017-0112', $rows[0]);
         $this->assertStringNotContainsString('PS-20261017-0111', $rows[0]);
         $this->assertMatchesRegularExpression('/\d{4}-\d\d-\d\d \d\d:\d\d/', $rows[0], 'The sheet carries the hour the page shows.');
-        $this->assertStringContainsString('Completed', $rows[0]);
+        $this->assertStringContainsString('Cash taken', $rows[0], 'The sheet stamps the journey stage the page shows.');
     }
 
     public function test_a_desk_that_collected_nothing_reads_an_empty_book_and_not_the_agent_s(): void

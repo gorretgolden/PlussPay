@@ -30,9 +30,9 @@ class AccountEntry extends Model
         'adjustment_in' => ['label' => 'Correction +', 'direction' => 'in', 'group' => 'single'],
         'adjustment_out' => ['label' => 'Correction −', 'direction' => 'out', 'group' => 'single'],
         'reversal' => ['label' => 'Cancelled', 'direction' => 'out', 'group' => 'single', 'corrective' => true],
-        'agent_fee' => ['label' => 'Commission', 'direction' => 'in', 'group' => 'single'],
-        'agent_fee_reversal' => ['label' => 'Comm. reversed', 'direction' => 'out', 'group' => 'single', 'corrective' => true],
-        'exchange_fee' => ['label' => 'FX commission', 'direction' => 'in', 'group' => 'single'],
+        'agent_fee' => ['label' => 'Charge', 'direction' => 'in', 'group' => 'single'],
+        'agent_fee_reversal' => ['label' => 'Charge reversed', 'direction' => 'out', 'group' => 'single', 'corrective' => true],
+        'exchange_fee' => ['label' => 'FX charge', 'direction' => 'in', 'group' => 'single'],
     ];
 
     protected $fillable = [
@@ -109,8 +109,8 @@ class AccountEntry extends Model
         return match ($type) {
             'money_in' => 'Collected',
             'money_out' => 'Paid out',
-            'agent_fee' => 'Commission',
-            'agent_fee_reversal' => 'Commission given back',
+            'agent_fee' => 'Charge',
+            'agent_fee_reversal' => 'Charge given back',
             'transfer_out' => 'Handed in',
             'transfer_in' => 'Received back',
             'handover_out' => 'Handed in',
