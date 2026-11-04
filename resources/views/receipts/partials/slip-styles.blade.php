@@ -326,38 +326,13 @@
     /* A5 portrait lays out at about 559px, but only about 514px stands between its 6mm margins,
        so the phone breakpoint must stay below both or print stacks the slip. */
     @media (max-width: 480px) {
-        .slip { padding: 16px 14px; border-left-width: 4px; }
-        .slip-company { height: 48px; }
-        .slip-route { margin: 11px 0 9px; }
-        .slip-parties { grid-template-columns: 1fr; }
-        .slip-party + .slip-party {
-            margin-top: 7px;
-            padding-top: 7px;
-            padding-left: 0;
-            border-top: 1px solid var(--slip-line);
-            border-left: 0;
-        }
-        .slip-table th,
-        .slip-table td { padding: 6px 5px; }
-        .slip-table thead th { font-size: 8px; letter-spacing: .04em; }
-        .slip-table tbody td { font-size: 10px; }
-        .slip-particulars strong { font-size: 10.5px; }
-        .slip-rate { white-space: normal; }
-        .slip-figure,
-        .slip-payout,
-        .slip-total { overflow-wrap: anywhere; }
-        .slip-signatures { grid-template-columns: 1fr; }
-        .slip-sign + .slip-sign { border-top: 1px solid var(--slip-rule); border-left: 0; }
-        .slip-foot { grid-template-columns: 1fr; gap: 8px; }
+        @include('receipts.partials.slip-narrow-rules')
     }
 
     /* On the counter phone the band keeps both countries on one line, so the direction is never
        lost to a wrapped second row. */
     @media (max-width: 380px) {
-        .slip-route { gap: 7px; padding: 6px 7px; }
-        .slip-route-end { gap: 5px; }
-        .slip-route-thread { flex-basis: 18px; min-width: 12px; }
-        .slip-route-name { font-size: 14px; letter-spacing: .03em; }
+        @include('receipts.partials.slip-route-narrow-rules')
     }
 
     @media print {
@@ -382,5 +357,18 @@
         .slip-sign-line { height: 16px; }
         .slip .slip-reminder { margin-top: 5px; }
         .slip-foot { margin-top: 7px; padding-top: 7px; }
+    }
+
+    /* The print page names its sheet box, so choosing the roll narrows the slip whether or not the
+       till's screen is wide, and the preview on the screen is the slip that comes off the machine.
+       These sit last on purpose: the roll is 74mm across, and the tightened spacing above is the
+       A5 print spacing, which would put the particulars table outside the paper. On the receipt
+       page itself there is no such box, so both rules simply never fire. */
+    @container slip-sheet (max-width: 480px) {
+        @include('receipts.partials.slip-narrow-rules')
+    }
+
+    @container slip-sheet (max-width: 380px) {
+        @include('receipts.partials.slip-route-narrow-rules')
     }
 </style>
