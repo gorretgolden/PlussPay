@@ -894,7 +894,7 @@ class Transaction extends Model
     }
 
     /**
-     * The book cut by desk: how many transfers each one took in, and what that money came to.
+     * The book cut by desk: how many transfers each one wrote and how much money each one sent.
      * Built from the same filtered query the list beside it is built from, so the figures always
      * describe exactly the rows on screen.
      *
@@ -903,10 +903,12 @@ class Transaction extends Model
      * caption under the strip says the same, because a total that quietly dropped rows reads as a
      * fault in the books rather than a rule.
      *
-     * The shilling figure is the cash a customer counted out, which holds the charge inside it,
-     * exactly as cashReceived() describes it. Dollars and yuan arrive as whole units, so the charge
-     * is money beside them rather than part of them. The charge column therefore repeats part of the
-     * shilling figure on a shilling booking and adds to it on every other one.
+     * The money columns are the amount column, which is what is put aside for the client rather
+     * than what was counted over the counter: a customer who hands over 500,000 with a 20,000
+     * charge sent 480,000, and the card shows 480,000 beside a charge of 20,000. Reading the cash
+     * here instead would put the same shilling in two columns, because the charge has its own. On a
+     * dollar or yuan booking the charge was never inside the money handed over anyway, so the same
+     * column is right for every booking. cashReceived() is the helper for the handed-over figure.
      *
      * @return \Illuminate\Support\Collection<string, object>
      */
@@ -917,9 +919,9 @@ class Transaction extends Model
         return $query
             ->selectRaw("country,
                 COUNT(*) as bookings,
-                COALESCE(SUM(CASE WHEN {$completed} AND currency = 'UGX' THEN amount + charge_ugx ELSE 0 END), 0) as cash_ugx,
-                COALESCE(SUM(CASE WHEN {$completed} AND currency = 'USD' THEN amount ELSE 0 END), 0) as cash_usd,
-                COALESCE(SUM(CASE WHEN {$completed} AND currency = 'RMB' THEN amount ELSE 0 END), 0) as cash_rmb,
+                COALESCE(SUM(CASE WHEN {$completed} AND currency = 'UGX' THEN amount ELSE 0 END), 0) as sent_ugx,
+                COALESCE(SUM(CASE WHEN {$completed} AND currency = 'USD' THEN amount ELSE 0 END), 0) as sent_usd,
+                COALESCE(SUM(CASE WHEN {$completed} AND currency = 'RMB' THEN amount ELSE 0 END), 0) as sent_rmb,
                 COALESCE(SUM(CASE WHEN {$completed} THEN charge_ugx ELSE 0 END), 0) as charges_ugx,
                 COALESCE(SUM(CASE WHEN {$completed} THEN rmb_amount ELSE 0 END), 0) as rmb_out,
                 COALESCE(SUM(CASE WHEN {$completed} THEN ugx_amount ELSE 0 END), 0) as ugx_out")

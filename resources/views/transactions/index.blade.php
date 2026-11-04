@@ -126,8 +126,8 @@
 
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 no-print">
     {{-- Uganda money and China money are read apart, because the two desks hold different notes:
-         shillings come in here and yuan go out there. The same filters that cut the list cut this,
-         so a desk narrowed to China shows what China took in and nothing else. --}}
+         shillings leave here and yuan arrive there. The same filters that cut the list cut this,
+         so a desk narrowed to China shows what China sent and nothing else. --}}
     @php
         // The two desks in the order the book is kept in, then any code that should not be there.
         $deskOrder = array_flip(array_keys(\App\Models\User::COUNTRIES));
@@ -141,8 +141,9 @@
 
         $all = [
             'bookings' => $deskRows->sum('bookings'),
-            'cash_ugx' => $deskRows->sum('cash_ugx'),
-            'cash_usd' => $deskRows->sum('cash_usd'),
+            'sent_ugx' => $deskRows->sum('sent_ugx'),
+            'sent_usd' => $deskRows->sum('sent_usd'),
+            'sent_rmb' => $deskRows->sum('sent_rmb'),
             'charges_ugx' => $deskRows->sum('charges_ugx'),
             'rmb_out' => $deskRows->sum('rmb_out'),
         ];
@@ -155,8 +156,8 @@
         $usd = fn ($value) => ['USD', number_format((float) $value, 2)];
         $cny = fn ($value) => '¥'.number_format((float) $value, 2);
 
-        $totalUgx = $ugx($all['cash_ugx']);
-        $totalUsd = $usd($all['cash_usd']);
+        $totalUgx = $ugx($all['sent_ugx']);
+        $totalUsd = $usd($all['sent_usd']);
         $totalCharges = $ugx($all['charges_ugx']);
     @endphp
     <div class="flex items-start justify-between gap-3 px-4 py-4 sm:px-5">
@@ -180,25 +181,32 @@
             <p class="mt-2 text-sm text-gray-500">No transfers on these filters.</p>
         </div>
     @else
-        {{-- Wide enough for six columns once the sidebar and page gutters have taken their share. --}}
+        {{-- Wide enough for seven columns once the sidebar and page gutters have taken their share. --}}
         <div class="hidden lg:block">
             <table class="w-full">
                 <caption class="sr-only">Bookings and money by desk</caption>
                 <thead>
-                    <tr class="border-y border-gray-100 bg-gray-50/80 text-[11px] uppercase tracking-wide text-gray-500">
-                        <th scope="col" class="py-2.5 pl-4 pr-3 text-left font-semibold sm:pl-5">Desk</th>
-                        <th scope="col" class="px-3 py-2.5 text-left font-semibold">Bookings</th>
-                        <th scope="col" class="px-3 py-2.5 text-left font-semibold" title="Cash handed over in shillings, with the charge still inside it">Shillings</th>
-                        <th scope="col" class="px-3 py-2.5 text-left font-semibold" title="Dollars handed over on a dollar booking">Dollars</th>
-                        <th scope="col" class="px-3 py-2.5 text-left font-semibold" title="What this desk kept from the money it took in">Charges</th>
-                        <th scope="col" class="py-2.5 pl-3 pr-4 text-left font-semibold sm:pr-5" title="What the transfers priced here promise to receivers in China">Yuan to China</th>
+                    <tr class="border-t border-gray-100 bg-gray-50/80 text-[11px] uppercase tracking-wide text-gray-500">
+                        <th scope="col" rowspan="2" class="align-bottom py-2.5 pl-4 pr-3 text-left font-semibold sm:pl-5">Desk</th>
+                        <th scope="col" rowspan="2" class="align-bottom px-3 py-2.5 text-left font-semibold">Bookings</th>
+                        {{-- The three currencies are one question asked three ways, so they sit under
+                             one heading and keep their own short labels. Named apart they would each
+                             need the words "that travel", and the row would wrap on a small laptop. --}}
+                        <th scope="colgroup" colspan="3" class="align-bottom px-3 py-2.5 text-left font-semibold" title="The money each desk put on the road for its clients. On a shilling booking the charge is already out of it: 500,000 counted over the counter with a 20,000 charge travels as 480,000.">Money that travels</th>
+                        <th scope="col" rowspan="2" class="align-bottom px-3 py-2.5 text-left font-semibold" title="What this desk kept, out of the shillings beside it or as extra money on top">Charges</th>
+                        <th scope="col" rowspan="2" class="align-bottom py-2.5 pl-3 pr-4 text-left font-semibold sm:pr-5" title="What the transfers priced here promise to receivers in China">Yuan to China</th>
+                    </tr>
+                    <tr class="border-b border-gray-100 bg-gray-50/80 text-[11px] uppercase tracking-wide text-gray-500">
+                        <th scope="col" class="px-3 pb-2.5 text-left font-semibold" title="Shillings sent out of the money handed over in Uganda">Shillings</th>
+                        <th scope="col" class="px-3 pb-2.5 text-left font-semibold" title="Dollars handed over whole, with the charge as extra shillings on top">Dollars</th>
+                        <th scope="col" class="px-3 pb-2.5 text-left font-semibold" title="Yuan handed over at the China desk for a transfer on its way to Uganda">Yuan</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($deskRows as $row)
                     @php
-                        $cashUgx = $ugx($row->cash_ugx);
-                        $cashUsd = $usd($row->cash_usd);
+                        $sentUgx = $ugx($row->sent_ugx);
+                        $sentUsd = $usd($row->sent_usd);
                         $charges = $ugx($row->charges_ugx);
                     @endphp
                     <tr class="group transition-colors hover:bg-green-50/40">
@@ -212,11 +220,12 @@
                             <span class="inline-flex min-w-[2rem] justify-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700 tabular-nums transition-colors group-hover:bg-white">{{ number_format((int) $row->bookings) }}</span>
                         </td>
                         <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums">
-                            <span class="text-[11px] font-medium text-gray-400">{{ $cashUgx[0] }}</span> <span class="text-sm font-semibold text-gray-900">{{ $cashUgx[1] }}</span>
+                            <span class="text-[11px] font-medium text-gray-400">{{ $sentUgx[0] }}</span> <span class="text-sm font-semibold text-gray-900">{{ $sentUgx[1] }}</span>
                         </td>
                         <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums">
-                            <span class="text-[11px] font-medium text-gray-400">{{ $cashUsd[0] }}</span> <span class="text-sm font-semibold text-gray-900">{{ $cashUsd[1] }}</span>
+                            <span class="text-[11px] font-medium text-gray-400">{{ $sentUsd[0] }}</span> <span class="text-sm font-semibold text-gray-900">{{ $sentUsd[1] }}</span>
                         </td>
+                        <td class="whitespace-nowrap px-3 py-3 text-left text-sm font-semibold text-gray-900 tabular-nums">{{ $cny($row->sent_rmb) }}</td>
                         <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums">
                             <span class="text-[11px] font-medium text-gray-400">{{ $charges[0] }}</span> <span class="text-sm font-semibold text-gray-900">{{ $charges[1] }}</span>
                         </td>
@@ -240,6 +249,7 @@
                         <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums">
                             <span class="text-[11px] font-medium text-gray-500">{{ $totalUsd[0] }}</span> <span class="text-sm font-bold text-gray-900">{{ $totalUsd[1] }}</span>
                         </td>
+                        <td class="whitespace-nowrap px-3 py-3 text-left text-sm font-bold text-gray-900 tabular-nums">{{ $cny($all['sent_rmb']) }}</td>
                         <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums">
                             <span class="text-[11px] font-medium text-gray-500">{{ $totalCharges[0] }}</span> <span class="text-sm font-bold text-gray-900">{{ $totalCharges[1] }}</span>
                         </td>
@@ -255,8 +265,8 @@
         <div class="divide-y divide-gray-100 lg:hidden">
             @foreach($deskRows as $row)
             @php
-                $cashUgx = $ugx($row->cash_ugx);
-                $cashUsd = $usd($row->cash_usd);
+                $sentUgx = $ugx($row->sent_ugx);
+                $sentUsd = $usd($row->sent_usd);
                 $charges = $ugx($row->charges_ugx);
             @endphp
             <div class="px-4 py-4">
@@ -269,12 +279,16 @@
                 </div>
                 <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
                     <div>
-                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Shillings</dt>
-                        <dd class="mt-0.5 truncate text-sm font-semibold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-400">{{ $cashUgx[0] }}</span> {{ $cashUgx[1] }}</dd>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Shillings sent</dt>
+                        <dd class="mt-0.5 truncate text-sm font-semibold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-400">{{ $sentUgx[0] }}</span> {{ $sentUgx[1] }}</dd>
                     </div>
                     <div>
-                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Dollars</dt>
-                        <dd class="mt-0.5 truncate text-sm font-semibold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-400">{{ $cashUsd[0] }}</span> {{ $cashUsd[1] }}</dd>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Dollars sent</dt>
+                        <dd class="mt-0.5 truncate text-sm font-semibold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-400">{{ $sentUsd[0] }}</span> {{ $sentUsd[1] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Yuan sent</dt>
+                        <dd class="mt-0.5 truncate text-sm font-semibold text-gray-900 tabular-nums">{{ $cny($row->sent_rmb) }}</dd>
                     </div>
                     <div>
                         <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Charges</dt>
@@ -298,12 +312,16 @@
                 </div>
                 <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
                     <div>
-                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Shillings</dt>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Shillings sent</dt>
                         <dd class="mt-0.5 truncate text-sm font-bold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-500">{{ $totalUgx[0] }}</span> {{ $totalUgx[1] }}</dd>
                     </div>
                     <div>
-                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Dollars</dt>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Dollars sent</dt>
                         <dd class="mt-0.5 truncate text-sm font-bold text-gray-900 tabular-nums"><span class="text-[11px] font-medium text-gray-500">{{ $totalUsd[0] }}</span> {{ $totalUsd[1] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Yuan sent</dt>
+                        <dd class="mt-0.5 truncate text-sm font-bold text-gray-900 tabular-nums">{{ $cny($all['sent_rmb']) }}</dd>
                     </div>
                     <div>
                         <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Charges</dt>
@@ -318,7 +336,7 @@
             @endif
         </div>
 
-        <p class="border-t border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500 sm:px-5">Cancelled bookings count in Bookings only.</p>
+        <p class="border-t border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500 sm:px-5">Cancelled bookings count in Bookings only. The shilling, dollar and yuan columns are the money that travels to the client, not the notes counted over the counter; the charge is its own column, so no shilling is read twice.</p>
     @endif
 </div>
 

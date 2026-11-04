@@ -224,12 +224,13 @@ class TransactionDeskTest extends TestCase
         $this->assertDeskPrinted($strip, 'Uganda', 'UG');
         $this->assertDeskPrinted($strip, 'China', 'CN');
 
-        // 500,000 handed over and 20,000 of it kept, at each desk, and the line under them adds
-        // the two back together rather than quietly showing one.
+        // 500,000 came over the counter and 20,000 of it was the charge, so 480,000 travelled at
+        // each desk. The card shows the travelling money and the charge beside it, and the line
+        // under the two desks adds each column up rather than quietly showing one.
         $text = $this->cardText($strip);
-        $this->assertStringContainsString('UGX 500,000', $text);
+        $this->assertStringContainsString('UGX 480,000', $text);
         $this->assertStringContainsString('UGX 20,000', $text);
-        $this->assertStringContainsString('UGX 1,000,000', $text);
+        $this->assertStringContainsString('UGX 960,000', $text);
         $this->assertStringContainsString('UGX 40,000', $text);
         $this->assertStringContainsString('Both desks', $text);
 
@@ -241,10 +242,58 @@ class TransactionDeskTest extends TestCase
         // Narrowed to one desk, the card shows that desk alone and drops the total line.
         $chinaOnly = $this->strip($this->actingAs($boss)->get('/transactions?country=CN')->getContent());
         $chinaText = $this->cardText($chinaOnly);
-        $this->assertStringContainsString('UGX 500,000', $chinaText);
-        $this->assertStringNotContainsString('UGX 1,000,000', $chinaText);
+        $this->assertStringContainsString('UGX 480,000', $chinaText);
+        $this->assertStringNotContainsString('UGX 960,000', $chinaText);
         $this->assertStringNotContainsString('Both desks', $chinaText);
         $this->assertStringNotContainsString('Uganda', $chinaText);
+    }
+
+    /**
+     * A desk that handed over 500,000 notes and kept 20,000 of them sent 480,000 to its client.
+     * The money column reads the 480,000, because the 20,000 already stands in the charge column
+     * and a card that showed both figures as 500,000 would count the same notes twice.
+     */
+    public function test_the_desk_money_excludes_the_charge_that_is_already_counted_beside_it(): void
+    {
+        $boss = $this->user('superadmin', 'The Boss');
+        $office = $this->user('admin', 'Desk Admin');
+
+        $transfer = $this->book($office, ['agent_id' => 'counter']);
+
+        $this->assertSame(480000.0, (float) $transfer->amount, 'The amount column is what travels.');
+        $this->assertSame(500000.0, (float) $transfer->cashReceived(), 'The notes counted over the counter.');
+
+        $text = $this->cardText($this->strip($this->actingAs($boss)->get('/transactions')->getContent()));
+        $this->assertStringContainsString('UGX 480,000', $text);
+        $this->assertStringNotContainsString('UGX 500,000', $text);
+        $this->assertStringContainsString('Money that travels', $text);
+    }
+
+    /**
+     * A transfer booked into a hand in China pays for itself in yuan, and the card has to say how
+     * much yuan that hand put on the road. With only the shilling and dollar columns the desk's own
+     * money read as nothing, which is the same fault as counting the charge twice: the card was not
+     * reporting the money that travels.
+     */
+    public function test_the_desk_card_shows_the_yuan_a_china_booking_put_on_the_road(): void
+    {
+        $boss = $this->user('superadmin', 'The Boss');
+        $office = $this->user('admin', 'Desk Admin');
+        $china = $this->user('agent', 'Mei Lin', 'CN');
+
+        $yuan = $this->book($office, [
+            'agent_id' => $china->id,
+            'destination' => 'UG',
+            'currency' => 'RMB',
+            'amount' => '6610',
+            'charge_ugx' => '20000',
+        ]);
+
+        $this->assertSame(6610.0, (float) $yuan->amount);
+
+        $text = $this->cardText($this->strip($this->actingAs($boss)->get('/transactions')->getContent()));
+        $this->assertStringContainsString('Money that travels', $text);
+        $this->assertStringContainsString('¥6,610.00', $text);
     }
 
     public function test_the_money_strip_reads_every_figure_from_the_left_edge(): void
@@ -274,7 +323,7 @@ class TransactionDeskTest extends TestCase
 
         // One booking did happen, and no money is standing anywhere because it gave its cash back.
         $this->assertMatchesRegularExpression('/Uganda\s+1\s+UGX 0/', $text);
-        $this->assertStringNotContainsString('UGX 500,000', $text);
+        $this->assertStringNotContainsString('UGX 480,000', $text);
     }
 
     public function test_the_download_names_the_desk_and_obeys_the_desk_filter(): void
