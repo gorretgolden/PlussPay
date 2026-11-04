@@ -10,10 +10,10 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * Word of what the desk did while whoever reads it was away lives in one place: the What Happened
- * entry in the sidebar, with the unread count beside it. The board used to hang a second bell in
- * its header carrying the same total, which was two copies of one link to keep in step on a screen
- * that was already short of room.
+ * The bell beside the clock opens What Happened and carries the unread total, because the hour the
+ * board was read at is exactly the moment somebody asks what happened while the desk was shut. The
+ * sidebar entry counts off the same figures, so the two can never disagree, and a desk on the
+ * receiving end of no kind of news is not handed a dead bell at all.
  */
 class DashboardNotificationBellTest extends TestCase
 {
@@ -62,16 +62,16 @@ class DashboardNotificationBellTest extends TestCase
         ]);
     }
 
-    public function test_a_desk_on_the_news_audience_gets_the_inbox_in_its_menu(): void
+    public function test_a_desk_on_the_news_audience_gets_a_bell_pointing_at_the_inbox(): void
     {
         $html = $this->actingAs($this->desk())->get('/dashboard')->getContent();
 
-        $this->assertStringContainsString('/notifications', $html);
-        $this->assertStringContainsString('What Happened', $html);
-        $this->assertStringNotContainsString('bg-yellow-300', $html, 'Nothing unread, so no count rides on the menu entry.');
+        $this->assertStringContainsString('href="'.route('notifications.index').'"', $html);
+        $this->assertStringContainsString('aria-label="What happened"', $html);
+        $this->assertStringNotContainsString('-top-1 -right-1', $html, 'Nothing unread, so no badge hangs on the bell.');
     }
 
-    public function test_the_menu_counts_what_has_not_been_seen(): void
+    public function test_the_badge_counts_what_has_not_been_seen(): void
     {
         $user = $this->desk();
         $this->unreadNotice($user);
@@ -79,24 +79,33 @@ class DashboardNotificationBellTest extends TestCase
 
         $html = $this->actingAs($user)->get('/dashboard')->getContent();
 
+        $this->assertStringContainsString('aria-label="What happened, 2 unread"', $html);
+        $this->assertMatchesRegularExpression('#<span class="absolute -top-1 -right-1[^"]*"[^>]*>2</span>#', $html);
+
+        // The menu entry is read off the same total, so the bell and the drawer never disagree.
         $this->assertMatchesRegularExpression('#<span class="flex-1">What Happened</span>\s*<span class="ml-2 bg-yellow-300[^"]*">2</span>#', $html);
     }
 
-    public function test_the_board_itself_hangs_no_second_bell(): void
+    public function test_a_badge_over_ninety_nine_stays_short(): void
     {
         $user = $this->desk();
-        $this->unreadNotice($user);
+        for ($i = 0; $i < 120; $i++) {
+            $this->unreadNotice($user);
+        }
 
         $html = $this->actingAs($user)->get('/dashboard')->getContent();
 
-        $this->assertStringNotContainsString('aria-label="What happened', $html, 'The header copy of the link is gone.');
-        $this->assertStringNotContainsString('-top-1 -right-1', $html, 'No badge hangs off a corner of the board.');
+        // The pill is a corner mark on a 40px button: three digits of it would push the word along
+        // the row, so a queue that long is said as "more than ninety nine" instead.
+        $this->assertMatchesRegularExpression('#<span class="absolute -top-1 -right-1[^"]*"[^>]*>99\+</span>#', $html);
+        $this->assertStringContainsString('aria-label="What happened, 120 unread"', $html, 'The accessible name still says how many there really are.');
     }
 
-    public function test_a_desk_on_the_receiving_end_of_no_news_gets_no_inbox_link(): void
+    public function test_a_desk_on_the_receiving_end_of_no_news_gets_no_bell_or_inbox_link(): void
     {
         $html = $this->actingAs($this->desk('agent'))->get('/dashboard')->getContent();
 
+        $this->assertStringNotContainsString('aria-label="What happened', $html);
         $this->assertStringNotContainsString('What Happened', $html);
     }
 }

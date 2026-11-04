@@ -9,9 +9,10 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * The header card carries the one control that belongs beside the clock: a way to pull fresh figures.
- * The sign-out stays in the sidebar alone, because a control that lives in two places on one screen is
- * two places to keep working.
+ * The header card is the whole top of the board in one row on a wide screen: the greeting, the role,
+ * the hour, the box that searches the desk and the three controls a shift is ended with. The search
+ * used to spend a band of vertical space in a card of its own underneath, so it belongs in here and
+ * no second search card is left on the page.
  */
 class DashboardHeaderControlsTest extends TestCase
 {
@@ -55,18 +56,83 @@ class DashboardHeaderControlsTest extends TestCase
         return count($m[0]);
     }
 
-    public function test_the_board_offers_one_sign_out_and_it_posts_to_the_real_route(): void
+    /** The header's own control group: the row of buttons that closes the card. */
+    private function headerGroup(string $html): string
+    {
+        preg_match('#<div class="flex shrink-0 items-center gap-2 no-print xl:order-3">(.*?)</div>#s', $html, $group);
+        $this->assertNotSame([], $group, 'The header card carries a control group.');
+
+        return $group[1];
+    }
+
+    public function test_the_board_offers_two_sign_outs_and_both_post_to_the_real_route(): void
     {
         $html = $this->board();
 
-        $this->assertSame(1, $this->logoutForms($html),
-            'The sidebar holds the only sign-out; the header card does not repeat it.');
+        // The sidebar is a closed drawer on a phone, so the sign-out that ends a shift has to be
+        // where the eyes already are as well as in the menu.
+        $this->assertSame(2, $this->logoutForms($html),
+            'The header card and the sidebar each carry a sign-out.');
 
         preg_match_all('#<form[^>]*action="'.preg_quote(route('logout', absolute: true), '#').'"[^>]*>(.*?)</form>#s', $html, $forms);
-        $this->assertCount(1, $forms[1]);
+        $this->assertCount(2, $forms[1]);
         foreach ($forms[1] as $body) {
             $this->assertStringContainsString('name="_token"', $body, 'A sign-out without the token only 419s.');
         }
+    }
+
+    public function test_the_search_box_shares_the_header_card_and_no_second_card_is_left(): void
+    {
+        $html = $this->board();
+
+        // The attribute is named twice more in the script that wires the box, so the opening tag is
+        // what says whether a second card is still on the page.
+        $this->assertSame(1, substr_count($html, ' data-dashboard-search>'));
+        $this->assertStringNotContainsString('<div class="relative mb-6" data-dashboard-search>', $html,
+            'The search no longer sits under the header in a card of its own.');
+
+        $card = $this->headerCard($html);
+        $greeting = strpos($card, 'leading-snug text-gray-900');
+        $controls = strpos($card, 'no-print xl:order-3');
+        $box = strpos($card, ' data-dashboard-search>');
+
+        // The box is the row's last child on purpose: greeting and controls share the first line on a
+        // phone and the full width box drops to the second without a second rule. On a wide board
+        // xl:order puts it back between them, so the markup order is not the reading order.
+        $this->assertNotSame(false, $greeting, 'The card opens with the greeting.');
+        $this->assertGreaterThan($greeting, $controls, 'The controls follow the greeting in the markup.');
+        $this->assertGreaterThan($controls, $box, 'and the box is the last child.');
+        $this->assertStringContainsString('id="dashboardSearch"', $card);
+    }
+
+    /** The one card at the top of the board, up to the Overview card under it. */
+    private function headerCard(string $html): string
+    {
+        $start = strpos($html, '<div class="mb-4 rounded-2xl border border-gray-200 bg-white shadow-sm p-4 sm:p-5 xl:p-6">');
+        $this->assertNotSame(false, $start, 'The board opens with one rounded card.');
+
+        $end = strpos($html, 'Overview</h2>', $start);
+        $this->assertNotSame(false, $end, 'and the Overview card is the next one down.');
+
+        return substr($html, $start, $end - $start);
+    }
+
+    public function test_the_search_grows_into_the_row_on_a_wide_board_and_capped_at_512px(): void
+    {
+        $html = $this->board();
+
+        preg_match('#<div class="([^"]*)"[^>]*data-dashboard-search>#', $html, $box);
+        $classes = $box[1] ?? '';
+
+        $this->assertStringContainsString('w-full', $classes, 'Below xl the box is a row of its own.');
+        $this->assertStringContainsString('xl:order-2', $classes, 'On a wide board it sits between the greeting and the controls.');
+        $this->assertStringContainsString('xl:flex-1', $classes, 'It takes the space the greeting leaves.');
+        $this->assertStringContainsString('xl:max-w-[32rem]', $classes, 'and gives back anything past 512px.');
+        $this->assertStringNotContainsString('xl:w-[20rem]', $classes, 'A fixed 320px bar is narrow on a 1440px board.');
+
+        // 44px tall with the icon on the left and the key hint on the right.
+        $this->assertStringContainsString('<div class="flex h-11 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3', $html);
+        $this->assertStringContainsString('<kbd class="hidden md:inline-block', $html, 'The slash hint is dropped where no keyboard is in reach.');
     }
 
     public function test_the_idle_sign_out_is_bound_to_the_sidebar_form(): void
@@ -91,22 +157,49 @@ class DashboardHeaderControlsTest extends TestCase
         $this->assertStringContainsString("'Reloading...'", $html);
     }
 
-    public function test_the_reload_is_left_out_of_a_printed_board(): void
+    public function test_the_header_controls_are_left_out_of_a_printed_board(): void
     {
         $html = $this->board();
 
-        preg_match('#<div class="flex shrink-0 items-center gap-2 no-print xl:order-3">(.*?)</div>#s', $html, $group);
-        $this->assertNotSame([], $group, 'The reload sits in a no-print group.');
-        $this->assertStringContainsString('Reload', $group[1]);
-        $this->assertStringNotContainsString('Log out', $group[1], 'The sign-out is not the header card\'s to carry.');
+        $group = $this->headerGroup($html);
+        foreach (['Reload', 'Log out', 'What happened', 'no-print'] as $carried) {
+            if ($carried === 'no-print') {
+                continue;
+            }
+            $this->assertStringContainsString($carried, $group, 'The header card carries '.$carried.' for the desk that prints the board without it.');
+        }
     }
 
-    public function test_an_agent_gets_the_reload_without_losing_the_sign_out(): void
+    public function test_the_three_controls_are_one_row_of_40_pixel_targets(): void
+    {
+        $html = $this->board();
+
+        $this->assertSame(1, substr_count($html, '<div class="flex shrink-0 items-center gap-2 no-print xl:order-3">'),
+            'One row with a consistent 8px gap between the controls.');
+
+        $group = $this->headerGroup($html);
+
+        preg_match_all('#(?:<a|<button)[^>]*class="([^"]*(?:rounded-xl|rounded-full)[^"]*)"#', $group, $boxes);
+        $this->assertGreaterThanOrEqual(3, count($boxes[1]), 'The bell, the reload and the sign-out.');
+
+        foreach ($boxes[1] as $classes) {
+            $this->assertStringContainsString('w-10 h-10', $classes, 'Every control is a 40px square until its word fits.');
+            $this->assertStringContainsString('rounded-xl', $classes, 'and the same corner as the box it sits beside.');
+            $this->assertStringContainsString('duration-150', $classes, 'with the hover and press states eased, not snapped.');
+        }
+
+        // Only the reload is filled: the bell and the sign-out are the quiet ghosts beside it.
+        $this->assertMatchesRegularExpression('#class="[^"]*bg-green-800 text-\[13px\] font-semibold text-white[^"]*"#', $group);
+        $this->assertSame(2, substr_count($group, 'border border-gray-200 bg-white'), 'Two outlined controls, one solid.');
+    }
+
+    public function test_an_agent_gets_the_reload_and_sign_out_without_a_bell(): void
     {
         $html = $this->board('agent');
 
-        $this->assertSame(1, $this->logoutForms($html));
+        $this->assertSame(2, $this->logoutForms($html));
         $this->assertStringContainsString('reloadDashboard(this)', $html);
+        $this->assertStringNotContainsString('aria-label="What happened', $html, 'A desk on the receiving end of no news is not handed a dead bell.');
     }
 
     public function test_signing_out_ends_the_session(): void
@@ -195,8 +288,11 @@ class DashboardHeaderControlsTest extends TestCase
 
         // The mark used to sit on a frosted circle in a paler glyph on the green hero. The header
         // is now plain white, so each band carries a pastel circle with the -700 shade of the same
-        // colour, and the shape still reads against the band rather than the blob.
-        $this->assertStringContainsString('bg-indigo-100 text-indigo-700', $evening);
+        // colour, and the shape still reads against the band rather than the blob. The night band is
+        // blue and not indigo because the layout's dark theme dims the blue pair and never learned
+        // the indigo one: on a dark desk an indigo circle is a pale hole in the card.
+        $this->assertStringContainsString('bg-blue-100 text-blue-700', $evening);
+        $this->assertStringNotContainsString('bg-indigo-100', $evening, 'Nothing in the header is outside the dark theme map.');
         $this->assertStringContainsString('bg-amber-100 text-amber-700', $midday);
     }
 }

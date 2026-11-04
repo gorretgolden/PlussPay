@@ -11,9 +11,11 @@ use App\Models\LoginLog;
 use App\Models\SystemLog;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\ActivityNews;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class DashboardController extends Controller
 {
@@ -201,10 +203,21 @@ class DashboardController extends Controller
         // reads as though China already has it.
         $deskPayouts = $this->payoutWindows($user);
 
-        // The bell used to sit beside the clock here as well as in the sidebar, with its own copy of
-        // the unread total. The sidebar carries the same badge off the same counts, so the board no
-        // longer needs a second one to keep the two honest.
-        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'chargesCollected', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'agentTakenCountries', 'deskPayouts', 'greetAs'));
+        // The bell beside the clock opens What Happened, and its badge is the same unread total the
+        // sidebar badges are read from, so the two can never disagree. A desk on the receiving end of
+        // no news gets no bell at all.
+        $bellGate = Gate::any(ActivityNews::AUDIENCE);
+        $bellCount = 0;
+
+        if ($bellGate) {
+            try {
+                $bellCount = ActivityNews::badgeCounts($user)['total'];
+            } catch (\Throwable) {
+                // Notifications table not migrated on a fresh deploy; show no badge.
+            }
+        }
+
+        return view('dashboard', compact('stats', 'recentTransactions', 'chartData', 'role', 'usdToUgx', 'wallets', 'handedIn', 'feesMonth', 'feesPeriod', 'chargesCollected', 'profit', 'windows', 'logAlerts', 'spending', 'handoverQueue', 'pendingHandIn', 'handoverInsight', 'superAgents', 'withdrawalsWaiting', 'ugandaWithdrawalsWaiting', 'agentTaken', 'agentTakenCountries', 'deskPayouts', 'greetAs', 'bellGate', 'bellCount'));
     }
 
     /**

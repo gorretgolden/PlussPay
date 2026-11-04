@@ -196,14 +196,14 @@
      figure: the greeting, the role, the hour, the box that searches the desk and the controls.
      The search used to sit in a card of its own underneath, which spent a band of vertical space
      on one line; it now shares this card, and on a narrow board it drops to a row of its own at
-     full width instead of squeezing the greeting. The page title is kept for a screen reader and
-     the sidebar already says which screen this is, so the big word "Dashboard" is gone. The desk's
-     country and the account name are not repeated here either, because the sidebar footer under
-     them carries both, word for word. What happened and Log out have gone too: both are already
-     in the sidebar with the same unread badge and the same form, and a control that lives in two
-     places on one screen is two places to keep working. --}}
+     full width instead of squeezing the greeting. On a wide board the three blocks are one row held
+     on the middle line, with the search taking whatever width the greeting leaves and giving back
+     anything past 512px. The page title is kept for a screen reader and the sidebar already says
+     which screen this is, so the big word "Dashboard" is gone. The desk's country and the account
+     name are not repeated either, because the sidebar footer under them carries both, word for
+     word. --}}
 <div class="mb-4 rounded-2xl border border-gray-200 bg-white shadow-sm p-4 sm:p-5 xl:p-6">
-    <div class="flex flex-wrap items-start gap-x-3 gap-y-3 xl:items-center xl:gap-x-4">
+    <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 xl:gap-x-4">
         <h1 class="sr-only">Dashboard</h1>
         {{-- The mark follows the same hour bands as the words: a sun for the desk hours, a moon
              for the night shift. It carries no text, so it cannot repeat anything on the page.
@@ -211,7 +211,7 @@
              rather than pushing the controls off the screen, and the meta line under it is free to
              wrap onto as many short lines as it needs. --}}
         <div class="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
-            <span aria-hidden="true" class="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full flex items-center justify-center {{ $hour >= 6 && $hour < 18 ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700' }}">
+            <span aria-hidden="true" class="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full flex items-center justify-center {{ $hour >= 6 && $hour < 18 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700' }}">
                 @if($hour >= 6 && $hour < 18)
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66l1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14l-1.41-1.41M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                 @else
@@ -235,25 +235,47 @@
                 </div>
             </div>
         </div>
-        {{-- Reload is the one control that belongs up here rather than only in the sidebar: every
-             figure on the board is a reading of a moment, and the way to ask for the current one has
-             to be beside the clock that says how old it is. Below the tablet breakpoint it is a 40px
-             glyph with the word dropped. --}}
+        {{-- The three controls a shift actually ends with live beside the clock that says how old the
+             readings are, because on a phone the sidebar is a closed drawer and a control that exists
+             only there is a control nobody finds mid-shift. Below the tablet breakpoint each is a 40px
+             glyph with its word dropped, and the accessible name carries the state instead. Reload is
+             the solid one, the bell and the sign-out are the ghosts that colour up once aimed at. --}}
         <div class="flex shrink-0 items-center gap-2 no-print xl:order-3">
+            @if($bellGate)
+            <a href="{{ route('notifications.index') }}" title="What happened"
+                aria-label="{{ $bellCount > 0 ? 'What happened, '.number_format($bellCount).' unread' : 'What happened' }}"
+                class="relative inline-flex w-10 h-10 md:w-auto md:px-3 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-700 transition duration-150 hover:bg-gray-50 active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                <span class="hidden md:inline">What happened</span>
+                {{-- The count hangs outside the box so it never pushes the word along the row, and a
+                     queue too long for the pill is still one honest figure. --}}
+                @if($bellCount > 0)
+                <span class="absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none tabular-nums text-white">{{ $bellCount > 99 ? '99+' : number_format($bellCount) }}</span>
+                @endif
+            </a>
+            @endif
             <button type="button" onclick="reloadDashboard(this)" aria-label="Reload this board" title="Reload"
-                class="inline-flex items-center justify-center w-10 h-10 md:w-auto md:gap-1.5 md:px-3 rounded-xl text-[13px] font-semibold bg-green-800 text-white transition duration-150 hover:bg-green-700 active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                class="inline-flex w-10 h-10 md:w-auto md:px-3 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-green-800 text-[13px] font-semibold text-white transition duration-150 hover:bg-green-700 active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 <span class="hidden md:inline">Reload</span>
             </button>
+            <form method="POST" action="{{ route('logout') }}" class="shrink-0">
+                @csrf
+                <button type="submit" aria-label="Log out" title="Log out"
+                    class="inline-flex w-10 h-10 md:w-auto md:px-3 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-700 transition duration-150 hover:bg-gray-50 active:translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013-3v1"/></svg>
+                    <span class="hidden md:inline">Log out</span>
+                </button>
+            </form>
         </div>
         {{-- One box that searches the whole desk: the pages this account can open, under the same
              names the sidebar gives them. The list is read off the sidebar links already on the
              page, so a page only ever appears here if the sidebar itself shows it, and no
              permission check has to live in two places. On a wide board it takes the middle of the
-             row between the greeting and the controls; anywhere narrower it is a row of its own.
-             The "/" hint is dropped below the tablet breakpoint, where the box is full width and no
-             keyboard is in reach. --}}
-        <div class="relative w-full xl:order-2 xl:w-[20rem] xl:min-w-[16rem] xl:max-w-full 2xl:w-[32rem]" data-dashboard-search>
+             row between the greeting and the controls and grows into whatever space is left there;
+             anywhere narrower it is a row of its own. The "/" hint is dropped below the tablet
+             breakpoint, where the box is full width and no keyboard is in reach. --}}
+        <div class="relative w-full min-w-0 xl:order-2 xl:max-w-[32rem] xl:flex-1" data-dashboard-search>
             <div class="flex h-11 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 transition duration-150 focus-within:ring-2 focus-within:ring-green-600">
                 <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 <input type="search" id="dashboardSearch" placeholder="Search the desk"
